@@ -52,7 +52,7 @@
  * -# Reinsfeld A. (1983) An Improvement Of the Scout Tree-Search Algorithm. ICCA
  *     journal, 6(4), pp. 4-14.
  *
- * @date 1998 - 2013
+ * @date 1998 - 2014
  * @author Richard Delorme
  * @version 4.4
  */
@@ -464,7 +464,7 @@ void search_setup(Search *search)
 {
 	int i;
 	SquareList *empty;
-	const int presorted_x[] = {
+	static const int presorted_x[] = {
 		A1, A8, H1, H8,                    /* Corner */
 		C4, C5, D3, D6, E3, E6, F4, F5,    /* E */
 		C3, C6, F3, F6,                    /* D */

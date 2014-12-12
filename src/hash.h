@@ -14,7 +14,7 @@
 #include "board.h"
 #include "settings.h"
 #include "util.h"
-
+#include "stats.h"
 
 #include <stdbool.h>
 #include <stdio.h>

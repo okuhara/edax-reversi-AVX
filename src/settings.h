@@ -3,7 +3,7 @@
  *
  * Various macro / constants to control algorithm usage.
  *
- * @date 1998 - 2013
+ * @date 1998 - 2014
  * @author Richard Delorme
  * @version 4.4
  */
@@ -19,9 +19,37 @@
 #define MOVE_GENERATOR_SSE 3
 #define MOVE_GENERATOR_BITSCAN 4
 #define MOVE_GENERATOR_ROXANE 5
+#define MOVE_GENERATOR_32 6
+#define MOVE_GENERATOR_SSE_BSWAP 7
+#define MOVE_GENERATOR_AVX 8
+
+#define	COUNT_LAST_FLIP_CARRY 1
+#define COUNT_LAST_FLIP_KINDERGARTEN 2
+#define COUNT_LAST_FLIP_SSE 3
+#define COUNT_LAST_FLIP_BITSCAN 4
+#define COUNT_LAST_FLIP_PLAIN 5
+#define COUNT_LAST_FLIP_32 6
+#define COUNT_LAST_FLIP_BMI 7
 
 /**move generation. */
-#define MOVE_GENERATOR MOVE_GENERATOR_CARRY
+#ifndef MOVE_GENERATOR
+	#ifdef __AVX2__
+		#define MOVE_GENERATOR MOVE_GENERATOR_AVX
+	#elif defined(__x86_64__)
+		#define MOVE_GENERATOR MOVE_GENERATOR_BITSCAN
+	#else
+		#define MOVE_GENERATOR MOVE_GENERATOR_32
+	#endif
+#endif
+#ifndef LAST_FLIP_COUNTER
+	#ifdef __AVX2__
+		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_SSE
+	#elif defined(__x86_64__)
+		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_BITSCAN
+	#else
+		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_32
+	#endif
+#endif
 
 /** transposition cutoff usage. */
 #define USE_TC true

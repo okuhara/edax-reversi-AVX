@@ -3,7 +3,7 @@
 #
 # Copyright 1998 - 2012
 # Richard Delorme
-# Version 4.3
+# Version 4.4
 #
 
 # Default settings
@@ -40,7 +40,7 @@ ifeq ($(COMP),gcc)
 	CFLAGS = -std=c99 -pedantic -W -Wall -Wextra -pipe -D_GNU_SOURCE=1
 	PGO_GEN = -fprofile-generate
 	PGO_USE = -fprofile-correction -fprofile-use
-	
+
 	ifeq ($(BUILD),optimize)
 		CFLAGS += -Ofast -fwhole-program -flto -DNDEBUG
 	else
@@ -54,13 +54,13 @@ ifeq ($(COMP),gcc)
 		CFLAGS += -mx32 -march=native -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x64)
-		CFLAGS += -m64 -mtune=generic -DUSE_GAS_X64 
+		CFLAGS += -m64 -mtune=generic -DUSE_GAS_X64
 	endif
 	ifeq ($(ARCH),x32)
 		CFLAGS += -mx32 -march=native -DUSE_GAS_X64
 	endif
 	ifeq ($(ARCH),x86)
-		CFLAGS += -m32 -mtune=generic -DUSE_GAS_X86
+		CFLAGS += -m32 -mtune=generic -DUSE_GAS_X86 -DUSE_GAS_MMX
 		ifeq ($(BUILD),optimize)
 			CFLAGS += -fomit-frame-pointer
 		endif
@@ -78,6 +78,9 @@ ifeq ($(COMP),gcc)
 
 	ifeq ($(OS),osx)
 		CFLAGS += -mmacosx-version-min=10.4
+		ifeq ($(ARCH),x86)
+			CFLAGS += -msse2 -DhasSSE2
+		endif
 	endif
 	ifeq ($(OS),windows)
 		CFLAGS += -D__USE_MINGW_ANSI_STDIO -DWINVER=0x501
@@ -89,8 +92,9 @@ ifeq ($(COMP),gcc)
 endif
 
 ifeq ($(COMP),gcc-old)
+	CC = gcc
 	CFLAGS = -std=c99 -pedantic -W -Wall -Wextra -pipe -D_GNU_SOURCE=1
-	
+
 	ifeq ($(BUILD),optimize)
 		CFLAGS += -O3 -fwhole-program -DNDEBUG
 	else
@@ -104,7 +108,7 @@ ifeq ($(COMP),gcc-old)
 		CFLAGS += -m64 -mtune=generic -DUSE_GAS_X64 
 	endif
 	ifeq ($(ARCH),x86)
-		CFLAGS += -m64 -mtune=generic -DUSE_GAS_X86
+		CFLAGS += -m32 -mtune=generic -DUSE_GAS_X86 -DUSE_GAS_MMX
 		ifeq ($(BUILD),optimize)
 			CFLAGS += -fomit-frame-pointer
 		endif
@@ -121,7 +125,10 @@ ifeq ($(COMP),gcc-old)
 	endif
 
 	ifeq ($(OS),osx)
-		CFLAGS += -mmacosx-version-min=10.4
+		CFLAGS += -mmacosx-version-min=10.4 -mdynamic-no-pic
+		ifeq ($(ARCH),x86)
+			CFLAGS += -msse2 -DhasSSE2
+		endif
 	endif
 	ifeq ($(OS),android)
 		CFLAGS += -DANDROID=1
@@ -154,7 +161,7 @@ ifeq ($(COMP),g++)
 		CFLAGS += -m64 -mtune=generic -DUSE_GAS_X64 
 	endif
 	ifeq ($(ARCH),x86)
-		CFLAGS += -m32 -mtune=generic -DUSE_GAS_X86
+		CFLAGS += -m32 -mtune=generic -DUSE_GAS_X86 -DUSE_GAS_MMX
 		ifeq ($(BUILD),optimize)
 			CFLAGS += -fomit-frame-pointer
 		endif
@@ -162,6 +169,9 @@ ifeq ($(COMP),g++)
 
 	ifeq ($(OS),osx)
 		CFLAGS += -mmacosx-version-min=10.4 -mdynamic-no-pic
+		ifeq ($(ARCH),x86)
+			CFLAGS += -msse2 -DhasSSE2
+		endif
 	endif
 	ifeq ($(OS),windows)
 		CFLAGS += -D__USE_MINGW_ANSI_STDIO -DWINVER=0x501
@@ -224,7 +234,7 @@ ifeq ($(COMP),clang)
 	CFLAGS = -std=c99 -pedantic -W -Wall -D_GNU_SOURCE=1 -Wno-invalid-source-encoding
 
 	ifeq ($(BUILD),optimize)
-		CFLAGS += -O4 -ffast-math -fomit-frame-pointer -DNDEBUG
+		CFLAGS += -O3 -ffast-math -fomit-frame-pointer -DNDEBUG
 	else
 		CFLAGS += -O0 -g -DDEBUG
 	endif
@@ -236,11 +246,14 @@ ifeq ($(COMP),clang)
 		CFLAGS += -m64 -DUSE_GAS_X64 
 	endif
 	ifeq ($(ARCH),x86)
-		CFLAGS += -m32 -DUSE_GAS_X86
+		CFLAGS += -m32 -DUSE_GAS_X86 -DUSE_GAS_MMX
 	endif
 
 	ifeq ($(OS),osx)
 		CFLAGS += -mmacosx-version-min=10.4 -mdynamic-no-pic
+		ifeq ($(ARCH),x86)
+			CFLAGS += -msse2 -DhasSSE2
+		endif
 	endif
 endif
 
@@ -324,7 +337,7 @@ help:
 
 build:
 	@echo "building edax..."
-	$(CC) $(CFLAGS) all.c -o $(BIN)/$(EXE) $(LIBS)
+	$(CC) $(CFLAGS) all.c -s -o $(BIN)/$(EXE) $(LIBS)
 
 pgo-build:
 	@echo "building edax with pgo..."
@@ -342,10 +355,10 @@ pgo-rebuild:
 
 prof:
 	@echo "rebuilding edax for profiling..."
-	$(CC) $(CFLAGS) all.c -g -inline-level=0 -o $(BIN)/$(EXE) $(LIBS) -lprofiler
+	$(CC) $(CFLAGS) all.c -pg -o $(BIN)/$(EXE) $(LIBS) # -inline-level=0 -lprofiler
 
 debug:
-	make ARCH=$(ARCH) COMP=$(COMP) OS=$(OS) BUILD=debug build
+	make ARCH=$(ARCH) COMP=$(COMP) OS=$(OS) BUILD=debug prof
 
 release:
 	$(MAKE) pgo-build ARCH=x64 OS=linux COMP=gcc 

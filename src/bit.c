@@ -6,7 +6,7 @@
  * a macro needs to be defined to chose between different flavors of the
  * algorithm.
  *
- * @date 1998 - 2013
+ * @date 1998 - 2014
  * @author Richard Delorme
  * @version 4.4
  */
@@ -69,67 +69,65 @@ const unsigned long long NEIGHBOUR[] = {
  * @param b 64-bit integer to count bits of.
  * @return the number of bits set.
  */
+
+#ifndef POPCOUNT
 int bit_count(unsigned long long b)
 {
-#if defined(POPCOUNT)
+	register unsigned long long c;
 
-	#if defined(USE_GAS_X64)
-		__asm__("popcntq %1,%0" :"=r" (b) :"rm" (b));
-		return (int) b;
-	#elif defined(USE_MSVC_X64)
-		return __popcnt64(b);
-	#elif defined(USE_GCC_X64)
-		return __builtin_popcountll(b);
-	#endif
-
-// MMX does not help much here :-(
-#elif defined (USE_GAS_MMX)
+// for X64, MMX does not help much here :-(
+	#ifdef USE_GAS_MMX
  
-	const unsigned long long M55 = 0x5555555555555555ULL;
-	const unsigned long long M33 = 0x3333333333333333ULL;
-	const unsigned long long M0F = 0x0F0F0F0F0F0F0F0FULL;
+	static const unsigned long long M55 = 0x5555555555555555ULL;
+	static const unsigned long long M33 = 0x3333333333333333ULL;
+	static const unsigned long long M0F = 0x0F0F0F0F0F0F0F0FULL;
 	int count;
 
-	__asm__ volatile(
- 		"movq  %1, %%mm1\n\t"
-		"pxor  %%mm2, %%mm2\n\t"
+	if (hasSSE2) {
+		__asm__(
+		#ifdef __x86_64__
+ 			"movq  %1, %%mm1\n\t"
+		#else
+	 		"movd  %1, %%mm1\n\t"		// to utilize store to load forwarding
+			"punpckldq %5, %%mm1\n\t"
+		#endif
+			"movq  %%mm1, %%mm0\n\t"
+			"psrlq $1, %%mm1\n\t"
+			"pand  %2, %%mm1\n\t"
+			"psubd %%mm1, %%mm0\n\t"
 
-		"movq  %%mm1, %%mm0\n\t"
-		"psrlq $1, %%mm1\n\t"
-		"pand  %2, %%mm1\n\t"
-		"psubd %%mm1, %%mm0\n\t"
+			"movq  %3, %%mm2\n\t"
+			"movq  %%mm0, %%mm1\n\t"
+			"psrlq $2, %%mm0\n\t"
+			"pand  %%mm2, %%mm1\n\t"
+			"pand  %%mm2, %%mm0\n\t"
+			"paddd %%mm1, %%mm0\n\t"
 
-		"movq  %%mm0, %%mm1\n\t"
-		"psrlq $2, %%mm0\n\t"
-		"pand  %3, %%mm1\n\t"
-		"pand  %3, %%mm0\n\t"
-		"paddd %%mm1, %%mm0\n\t"
+			"movq  %%mm0, %%mm1\n\t"
+			"psrlq $4, %%mm0\n\t"
+			"paddd %%mm1, %%mm0\n\t"
+			"pand  %4, %%mm0\n\t"
 
-		"movq  %%mm0, %%mm1\n\t"
-		"psrlq $4, %%mm0\n\t"
-		"paddd %%mm1, %%mm0\n\t"
-		"pand  %4, %%mm0\n\t"
+			"pxor  %%mm2, %%mm2\n\t"
+			"psadbw %%mm2, %%mm0\n\t"	// SSE2
+			"movd	%%mm0, %0\n\t"
+			"emms"
+		: "=a" (count)
+		: "rm" (b), "m" (M55), "m" (M33), "m" (M0F), "m" (((unsigned int *) &b)[1]));
 
-		"psadbw %%mm2, %%mm0\n\t"
-		"movd	%%mm0, %0\n\t"
-		"emms\n\t"
-		: "=a" (count) : "m" (b), "m" (M55), "m" (M33), "m" (M0F));
+		return count;
+	}
 
-	return count;
+	#endif
 
-#else
-
-	register unsigned long long c = b
-		- ((b >> 1) & 0x7777777777777777ULL)
-		- ((b >> 2) & 0x3333333333333333ULL)
-		- ((b >> 3) & 0x1111111111111111ULL);
+	c = b - ((b >> 1) & 0x7777777777777777ULL)
+	      - ((b >> 2) & 0x3333333333333333ULL)
+	      - ((b >> 3) & 0x1111111111111111ULL);
 	c = ((c + (c >> 4)) & 0x0F0F0F0F0F0F0F0FULL) * 0x0101010101010101ULL;
 
 	return  (int)(c >> 56);
-
-#endif
 }
-
+#endif
 
 /**
  * @brief count the number of discs, counting the corners twice.
@@ -179,13 +177,13 @@ int first_bit(unsigned long long b)
 
 #elif defined(USE_GAS_X86)
 
-  int x1, x2;
-	__asm__ ("bsf %0,%0\n"
-	         "jnz 1f\n"
-	         "bsf %1,%0\n"
-	         "jz 1f\n"
-	         "addl $32,%0\n"
-		     "1:": "=&q" (x1), "=&q" (x2):"1" ((int) (b >> 32)), "0" ((int) b));
+	int x1, x2;
+	__asm__ ("bsf %0,%0\n\t"
+		"jnz 1f\n\t"
+		"bsf %1,%0\n\t"
+		"jz 1f\n\t"
+		"addl $32,%0\n"
+	"1:" : "=&q" (x1), "=&q" (x2) : "1" ((int) (b >> 32)), "0" ((int) b));
 	return x1;
 
 #elif defined(USE_MSVC_X64)
@@ -221,7 +219,7 @@ int first_bit(unsigned long long b)
 
 #else
 
-	const int magic[64] = {
+	static const int magic[64] = {
 		63, 0, 58, 1, 59, 47, 53, 2,
 		60, 39, 48, 27, 54, 33, 42, 3,
 		61, 51, 37, 40, 49, 18, 28, 20,
@@ -281,11 +279,11 @@ int last_bit(unsigned long long b)
 #elif defined(USE_GAS_X86)
 
   int x1, x2;
-	__asm__ ("bsr %1,%0\n"
-	         "jnz 1f\n"
-	         "bsr %0,%0\n"
-	         "subl $32,%0\n"
-             "1: addl $32,%0\n" : "=&q" (x1), "=&q" (x2) : "1" ((int) (b >> 32)), "0" ((int) b));
+	__asm__ ("bsr %1,%0\n\t"
+		"jnz 1f\n\t"
+		"bsr %0,%0\n\t"
+		"subl $32,%0\n"
+        "1:\taddl $32,%0" : "=&q" (x1), "=&q" (x2) : "1" ((int) (b >> 32)), "0" ((int) b));
   return x1;
 
 	
@@ -313,7 +311,7 @@ int last_bit(unsigned long long b)
 	
 #else
 
-	const int magic[64] = {
+	static const int magic[64] = {
 		63, 0, 58, 1, 59, 47, 53, 2,
 		60, 39, 48, 27, 54, 33, 42, 3,
 		61, 51, 37, 40, 49, 18, 28, 20,
@@ -338,6 +336,64 @@ int last_bit(unsigned long long b)
 }
 
 /**
+ * @brief Swap bytes of a short (little <-> big endian).
+ * @param s An unsigned short.
+ * @return The mirrored short.
+ */
+unsigned short bswap_short(unsigned short s)
+{
+	return (unsigned short) ((s >> 8) & 0x00FF) | ((s & 0x00FF) <<  8);
+}
+
+/**
+ * @brief Mirror the unsigned int (little <-> big endian).
+ * @param i An unsigned int.
+ * @return The mirrored int.
+ */
+unsigned int bswap_int(unsigned int i)
+{
+#if defined(USE_GAS_X64) || defined(hasMMX)
+        __asm__("bswapl	%0" : "+r" (i));
+#else
+	i = ((i >>  8) & 0x00FF00FFU) | ((i & 0x00FF00FFU) <<  8);
+	i = (i >> 16) | (i << 16);
+#endif
+	return i;
+}
+
+/**
+ * @brief Mirror the unsigned long long (exchange the lines A - H, B - G, C - F & D - E.).
+ * @param b An unsigned long long
+ * @return The mirrored unsigned long long.
+ */
+unsigned long long vertical_mirror(unsigned long long b)
+{
+#ifdef USE_GAS_X64
+        __asm__("bswapq	%0" : "+r" (b));
+#elif defined(hasMMX)
+	b = ((unsigned long long) bswap_int((unsigned int) b) << 32) | bswap_int(b >> 32);
+#else
+	b = ((b >>  8) & 0x00FF00FF00FF00FFULL) | ((b & 0x00FF00FF00FF00FFULL) <<  8);
+	b = ((b >> 16) & 0x0000FFFF0000FFFFULL) | ((b & 0x0000FFFF0000FFFFULL) << 16);
+	b = (b >> 32) | (b << 32);
+#endif
+	return b;
+}
+
+/**
+ * @brief Mirror the unsigned long long (exchange the line 1 - 8, 2 - 7, 3 - 6 & 4 - 5).
+ * @param b An unsigned long long.
+ * @return The mirrored unsigned long long.
+ */
+unsigned long long horizontal_mirror(unsigned long long b)
+{
+	b = ((b >> 1) & 0x5555555555555555ULL) | ((b & 0x5555555555555555ULL) << 1);
+	b = ((b >> 2) & 0x3333333333333333ULL) | ((b & 0x3333333333333333ULL) << 2);
+	b = ((b >> 4) & 0x0F0F0F0F0F0F0F0FULL) | ((b & 0x0F0F0F0F0F0F0F0FULL) << 4);
+	return b;
+}
+
+/**
  * @brief Transpose the unsigned long long (symetry % A1-H8 diagonal).
  * @param b An unsigned long long
  * @return The transposed unsigned long long.
@@ -354,55 +410,6 @@ unsigned long long transpose(unsigned long long b)
 	b = b ^ t ^ (t << 28);
 
 	return b;
-}
-
-/**
- * @brief Mirror the unsigned long long (exchange the lines A - H, B - G, C - F & D - E.).
- * @param b An unsigned long long
- * @return The mirrored unsigned long long.
- */
-unsigned long long vertical_mirror(unsigned long long b)
-{
-	b = ((b >>  8) & 0x00FF00FF00FF00FFULL) | ((b <<  8) & 0xFF00FF00FF00FF00ULL);
-	b = ((b >> 16) & 0x0000FFFF0000FFFFULL) | ((b << 16) & 0xFFFF0000FFFF0000ULL);
-	b = ((b >> 32) & 0x00000000FFFFFFFFULL) | ((b << 32) & 0xFFFFFFFF00000000ULL);
-	return b;
-}
-
-/**
- * @brief Mirror the unsigned long long (exchange the line 1 - 8, 2 - 7, 3 - 6 & 4 - 5).
- * @param b An unsigned long long.
- * @return The mirrored unsigned long long.
- */
-unsigned long long horizontal_mirror(unsigned long long b)
-{
-  b = ((b >> 1) & 0x5555555555555555ULL) | ((b << 1) & 0xAAAAAAAAAAAAAAAAULL);
-  b = ((b >> 2) & 0x3333333333333333ULL) | ((b << 2) & 0xCCCCCCCCCCCCCCCCULL);
-  b = ((b >> 4) & 0x0F0F0F0F0F0F0F0FULL) | ((b << 4) & 0xF0F0F0F0F0F0F0F0ULL);
-
-  return b;
-}
-
-/**
- * @brief Swap bytes of a short (little <-> big endian).
- * @param s An unsigned short.
- * @return The mirrored short.
- */
-unsigned short bswap_short(unsigned short s)
-{
-	return (unsigned short) ((s >> 8) & 0x00FF) | ((s <<  8) & 0xFF00);
-}
-
-/**
- * @brief Mirror the unsigned int (little <-> big endian).
- * @param i An unsigned int.
- * @return The mirrored int.
- */
-unsigned int bswap_int(unsigned int i)
-{
-	i = ((i >>  8) & 0x00FF00FFU) | ((i <<  8) & 0xFF00FF00U);
-	i = ((i >> 16) & 0x0000FFFFU) | ((i << 16) & 0xFFFF0000U);
-	return i;
 }
 
 /**
@@ -435,7 +442,7 @@ int get_rand_bit(unsigned long long b, Random *r)
 void bitboard_write(const unsigned long long b, FILE *f)
 {
 	int i, j, x;
-	const char *color = ".X";
+	static const char color[2] = ".X";
 
 	fputs("  A B C D E F G H\n", f);
 	for (i = 0; i < 8; ++i) {

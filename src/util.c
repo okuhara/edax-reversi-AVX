@@ -158,7 +158,9 @@ long long time_read(FILE *f)
 	long long t = 0;
 	int n, c;
 
-	while ((c = getc(f)) != EOF && isspace(c)) ; ungetc(c, f);
+	while ((c = getc(f)) != EOF && isspace(c))
+		;
+	ungetc(c, f);
 	n = 0; while (isdigit(c = getc(f))) n = n * 10 + (c - '0');
 	if (c == ':') {
 		t = 60 * n; //  time has the form MM:SS ?
@@ -220,7 +222,7 @@ void relax(int t)
  */
 char* format_scientific(double v, const char *unit, char *f)
 {
-	static const char *multiple = "EPTGMk mµnpfa"; //
+	static const char *multiple = "EPTGMk mμnpfa"; //
 	int u;
 
 	if (fabs(v) < 1e-24) {
@@ -632,7 +634,7 @@ char* parse_move(const char *string, const Board *board, Move *move)
 		char *word = parse_skip_spaces(string);
 		int x = string_to_coordinate(word);
 		move->x = x;
-		move->flipped = flip[x](board->player, board->opponent);
+		move->flipped = Flip(x, board->player, board->opponent);
 		if ((x == PASS && board_is_pass(board)) || (move->flipped && !board_is_occupied(board, x))) return word + 2;
 		else if (board_is_pass(board)) {
 			move->x = PASS;
