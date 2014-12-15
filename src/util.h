@@ -257,7 +257,9 @@ typedef CRITICAL_SECTION SpinLock;
 
 #ifndef _MSC_VER
 
+#if (__MINGW64_VERSION_MAJOR < 3)
 typedef DWORD CONDITION_VARIABLE;
+#endif
 void InitializeConditionVariable(CONDITION_VARIABLE*);
 void WakeConditionVariable(CONDITION_VARIABLE*);
 void WakeAllConditionVariable(CONDITION_VARIABLE*);
