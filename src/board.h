@@ -92,7 +92,7 @@ extern const unsigned long long A1_A8[256];
 	#define	REGPARM
 #endif
 
-#if ((LAST_FLIP_COUNTER == COUNT_LAST_FLIP_PLAIN) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BMI))
+#if ((LAST_FLIP_COUNTER == COUNT_LAST_FLIP_PLAIN) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BMI2))
 	extern int last_flip(int pos, unsigned long long P);
 #else
 	#if LAST_FLIP_COUNTER == COUNT_LAST_FLIP_32

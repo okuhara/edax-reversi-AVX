@@ -48,7 +48,7 @@ ifeq ($(COMP),gcc)
 	endif
 
 	ifeq ($(ARCH),x64-modern)
-		CFLAGS += -m64 -march=native -DUSE_GAS_X64 -DPOPCOUNT
+		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x32-modern)
 		CFLAGS += -mx32 -march=native -DUSE_GAS_X64 -DPOPCOUNT
@@ -58,6 +58,9 @@ ifeq ($(COMP),gcc)
 	endif
 	ifeq ($(ARCH),x32)
 		CFLAGS += -mx32 -march=native -DUSE_GAS_X64
+	endif
+	ifeq ($(ARCH),x86-modern)
+		CFLAGS += -m32 -march=native -mfpmath=sse -DUSE_GAS_X86 -DUSE_GAS_MMX -DhasSSE2 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x86)
 		CFLAGS += -m32 -mtune=generic -DUSE_GAS_X86 -DUSE_GAS_MMX
@@ -83,7 +86,10 @@ ifeq ($(COMP),gcc)
 		endif
 	endif
 	ifeq ($(OS),windows)
-		CFLAGS += -D__USE_MINGW_ANSI_STDIO -DWINVER=0x501
+		CFLAGS += -D__USE_MINGW_ANSI_STDIO -DWINVER=0x0501
+		ifeq ($(ARCH),x86-modern)
+			CFLAGS += -DUSE_PTHREAD
+		endif
 		ifeq ($(ARCH),x86)
 			CFLAGS += -DUSE_PTHREAD
 		endif
@@ -268,6 +274,9 @@ endif
 ifeq ($(OS),windows)
 	EXE = wEdax-$(ARCH).exe
 	LIBS += -lws2_32
+	ifeq ($(ARCH),x86-modern)
+		LIBS += -lpthread
+	endif
 	ifeq ($(ARCH),x86)
 		LIBS += -lpthread
 	endif
@@ -338,6 +347,9 @@ help:
 build:
 	@echo "building edax..."
 	$(CC) $(CFLAGS) all.c -s -o $(BIN)/$(EXE) $(LIBS)
+
+source:
+	$(CC) $(CFLAGS) all.c -S
 
 pgo-build:
 	@echo "building edax with pgo..."

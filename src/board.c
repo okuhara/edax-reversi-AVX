@@ -57,8 +57,8 @@
 	#include "count_last_flip_plain.c"
 #elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_32
 	#include "count_last_flip_32.c"
-#elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BMI
-	#include "count_last_flip_bmi.c"
+#elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BMI2
+	#include "count_last_flip_bmi2.c"
 #else // LAST_FLIP_COUNTER == COUNT_LAST_FLIP_KINDERGARTEN
 	#include "count_last_flip_kindergarten.c"
 #endif
@@ -759,45 +759,47 @@ static int find_edge_stable(const int old_P, const int old_O, int stable)
 		if (E & X) { // is x an empty square ?
 			O = old_O;
 			P = old_P | X; // player plays on it
-			if (X > 0x02) { // flip left discs
-				for (Y = X >> 1; O & Y; Y >>= 1)
-					;
-				if (P & Y) {
-					F = X - (Y + Y);
-					O ^= F;
-					P ^= F;
-				}
+			// if (X > 0x02) { // flip left discs (using parallel prefix)
+			F  = O & (X >> 1);
+			F |= O & (F >> 1);
+			Y  = O & (O >> 1);
+			F |= Y & (F >> 2);
+			F |= Y & (F >> 2);
+			F &= -(P & (F >> 1));
+			O ^= F;
+			P ^= F;
+			// }
+			// if (X < 0x40) { // flip right discs (using carry propagation)
+			F = (O + X + X) & P;
+			if (F) {
+				F -= X + X;
+				O ^= F;
+				P ^= F;
 			}
-			if (X < 0x40) { // flip right discs (using carry propagation)
-				F = (O + X + X) & P;
-				if (F) {
-					F -= X + X;
-					O ^= F;
-					P ^= F;
-				}
-			}
+			// }
 			stable = find_edge_stable(P, O, stable); // next move
 			if (!stable) return stable;
 
 			P = old_P;
 			O = old_O | X; // opponent plays on it
-			if (X > 0x02) {
-				for (Y = X >> 1; P & Y; Y >>= 1)
-					;
-				if (O & Y) {
-					F = X - (Y + Y);
-					O ^= F;
-					P ^= F;
-				}
+			// if (X > 0x02) { // flip left discs (using parallel prefix)
+			F  = P & (X >> 1);
+			F |= P & (F >> 1);
+			Y  = P & (P >> 1);
+			F |= Y & (F >> 2);
+			F |= Y & (F >> 2);
+			F &= -(O & (F >> 1));
+			O ^= F;
+			P ^= F;
+			// }
+			// if (X < 0x40) { // flip right discs (using carry propagation)
+ 			F = (P + X + X) & O;
+			if (F) {
+				F -= X + X;
+				O ^= F;
+				P ^= F;
 			}
-			if (X < 0x40) {
-				F = (P + X + X) & O;
-				if (F) {
-					F -= X + X;
-					O ^= F;
-					P ^= F;
-				}
-			}
+			// }
 			stable = find_edge_stable(P, O, stable); // next move
 			if (!stable) return stable;
 		}
@@ -809,9 +811,18 @@ static int find_edge_stable(const int old_P, const int old_O, int stable)
 /**
  * @brief Initialize the edge stability tables.
  */
+static unsigned int horizontal_mirror_32(unsigned int b)
+{
+	b = ((b >> 1) & 0x55555555U) +  2 * (b & 0x55555555U);
+	b = ((b >> 2) & 0x33333333U) +  4 * (b & 0x33333333U);
+	b = ((b >> 4) & 0x0F0F0F0FU) + 16 * (b & 0x0F0F0F0FU);
+	return b;
+}
+
 void edge_stability_init(void)
 {
-	int P, O, PO;
+	int P, O, PO, rPO;
+	// long long t = cpu_clock();
 
 	for (PO = 0; PO < 256 * 256; ++PO) {
 		P = PO >> 8;
@@ -819,9 +830,14 @@ void edge_stability_init(void)
 		if (P & O) { // illegal positions
 			edge_stability[PO] = 0;
 		} else {
-			edge_stability[PO] = find_edge_stable(P, O, P);
+			rPO = horizontal_mirror_32(PO);
+			if (PO > rPO)
+				edge_stability[PO] = horizontal_mirror_32(edge_stability[rPO]);
+			else
+				edge_stability[PO] = find_edge_stable(P, O, P);
 		}
 	}
+	// printf("edge_stability_init: %d\n", (int)(cpu_clock() - t));
 
 #if defined(USE_GAS_MMX) && !defined(hasSSE2)
 	init_mmx();

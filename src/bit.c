@@ -398,6 +398,17 @@ unsigned long long horizontal_mirror(unsigned long long b)
  * @param b An unsigned long long
  * @return The transposed unsigned long long.
  */
+#ifdef __AVX2__
+#include <x86intrin.h>
+unsigned long long transpose(unsigned long long b)
+{
+	static const __v4di s3210 = { 3, 2, 1, 0 };
+	__v4di	v = _mm256_sllv_epi64(_mm256_broadcastq_epi64(_mm_set_epi64x(0, b)), s3210);
+	return ((unsigned long long) _mm256_movemask_epi8(v) << 32)
+		| (unsigned int) _mm256_movemask_epi8(_mm256_slli_epi64(v, 4));
+}
+
+#else
 unsigned long long transpose(unsigned long long b)
 {
 	unsigned long long t;
@@ -411,6 +422,7 @@ unsigned long long transpose(unsigned long long b)
 
 	return b;
 }
+#endif
 
 /**
  * @brief Get a random set bit index.

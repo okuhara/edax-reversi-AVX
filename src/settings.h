@@ -29,7 +29,7 @@
 #define COUNT_LAST_FLIP_BITSCAN 4
 #define COUNT_LAST_FLIP_PLAIN 5
 #define COUNT_LAST_FLIP_32 6
-#define COUNT_LAST_FLIP_BMI 7
+#define COUNT_LAST_FLIP_BMI2 7
 
 /**move generation. */
 #ifndef MOVE_GENERATOR
@@ -42,10 +42,12 @@
 	#endif
 #endif
 #ifndef LAST_FLIP_COUNTER
-	#ifdef __AVX2__
-		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_SSE
-	#elif defined(__x86_64__)
-		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_BITSCAN
+	#ifdef __x86_64__
+		#ifdef __BMI2__
+			#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_BMI2
+		#else
+			#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_BITSCAN
+		#endif
 	#else
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_32
 	#endif
