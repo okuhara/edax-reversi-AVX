@@ -13,7 +13,7 @@
 #include "board.h"
 
 #ifdef __AVX2__
-	#include <immintrin.h>
+	#include <x86intrin.h>
 #else
 	#ifndef hasSSE2
 		#pragma GCC push_options
@@ -489,12 +489,25 @@ unsigned long long get_moves_sse(unsigned int PL, unsigned int PH, unsigned int 
 static inline unsigned long long get_stable_edge(const unsigned long long P, const unsigned long long O)
 {
 	// compute the exact stable edges (from precomputed tables)
-	__v2di	PO = _mm_set_epi64x(P, O);
+	unsigned int a1a8po, h1h8po;
+	unsigned long long stable_edge;
 
-	return edge_stability[((unsigned int) P & 0xff) * 256 + ((unsigned int) O & 0xff)]
-	    |  (unsigned long long) edge_stability[(unsigned int) (P >> 56) * 256 + (unsigned int) (O >> 56)] << 56
-	    |  A1_A8[edge_stability[_mm_movemask_epi8(_mm_slli_epi64(PO, 7))]]
-	    |  A1_A8[edge_stability[_mm_movemask_epi8(PO)]] << 7;
+	__v2di	P0 = _mm_cvtsi64_si128(P);
+	__v2di	O0 = _mm_cvtsi64_si128(O);
+	__v2di	PO = _mm_unpacklo_epi8(O0, P0);
+	stable_edge = edge_stability[_mm_extract_epi16(PO, 0)]
+		| ((unsigned long long) edge_stability[_mm_extract_epi16(PO, 7)] << 56);
+
+	PO = _mm_unpacklo_epi64(O0, P0);
+	a1a8po = _mm_movemask_epi8(_mm_slli_epi64(PO, 7));
+	h1h8po = _mm_movemask_epi8(PO);
+#ifdef __BMI2__
+	stable_edge |= _pdep_u64(edge_stability[a1a8po], 0x0101010101010101ULL)
+		| _pdep_u64(edge_stability[h1h8po], 0x8080808080808080ULL);
+#else
+	stable_edge |= A1_A8[edge_stability[a1a8po]] | (A1_A8[edge_stability[h1h8po]] << 7);
+#endif
+	return stable_edge;
 }
 
 /**

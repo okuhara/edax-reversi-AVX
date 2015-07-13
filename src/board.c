@@ -1004,7 +1004,7 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 
 	return bit_count(stable);
 }
-#endif
+#endif // __x86_64__
 
 /**
  * @brief Estimate the stability of edges.
@@ -1053,8 +1053,13 @@ int get_corner_stability(const unsigned long long P)
 		0, 2, 0, 3, 0, 2, 0, 3, 2, 4, 2, 5, 3, 5, 3, 6
 	};
 
+#if defined(__BMI2__) && defined(__x86_64__)
+	int cnt = n_stable_h8g8b8a8h7a7[_pext_u64(P, 0xc381000000000000ULL)]
+		+ n_stable_h2a2h1g1b1a1[_pext_u32((unsigned int) P, 0x000081c3U)];
+#else
 	int cnt = n_stable_h8g8b8a8h7a7[(((unsigned int) (P >> 32) & 0xc3810000U) * 0x00000411U) >> 26]
 		+ n_stable_h2a2h1g1b1a1[(((unsigned int) P & 0x000081c3U) * 0x04410000U) >> 26];
+#endif
 	// assert(cnt == bit_count((((0x0100000000000001ULL & P) << 1) | ((0x8000000000000080ULL & P) >> 1) | ((0x0000000000000081ULL & P) << 8) | ((0x8100000000000000ULL & P) >> 8) | 0x8100000000000081ULL) & P));
 	return cnt;
 
