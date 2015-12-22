@@ -1166,7 +1166,7 @@ static void ui_ggs_play(UI *ui, int turn) {
 	Play *play;
 	Result *result;
 	char move[4], line[32];
-	const char *(search_state_array[6]) = {"running", "interrupted", "stop pondering", "out of time", "stopped on user demand", "completed"};
+	static const char * const search_state_array[6] = {"running", "interrupted", "stop pondering", "out of time", "stopped on user demand", "completed"};
 	char search_state[32];
 
 	if (ui->is_same_play) {

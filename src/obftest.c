@@ -344,7 +344,7 @@ void obf_test(Search *search, const char *obf_file, const char *wrong_file)
 		obf_free(obf);			
 	}
 
-	if (options.verbosity == 1 && search->options.separator) puts(search->options.separator);
+	if (options.verbosity == 1 && search->options.separator) printf("---+%s\n", search->options.separator);
 	printf("%.30s: ", obf_file);
 	if (n_nodes) printf("%llu nodes in ", n_nodes);
 	time_print(T, false, stdout);
@@ -418,7 +418,7 @@ void script_to_obf(Search *search, const char *script_file, const char *obf_file
 		obf_free(obf);			
 	}
 
-	if (options.verbosity == 1 && search->options.separator) puts(search->options.separator);
+	if (options.verbosity == 1 && search->options.separator) printf("---+%s\n", search->options.separator);
 	putchar('\n');
 
 	fclose(o);
@@ -509,6 +509,8 @@ void obf_speed(Search *search, const int n)
 		T += search_time(search);
 		n_nodes += search_count_nodes(search);
 	}
+
+	if (options.verbosity == 1 && search->options.separator) printf("---+%s\n", search->options.separator);
 	printf("%d positions solved: ", i);
 	if (n_nodes) printf("%llu nodes in ", n_nodes);
 	time_print(T, false, stdout);
