@@ -1,6 +1,15 @@
 # edax-reversi-AVX
 Automatically exported from code.google.com/p/okuharaandroid-edax-reversi
 
+Edax is a strong othello program. Its main features are:
+
+    fast bitboard based & multithreaded engine.
+    accurate midgame-evaluation function.
+    opening book learning capability.
+    text based rich interface.
+    multi-protocol support to connect to graphical interfaces or play on Internet (GGS).
+    multi-OS support to run under MS-Windows, Linux and Mac OS X.
+
 This is SSE/AVX optimized version of Edax 4.4.0. Functionally equivalent to the parent project, provided no bugs are introduced.
 
 64 bit version solves fforum-20-39 7% to 9% faster than the original 4.4.0 on my test. Thanks to AVX2, x64-modern build runs 14% faster on Haswell. 32 bit version runs 9% (Core2) to 20% (Athlon) faster than the original.
