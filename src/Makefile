@@ -52,13 +52,13 @@ ifeq ($(COMP),gcc)
 		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x32-modern)
-		CFLAGS += -mx32 -march=native -DUSE_GAS_X64 -DPOPCOUNT
+		CFLAGS += -mx32 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x64)
 		CFLAGS += -m64 -mtune=generic -DUSE_GAS_X64
 	endif
 	ifeq ($(ARCH),x32)
-		CFLAGS += -mx32 -march=native -DUSE_GAS_X64
+		CFLAGS += -mx32 -mtune=generic -DUSE_GAS_X64
 	endif
 	ifeq ($(ARCH),x86-modern)
 		CFLAGS += -m32 -march=native -mfpmath=sse -DUSE_GAS_X86 -DUSE_GAS_MMX -DhasSSE2 -DPOPCOUNT
@@ -88,10 +88,7 @@ ifeq ($(COMP),gcc)
 	endif
 	ifeq ($(OS),windows)
 		CFLAGS += -D__USE_MINGW_ANSI_STDIO -DWINVER=0x0501
-		ifeq ($(ARCH),x86-modern)
-			CFLAGS += -DUSE_PTHREAD
-		endif
-		ifeq ($(ARCH),x86)
+		ifneq (,$(findstring x86,$(ARCH)))
 			CFLAGS += -DUSE_PTHREAD
 		endif
 	endif
@@ -250,7 +247,7 @@ ifeq ($(COMP),clang)
 	endif
 
 	ifeq ($(ARCH),x64-modern)
-		CFLAGS += -m64 -march=native -DUSE_GAS_X64 -DPOPCOUNT
+		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x64)
 		CFLAGS += -m64 -DUSE_GAS_X64 
@@ -278,10 +275,7 @@ endif
 ifeq ($(OS),windows)
 	EXE = wEdax-$(ARCH).exe
 	LIBS += -lws2_32
-	ifeq ($(ARCH),x86-modern)
-		LIBS += -lpthread
-	endif
-	ifeq ($(ARCH),x86)
+	ifneq (,$(findstring x86,$(ARCH)))
 		LIBS += -lpthread
 	endif
 endif
@@ -290,16 +284,7 @@ ifeq ($(OS),osx)
 	LIBS += -lpthread
 endif
 
-ifeq ($(ARCH),x64)
-	CFLAGS += -DHAS_CPU_64
-endif
-ifeq ($(ARCH),x64-modern)
-	CFLAGS += -DHAS_CPU_64
-endif
-ifeq ($(ARCH),x32)
-	CFLAGS += -DHAS_CPU_64
-endif
-ifeq ($(ARCH),x32-modern)
+ifneq (,$(findstring x64,$(ARCH))$(findstring x32,$(ARCH)))
 	CFLAGS += -DHAS_CPU_64
 endif
 
