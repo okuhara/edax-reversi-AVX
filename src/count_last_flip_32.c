@@ -31,16 +31,10 @@
  * 
  */
 
+#include "board.h"
+
 #define LODWORD(l) ((unsigned int)(l))
 #define HIDWORD(l) ((unsigned int)((l)>>32))
-
-#ifndef REGPARM
-	#if defined(__GNUC__) && !defined(__clang__)
-		#define	REGPARM	__attribute__((regparm(2)))
-	#else
-		#define	REGPARM
-	#endif
-#endif
 
 /** precomputed count flip array */
 static const char COUNT_FLIP_R[128] = {

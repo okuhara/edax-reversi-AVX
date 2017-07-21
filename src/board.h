@@ -86,7 +86,7 @@ extern unsigned char edge_stability[256 * 256];
 extern const unsigned long long A1_A8[256];
 
 /* Define function attributes directive when available */
-#if defined(__GNUC__) && !defined(__clang__)
+#if defined(__GNUC__) && !defined(__clang__) && defined(__i386__)
 	#define	REGPARM	__attribute__((regparm(2)))
 #else
 	#define	REGPARM

@@ -293,6 +293,28 @@ static const UINT64 mask_b1h7 = 0x0080402010080402;
 static const UINT64 mask_c1h6 = 0x0000804020100804;
 #endif
 
+/**
+ * _mm_movepi64_pi64 equivalent to avoid large-to-small mismatch
+ *
+ * AMD 47414 pp.96
+ */
+static inline UINT64 SSE2 movepi64_by_movd(__v2di x)
+{
+#ifdef __SSE2__
+	return ((unsigned int) _mm_cvtsi128_si32(x))
+		| ((UINT64) _mm_cvtsi128_si32(_mm_srli_epi64(x, 32)) << 32);
+#else
+	UINT64 y;
+	__asm__ ( "movd	%1,%%eax\n\t"
+		"psrlq	$32,%1\n\t"
+		"movd	%1,%%edx"
+		: "=A" (y) : "x" (x));
+	return y;
+#endif
+}
+
+#ifdef __SSE2__
+
 #define	SWAP64	0x4e	// for _mm_shuffle_epi32
 #define	SWAP32	0xb1
 
@@ -316,28 +338,6 @@ static inline __v2di SSE2 set1_by_movd (unsigned int L, unsigned int H) {
 	Y = _mm_unpacklo_epi32(_mm_cvtsi32_si128(L), _mm_cvtsi32_si128(H));
 	return _mm_unpacklo_epi64(Y, Y);
 }
-
-/**
- * _mm_movepi64_pi64 equivalent to avoid large-to-small mismatch
- *
- * AMD 47414 pp.96
- */
-static inline UINT64 SSE2 movepi64_by_movd(__v2di x)
-{
-#ifdef __SSE2__
-	return ((unsigned int) _mm_cvtsi128_si32(x))
-		| ((UINT64) _mm_cvtsi128_si32(_mm_srli_epi64(x, 32)) << 32);
-#else
-	UINT64 y;
-	__asm__ ( "movd	%1,%%eax\n\t"
-		"psrlq	$32,%1\n\t"
-		"movd	%1,%%edx"
-		: "=A" (y) : "x" (x));
-	return y;
-#endif
-}
-
-#ifdef __SSE2__
 
 #define FLIP_CARRY_2_VEC(flip_l)	__v2di	outflank_v_d;\
 	outflank_v_d = _mm_andnot_si128(mask, (set1_by_movd(OL, OH) | mask) - minusone) & set1_by_movd(PL, PH);\

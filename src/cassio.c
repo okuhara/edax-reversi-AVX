@@ -502,7 +502,7 @@ void engine_empty_hash(void *v)
 {
 	Engine *engine = (Engine*) v;
 	
-	if (engine && engine->search && engine->search->hash_table && engine->search->pv_table) {
+	if (engine && engine->search) {
 		cassio_debug("clear the hash-table.\n");
 		engine->last_position.n = 0;
 		hash_cleanup(engine->search->hash_table);
