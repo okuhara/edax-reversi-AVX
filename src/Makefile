@@ -283,11 +283,7 @@ ifeq ($(OS),windows)
 	endif
 endif
 ifeq ($(OS),osx)
-	ifeq ($(ARCH),x64)
-		EXE = mEdax
-	else
-		EXE = mEdax-$(ARCH)
-	endif
+	EXE = mEdax-$(ARCH)
 	LIBS += -lpthread
 endif
 
@@ -379,6 +375,12 @@ release:
 
 android:
 	$(MAKE) build ARCH=ARMv7 OS=android COMP=gcc-old CC='arm-linux-androideabi-gcc'
+
+macuniversal:
+	$(MAKE) build ARCH=x86 OS=osx COMP=clang
+	$(MAKE) build ARCH=x64 OS=osx COMP=clang
+	lipo -create -arch i686 ../bin/mEdax-x86 -arch x86_64 ../bin/mEdax-x64 -output ../bin/mEdax
+	rm -f ../bin/mEdax-x86 ../bin/mEdax-x64
 
 clean:
 	rm -f pgopti* *.dyn all.gc* *~ *.o generate_flip generate_count_flip *.prof*
