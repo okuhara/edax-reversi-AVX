@@ -22,10 +22,10 @@
  * For optimization purpose, the value returned is twice the number of flipped
  * disc, to facilitate the computation of disc difference.
  *
- * With Modifications by Valéry ClaudePierre (merging diagonals).
+ * With Modifications by Valery ClaudePierre (merging diagonals).
  * @todo 135° merge as done by Toshihiko Okuhara
  *
- * @date 1998 - 2014
+ * @date 1998 - 2017
  * @author Richard Delorme
  * @version 4.4
  *

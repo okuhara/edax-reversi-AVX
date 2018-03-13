@@ -3,7 +3,7 @@
  *
  * Bitwise operations header file.
  *
- * @date 1998 - 2014
+ * @date 1998 - 2017
  * @author Richard Delorme
  * @version 4.4
  */

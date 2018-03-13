@@ -37,7 +37,7 @@
  * If the OUTFLANK search is in MSB to LSB direction, lzcnt64 is used if 
  * available, or __builtin_bswap is used to use carry propagation backwards.
  *
- * @date 1998 - 2014
+ * @date 1998 - 2017
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.4
