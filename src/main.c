@@ -3,7 +3,7 @@
  *
  * @brief Main file.
  *
- * @date 1998 - 2013
+ * @date 1998 - 2017
  * @author Richard Delorme
  * @version 4.4
  */
@@ -38,7 +38,7 @@ void version(void)
 	fprintf(stderr, "\n");
 #endif
 
-	fprintf(stderr, "copyright 1998 - 2016 Richard Delorme\n\n");
+	fprintf(stderr, "copyright 1998 - 2017 Richard Delorme\n\n");
 }
 
 

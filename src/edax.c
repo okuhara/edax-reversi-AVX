@@ -3,7 +3,7 @@
  *
  * @brief Edax protocol.
  *
- * This is version 4.3 of Edax User Interface. Several changes
+ * This is version 4.4 of Edax User Interface. Several changes
  * occurred between this version and 3.x previous versions because of the
  * evolution of the search engine. Here is a summary of the commands:
  *
@@ -89,7 +89,7 @@
  *   -count shapes [d]    compute the number of shapes from the current position up\n  to depth [d].
  *
  *
- * @date 1998 - 2013
+ * @date 1998 - 2017
  * @author Richard Delorme
  * @version 4.4
  *
@@ -361,6 +361,8 @@ void ui_loop_edax(UI *ui)
 			// new game from standard position
 			} else if (strcmp(cmd, "i") == 0 || strcmp(cmd, "init") == 0) {
 				board_init(play->initial_board);
+				play->initial_player = BLACK;
+				play_force_init(play, "F5");
 				play_new(play);
 
 			// new game from personnalized position
@@ -392,7 +394,7 @@ void ui_loop_edax(UI *ui)
 			// redo last move
 			} else if (strcmp(cmd, "r") == 0 || strcmp(cmd, "redo") == 0) {
 				play_redo(play);
-				if (ui->mode == 0 || ui->mode == 1) play_undo(play);
+				if (ui->mode == 0 || ui->mode == 1) play_redo(play);
 
 			// mode
 			} else if (strcmp(cmd, "m") == 0 || strcmp(cmd, "mode") == 0) {

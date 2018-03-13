@@ -3,9 +3,9 @@
  *
  * This module verifies if the move generator is correct.
  *
- * @date 1998 - 2012
+ * @date 1998 - 2017
  * @author Richard Delorme
- * @version 4.3
+ * @version 4.4
  */
 
 #include "bit.h"

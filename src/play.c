@@ -3,7 +3,7 @@
  *
  * Edax play control.
  *
- * @date 1998 - 2013
+ * @date 1998 - 2017
  * @author Richard Delorme
  * @version 4.4
  */
@@ -108,7 +108,7 @@ bool play_load(Play *play, const char *file)
 	}
 
 	*play->initial_board = *game->initial_board;
-	play->player = game->player;
+	play->initial_player = game->player;
 	play_new(play);
 	for (i = 0; i < 60 && game->move[i] != NOMOVE; ++i) {
 		if (play_must_pass(play)) play_move(play, PASS);
@@ -138,7 +138,7 @@ void play_save(Play *play, const char *file)
 
 	game_init(game);
 	*game->initial_board = *play->initial_board;
-	game->player = play->player;
+	game->player = play->initial_player;
 	for (i = j = 0; i < play->n_game; ++i) {
 		if (play->game[i].x != PASS) {
 			game->move[j++] = play->game[i].x;
@@ -1153,7 +1153,7 @@ bool play_force_go(Play *play, Move *move)
 		board_unique(play->board, unique);
 		if (board_equal(unique, play->force.unique + play->force.i_move)) {
 			for (s = 1; s < 8; ++s) {
-				board_symetry(play->force.real +  + play->force.i_move, s, sym);
+				board_symetry(play->force.real + play->force.i_move, s, sym);
 				if (board_equal(play->board, sym)) {
 					x = symetry(play->force.move[play->force.i_move].x, s);
 					board_get_move(play->board, x, move);
