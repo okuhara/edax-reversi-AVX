@@ -26,7 +26,7 @@
  */
 
 #ifdef __LZCNT__
-#include <lzcntintrin.h>
+#include <x86intrin.h>
 #endif
 
 /** precomputed count flip array */

@@ -1053,7 +1053,7 @@ int get_corner_stability(const unsigned long long P)
 		0, 2, 0, 3, 0, 2, 0, 3, 2, 4, 2, 5, 3, 5, 3, 6
 	};
 
-#if defined(__BMI2__) && defined(__x86_64__)
+#if 0 // defined(__BMI2__) && defined(__x86_64__) // pext is slow on AMD
 	int cnt = n_stable_h8g8b8a8h7a7[_pext_u64(P, 0xc381000000000000ULL)]
 		+ n_stable_h2a2h1g1b1a1[_pext_u32((unsigned int) P, 0x000081c3U)];
 #else
