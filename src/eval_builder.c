@@ -587,7 +587,7 @@ EvalBuilder *eval_builder_create_edax3c(int n_games){
 	int vector_size[]={10206,29889,29646,29646,3321,3321,3321,3321,1134,378,135,45,1};
 	int vector_times[]={4,4,4,4,4,4,4,2,4,4,4,4,1};
 
-	eval_init();
+	// eval_init();
 	eval_builder_set_features = eval_edax_v3r1_get_packed_features;
 	return eval_builder_create(13, vector_size, vector_times, 47, n_games);
 }
@@ -599,7 +599,7 @@ EvalBuilder *eval_builder_create_edax3d(int n_games){
 	int vector_size[]={10206,266814,266085,266085,3321,3321,3321,3321,1134,378,135,45,1};
 	int vector_times[]={4,4,4,4,4,4,4,2,4,4,4,4,1};
 
-	eval_init();
+	// eval_init();
 	eval_builder_set_features = eval_edax_v3r2_get_packed_features;
 	return eval_builder_create(13, vector_size, vector_times, 47, n_games);
 }
@@ -611,7 +611,7 @@ EvalBuilder *eval_builder_create_edax3d(int n_games){
 	int vector_size[]={10206,266814,266085,3321,3321,3321,3321,1134,378,135,45,1};
 	int vector_times[]={4,4,4,4,4,4,2,4,4,4,4,1};
 
-	eval_init();
+	// eval_init();
 	eval_builder_set_features = eval_edax_v3r3_get_packed_features;
 	return eval_builder_create(12, vector_size, vector_times, 43, n_games);
 }
@@ -622,7 +622,7 @@ EvalBuilder *eval_builder_create_logistello(int n_games){
 	int vector_size[]={10206,29646,59049,3321,3321,3321,3321,1134,378,135,45,1};
 	int vector_times[]={4,4,8,4,4,4,2,4,4,4,4,1};
 
-	eval_init();
+	// eval_init();
 	eval_builder_set_features=eval_builder_logistello_get_features;
 	return eval_builder_create(12,vector_size,vector_times,47,n_games);
 }
@@ -632,7 +632,7 @@ EvalBuilder *eval_builder_create_feature(int n_games, int feature){
 	int vector_size[2]={3321,1};
 	int vector_times[]={4,1};
 
-	eval_init();
+	// eval_init();
 	switch(feature){
 	case EVAL_CORNER3x3:
 		eval_builder_set_features=eval_builder_get_corner3x3_features;

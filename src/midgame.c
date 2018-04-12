@@ -32,25 +32,25 @@
 int search_eval_0(Search *search)
 {
 	const short *w = EVAL_WEIGHT[search->eval->player][60 - search->n_empties];
-	int *f = search->eval->feature;
+	unsigned short int *f = search->eval->feature.us;
 	int score;
 
 	SEARCH_STATS(++statistics.n_search_eval_0);
 	SEARCH_UPDATE_EVAL_NODES();
 
-	score = w[f[ 0]] + w[f[ 1]] + w[f[ 2]] + w[f[ 3]]
-	  + w[f[ 4]] + w[f[ 5]] + w[f[ 6]] + w[f[ 7]]
-	  + w[f[ 8]] + w[f[ 9]] + w[f[10]] + w[f[11]]
-	  + w[f[12]] + w[f[13]] + w[f[14]] + w[f[15]]
-	  + w[f[16]] + w[f[17]] + w[f[18]] + w[f[19]]
-	  + w[f[20]] + w[f[21]] + w[f[22]] + w[f[23]]
-	  + w[f[24]] + w[f[25]]
-	  + w[f[26]] + w[f[27]] + w[f[28]] + w[f[29]]
-	  + w[f[30]] + w[f[31]] + w[f[32]] + w[f[33]]
-	  + w[f[34]] + w[f[35]] + w[f[36]] + w[f[37]]
-	  + w[f[38]] + w[f[39]] + w[f[40]] + w[f[41]]
-	  + w[f[42]] + w[f[43]] + w[f[44]] + w[f[45]]
-	  + w[f[46]];
+	score = w[f[ 0] + 0] + w[f[ 1] + 0] + w[f[ 2] + 0] + w[f[ 3] + 0]
+	  + w[f[ 4] + 19683] + w[f[ 5] + 19683] + w[f[ 6] + 19683] + w[f[ 7] + 19683]
+	  + w[f[ 8] + 78732] + w[f[ 9] + 78732] + w[f[10] + 78732] + w[f[11] + 78732]
+	  + w[f[12] + 137781] + w[f[13] + 137781] + w[f[14] + 137781] + w[f[15] + 137781]
+	  + w[f[16] + 196830] + w[f[17] + 196830] + w[f[18] + 196830] + w[f[19] + 196830]
+	  + w[f[20] + 203391] + w[f[21] + 203391] + w[f[22] + 203391] + w[f[23] + 203391]
+	  + w[f[24] + 209952] + w[f[25] + 209952] + w[f[26] + 209952] + w[f[27] + 209952]
+	  + w[f[28] + 216513] + w[f[29] + 216513]
+	  + w[f[30] + 223074] + w[f[31] + 223074] + w[f[32] + 223074] + w[f[33] + 223074]
+	  + w[f[34] + 225261] + w[f[35] + 225261] + w[f[36] + 225261] + w[f[37] + 225261]
+	  + w[f[38] + 225990] + w[f[39] + 225990] + w[f[40] + 225990] + w[f[41] + 225990]
+	  + w[f[42] + 226233] + w[f[43] + 226233] + w[f[44] + 226233] + w[f[45] + 226233]
+	  + w[f[46] + 226314];
 
 	if (score > 0) score += 64;	else score -= 64;
 	score /= 128;
@@ -78,9 +78,8 @@ int search_eval_1(Search *search, const int alpha, int beta)
 	SquareList *empty;
 	register int score, bestscore;
 	const Board *board = search->board;
-	Eval *eval = search->eval;
 	unsigned long long moves = get_moves(board->player, board->opponent);
-	int *f;
+	unsigned short int *f;
 
 	SEARCH_STATS(++statistics.n_search_eval_1);
 	SEARCH_UPDATE_INTERNAL_NODES();
@@ -92,23 +91,23 @@ int search_eval_1(Search *search, const int alpha, int beta)
 			if (moves & empty->b) {
 				board_get_move(board, empty->x, move);
 				if (move_wipeout(move, board)) return SCORE_MAX;
-				eval_update(eval, move);
-				f = eval->feature;
+				eval_update(search->eval, move);
+				f = search->eval->feature.us;
 				SEARCH_UPDATE_EVAL_NODES();
-					score = -w[f[ 0]] - w[f[ 1]] - w[f[ 2]] - w[f[ 3]]
-						- w[f[ 4]] - w[f[ 5]] - w[f[ 6]] - w[f[ 7]]
-						- w[f[ 8]] - w[f[ 9]] - w[f[10]] - w[f[11]]
-						- w[f[12]] - w[f[13]] - w[f[14]] - w[f[15]]
-						- w[f[16]] - w[f[17]] - w[f[18]] - w[f[19]]
-						- w[f[20]] - w[f[21]] - w[f[22]] - w[f[23]]
-						- w[f[24]] - w[f[25]]
-						- w[f[26]] - w[f[27]] - w[f[28]] - w[f[29]]
-						- w[f[30]] - w[f[31]] - w[f[32]] - w[f[33]]
-						- w[f[34]] - w[f[35]] - w[f[36]] - w[f[37]]
-						- w[f[38]] - w[f[39]] - w[f[40]] - w[f[41]]
-						- w[f[42]] - w[f[43]] - w[f[44]] - w[f[45]]
-						- w[f[46]];
-				eval_restore(eval, move);
+				score = -w[f[ 0] + 0] - w[f[ 1] + 0] - w[f[ 2] + 0] - w[f[ 3] + 0]
+				  - w[f[ 4] + 19683] - w[f[ 5] + 19683] - w[f[ 6] + 19683] - w[f[ 7] + 19683]
+				  - w[f[ 8] + 78732] - w[f[ 9] + 78732] - w[f[10] + 78732] - w[f[11] + 78732]
+				  - w[f[12] + 137781] - w[f[13] + 137781] - w[f[14] + 137781] - w[f[15] + 137781]
+				  - w[f[16] + 196830] - w[f[17] + 196830] - w[f[18] + 196830] - w[f[19] + 196830]
+				  - w[f[20] + 203391] - w[f[21] + 203391] - w[f[22] + 203391] - w[f[23] + 203391]
+				  - w[f[24] + 209952] - w[f[25] + 209952] - w[f[26] + 209952] - w[f[27] + 209952]
+				  - w[f[28] + 216513] - w[f[29] + 216513]
+				  - w[f[30] + 223074] - w[f[31] + 223074] - w[f[32] + 223074] - w[f[33] + 223074]
+				  - w[f[34] + 225261] - w[f[35] + 225261] - w[f[36] + 225261] - w[f[37] + 225261]
+				  - w[f[38] + 225990] - w[f[39] + 225990] - w[f[40] + 225990] - w[f[41] + 225990]
+				  - w[f[42] + 226233] - w[f[43] + 226233] - w[f[44] + 226233] - w[f[45] + 226233]
+				  - w[f[46] + 226314];
+				eval_restore(search->eval, move);
 
 				if (score > 0) score += 64; else score -= 64;
 				score /= 128;

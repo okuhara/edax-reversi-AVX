@@ -489,7 +489,7 @@ static Search* task_search_create(Task *task)
 	search->n_nodes = 0;
 	search->n_child = 0;
 	search->parent = NULL;
-	eval_init(search->eval);
+	// eval_init(search->eval);
 	spin_init(search);
 	search->task = task;
 	search->stop = STOP_END;
@@ -504,7 +504,7 @@ static Search* task_search_create(Task *task)
  */
 static void task_search_destroy(Search *search)
 {
-	eval_free(search->eval);
+	// eval_free(search->eval);
 	spin_free(search);
 	free(search);
 }

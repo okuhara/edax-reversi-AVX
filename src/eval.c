@@ -3,8 +3,9 @@
  *
  * Evaluation function.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2018
  * @author Richard Delorme
+ * @author Toshihiko Okuhara
  * @version 4.4
  */
 
@@ -166,69 +167,46 @@ static const CoordinateToFeature EVAL_X2F[] = {
 	{4, {{ 0,     0}, { 0,     0}, { 0,     0}, { 0,     0}}} // <- PASS
 };
 
-/** feature size */
-static const int EVAL_SIZE[] = {19683, 59049, 59049, 59049, 6561, 6561, 6561, 6561, 2187,729, 243, 81, 1};
+/** feature offset/size */
+// static const int EVAL_OFS[] = { 0, 19683, 78732, 137781, 196830, 203391, 209952, 216513, 223074, 225261, 225990, 226233, 226314 };
+static const int EVAL_SIZE[] = {19683, 59049, 59049, 59049, 6561, 6561, 6561, 6561, 2187, 729, 243, 81, 1};
 
-/** packed feature size */
-static const int EVAL_PACKED_SIZE[] = {10206, 29889, 29646, 29646, 3321, 3321, 3321, 3321, 1134, 378, 135, 45, 1};
-
-/** feature offset */
-static const int EVAL_OFFSET[] = {
-	     0,      0,      0,      0,
-	 19683,  19683,  19683,  19683,
-	 78732,  78732,  78732,  78732,
-	137781,	137781, 137781, 137781,
-	196830,	196830, 196830, 196830,
-	203391,	203391, 203391, 203391,
-	209952,	209952, 209952, 209952,
-	216513,	216513,
-	223074,	223074,	223074,	223074,
-	225261,	225261,	225261,	225261,
-	225990,	225990, 225990,	225990,
-	226233,	226233, 226233, 226233,
-	226314,
-};
+/** packed feature offset/size */
+static const int EVAL_PACKED_OFS[] = { 0, 10206, 40095, 69741, 99387, 102708, 106029, 109350, 112671, 113805, 114183, 114318, 114363 };
+// static const int EVAL_PACKED_SIZE[] = {10206, 29889, 29646, 29646, 3321, 3321, 3321, 3321, 1134, 378, 135, 45, 1};
 
 static const int EVAL_MAX_VALUE[] = {
 	 19682,  19682,  19682,  19682,
-	 78731,  78731,  78731,  78731,
-	137780,	137780, 137780, 137780,
-	196829,	196829, 196829, 196829,
-	203390,	203390, 203390, 203390,
-	209951,	209951, 209951, 209951,
-	216512,	216512,
-	223073,	223073,	223073,	223073,
-	225260,	225260,	225260,	225260,
-	225989,	225989, 225989,	225989,
-	226232,	226232, 226232, 226232,
-	226313,	226313,	226313,	226313,
-	226314,
+	 59048,  59048,  59048,  59048,	//  78731,  78731,  78731,  78731,
+	 59048,  59048,  59048,  59048,	// 137780, 137780, 137780, 137780,
+	 59048,  59048,  59048,  59048,	// 196829, 196829, 196829, 196829,
+	  6560,   6560,   6560,   6560,	// 203390, 203390, 203390, 203390,
+	  6560,   6560,   6560,   6560,	// 209951, 209951, 209951, 209951,
+	  6560,   6560,			// 216512, 216512,
+	  2186,   2186,   2186,   2186, // 225260, 225260, 225260, 225260,
+	   728,    728,    728,    728, // 225989, 225989, 225989, 225989,
+	   242,    242,    242,    242, // 226232, 226232, 226232, 226232,
+	    80,     80,     80,     80, // 226313, 226313, 226313, 226313,
+	     0				// 226314
 };
 
 /** feature symetry packing */
-static int EVAL_C10[2][59049];
-static int EVAL_S10[2][59049];
-static int EVAL_C9[2][19683];
-static int EVAL_S8[2][6561];
-static int EVAL_S7[2][2187];
-static int EVAL_S6[2][729];
-static int EVAL_S5[2][243];
-static int EVAL_S4[2][81];
-
-/** number of (unpacked) weights */
-static const int EVAL_N_WEIGHT = 226315;
-
-/** number of plies */
-static const int EVAL_N_PLY = 61;
-
-/** number of features */
-static const int EVAL_N_FEATURE = 47;
+typedef struct {
+	short EVAL_C10[2][59049];
+	short EVAL_S10[2][59049];
+	short EVAL_C9[2][19683];
+	short EVAL_S8[2][6561];
+	short EVAL_S7[2][2187];
+	short EVAL_S6[2][729];
+	short EVAL_S5[2][243];
+	short EVAL_S4[2][81];
+} SymetryPacking;
 
 /** eval weight load status */
 static int EVAL_LOADED = 0;
 
 /** eval weights */
-short ***EVAL_WEIGHT;
+short (*EVAL_WEIGHT)[EVAL_N_PLY][EVAL_N_WEIGHT];
 
 /** evaluation function error coefficient parameters */
 static double EVAL_A, EVAL_B, EVAL_C, EVAL_a, EVAL_b, EVAL_c;
@@ -242,13 +220,13 @@ static double EVAL_A, EVAL_B, EVAL_C, EVAL_a, EVAL_b, EVAL_c;
  * @param d feature size.
  * @return opponent feature.
  */
-static int opponent_feature(int l, int d)
+#define	OPPONENT(x)	((9 >> (x)) & 3)	// (0, 1, 2) to (1, 0, 2)
+
+static int opponent_feature(int q[], int d)
 {
-	static const int o[] = {1, 0, 2};
-	int f = o[l % 3];
-
-	if (d > 1) f += opponent_feature(l / 3, d - 1) * 3;
-
+	int f = 0;
+	while (--d >= 0)
+		f = f * 3 + OPPONENT(q[d]);
 	return f;
 }
 
@@ -269,11 +247,12 @@ void eval_open(const char* file)
 	double date;
 	const int n_w = 114364;
 	int *T;
-	int ply, i, j, k, l, n;
+	int ply, i, j, k, kc, l, l4, l5, l6, l7, n, n4, n5, n6, n7, nc, o4, o5, o6, o7;
 	int r;
-	int offset;
+	int q[10];
 	FILE* f;
-	short *w = NULL;
+	short *w;
+	SymetryPacking *P;
 
 	if (EVAL_LOADED++) return;
 
@@ -284,94 +263,118 @@ void eval_open(const char* file)
 	if (sizeof (short) != 2) fatal_error("short size is not compatible with Edax.\n");
 
 	// create unpacking tables
-	T = (int*) malloc(59049 * sizeof (*T));
-	if (T == NULL) fatal_error("Cannot allocate temporary table variable.\n");
+	P = (SymetryPacking *) malloc(sizeof(*P));
+	T = (int *) malloc(59049 * 2 * sizeof(*T));
+	if ((P == NULL) || (T == NULL)) fatal_error("Cannot allocate temporary table variable.\n");
 
-	for (l = n = 0; l < 6561; l++){ /* 8 squares : 6561 -> 3321 */
-		k=((l / 2187) % 3) + ((l / 729) % 3) * 3 + ((l / 243) % 3) * 9 +
-		((l / 81) % 3) * 27 + ((l / 27) % 3) * 81 + ((l / 9) % 3) * 243 +
-		((l / 3) % 3) * 729 + (l % 3) * 2187;
-		if (k < l) T[l] = T[k];
-		else T[l] = n++;
-		EVAL_S8[0][l] = T[l];
-		EVAL_S8[1][opponent_feature(l, 8)] = T[l];
+	k = l = n = 0;	/* 8 squares : 6561 -> 3321 */
+	l7 = n7 = 0;	/* 7 squares : 2187 -> 1134 */
+	l6 = n6 = 0;	/* 6 squares : 729 -> 378 */
+	l5 = n5 = 0;	/* 5 squares : 243 -> 135 */
+	l4 = n4 = 0;	/* 4 squares : 81 -> 45 */
+	for (q[7] = 0; q[7] < 3; ++q[7], k += (1 - 3 * 3))
+	for (q[6] = 0; q[6] < 3; ++q[6], k += (3 - 9 * 3))
+	for (q[5] = 0; q[5] < 3; ++q[5], k += (9 - 27 * 3))
+	for (q[4] = 0; q[4] < 3; ++q[4]) {
+		if (k < l4) i = T[k + 9720];
+		else T[l4 + 9720] = i = n4++;
+		o4 = opponent_feature(q + 4, 4);
+		P->EVAL_S4[0][l4] = i;
+		P->EVAL_S4[1][o4] = i;
+
+		for (q[3] = 0; q[3] < 3; ++q[3]) {
+			if (k < l5) i = T[k + 9477];
+			else T[l5 + 9477] = i = n5++;
+			o5 = o4 * 3 + OPPONENT(q[3]);
+			P->EVAL_S5[0][l5] = i;
+			P->EVAL_S5[1][o5] = i;
+
+			for (q[2] = 0; q[2] < 3; ++q[2]) {
+				if (k < l6) i = T[k + 8748];
+				else T[l6 + 8748] = i = n6++;
+				o6 = o5 * 3 + OPPONENT(q[2]);
+				P->EVAL_S6[0][l6] = i;
+				P->EVAL_S6[1][o6] = i;
+
+				for (q[1] = 0; q[1] < 3; ++q[1]) {
+					if (k < l7) i = T[k + 6561];
+					else T[l7 + 6561] = i = n7++;
+					o7 = o6 * 3 + OPPONENT(q[1]);
+					P->EVAL_S7[0][l7] = i;
+					P->EVAL_S7[1][o7] = i;
+
+					for (q[0] = 0; q[0] < 3; ++q[0]) {
+						if (k < l) i = T[k];
+						else T[l] = i = n++;
+						P->EVAL_S8[0][l] = i;
+						P->EVAL_S8[1][o7 * 3 + OPPONENT(q[0])] = i;
+						k += 2187;
+						++l;
+					}
+					k += (729 - 2187 * 3);
+					++l7;
+				}
+				k += (243 - 729 * 3);
+				++l6;
+			}
+			k += (81 - 243 * 3);
+			++l5;
+		}
+		k += (27 - 81 * 3);
+		++l4;
 	}
-	for (l = n = 0; l < 2187; l++){ /* 7 squares : 2187 -> 1134 */
-		k=((l / 729) % 3) + ((l / 243) % 3) * 3 + ((l / 81) % 3) * 9 +
-		 ((l / 27) % 3) * 27 + ((l / 9) % 3) * 81 + ((l / 3) % 3) * 243 +
-		 (l % 3) * 729;
-		if (k < l) T[l] = T[k];
-		else T[l] = n++;
-		EVAL_S7[0][l] = T[l];
-		EVAL_S7[1][opponent_feature(l, 7)] = T[l];
+
+	k = l = n = 0; /* 9 corner squares : 19683 -> 10206 */
+	for (q[8] = 0; q[8] < 3; ++q[8], k += (6561 - 729 * 3)) 
+	for (q[7] = 0; q[7] < 3; ++q[7], k += (729 - 2187 * 3))
+	for (q[6] = 0; q[6] < 3; ++q[6], k += (2187 - 243 * 3))
+	for (q[5] = 0; q[5] < 3; ++q[5], k += (243 - 27 * 3))
+	for (q[4] = 0; q[4] < 3; ++q[4], k += (27 - 81 * 3))
+	for (q[3] = 0; q[3] < 3; ++q[3], k += (81 - 3 * 3))
+	for (q[2] = 0; q[2] < 3; ++q[2], k += (3 - 9 * 3))
+	for (q[1] = 0; q[1] < 3; ++q[1], k += (9 - 3))
+	for (q[0] = 0; q[0] < 3; ++q[0], ++k) {
+		// k = q[8] * 6561 + q[7] * 729 + q[6] * 2187 + q[5] * 243 + q[4] * 27 + q[3] * 81 + q[2] * 3 + q[1] * 9 + q[0];
+		if (k < l) i = T[k];
+		else T[l] = i = n++;
+		P->EVAL_C9[0][l] = i;
+		P->EVAL_C9[1][opponent_feature(q, 9)] = i;
+		++l;
 	}
-	for (l = n = 0; l < 729; l++){ /* 6 squares : 729 -> 378 */
-		k=((l / 243) % 3) + ((l / 81) % 3) * 3 + ((l / 27) % 3) * 9 +
-		 ((l / 9) % 3) * 27 + ((l / 3) % 3) * 81 + (l % 3) * 243;
-		if (k < l) T[l]=T[k];
-		else T[l] = n++;
-		EVAL_S6[0][l] = T[l];
-		EVAL_S6[1][opponent_feature(l, 6)] = T[l];
+
+	k = l = n = 0;	/* 10 squares (edge + X) : 59049 -> 29646 */
+	nc = 0;		/* 10 squares (angle + X) : 59049 -> 29889 */
+	for (q[9] = 0; q[9] < 3; ++q[9], k += (1 - 3 * 3))
+	for (q[8] = 0; q[8] < 3; ++q[8], k += (3 - 9 * 3))
+	for (q[7] = 0; q[7] < 3; ++q[7], k += (9 - 27 * 3))
+	for (q[6] = 0; q[6] < 3; ++q[6], k += (27 - 81 * 3))
+	for (q[5] = 0; q[5] < 3; ++q[5], k += (81 - 243 * 3))
+	for (q[4] = 0; q[4] < 3; ++q[4], k += (243 - 729 * 3))
+	for (q[3] = 0; q[3] < 3; ++q[3], k += (729 - 2187 * 3))
+	for (q[2] = 0; q[2] < 3; ++q[2], k += (2187 - 6561 * 3))
+	for (q[1] = 0; q[1] < 3; ++q[1], k += (6561 - 19683 * 3))
+	for (q[0] = 0; q[0] < 3; ++q[0], k += 19683) {
+		// k = q[9] + q[8] * 3 + q[7] * 9 + q[6] * 27 + q[5] * 81 + q[4] * 243 + q[3] * 729 + q[2] * 2187 + q[1] * 6561 + q[0] * 19683;
+		if (k < l) i = T[k];
+		else T[l] = i = n++;
+		j = opponent_feature(q, 10);
+		P->EVAL_S10[0][l] = i;
+		P->EVAL_S10[1][j] = i;
+
+		// k = q[9] + q[8] * 3 + q[7] * 9 + q[6] * 27 + q[5] * 243 + q[4] * 81 + q[3] * 729 + q[2] * 2187 + q[1] * 6561 + q[0] * 19683;
+		kc = k + q[5] * (243 - 81) + q[4] * (81 - 243);
+		if (kc < l) i = T[kc + 59049];
+		else T[l + 59049] = i = nc++;
+		P->EVAL_C10[0][l] = i;
+		P->EVAL_C10[1][j] = i;
+		++l;
 	}
-	for (l = n = 0; l < 243; l++) { /* 5 squares : 243 -> 135 */
-		k=((l / 81) % 3)+((l / 27) % 3) * 3 + ((l / 9) % 3) * 9+
-		((l / 3) % 3) * 27 + (l % 3) * 81;
-		if (k < l) T[l] = T[k];
-		else T[l] = n++;
-		EVAL_S5[0][l] = T[l];
-		EVAL_S5[1][opponent_feature(l, 5)] = T[l];
-	}
-	for (l = n = 0; l < 81; l++) { /* 4 squares : 81 -> 45 */
-		k=((l / 27) % 3) + ((l / 9) % 3) * 3 + ((l / 3) % 3) * 9 + (l % 3) * 27;
-		if (k < l) T[l] = T[k];
-		else T[l] = n++;
-		EVAL_S4[0][l] = T[l];
-		EVAL_S4[1][opponent_feature(l, 4)] = T[l];
-	}
-	for (l = n = 0;l < 19683; l++) { /* 9 corner squares : 19683 -> 10206 */
-		k = ((l / 6561) % 3) * 6561 + ((l / 729) % 3) * 2187 +
-		((l / 2187) % 3) * 729 + ((l / 243) % 3) * 243 +((l / 27) % 3) * 81 +
-		((l / 81) % 3) * 27 + ((l / 3) % 3) * 9 + ((l / 9) % 3) * 3 + (l % 3);
-		if (k < l) T[l] = T[k];
-		else T[l] = n++;
-		EVAL_C9[0][l] = T[l];
-		EVAL_C9[1][opponent_feature(l, 9)] = T[l];
-	}
-	for (l = n = 0; l < 59049; l++) { /* 10 squares (edge +X ) : 59049 -> 29646 */
-		k=((l / 19683) % 3) + ((l / 6561) % 3) * 3+((l / 2187) % 3) * 9 +
-		  ((l / 729) % 3) * 27 + ((l / 243) % 3) * 81 + ((l / 81) % 3) * 243 +
-		  ((l / 27) % 3) * 729 + ((l / 9) % 3) * 2187 + ((l / 3) % 3) * 6561 +
-		  (l % 3) * 19683;
-		if (k < l) T[l] = T[k];
-		else T[l] = n++;
-		EVAL_S10[0][l] = T[l];
-		EVAL_S10[1][opponent_feature(l, 10)] = T[l];
-	}
-	for (l = n = 0; l < 59049; l++) { /* 10 squares (angle + X) : 59049 -> 29889 */
-		k=((l / 19683) % 3) + ((l / 6561) % 3) * 3+((l / 2187) % 3) * 9 +
-		  ((l / 729) % 3) * 27 + ((l / 243) % 3) * 243 + ((l / 81) % 3) * 81 +
-		  ((l / 27) % 3) * 729 + ((l / 9) % 3) * 2187 + ((l / 3) % 3) * 6561 +
-		  (l % 3) * 19683;
-		if (k < l) T[l] = T[k];
-		else T[l] = n++;
-		EVAL_C10[0][l] = T[l];
-		EVAL_C10[1][opponent_feature(l, 10)] = T[l];
-	}
+
 	free(T);
 
 	// allocation
-	EVAL_WEIGHT = (short***) malloc(2 * sizeof (*EVAL_WEIGHT));
+	EVAL_WEIGHT = (short (*)[][EVAL_N_WEIGHT]) malloc(2 * sizeof (*EVAL_WEIGHT));
 	if (EVAL_WEIGHT == NULL) fatal_error("Cannot evaluation weights.\n");
-	EVAL_WEIGHT[0] = (short**) malloc(2 * EVAL_N_PLY * sizeof (**EVAL_WEIGHT));
-	if (EVAL_WEIGHT[0] == NULL) fatal_error("Cannot evaluation weights.\n");
-	EVAL_WEIGHT[1] = EVAL_WEIGHT[0] + EVAL_N_PLY;
-	EVAL_WEIGHT[0][0] = (short*) malloc(2 * EVAL_N_PLY * EVAL_N_WEIGHT * sizeof (***EVAL_WEIGHT));
-	if (EVAL_WEIGHT[0][0] == NULL) fatal_error("Cannot evaluation weights.\n");
-	EVAL_WEIGHT[1][0] = EVAL_WEIGHT[0][0] + EVAL_N_PLY * EVAL_N_WEIGHT;
-	for (ply = 1; ply < EVAL_N_PLY; ply++) {
-		EVAL_WEIGHT[0][ply] = EVAL_WEIGHT[0][ply - 1] + EVAL_N_WEIGHT;
-		EVAL_WEIGHT[1][ply] = EVAL_WEIGHT[1][ply - 1] + EVAL_N_WEIGHT;
-	}
 
 	// data reading
 	w = (short*) malloc(n_w * sizeof (*w)); // a temporary to read packed weights
@@ -400,85 +403,45 @@ void eval_open(const char* file)
 		r = fread(w, sizeof (short), n_w, f);
 		if (r != n_w) fatal_error("Cannot read evaluation weight from %s\n", file);
 		if (edax_header == XADE) for (i = 0; i < n_w; ++i) w[i] = bswap_short(w[i]);
-		i = j = offset = 0;
-		for (k = 0; k < EVAL_SIZE[i]; k++,j++) {
-			EVAL_WEIGHT[0][ply][j] = w[EVAL_C9[0][k] + offset];
-			EVAL_WEIGHT[1][ply][j] = w[EVAL_C9[1][k] + offset];
+
+		for (j = 0; j <= 1; ++j) {
+			for (k = 0; k < EVAL_SIZE[0]; k++) {
+				EVAL_WEIGHT[j][ply][k] = w[P->EVAL_C9[j][k] + EVAL_PACKED_OFS[0]];
+			}
+			for (k = 0; k < EVAL_SIZE[1]; k++) {
+				EVAL_WEIGHT[j][ply][k + 19683] = w[P->EVAL_C10[j][k] + EVAL_PACKED_OFS[1]];
+			}
+			for (k = 0; k < EVAL_SIZE[2]; k++) {
+				i = P->EVAL_S10[j][k];
+				EVAL_WEIGHT[j][ply][k + 78732] = w[i + EVAL_PACKED_OFS[2]];
+				EVAL_WEIGHT[j][ply][k + 137781] = w[i + EVAL_PACKED_OFS[3]];
+			}
+			for (k = 0; k < EVAL_SIZE[4]; k++) {
+				i = P->EVAL_S8[j][k];
+				EVAL_WEIGHT[j][ply][k + 196830] = w[i + EVAL_PACKED_OFS[4]];
+				EVAL_WEIGHT[j][ply][k + 203391] = w[i + EVAL_PACKED_OFS[5]];
+				EVAL_WEIGHT[j][ply][k + 209952] = w[i + EVAL_PACKED_OFS[6]];
+				EVAL_WEIGHT[j][ply][k + 216513] = w[i + EVAL_PACKED_OFS[7]];
+			}
+			for (k = 0; k < EVAL_SIZE[8]; k++) {
+				EVAL_WEIGHT[j][ply][k + 223074] = w[P->EVAL_S7[j][k] + EVAL_PACKED_OFS[8]];
+			}
+			for (k = 0; k < EVAL_SIZE[9]; k++) {
+				EVAL_WEIGHT[j][ply][k + 225261] = w[P->EVAL_S6[j][k] + EVAL_PACKED_OFS[9]];
+			}
+			for (k = 0; k < EVAL_SIZE[10]; k++) {
+				EVAL_WEIGHT[j][ply][k + 225990] = w[P->EVAL_S5[j][k] + EVAL_PACKED_OFS[10]];
+			}
+			for (k = 0; k < EVAL_SIZE[11]; k++) {
+				EVAL_WEIGHT[j][ply][k + 226233] = w[P->EVAL_S4[j][k] + EVAL_PACKED_OFS[11]];
+			}
+			EVAL_WEIGHT[j][ply][226314] = w[EVAL_PACKED_OFS[12]];
 		}
-		offset += EVAL_PACKED_SIZE[i];
-		i++;
-		for (k = 0; k < EVAL_SIZE[i]; k++,j++) {
-			EVAL_WEIGHT[0][ply][j] = w[EVAL_C10[0][k] + offset];
-			EVAL_WEIGHT[1][ply][j] = w[EVAL_C10[1][k] + offset];
-		}
-		offset += EVAL_PACKED_SIZE[i];
-		i++;
-		for (k = 0; k < EVAL_SIZE[i]; k++,j++) {
-			EVAL_WEIGHT[0][ply][j] = w[EVAL_S10[0][k] + offset];
-			EVAL_WEIGHT[1][ply][j] = w[EVAL_S10[1][k] + offset];
-		}
-		offset += EVAL_PACKED_SIZE[i];
-		i++;
-		for (k = 0; k < EVAL_SIZE[i]; k++,j++) {
-			EVAL_WEIGHT[0][ply][j] = w[EVAL_S10[0][k] + offset];
-			EVAL_WEIGHT[1][ply][j] = w[EVAL_S10[1][k] + offset];
-		}
-		offset += EVAL_PACKED_SIZE[i];
-		i++;
-		for (k = 0; k < EVAL_SIZE[i]; k++,j++) {
-			EVAL_WEIGHT[0][ply][j] = w[EVAL_S8[0][k] + offset];
-			EVAL_WEIGHT[1][ply][j] = w[EVAL_S8[1][k] + offset];
-		}
-		offset += EVAL_PACKED_SIZE[i];
-		i++;
-		for (k = 0; k < EVAL_SIZE[i]; k++,j++) {
-			EVAL_WEIGHT[0][ply][j] = w[EVAL_S8[0][k] + offset];
-			EVAL_WEIGHT[1][ply][j] = w[EVAL_S8[1][k] + offset];
-		}
-		offset += EVAL_PACKED_SIZE[i];
-		i++;
-		for (k = 0; k < EVAL_SIZE[i]; k++,j++) {
-			EVAL_WEIGHT[0][ply][j] = w[EVAL_S8[0][k] + offset];
-			EVAL_WEIGHT[1][ply][j] = w[EVAL_S8[1][k] + offset];
-		}
-		offset += EVAL_PACKED_SIZE[i];
-		i++;
-		for (k = 0; k < EVAL_SIZE[i]; k++,j++) {
-			EVAL_WEIGHT[0][ply][j] = w[EVAL_S8[0][k] + offset];
-			EVAL_WEIGHT[1][ply][j] = w[EVAL_S8[1][k] + offset];
-		}
-		offset += EVAL_PACKED_SIZE[i];
-		i++;
-		for (k = 0; k < EVAL_SIZE[i]; k++,j++) {
-			EVAL_WEIGHT[0][ply][j] = w[EVAL_S7[0][k] + offset];
-			EVAL_WEIGHT[1][ply][j] = w[EVAL_S7[1][k] + offset];
-		}
-		offset += EVAL_PACKED_SIZE[i];
-		i++;
-		for (k = 0; k < EVAL_SIZE[i]; k++,j++) {
-			EVAL_WEIGHT[0][ply][j] = w[EVAL_S6[0][k] + offset];
-			EVAL_WEIGHT[1][ply][j] = w[EVAL_S6[1][k] + offset];
-		}
-		offset += EVAL_PACKED_SIZE[i];
-		i++;
-		for (k = 0; k < EVAL_SIZE[i]; k++,j++) {
-			EVAL_WEIGHT[0][ply][j] = w[EVAL_S5[0][k] + offset];
-			EVAL_WEIGHT[1][ply][j] = w[EVAL_S5[1][k] + offset];
-		}
-		offset += EVAL_PACKED_SIZE[i];
-		i++;
-		for (k = 0; k < EVAL_SIZE[i]; k++,j++) {
-			EVAL_WEIGHT[0][ply][j] = w[EVAL_S4[0][k] + offset];
-			EVAL_WEIGHT[1][ply][j] = w[EVAL_S4[1][k] + offset];
-		}
-		offset += EVAL_PACKED_SIZE[i];
-		i++;
-		EVAL_WEIGHT[0][ply][j] = w[offset];
-		EVAL_WEIGHT[1][ply][j] = w[offset];
 	}
 
 	fclose(f);
 	free(w);
+	free(P);
 
 	/*if (version == 3 && release == 2 && build == 5)*/ {
 		EVAL_A = -0.10026799, EVAL_B = 0.31027733, EVAL_C = -0.57772603;
@@ -486,6 +449,13 @@ void eval_open(const char* file)
 	}
 
 	info("<Evaluation function weights version %u.%u.%u loaded>\n", version, release, build);
+
+	// f = fopen("eval.bin", "wb");
+	// for (i = 0; i < 2; ++i)
+	//	for (ply = 0; ply < EVAL_N_PLY; ply++) {
+	//		fwrite(EVAL_WEIGHT[i][ply], sizeof(short), EVAL_N_WEIGHT, f);
+	//	}
+	// fclose(f);
 }
 
 /**
@@ -493,32 +463,8 @@ void eval_open(const char* file)
  */
 void eval_close(void)
 {
-	free(EVAL_WEIGHT[0][0]);
-	free(EVAL_WEIGHT[0]);
 	free(EVAL_WEIGHT);
 	EVAL_WEIGHT = NULL;
-}
-
-/**
- * @brief Initialize a new evaluation function.
- *
- * Allocate space to store the state of the evaluation function.
- *
- * @param eval Evaluation function.
- */
-void eval_init(Eval *eval)
-{
-	eval->feature = (int*) malloc(EVAL_N_FEATURE * sizeof (*eval->feature));
-}
-
-/**
- * @brief Free resources used by the evaluation function.
- *
- * @param eval Evaluation function.
- */
-void eval_free(Eval *eval)
-{
-	free(eval->feature);
 }
 
 /**
@@ -532,12 +478,11 @@ void eval_set(Eval *eval, const Board *board)
 	int i, j, c;
 
 	for (i = 0; i < EVAL_N_FEATURE; ++i) {
-		eval->feature[i] = 0;
+		eval->feature.us[i] = 0;
 		for (j = 0; j < EVAL_F2X[i].n_square; j++) {
 			c = board_get_square_color(board, EVAL_F2X[i].x[j]);
-			eval->feature[i] = eval->feature[i] * 3 + c;
+			eval->feature.us[i] = eval->feature.us[i] * 3 + c;
 		}
-		eval->feature[i] += EVAL_OFFSET[i];
 	}
 	eval->player = 0;
 }
@@ -563,7 +508,6 @@ static void eval_update_0(Eval *eval, const Move *move)
 {
 	const CoordinateToFeature *s = EVAL_X2F + move->x;
 	register int x;
-	int *feature = eval->feature;
 	unsigned long long f = move->flipped;
 	
 #ifdef DEBUG
@@ -572,8 +516,8 @@ static void eval_update_0(Eval *eval, const Move *move)
 	for (i = 0; i < s->n_feature; ++i) {
 		j = s->feature[i].i;
 		assert(0 <= j && j < EVAL_N_FEATURE);
-		feature[j] -= 2 * s->feature[i].x;
-		assert(EVAL_OFFSET[j] <= feature[j] && feature[j] <= EVAL_MAX_VALUE[j]);
+		eval->feature.us[j] -= 2 * s->feature[i].x;
+		assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 	}
 
 	foreach_bit (x, f) {
@@ -581,8 +525,8 @@ static void eval_update_0(Eval *eval, const Move *move)
 		for (i = 0; i < s->n_feature; ++i) {
 			j = s->feature[i].i;
 			assert(0 <= j && j < EVAL_N_FEATURE);
-			feature[j] -= s->feature[i].x;
-			assert(EVAL_OFFSET[j] <= feature[j] && feature[j] <= EVAL_MAX_VALUE[j]);
+			eval->feature.us[j] -= s->feature[i].x;
+			assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 		}
 	}
 
@@ -590,26 +534,26 @@ static void eval_update_0(Eval *eval, const Move *move)
 
 	switch (s->n_feature) {
 	default:
-		feature[s->feature[6].i] -= 2 * s->feature[6].x;
-	case 6:	feature[s->feature[5].i] -= 2 * s->feature[5].x;
-	case 5:	feature[s->feature[4].i] -= 2 * s->feature[4].x;
-	case 4:	feature[s->feature[3].i] -= 2 * s->feature[3].x;
-		feature[s->feature[2].i] -= 2 * s->feature[2].x;
-		feature[s->feature[1].i] -= 2 * s->feature[1].x;
-		feature[s->feature[0].i] -= 2 * s->feature[0].x;
+		eval->feature.us[s->feature[6].i] -= 2 * s->feature[6].x;
+	case 6:	eval->feature.us[s->feature[5].i] -= 2 * s->feature[5].x;
+	case 5:	eval->feature.us[s->feature[4].i] -= 2 * s->feature[4].x;
+	case 4:	eval->feature.us[s->feature[3].i] -= 2 * s->feature[3].x;
+		eval->feature.us[s->feature[2].i] -= 2 * s->feature[2].x;
+		eval->feature.us[s->feature[1].i] -= 2 * s->feature[1].x;
+		eval->feature.us[s->feature[0].i] -= 2 * s->feature[0].x;
 		break;
 	}
 	foreach_bit (x, f) {
 		s = EVAL_X2F + x;
 		switch (s->n_feature) {
 		default:
-			feature[s->feature[6].i] -= s->feature[6].x;
-		case 6:	feature[s->feature[5].i] -= s->feature[5].x;
-		case 5:	feature[s->feature[4].i] -= s->feature[4].x;
-		case 4:	feature[s->feature[3].i] -= s->feature[3].x;
-			feature[s->feature[2].i] -= s->feature[2].x;
-			feature[s->feature[1].i] -= s->feature[1].x;
-			feature[s->feature[0].i] -= s->feature[0].x;
+			eval->feature.us[s->feature[6].i] -= s->feature[6].x;
+		case 6:	eval->feature.us[s->feature[5].i] -= s->feature[5].x;
+		case 5:	eval->feature.us[s->feature[4].i] -= s->feature[4].x;
+		case 4:	eval->feature.us[s->feature[3].i] -= s->feature[3].x;
+			eval->feature.us[s->feature[2].i] -= s->feature[2].x;
+			eval->feature.us[s->feature[1].i] -= s->feature[1].x;
+			eval->feature.us[s->feature[0].i] -= s->feature[0].x;
 			break;
 		}
 	}
@@ -628,7 +572,6 @@ static void eval_update_1(Eval *eval, const Move *move)
 {
 	const CoordinateToFeature *s = EVAL_X2F + move->x;
 	register int x;
-	int *feature = eval->feature;
 	unsigned long long f = move->flipped;
 
 #ifdef DEBUG
@@ -637,8 +580,8 @@ static void eval_update_1(Eval *eval, const Move *move)
 	for (i = 0; i < s->n_feature; ++i) {
 		j = s->feature[i].i;
 		assert(0 <= j && j < EVAL_N_FEATURE);
-		feature[j] -= s->feature[i].x;
-		assert(EVAL_OFFSET[j] <= feature[j] && feature[j] <= EVAL_MAX_VALUE[j]);
+		eval->feature.us[j] -= s->feature[i].x;
+		assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 	}
 
 	foreach_bit (x, f) {
@@ -646,8 +589,8 @@ static void eval_update_1(Eval *eval, const Move *move)
 		for (i = 0; i < s->n_feature; ++i) {
 			j = s->feature[i].i;
 			assert(0 <= j && j < EVAL_N_FEATURE);
-			feature[j] += s->feature[i].x;
-			assert(EVAL_OFFSET[j] <= feature[j] && feature[j] <= EVAL_MAX_VALUE[j]);
+			eval->feature.us[j] += s->feature[i].x;
+			assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 		}
 	}
 
@@ -655,26 +598,26 @@ static void eval_update_1(Eval *eval, const Move *move)
 
 	switch (s->n_feature) {
 	default:
-	       	feature[s->feature[6].i] -= s->feature[6].x;
-	case 6:	feature[s->feature[5].i] -= s->feature[5].x;
-	case 5:	feature[s->feature[4].i] -= s->feature[4].x;
-	case 4:	feature[s->feature[3].i] -= s->feature[3].x;
-	       	feature[s->feature[2].i] -= s->feature[2].x;
-	       	feature[s->feature[1].i] -= s->feature[1].x;
-	       	feature[s->feature[0].i] -= s->feature[0].x;
+	       	eval->feature.us[s->feature[6].i] -= s->feature[6].x;
+	case 6:	eval->feature.us[s->feature[5].i] -= s->feature[5].x;
+	case 5:	eval->feature.us[s->feature[4].i] -= s->feature[4].x;
+	case 4:	eval->feature.us[s->feature[3].i] -= s->feature[3].x;
+	       	eval->feature.us[s->feature[2].i] -= s->feature[2].x;
+	       	eval->feature.us[s->feature[1].i] -= s->feature[1].x;
+	       	eval->feature.us[s->feature[0].i] -= s->feature[0].x;
 	       	break;
 	}
 	foreach_bit (x, f) {
 		s = EVAL_X2F + x;
 		switch (s->n_feature) {
 		default:
-		       	feature[s->feature[6].i] += s->feature[6].x;
-		case 6:	feature[s->feature[5].i] += s->feature[5].x;
-		case 5:	feature[s->feature[4].i] += s->feature[4].x;
-		case 4:	feature[s->feature[3].i] += s->feature[3].x;
-		       	feature[s->feature[2].i] += s->feature[2].x;
-		       	feature[s->feature[1].i] += s->feature[1].x;
-		       	feature[s->feature[0].i] += s->feature[0].x;
+		       	eval->feature.us[s->feature[6].i] += s->feature[6].x;
+		case 6:	eval->feature.us[s->feature[5].i] += s->feature[5].x;
+		case 5:	eval->feature.us[s->feature[4].i] += s->feature[4].x;
+		case 4:	eval->feature.us[s->feature[3].i] += s->feature[3].x;
+		       	eval->feature.us[s->feature[2].i] += s->feature[2].x;
+		       	eval->feature.us[s->feature[1].i] += s->feature[1].x;
+		       	eval->feature.us[s->feature[0].i] += s->feature[0].x;
 		       	break;
 		}
 	}
@@ -701,7 +644,6 @@ static void eval_restore_0(Eval *eval, const Move *move)
 {
 	const CoordinateToFeature *s = EVAL_X2F + move->x;
 	register int x;
-	int *feature = eval->feature;
 	unsigned long long f = move->flipped;
 
 #ifdef DEBUG
@@ -710,8 +652,8 @@ static void eval_restore_0(Eval *eval, const Move *move)
 	for (i = 0; i < s->n_feature; ++i) {
 		j = s->feature[i].i;
 		assert(0 <= j && j < EVAL_N_FEATURE);
-		feature[j] += 2 * s->feature[i].x;
-		assert(EVAL_OFFSET[j] <= feature[j] && feature[j] <= EVAL_MAX_VALUE[j]);
+		eval->feature.us[j] += 2 * s->feature[i].x;
+		assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 	}
 
 	foreach_bit (x, f) {
@@ -719,8 +661,8 @@ static void eval_restore_0(Eval *eval, const Move *move)
 		for (i = 0; i < s->n_feature; ++i) {
 			j = s->feature[i].i;
 			assert(0 <= j && j < EVAL_N_FEATURE);
-			feature[j] += s->feature[i].x;
-			assert(EVAL_OFFSET[j] <= feature[j] && feature[j] <= EVAL_MAX_VALUE[j]);
+			eval->feature.us[j] += s->feature[i].x;
+			assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 		}
 	}
 
@@ -728,26 +670,26 @@ static void eval_restore_0(Eval *eval, const Move *move)
 
 	switch (s->n_feature) {
 	default:
-	       	feature[s->feature[6].i] += 2 * s->feature[6].x;
-	case 6:	feature[s->feature[5].i] += 2 * s->feature[5].x;
-	case 5:	feature[s->feature[4].i] += 2 * s->feature[4].x;
-	case 4:	feature[s->feature[3].i] += 2 * s->feature[3].x;
-	       	feature[s->feature[2].i] += 2 * s->feature[2].x;
-	       	feature[s->feature[1].i] += 2 * s->feature[1].x;
-	       	feature[s->feature[0].i] += 2 * s->feature[0].x;
+	       	eval->feature.us[s->feature[6].i] += 2 * s->feature[6].x;
+	case 6:	eval->feature.us[s->feature[5].i] += 2 * s->feature[5].x;
+	case 5:	eval->feature.us[s->feature[4].i] += 2 * s->feature[4].x;
+	case 4:	eval->feature.us[s->feature[3].i] += 2 * s->feature[3].x;
+	       	eval->feature.us[s->feature[2].i] += 2 * s->feature[2].x;
+	       	eval->feature.us[s->feature[1].i] += 2 * s->feature[1].x;
+	       	eval->feature.us[s->feature[0].i] += 2 * s->feature[0].x;
 	       	break;
 	}
 	foreach_bit (x, f) {
 		s = EVAL_X2F + x;
 		switch (s->n_feature) {
 		default:
-		       	feature[s->feature[6].i] += s->feature[6].x;
-		case 6:	feature[s->feature[5].i] += s->feature[5].x;
-		case 5:	feature[s->feature[4].i] += s->feature[4].x;
-		case 4:	feature[s->feature[3].i] += s->feature[3].x;
-		       	feature[s->feature[2].i] += s->feature[2].x;
-		       	feature[s->feature[1].i] += s->feature[1].x;
-		       	feature[s->feature[0].i] += s->feature[0].x;
+		       	eval->feature.us[s->feature[6].i] += s->feature[6].x;
+		case 6:	eval->feature.us[s->feature[5].i] += s->feature[5].x;
+		case 5:	eval->feature.us[s->feature[4].i] += s->feature[4].x;
+		case 4:	eval->feature.us[s->feature[3].i] += s->feature[3].x;
+		       	eval->feature.us[s->feature[2].i] += s->feature[2].x;
+		       	eval->feature.us[s->feature[1].i] += s->feature[1].x;
+		       	eval->feature.us[s->feature[0].i] += s->feature[0].x;
 		       	break;
 		}
 	}
@@ -760,7 +702,6 @@ static void eval_restore_1(Eval *eval, const Move *move)
 {
 	const CoordinateToFeature *s = EVAL_X2F + move->x;
 	register int x;
-	int *feature = eval->feature;
 	unsigned long long f = move->flipped;
 
 #ifdef DEBUG
@@ -769,8 +710,8 @@ static void eval_restore_1(Eval *eval, const Move *move)
 	for (i = 0; i < s->n_feature; ++i) {
 		j = s->feature[i].i;
 		assert(0 <= j && j < EVAL_N_FEATURE);
-		feature[j] += s->feature[i].x;
-		assert(EVAL_OFFSET[j] <= feature[j] && feature[j] <= EVAL_MAX_VALUE[j]);
+		eval->feature.us[j] += s->feature[i].x;
+		assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 	}
 
 	foreach_bit (x, f) {
@@ -778,8 +719,8 @@ static void eval_restore_1(Eval *eval, const Move *move)
 		for (i = 0; i < s->n_feature; ++i) {
 			j = s->feature[i].i;
 			assert(0 <= j && j < EVAL_N_FEATURE);
-			feature[j] -= s->feature[i].x;
-			assert(EVAL_OFFSET[j] <= feature[j] && feature[j] <= EVAL_MAX_VALUE[j]);
+			eval->feature.us[j] -= s->feature[i].x;
+			assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 		}
 	}
 
@@ -787,26 +728,26 @@ static void eval_restore_1(Eval *eval, const Move *move)
 
 	switch (s->n_feature) {
 	default:
-	       	feature[s->feature[6].i] += s->feature[6].x;
-	case 6:	feature[s->feature[5].i] += s->feature[5].x;
-	case 5:	feature[s->feature[4].i] += s->feature[4].x;
-	case 4:	feature[s->feature[3].i] += s->feature[3].x;
-	       	feature[s->feature[2].i] += s->feature[2].x;
-	       	feature[s->feature[1].i] += s->feature[1].x;
-	       	feature[s->feature[0].i] += s->feature[0].x;
+	       	eval->feature.us[s->feature[6].i] += s->feature[6].x;
+	case 6:	eval->feature.us[s->feature[5].i] += s->feature[5].x;
+	case 5:	eval->feature.us[s->feature[4].i] += s->feature[4].x;
+	case 4:	eval->feature.us[s->feature[3].i] += s->feature[3].x;
+	       	eval->feature.us[s->feature[2].i] += s->feature[2].x;
+	       	eval->feature.us[s->feature[1].i] += s->feature[1].x;
+	       	eval->feature.us[s->feature[0].i] += s->feature[0].x;
 	       	break;
 	}
 	foreach_bit (x, f) {
 		s = EVAL_X2F + x;
 		switch (s->n_feature) {
 		default:
-		       	feature[s->feature[6].i] -= s->feature[6].x;
-		case 6:	feature[s->feature[5].i] -= s->feature[5].x;
-		case 5:	feature[s->feature[4].i] -= s->feature[4].x;
-		case 4:	feature[s->feature[3].i] -= s->feature[3].x;
-		       	feature[s->feature[2].i] -= s->feature[2].x;
-		       	feature[s->feature[1].i] -= s->feature[1].x;
-		       	feature[s->feature[0].i] -= s->feature[0].x;
+		       	eval->feature.us[s->feature[6].i] -= s->feature[6].x;
+		case 6:	eval->feature.us[s->feature[5].i] -= s->feature[5].x;
+		case 5:	eval->feature.us[s->feature[4].i] -= s->feature[4].x;
+		case 4:	eval->feature.us[s->feature[3].i] -= s->feature[3].x;
+		       	eval->feature.us[s->feature[2].i] -= s->feature[2].x;
+		       	eval->feature.us[s->feature[1].i] -= s->feature[1].x;
+		       	eval->feature.us[s->feature[0].i] -= s->feature[0].x;
 		       	break;
 		}
 	}

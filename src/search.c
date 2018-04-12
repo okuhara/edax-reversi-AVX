@@ -371,7 +371,7 @@ void search_init(Search *search)
 	search->player = EMPTY;
 
 	/* evaluation function */
-	eval_init(search->eval);
+	// eval_init(search->eval);
 
 	// radom generator
 	random_seed(search->random, real_clock());
@@ -444,7 +444,7 @@ void search_free(Search *search)
 	hash_free(search->hash_table);
 	hash_free(search->pv_table);
 	hash_free(search->shallow_table);
-	eval_free(search->eval);
+	// eval_free(search->eval);
 	
 	task_stack_free(search->tasks);
 	free(search->tasks);
