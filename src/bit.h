@@ -3,7 +3,7 @@
  *
  * Bitwise operations header file.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2018
  * @author Richard Delorme
  * @version 4.4
  */
@@ -18,9 +18,7 @@ struct Random;
 
 /* declaration */
 int bit_weighted_count(const unsigned long long);
-int first_bit(unsigned long long);
-int next_bit(unsigned long long*);
-int last_bit(unsigned long long);
+// int next_bit(unsigned long long*);
 void bitboard_write(const unsigned long long, FILE*);
 unsigned long long transpose(unsigned long long);
 unsigned long long vertical_mirror(unsigned long long);
@@ -29,8 +27,25 @@ unsigned int bswap_int(unsigned int);
 unsigned short bswap_short(unsigned short);
 int get_rand_bit(unsigned long long, struct Random*);
 
+#ifdef __GNUC__
+#define	first_bit(x)	__builtin_ctzll(x)
+#define	last_bit(x)	(63 - __builtin_clzll(x))
+#else
+int first_bit(unsigned long long);
+int last_bit(unsigned long long);
+#endif
+
 /** Loop over each bit set. */
-#define foreach_bit(i, b) for (i = first_bit(b); b; i = next_bit(&b))
+#define foreach_bit(i, b)	for (i = first_bit(b); b; i = first_bit(b &= (b - 1)))
+
+#ifndef __x86_64__
+#ifdef __GNUC__
+#define	first_bit_32(x)	__builtin_ctz(x)
+#else
+int first_bit_32(unsigned int);
+#endif
+#define foreach_bit_32(i, b)	for (i = first_bit_32(b); b; i = first_bit_32(b &= (b - 1)))
+#endif
 
 extern const unsigned long long X_TO_BIT[];
 /** Return a bitboard with bit x set. */

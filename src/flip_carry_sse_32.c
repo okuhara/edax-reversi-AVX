@@ -35,7 +35,7 @@
  * If the OUTFLANK search is in LSB to MSB direction, carry propagation 
  * can be used to determine contiguous discs.
  *
- * @date 1998 - 2014
+ * @date 1998 - 2018
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.4
@@ -258,13 +258,13 @@ static const UINT64 FLIPPED_5_V[137] = {
 #ifdef USE_GAS_MMX
 
 #ifdef hasSSE2
-	#include <emmintrin.h>
+	#include <x86intrin.h>
 	#define	SSE2
 #else
-	#pragma GCC push_options
-	#pragma GCC target ("sse2")
-	#include <emmintrin.h>
-	#pragma GCC pop_options
+	// #pragma GCC push_options
+	// #pragma GCC target ("sse2")
+	#include <x86intrin.h>
+	// #pragma GCC pop_options
 	#define	SSE2	/* __attribute__ ((__target__ ("sse2"))) */	// seems still buggy, 
 		// therefore SSE intrinsics cannot be used in dispatching version.
 #endif

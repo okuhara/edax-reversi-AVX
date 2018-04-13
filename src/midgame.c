@@ -3,7 +3,7 @@
  *
  * Search near the end of the game.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2018
  * @author Richard Delorme
  * @version 4.4
  */
@@ -79,7 +79,7 @@ int search_eval_1(Search *search, const int alpha, int beta)
 	register int score, bestscore;
 	const Board *board = search->board;
 	unsigned long long moves = get_moves(board->player, board->opponent);
-	unsigned short int *f;
+	unsigned short *f;
 
 	SEARCH_STATS(++statistics.n_search_eval_1);
 	SEARCH_UPDATE_INTERNAL_NODES();

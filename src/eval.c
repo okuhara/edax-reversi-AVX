@@ -20,6 +20,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#ifndef __SSE2__
+
 /** coordinate to feature conversion */
 typedef struct CoordinateToFeature {
 	int n_feature;
@@ -166,6 +168,8 @@ static const CoordinateToFeature EVAL_X2F[] = {
 	{7, {{ 3,  6561}, { 7,   243}, { 9,     3}, {11,     3}, {13,     1}, {15,     1}, {28,     1}}},  /* h8 */
 	{4, {{ 0,     0}, { 0,     0}, { 0,     0}, { 0,     0}}} // <- PASS
 };
+
+#endif
 
 /** feature offset/size */
 // static const int EVAL_OFS[] = { 0, 19683, 78732, 137781, 196830, 203391, 209952, 216513, 223074, 225261, 225990, 226233, 226314 };
@@ -467,6 +471,12 @@ void eval_close(void)
 	EVAL_WEIGHT = NULL;
 }
 
+#if defined(__SSE2__) || defined(USE_GAS_MMX)
+#include "eval_sse.c"
+#endif
+
+#ifndef __SSE2__
+
 /**
  * @brief Set up evaluation features from a board.
  *
@@ -497,7 +507,6 @@ static void eval_swap(Eval *eval)
 	eval->player ^= 1;
 }
 
-
 /**
  * @brief Update the features after a player's move.
  *
@@ -509,10 +518,9 @@ static void eval_update_0(Eval *eval, const Move *move)
 	const CoordinateToFeature *s = EVAL_X2F + move->x;
 	register int x;
 	unsigned long long f = move->flipped;
-	
 #ifdef DEBUG
-
 	int i, j;
+
 	for (i = 0; i < s->n_feature; ++i) {
 		j = s->feature[i].i;
 		assert(0 <= j && j < EVAL_N_FEATURE);
@@ -531,7 +539,6 @@ static void eval_update_0(Eval *eval, const Move *move)
 	}
 
 #else
-
 	switch (s->n_feature) {
 	default:
 		eval->feature.us[s->feature[6].i] -= 2 * s->feature[6].x;
@@ -557,9 +564,8 @@ static void eval_update_0(Eval *eval, const Move *move)
 			break;
 		}
 	}
-	
+
 #endif
-	
 }
 
 /**
@@ -575,8 +581,8 @@ static void eval_update_1(Eval *eval, const Move *move)
 	unsigned long long f = move->flipped;
 
 #ifdef DEBUG
-
 	int i, j;
+
 	for (i = 0; i < s->n_feature; ++i) {
 		j = s->feature[i].i;
 		assert(0 <= j && j < EVAL_N_FEATURE);
@@ -595,7 +601,6 @@ static void eval_update_1(Eval *eval, const Move *move)
 	}
 
 #else
-
 	switch (s->n_feature) {
 	default:
 	       	eval->feature.us[s->feature[6].i] -= s->feature[6].x;
@@ -627,10 +632,24 @@ static void eval_update_1(Eval *eval, const Move *move)
 
 void eval_update(Eval *eval, const Move *move)
 {
-	static void (*eval_update_f[])(Eval*, const Move*) = {eval_update_0, eval_update_1};
 	assert(move->flipped);
 	assert(WHITE == eval->player || BLACK == eval->player);
-	eval_update_f[eval->player](eval, move);
+
+#ifdef USE_GAS_MMX
+	if (hasSSE2) {
+		if (eval->player)
+			eval_update_sse_1(eval, move);
+		else
+			eval_update_sse_0(eval, move);
+		eval_swap(eval);
+		return;
+	}
+#endif
+
+	if (eval->player)
+		eval_update_1(eval, move);
+	else
+		eval_update_0(eval, move);
 	eval_swap(eval);
 }
 
@@ -647,8 +666,8 @@ static void eval_restore_0(Eval *eval, const Move *move)
 	unsigned long long f = move->flipped;
 
 #ifdef DEBUG
-
 	int i, j;
+
 	for (i = 0; i < s->n_feature; ++i) {
 		j = s->feature[i].i;
 		assert(0 <= j && j < EVAL_N_FEATURE);
@@ -667,7 +686,6 @@ static void eval_restore_0(Eval *eval, const Move *move)
 	}
 
 #else
-
 	switch (s->n_feature) {
 	default:
 	       	eval->feature.us[s->feature[6].i] += 2 * s->feature[6].x;
@@ -693,7 +711,6 @@ static void eval_restore_0(Eval *eval, const Move *move)
 		       	break;
 		}
 	}
-	
 #endif
 
 }
@@ -705,8 +722,8 @@ static void eval_restore_1(Eval *eval, const Move *move)
 	unsigned long long f = move->flipped;
 
 #ifdef DEBUG
-
 	int i, j;
+
 	for (i = 0; i < s->n_feature; ++i) {
 		j = s->feature[i].i;
 		assert(0 <= j && j < EVAL_N_FEATURE);
@@ -725,7 +742,6 @@ static void eval_restore_1(Eval *eval, const Move *move)
 	}
 
 #else
-
 	switch (s->n_feature) {
 	default:
 	       	eval->feature.us[s->feature[6].i] += s->feature[6].x;
@@ -751,18 +767,29 @@ static void eval_restore_1(Eval *eval, const Move *move)
 		       	break;
 		}
 	}
-
 #endif
-
 }
 
 void eval_restore(Eval *eval, const Move *move)
 {
-	static void (*eval_restore_f[])(Eval*, const Move*) = {eval_restore_0, eval_restore_1};
 	assert(move->flipped);
 	eval_swap(eval);
 	assert(WHITE == eval->player || BLACK == eval->player);
-	eval_restore_f[eval->player](eval, move);
+
+#ifdef USE_GAS_MMX
+	if (hasSSE2) {
+		if (eval->player)
+			eval_restore_sse_1(eval, move);
+		else
+			eval_restore_sse_0(eval, move);
+		return;
+	}
+#endif
+
+	if (eval->player)
+		eval_restore_1(eval, move);
+	else
+		eval_restore_0(eval, move);
 }
 
 /**
@@ -775,6 +802,7 @@ void eval_pass(Eval *eval)
 	eval_swap(eval);
 }
 
+#endif // __SSE2__
 
 /**
  * @brief Compute the error-type of the evaluation function according to the

@@ -3,7 +3,7 @@
  *
  * Search's header file.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2018
  * @author Richard Delorme
  * @version 4.4
  */
@@ -219,6 +219,18 @@ void pv_debug(Search*, const Move*, FILE*);
 int search_get_pv_cost(Search*);
 void show_current_move(FILE *f, Search*, const Move*, const int, const int, const bool);
 int search_bound(const Search*, int);
+
+#ifdef __SSE2__
+	#ifdef __AVX2__
+		#define	mm_malloc(s)	_mm_malloc((s), 32)
+	#else
+		#define	mm_malloc(s)	_mm_malloc((s), 16)
+	#endif
+	#define	mm_free(p)	_mm_free(p)
+#else
+	#define	mm_malloc(s)	malloc(s)
+	#define	mm_free(p)	free(p)
+#endif
 
 #endif
 

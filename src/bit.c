@@ -6,7 +6,7 @@
  * a macro needs to be defined to chose between different flavors of the
  * algorithm.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2018
  * @author Richard Delorme
  * @version 4.4
  */
@@ -157,6 +157,7 @@ int bit_weighted_count(const unsigned long long v)
 #endif
 }
 
+#ifndef __GNUC__
 /**
  *
  * @brief Search the first bit set.
@@ -191,10 +192,6 @@ int first_bit(unsigned long long b)
 	unsigned long index;
 	_BitScanForward64(&index, b);
 	return (int) index;
-
-#elif defined(USE_GCC_X64)
-
-	return __builtin_ctzll(b);
 
 #elif defined(USE_MASM_X86)
 	__asm {
@@ -234,7 +231,7 @@ int first_bit(unsigned long long b)
 
 #endif
 }
-
+#if 0
 /**
  * @brief Search the next bit set.
  *
@@ -248,6 +245,7 @@ int next_bit(unsigned long long *b)
 	*b &= *b - 1;
 	return first_bit(*b);
 }
+#endif
 
 /**
  * @brief Search the last bit set (same as log2()).
@@ -272,10 +270,6 @@ int last_bit(unsigned long long b)
 	_BitScanReverse64(&index, b);
 	return (int) index;
 
-#elif defined(USE_GCC_X64)
-
-	return 63 - __builtin_clzll(b);
-	
 #elif defined(USE_GAS_X86)
 
   int x1, x2;
@@ -334,6 +328,36 @@ int last_bit(unsigned long long b)
 
 #endif
 }
+
+#ifndef __x86_64__
+int first_bit_32(unsigned int b)
+{
+#if defined(USE_MSVC_X64)
+
+	unsigned long index;
+	_BitScanForward(&index, b);
+	return (int) index;
+
+#elif defined(USE_MASM_X86)
+	__asm {
+		bsf eax, word ptr b
+	}
+
+#elif defined(USE_GCC_ARM)
+	return  __builtin_clz(b & -b) ^ 31;
+
+#else
+
+	static const int magic[32] = {
+		0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8, 
+		31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9
+	};
+
+	return magic[((b & (-b)) * 0x077CB531U) >> 27];
+
+#endif
+#endif // __x86_64__
+#endif // __GNUC__
 
 /**
  * @brief Swap bytes of a short (little <-> big endian).

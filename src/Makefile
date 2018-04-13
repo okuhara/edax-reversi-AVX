@@ -1,7 +1,7 @@
 #
 # makefile to Compile Edax
 #
-# Copyright 1998 - 2012
+# Copyright 1998 - 2018
 # Richard Delorme
 # Version 4.4
 #
@@ -64,7 +64,7 @@ ifeq ($(COMP),gcc)
 		CFLAGS += -m32 -march=native -mfpmath=sse -DUSE_GAS_X86 -DUSE_GAS_MMX -DhasSSE2 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x86)
-		CFLAGS += -m32 -mtune=generic -DUSE_GAS_X86 -DUSE_GAS_MMX
+		CFLAGS += -m32 -march=i386 -mtune=generic -DUSE_GAS_X86 -DUSE_GAS_MMX
 		ifeq ($(BUILD),optimize)
 			CFLAGS += -fomit-frame-pointer
 		endif
