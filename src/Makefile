@@ -348,7 +348,7 @@ pgo-build:
 	$(MAKE) clean
 	$(CC) $(CFLAGS) $(PGO_GEN) all.c -o $(BIN)/$(EXE) $(LIBS)
 	cd $(BIN); echo -e 'count games 10\ncount positions 9\n' | ./$(EXE) 
-	cd $(BIN); ./$(EXE) -l 60 -solve problem/fforum-20-39.obf
+	cd $(BIN); ./$(EXE) -l 60 -solve ../problem/fforum-20-39.obf
 	cd $(BIN); ./$(EXE) -l 18 -auto-store on -auto-start on -repeat 2 -auto-quit on -mode 2 -book-file book.pgo
 	rm -f ../bin/book.pgo ../bin/book.pgo.store
 	$(PGO)	
