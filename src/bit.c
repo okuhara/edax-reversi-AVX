@@ -359,6 +359,7 @@ int first_bit_32(unsigned int b)
 #endif // __x86_64__
 #endif // __GNUC__
 
+#if !defined(__GNUC__) && !defined(_MSC_VER)
 /**
  * @brief Swap bytes of a short (little <-> big endian).
  * @param s An unsigned short.
@@ -376,12 +377,8 @@ unsigned short bswap_short(unsigned short s)
  */
 unsigned int bswap_int(unsigned int i)
 {
-#if defined(USE_GAS_X64) || defined(hasMMX)
-        __asm__("bswapl	%0" : "+r" (i));
-#else
 	i = ((i >>  8) & 0x00FF00FFU) | ((i & 0x00FF00FFU) <<  8);
 	i = (i >> 16) | (i << 16);
-#endif
 	return i;
 }
 
@@ -392,17 +389,12 @@ unsigned int bswap_int(unsigned int i)
  */
 unsigned long long vertical_mirror(unsigned long long b)
 {
-#ifdef USE_GAS_X64
-        __asm__("bswapq	%0" : "+r" (b));
-#elif defined(hasMMX)
-	b = ((unsigned long long) bswap_int((unsigned int) b) << 32) | bswap_int(b >> 32);
-#else
 	b = ((b >>  8) & 0x00FF00FF00FF00FFULL) | ((b & 0x00FF00FF00FF00FFULL) <<  8);
 	b = ((b >> 16) & 0x0000FFFF0000FFFFULL) | ((b & 0x0000FFFF0000FFFFULL) << 16);
 	b = (b >> 32) | (b << 32);
-#endif
 	return b;
 }
+#endif
 
 /**
  * @brief Mirror the unsigned long long (exchange the line 1 - 8, 2 - 7, 3 - 6 & 4 - 5).
@@ -418,7 +410,7 @@ unsigned long long horizontal_mirror(unsigned long long b)
 }
 
 /**
- * @brief Transpose the unsigned long long (symetry % A1-H8 diagonal).
+ * @brief Transpose the unsigned long long (symetry % A1-H8 diagonal, or swap axes).
  * @param b An unsigned long long
  * @return The transposed unsigned long long.
  */
@@ -427,7 +419,7 @@ unsigned long long horizontal_mirror(unsigned long long b)
 unsigned long long transpose(unsigned long long b)
 {
 	static const __v4di s3210 = { 3, 2, 1, 0 };
-	__v4di	v = _mm256_sllv_epi64(_mm256_broadcastq_epi64(_mm_set_epi64x(0, b)), s3210);
+	__v4di	v = _mm256_sllv_epi64(_mm256_broadcastq_epi64(_mm_cvtsi64_si128(b)), s3210);
 	return ((unsigned long long) _mm256_movemask_epi8(v) << 32)
 		| (unsigned int) _mm256_movemask_epi8(_mm256_slli_epi64(v, 4));
 }
@@ -494,8 +486,3 @@ void bitboard_write(const unsigned long long b, FILE *f)
 	}
 	fputs("  A B C D E F G H\n", f);
 }
-
-
-
-
-

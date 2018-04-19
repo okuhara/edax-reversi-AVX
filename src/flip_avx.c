@@ -100,9 +100,10 @@ static inline __v2di _mm_cvtsi64_si128(const unsigned long long x) {
  * -1 if outflank is 0
  *  0 if a 1 is in 64 bit
  */
-static inline __v4di flipmask (__v4di outflank) {
-	return _mm256_cmpeq_epi64(outflank, _mm256_setzero_si256());
-}
+// static inline __v4di flipmask (__v4di outflank) {	// errorneous debug build on GCC 5.1
+//	return _mm256_cmpeq_epi64(outflank, _mm256_setzero_si256());
+// }
+#define	flipmask(x)	_mm256_cmpeq_epi64((x), _mm256_setzero_si256())
 
 /**
  * Compute flipped discs when playing on square pos.

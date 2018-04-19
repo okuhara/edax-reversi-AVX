@@ -304,7 +304,7 @@ void board_symetry(const Board *board, const int s, Board *sym)
 {
 	register unsigned long long player, opponent;
 
-#if defined(USE_GAS_MMX) || defined(__x86_64__)
+#if (defined(USE_GAS_MMX) || defined(__x86_64__)) && !defined(DEBUG)	// crashes debug build on GCC5.1
 	if (hasSSE2) {
 		board_symetry_sse(board, s, sym);
 		return;

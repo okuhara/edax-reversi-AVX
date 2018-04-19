@@ -21,11 +21,22 @@ int bit_weighted_count(const unsigned long long);
 // int next_bit(unsigned long long*);
 void bitboard_write(const unsigned long long, FILE*);
 unsigned long long transpose(unsigned long long);
-unsigned long long vertical_mirror(unsigned long long);
 unsigned long long horizontal_mirror(unsigned long long);
-unsigned int bswap_int(unsigned int);
-unsigned short bswap_short(unsigned short);
 int get_rand_bit(unsigned long long, struct Random*);
+
+#ifdef __GNUC__
+#define	bswap_short(x)	__builtin_bswap16(x)
+#define	bswap_int(x)	__builtin_bswap32(x)
+#define	vertical_mirror(x)	__builtin_bswap64(x)
+#elif defined(_MSC_VER)
+#define	bswap_short(x)	_byteswap_ushort(x)
+#define	bswap_int(x)	_byteswap_ulong(x)
+#define	vertical_mirror(x)	_byteswap_uint64(x)
+#else
+unsigned short bswap_short(unsigned short);
+unsigned int bswap_int(unsigned int);
+unsigned long long vertical_mirror(unsigned long long);
+#endif
 
 #ifdef __GNUC__
 #define	first_bit(x)	__builtin_ctzll(x)
