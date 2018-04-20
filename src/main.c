@@ -3,7 +3,7 @@
  *
  * @brief Main file.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2018
  * @author Richard Delorme
  * @version 4.4
  */
@@ -85,7 +85,7 @@ int main(int argc, char **argv)
 	options_parse("edax.ini");
 
 	// allocate ui
-	ui = (UI*) malloc(sizeof *ui);
+	ui = (UI*) mm_malloc(sizeof *ui);	// Eval in Search in Play in UI
 	if (ui == NULL) fatal_error("Cannot allocate a user interface.\n");
 	ui->type = UI_EDAX;
 	ui->init = ui_init_edax;
@@ -162,7 +162,7 @@ int main(int argc, char **argv)
 	// free;
 	eval_close();
 	options_free();
-	free(ui);
+	mm_free(ui);
 
 	return 0;
 }
