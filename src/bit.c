@@ -157,7 +157,7 @@ int bit_weighted_count(const unsigned long long v)
 #endif
 }
 
-#ifndef __GNUC__
+#ifndef first_bit
 /**
  *
  * @brief Search the first bit set.
@@ -231,6 +231,8 @@ int first_bit(unsigned long long b)
 
 #endif
 }
+#endif // first_bit
+
 #if 0
 /**
  * @brief Search the next bit set.
@@ -247,6 +249,7 @@ int next_bit(unsigned long long *b)
 }
 #endif
 
+#ifndef last_bit
 /**
  * @brief Search the last bit set (same as log2()).
  *
@@ -328,8 +331,9 @@ int last_bit(unsigned long long b)
 
 #endif
 }
+#endif // last_bit
 
-#ifndef __x86_64__
+#if !defined(__x86_64__) && !defined(first_bit_32)
 int first_bit_32(unsigned int b)
 {
 #if defined(USE_MSVC_X64)
@@ -356,10 +360,9 @@ int first_bit_32(unsigned int b)
 	return magic[((b & (-b)) * 0x077CB531U) >> 27];
 
 #endif
-#endif // __x86_64__
-#endif // __GNUC__
+#endif // first_bit_32
 
-#if !defined(__GNUC__) && !defined(_MSC_VER)
+#ifndef bswap_short
 /**
  * @brief Swap bytes of a short (little <-> big endian).
  * @param s An unsigned short.
@@ -369,7 +372,9 @@ unsigned short bswap_short(unsigned short s)
 {
 	return (unsigned short) ((s >> 8) & 0x00FF) | ((s & 0x00FF) <<  8);
 }
+#endif
 
+#ifndef bswap_int
 /**
  * @brief Mirror the unsigned int (little <-> big endian).
  * @param i An unsigned int.
@@ -394,7 +399,7 @@ unsigned long long vertical_mirror(unsigned long long b)
 	b = (b >> 32) | (b << 32);
 	return b;
 }
-#endif
+#endif // bswap_int
 
 /**
  * @brief Mirror the unsigned long long (exchange the line 1 - 8, 2 - 7, 3 - 6 & 4 - 5).
@@ -438,7 +443,7 @@ unsigned long long transpose(unsigned long long b)
 
 	return b;
 }
-#endif
+#endif // __AVX2__
 
 /**
  * @brief Get a random set bit index.

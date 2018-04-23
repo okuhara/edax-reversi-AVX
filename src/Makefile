@@ -244,7 +244,7 @@ ifeq ($(COMP),clang)
 	PGO = llvm-profdata merge -output=edax.profdata $(BIN)/*.profraw
 
 	ifeq ($(BUILD),optimize)
-		CFLAGS += -O3 -flto -ffast-math -fomit-frame-pointer -DNDEBUG -fuse-ld=gold
+		CFLAGS += -O3 -flto -ffast-math -fomit-frame-pointer -DNDEBUG
 	else
 		CFLAGS += -O0 -g -DDEBUG
 	endif
