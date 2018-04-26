@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file edax.c
  *
  * @brief Edax protocol.
@@ -70,12 +70,12 @@
  *   -add [file]          add positions from a game base file (txt, ggf, sgf or\n  wthor format).
  *
  * Game DataBase Commands:
- *   -convert [file_in] [file_out]     convert between different format.
- *   -unique [file_in] [file_out]      remove doublons in the base.
+ *   -convert [file_in] [file_out]     convert between different format.
+ *   -unique [file_in] [file_out]      remove doublons in the base.
  *   -check [file_in] [n]              check error in the last <n> moves.
  *   -correct [file_in] [n]            correct error in the last <n> moves.
  *   -complete [file_in]               complete a database by playing the last\n  missing moves.
- *   -problem [file_in] [n] [file_out] build a set of <n> problems from a game\n  database.
+ *   -problem [file_in] [n] [file_out] build a set of <n> problems from a game\n  database.
  *
  * Tests commands:
  *   -solve [file]        solve a set of positions.
@@ -89,7 +89,7 @@
  *   -count shapes [d]    compute the number of shapes from the current position up\n  to depth [d].
  *
  *
- * @date 1998 - 2017
+ * @date 1998 - 2018
  * @author Richard Delorme
  * @version 4.4
  *
@@ -250,12 +250,12 @@ void help_book(void)
 void help_base(void) 
 {
 	printf("\nGame DataBase :\n");
-	printf("  convert [file_in] [file_out]     convert between different format.\n");
-	printf("  unique [file_in] [file_out]      remove doublons in the base.\n");
+	printf("  convert [file_in] [file_out]     convert between different format.\n");
+	printf("  unique [file_in] [file_out]      remove doublons in the base.\n");
 	printf("  check [file_in] [n]              check error in the last <n> moves.\n");
 	printf("  correct [file_in] [n]            correct error in the last <n> moves.\n");
 	printf("  complete [file_in]               complete a database by playing the last\n  missing moves.\n");
-	printf("  problem [file_in] [n] [file_out] build a set of <n> problems from a game\n  database.\n");
+	printf("  problem [file_in] [n] [file_out] build a set of <n> problems from a game\n  database.\n");
 }
 
 /**

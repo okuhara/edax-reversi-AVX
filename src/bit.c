@@ -74,14 +74,29 @@ const unsigned long long NEIGHBOUR[] = {
 int bit_count(unsigned long long b)
 {
 	register unsigned long long c;
-
-// for X64, MMX does not help much here :-(
-	#ifdef USE_GAS_MMX
- 
+	#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 	static const unsigned long long M55 = 0x5555555555555555ULL;
 	static const unsigned long long M33 = 0x3333333333333333ULL;
 	static const unsigned long long M0F = 0x0F0F0F0F0F0F0F0FULL;
 	int count;
+	#endif
+
+// for X64, MMX does not help much here :-(
+	#ifdef USE_MSVC_X86
+	__m64	m;
+
+	if (hasSSE2) {
+		m = *(__m64 *) &b;
+		m = _m_psubd(m, _m_pand(_m_psrlqi(m, 1), *(__m64 *) &M55));
+		m = _m_paddd(_m_pand(m, *(__m64 *) &M33), _m_pand(_m_psrlqi(m, 2), *(__m64 *) &M33));
+		m = _m_pand(_m_paddd(m, _m_psrlqi(m, 4)), *(__m64 *) &M0F);
+		count = _m_to_int(_m_psadbw(m, _mm_setzero_si64()));
+		_mm_empty();
+
+		return count;
+	}
+
+	#elif defined(USE_GAS_MMX)
 
 	if (hasSSE2) {
 		__asm__(
@@ -187,13 +202,13 @@ int first_bit(unsigned long long b)
 	"1:" : "=&q" (x1), "=&q" (x2) : "1" ((int) (b >> 32)), "0" ((int) b));
 	return x1;
 
-#elif defined(USE_MSVC_X64)
+#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM))
 
 	unsigned long index;
 	_BitScanForward64(&index, b);
 	return (int) index;
 
-#elif defined(USE_MASM_X86)
+#elif defined(USE_MSVC_X86)
 	__asm {
 		xor eax, eax
 		bsf edx, dword ptr b
@@ -267,7 +282,7 @@ int last_bit(unsigned long long b)
 	__asm__("bsrq %1,%0" :"=r" (b) :"rm" (b));
 	return b;
 
-#elif defined(USE_MSVC_X64)
+#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM))
 
 	unsigned long index;
 	_BitScanReverse64(&index, b);
@@ -293,7 +308,7 @@ int last_bit(unsigned long long b)
 	}
 
 
-#elif defined(USE_MASM_X86)
+#elif defined(USE_MSVC_X86)
 	__asm {
 		xor eax, eax
 		bsr edx, dword ptr b+4
@@ -333,16 +348,16 @@ int last_bit(unsigned long long b)
 }
 #endif // last_bit
 
-#if !defined(__x86_64__) && !defined(first_bit_32)
+#if !defined(__x86_64__) && !defined(_M_X64) && !defined(first_bit_32)
 int first_bit_32(unsigned int b)
 {
-#if defined(USE_MSVC_X64)
+#if defined(_MSC_VER)
 
 	unsigned long index;
 	_BitScanForward(&index, b);
 	return (int) index;
 
-#elif defined(USE_MASM_X86)
+#elif defined(USE_MSVC_X86)
 	__asm {
 		bsf eax, word ptr b
 	}
@@ -358,8 +373,8 @@ int first_bit_32(unsigned int b)
 	};
 
 	return magic[((b & (-b)) * 0x077CB531U) >> 27];
-
 #endif
+}
 #endif // first_bit_32
 
 #ifndef bswap_short
@@ -419,12 +434,11 @@ unsigned long long horizontal_mirror(unsigned long long b)
  * @param b An unsigned long long
  * @return The transposed unsigned long long.
  */
-#ifdef __AVX2__
-#include <x86intrin.h>
+#if defined(__AVX2__) && (defined(__x86_64__) || defined(_M_X64))
 unsigned long long transpose(unsigned long long b)
 {
-	static const __v4di s3210 = { 3, 2, 1, 0 };
-	__v4di	v = _mm256_sllv_epi64(_mm256_broadcastq_epi64(_mm_cvtsi64_si128(b)), s3210);
+	static const V4DI s3210 = {{ 3, 2, 1, 0 }};
+	__m256i	v = _mm256_sllv_epi64(_mm256_broadcastq_epi64(_mm_cvtsi64_si128(b)), s3210.v4);
 	return ((unsigned long long) _mm256_movemask_epi8(v) << 32)
 		| (unsigned int) _mm256_movemask_epi8(_mm256_slli_epi64(v, 4));
 }

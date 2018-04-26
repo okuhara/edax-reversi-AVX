@@ -11,9 +11,7 @@
 #ifndef EDAX_EVAL_H
 #define EDAX_EVAL_H
 
-#ifdef __SSE2__
-	#include <x86intrin.h>
-#endif
+#include "bit.h"
 
 /** number of features */
 enum { EVAL_N_FEATURE = 47 };
@@ -25,11 +23,11 @@ enum { EVAL_N_FEATURE = 47 };
 typedef struct Eval {
 	union {
 		unsigned short us[EVAL_N_FEATURE];         /**!< discs' features */
-#ifdef __SSE2__
-		__v8hi	v8[6];
+#ifdef hasSSE2
+		__m128i	v8[6];
 #endif
 #ifdef __AVX2__
-		__v16hi	v16[3];
+		__m256i	v16[3];
 #endif
 	} feature;
 	int player;

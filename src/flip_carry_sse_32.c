@@ -41,9 +41,10 @@
  * @version 4.4
  */
 
-#ifdef USE_GAS_MMX
+#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 #include <string.h>	// memcpy
 #endif
+#include "bit.h"
 
 #ifdef __TURBOC__
 // bcc32 -c -pr -O1 flip_carry_sse_32.c
@@ -255,21 +256,20 @@ static const UINT64 FLIPPED_5_V[137] = {
 	0x00ff00ff00000000
 };
 
-#ifdef USE_GAS_MMX
-
-#ifdef hasSSE2
-	#include <x86intrin.h>
-	#define	SSE2
-#else
+#if !defined(hasSSE2) && defined(USE_GAS_MMX)
 	// #pragma GCC push_options
 	// #pragma GCC target ("sse2")
-	#include <x86intrin.h>
+	#include <emmintrin.h>
 	// #pragma GCC pop_options
 	#define	SSE2	/* __attribute__ ((__target__ ("sse2"))) */	// seems still buggy, 
 		// therefore SSE intrinsics cannot be used in dispatching version.
+#else
+	#define	SSE2
 #endif
 
-static const __v2di	minusone = { -1LL, -1LL };
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+
+static const V2DI	minusone = {{ -1LL, -1LL }};
 
 #if 0 // hasMMX, hasSSE2
 static const UINT64 mask_c1c8 = 0x0404040404040404;
@@ -298,9 +298,9 @@ static const UINT64 mask_c1h6 = 0x0000804020100804;
  *
  * AMD 47414 pp.96
  */
-static inline UINT64 SSE2 movepi64_by_movd(__v2di x)
+static inline UINT64 SSE2 movepi64_by_movd(__m128i x)
 {
-#ifdef __SSE2__
+#if defined(hasSSE2) || defined(USE_MSVC_X86)
 	return ((unsigned int) _mm_cvtsi128_si32(x))
 		| ((UINT64) _mm_cvtsi128_si32(_mm_srli_epi64(x, 32)) << 32);
 #else
@@ -313,7 +313,7 @@ static inline UINT64 SSE2 movepi64_by_movd(__v2di x)
 #endif
 }
 
-#ifdef __SSE2__
+#if defined(hasSSE2) || defined(USE_MSVC_X86)
 
 #define	SWAP64	0x4e	// for _mm_shuffle_epi32
 #define	SWAP32	0xb1
@@ -324,7 +324,7 @@ static inline UINT64 SSE2 movepi64_by_movd(__v2di x)
  * 0xffffffffffffffff (-1) if outflank is 0
  * 0x0000000000000000 ( 0) if a 1 is in 64 bit
  */
-static inline __v2di SSE2 flipmask (__v2di outflank) {
+static inline __m128i SSE2 flipmask (__m128i outflank) {
 	return _mm_cmpeq_epi32(_mm_shuffle_epi32(outflank, SWAP32), outflank);
 }
 
@@ -333,27 +333,27 @@ static inline __v2di SSE2 flipmask (__v2di outflank) {
  *
  * AMD 47414 pp.96
  */
-static inline __v2di SSE2 set1_by_movd (unsigned int L, unsigned int H) {
-	__v2di	Y;
+static inline __m128i SSE2 set1_by_movd (unsigned int L, unsigned int H) {
+	__m128i	Y;
 	Y = _mm_unpacklo_epi32(_mm_cvtsi32_si128(L), _mm_cvtsi32_si128(H));
 	return _mm_unpacklo_epi64(Y, Y);
 }
 
-#define FLIP_CARRY_2_VEC(flip_l)	__v2di	outflank_v_d;\
-	outflank_v_d = _mm_andnot_si128(mask, (set1_by_movd(OL, OH) | mask) - minusone) & set1_by_movd(PL, PH);\
-	outflank_v_d = _mm_andnot_si128(mask, outflank_v_d - (flipmask(outflank_v_d) - minusone));\
-	outflank_v_d |= _mm_shuffle_epi32(outflank_v_d, SWAP64);\
+#define FLIP_CARRY_2_VEC(flip_l)	__m128i	outflank_v_d;\
+	outflank_v_d = _mm_and_si128(_mm_andnot_si128(mask.v2, _mm_sub_epi64(_mm_or_si128(set1_by_movd(OL, OH), mask.v2), minusone.v2)), set1_by_movd(PL, PH));\
+	outflank_v_d = _mm_andnot_si128(mask.v2, _mm_sub_epi64(outflank_v_d, _mm_sub_epi64(flipmask(outflank_v_d), minusone.v2)));\
+	outflank_v_d = _mm_or_si128(outflank_v_d, _mm_shuffle_epi32(outflank_v_d, SWAP64));\
 	flipped = (flip_l) | movepi64_by_movd(outflank_v_d)
 
-#define	FLIP_CARRY_3_VEC(flip_l)	__v2di	outflank_v_d, outflank_d_0, PP, OO, mask2_;\
+#define	FLIP_CARRY_3_VEC(flip_l)	__m128i	outflank_v_d, outflank_d_0, PP, OO, mask2_;\
 	OO = set1_by_movd(OL, OH);\
 	PP = set1_by_movd(PL, PH);\
 	mask2_ = _mm_loadl_epi64((__m128i *) &mask2);\
-	outflank_v_d = _mm_andnot_si128(mask01, (OO | mask01) - minusone) & PP;\
-	outflank_d_0 = _mm_andnot_si128(mask2_, (OO | mask2_) - minusone) & PP;\
-	outflank_v_d = _mm_andnot_si128(mask01, outflank_v_d - (flipmask(outflank_v_d) - minusone));\
-	outflank_d_0 = _mm_andnot_si128(mask2_, outflank_d_0 - (flipmask(outflank_d_0) - minusone));\
-	outflank_v_d |= _mm_shuffle_epi32(outflank_v_d, SWAP64) | outflank_d_0;\
+	outflank_v_d = _mm_and_si128(_mm_andnot_si128(mask01.v2, _mm_sub_epi64(_mm_or_si128(OO, mask01.v2), minusone.v2)), PP);\
+	outflank_d_0 = _mm_and_si128(_mm_andnot_si128(mask2_, _mm_sub_epi64(_mm_or_si128(OO, mask2_), minusone.v2)), PP);\
+	outflank_v_d = _mm_andnot_si128(mask01.v2, _mm_sub_epi64(outflank_v_d, _mm_sub_epi64(flipmask(outflank_v_d), minusone.v2)));\
+	outflank_d_0 = _mm_andnot_si128(mask2_, _mm_sub_epi64(outflank_d_0, _mm_sub_epi64(flipmask(outflank_d_0), minusone.v2)));\
+	outflank_v_d = _mm_or_si128(outflank_v_d, _mm_or_si128(_mm_shuffle_epi32(outflank_v_d, SWAP64), outflank_d_0));\
 	flipped = (flip_l) | movepi64_by_movd(outflank_v_d)
 
 #else
@@ -403,9 +403,9 @@ static inline __v2di SSE2 set1_by_movd (unsigned int L, unsigned int H) {
 	: "=A" (flipped)\
 	: "m" (PL), "m" (PH), "m" (OL), "m" (OH), "m" (mask01), "m" (mask2), "a" (flip_l))
 
-#endif
+#endif // hasSSE2
 
-#endif // USE_GAS_MMX
+#endif // hasSSE2 | USE_GAS_MMX | _P_IX86
 
 /**
  * Compute flipped discs when playing on square A1.
@@ -432,10 +432,10 @@ static UINT64 flip_A1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_A1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x0101010101010100, ~0x8040201008040200 };
+	static const V2DI mask = {{ ~0x0101010101010100, ~0x8040201008040200 }};
 	unsigned int outflank_h = ((OL & 0x7e) + 0x02) & PL;
 	UINT64 flipped;
 
@@ -470,10 +470,10 @@ static UINT64 flip_B1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_B1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x0202020202020200, ~0x0080402010080400 };
+	static const V2DI mask = {{ ~0x0202020202020200, ~0x0080402010080400 }};
 	unsigned int outflank_h = ((OL & 0x7c) + 0x04) & PL;
 	UINT64 flipped;
 
@@ -510,10 +510,10 @@ static UINT64 flip_C1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_C1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x0404040404040400, ~0x0000804020100800 };
+	static const V2DI mask = {{ ~0x0404040404040400, ~0x0000804020100800 }};
 	unsigned int outflank_h = OUTFLANK_2[(OL >> 1) & 0x3f] & PL;
 	UINT64 flipped;
 
@@ -549,10 +549,10 @@ static UINT64 flip_D1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_D1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x0808080808080800, ~0x0000008040201000 };
+	static const V2DI mask = {{ ~0x0808080808080800, ~0x0000008040201000 }};
 	unsigned int outflank_h = OUTFLANK_3[(OL >> 1) & 0x3f] & PL;
 	unsigned int outflank_d7 = ((OL | ~0x01020400u) + 1) & PL & 0x01020400u;
 	UINT64 flipped;
@@ -590,10 +590,10 @@ static UINT64 flip_E1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_E1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x1010101010101000, ~0x0000000102040800 };
+	static const V2DI mask = {{ ~0x1010101010101000, ~0x0000000102040800 }};
 	unsigned int outflank_h = OUTFLANK_4[(OL >> 1) & 0x3f] & PL;
 	unsigned int outflank_d9 = ((OL | ~0x80402000u) + 1) & PL & 0x80402000u;
 	UINT64 flipped;
@@ -632,10 +632,10 @@ static UINT64 flip_F1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_F1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x2020202020202000, ~0x0000010204081000 };
+	static const V2DI mask = {{ ~0x2020202020202000, ~0x0000010204081000 }};
 	unsigned int outflank_h = OUTFLANK_5[(OL >> 1) & 0x3f] & PL;
 	UINT64 flipped;
 
@@ -670,10 +670,10 @@ static UINT64 flip_G1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_G1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x4040404040404000, ~0x0001020408102000 };
+	static const V2DI mask = {{ ~0x4040404040404000, ~0x0001020408102000 }};
 	unsigned int outflank_h = OUTFLANK_7[OL & 0x3e] & (PL << 1);
 	UINT64 flipped;
 
@@ -708,10 +708,10 @@ static UINT64 flip_H1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_H1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x8080808080808000, ~0x0102040810204000 };
+	static const V2DI mask = {{ ~0x8080808080808000, ~0x0102040810204000 }};
 	unsigned int outflank_h = OUTFLANK_7[(OL >> 1) & 0x3f] & PL;
 	UINT64 flipped;
 
@@ -746,10 +746,10 @@ static UINT64 flip_A2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_A2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x0101010101010000, ~0x4020100804020000 };
+	static const V2DI mask = {{ ~0x0101010101010000, ~0x4020100804020000 }};
 	unsigned int outflank_h = ((OL & 0x00007e00u) + 0x00000200u) & PL;
 	UINT64 flipped;
 
@@ -784,10 +784,10 @@ static UINT64 flip_B2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_B2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x0202020202020000, ~0x8040201008040000 };
+	static const V2DI mask = {{ ~0x0202020202020000, ~0x8040201008040000 }};
 	unsigned int outflank_h = ((OL & 0x00007c00u) + 0x00000400u) & PL;
 	UINT64 flipped;
 
@@ -824,10 +824,10 @@ static UINT64 flip_C2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_C2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x0404040404040000, ~0x0080402010080000 };
+	static const V2DI mask = {{ ~0x0404040404040000, ~0x0080402010080000 }};
 	unsigned int outflank_h = OUTFLANK_2[(OL >> 9) & 0x3f] & (PL >> 8);
 	UINT64 flipped;
 
@@ -863,10 +863,10 @@ static UINT64 flip_D2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_D2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask01 = { ~0x0808080808080000, ~0x0000804020100000 };
+	static const V2DI mask01 = {{ ~0x0808080808080000, ~0x0000804020100000 }};
 	static const UINT64 mask2 = ~0x0000000102040000;
 	unsigned int outflank_h = OUTFLANK_3[(OL >> 9) & 0x3f] & (PL >> 8);
 	UINT64 flipped;
@@ -903,10 +903,10 @@ static UINT64 flip_E2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_E2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask01 = { ~0x1010101010100000, ~0x0000010204080000 };
+	static const V2DI mask01 = {{ ~0x1010101010100000, ~0x0000010204080000 }};
 	static const UINT64 mask2 = ~0x0000008040200000;
 	unsigned int outflank_h = OUTFLANK_4[(OL >> 9) & 0x3f] & (PL >> 8);
 	UINT64 flipped;
@@ -944,10 +944,10 @@ static UINT64 flip_F2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_F2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x2020202020200000, ~0x0001020408100000 };
+	static const V2DI mask = {{ ~0x2020202020200000, ~0x0001020408100000 }};
 	unsigned int outflank_h = OUTFLANK_5[(OL >> 9) & 0x3f] & (PL >> 8);
 	UINT64 flipped;
 
@@ -982,10 +982,10 @@ static UINT64 flip_G2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_G2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x4040404040400000, ~0x0102040810200000 };
+	static const V2DI mask = {{ ~0x4040404040400000, ~0x0102040810200000 }};
 	unsigned int outflank_h = OUTFLANK_7[(OL >> 8) & 0x3e] & (PL >> 7);
 	UINT64 flipped;
 
@@ -1020,10 +1020,10 @@ static UINT64 flip_H2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_H2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x8080808080800000, ~0x0204081020400000 };
+	static const V2DI mask = {{ ~0x8080808080800000, ~0x0204081020400000 }};
 	unsigned int outflank_h = OUTFLANK_7[(OL >> 9) & 0x3f] & (PL >> 8);
 	UINT64 flipped;
 
@@ -1060,10 +1060,10 @@ static UINT64 flip_A3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_A3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x0101010101000000, ~0x2010080402000000 };
+	static const V2DI mask = {{ ~0x0101010101000000, ~0x2010080402000000 }};
 	unsigned int outflank_h = ((OL & 0x007e0000u) + 0x00020000u) & PL;
 	UINT64 flipped;
 
@@ -1101,10 +1101,10 @@ static UINT64 flip_B3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_B3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x0202020202000000, ~0x4020100804000000 };
+	static const V2DI mask = {{ ~0x0202020202000000, ~0x4020100804000000 }};
 	unsigned int outflank_h = ((OL & 0x007c0000u) + 0x00040000u) & PL;
 	UINT64 flipped;
 
@@ -1144,10 +1144,10 @@ static UINT64 flip_C3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_C3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x0404040404000000, ~0x8040201008000000 };
+	static const V2DI mask = {{ ~0x0404040404000000, ~0x8040201008000000 }};
 	unsigned int outflank_h = OUTFLANK_2[(OL >> 17) & 0x3f] & (PL >> 16);
 	UINT64 flipped;
 
@@ -1190,10 +1190,10 @@ static UINT64 flip_D3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_D3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask01 = { ~0x0808080808000000, ~0x0080402010000000 };
+	static const V2DI mask01 = {{ ~0x0808080808000000, ~0x0080402010000000 }};
 	static const UINT64 mask2 = ~0x0000010204000000;
 	unsigned int outflank_h = OUTFLANK_3[(OL >> 17) & 0x3f] & (PL >> 16);
 	UINT64 flipped;
@@ -1237,10 +1237,10 @@ static UINT64 flip_E3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_E3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask01 = { ~0x1010101010000000, ~0x0001020408000000 };
+	static const V2DI mask01 = {{ ~0x1010101010000000, ~0x0001020408000000 }};
 	static const UINT64 mask2 = ~0x0000804020000000;
 	unsigned int outflank_h = OUTFLANK_4[(OL >> 17) & 0x3f] & (PL >> 16);
 	UINT64 flipped;
@@ -1283,10 +1283,10 @@ static UINT64 flip_F3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_F3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x2020202020000000, ~0x0102040810000000 };
+	static const V2DI mask = {{ ~0x2020202020000000, ~0x0102040810000000 }};
 	unsigned int outflank_h = OUTFLANK_5[(OL >> 17) & 0x3f] & (PL >> 16);
 	UINT64 flipped;
 
@@ -1326,10 +1326,10 @@ static UINT64 flip_G3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_G3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x4040404040000000, ~0x0204081020000000 };
+	static const V2DI mask = {{ ~0x4040404040000000, ~0x0204081020000000 }};
 	unsigned int outflank_h = OUTFLANK_7[(OL >> 16) & 0x3e] & (PL >> 15);
 	UINT64 flipped;
 
@@ -1367,10 +1367,10 @@ static UINT64 flip_H3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#ifdef USE_GAS_MMX
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 static UINT64 SSE2 flip_sse_H3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
-	static const __v2di mask = { ~0x8080808080000000, ~0x0408102040000000 };
+	static const V2DI mask = {{ ~0x8080808080000000, ~0x0408102040000000 }};
 	unsigned int outflank_h = OUTFLANK_7[(OL >> 17) & 0x3f] & (PL >> 16);
 	UINT64 flipped;
 
@@ -1496,7 +1496,7 @@ static UINT64 flip_C4(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 static UINT64 flip_C4(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	unsigned int outflank_h, outflank_v, outflank_d7, outflank_d9;
-	__v2di flipped;
+	__m128i flipped;
 
 	outflank_v = OUTFLANK_3[(((OL & 0x04040400u) + ((OH & 0x00040404u) << 4)) * 0x00408102u) >> 25]
 		& ((((PL & 0x04040404u) + ((PH & 0x04040404u) << 4)) * 0x00408102u) >> 24);
@@ -2622,7 +2622,7 @@ UINT64 flip32(unsigned int pos, unsigned int bb[]) {
 }
 #endif
 
-#if defined(USE_GAS_MMX) && !defined(hasSSE2)
+#if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)) && !defined(hasSSE2)
 
 static UINT64 (*flip_sse_123[])(unsigned int, unsigned int, unsigned int, unsigned int) = {
 	flip_sse_A1, flip_sse_B1, flip_sse_C1, flip_sse_D1, flip_sse_E1, flip_sse_F1, flip_sse_G1, flip_sse_H1,

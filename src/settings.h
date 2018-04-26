@@ -3,7 +3,7 @@
  *
  * Various macro / constants to control algorithm usage.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2018
  * @author Richard Delorme
  * @version 4.4
  */
@@ -14,36 +14,38 @@
 
 #include <stdbool.h>
 
-#define MOVE_GENERATOR_CARRY 1
-#define MOVE_GENERATOR_KINDERGARTEN 2
-#define MOVE_GENERATOR_SSE 3
-#define MOVE_GENERATOR_BITSCAN 4
-#define MOVE_GENERATOR_ROXANE 5
-#define MOVE_GENERATOR_32 6
-#define MOVE_GENERATOR_SSE_BSWAP 7
-#define MOVE_GENERATOR_AVX 8
+#define MOVE_GENERATOR_CARRY 1		// 32.6Mnps
+#define MOVE_GENERATOR_KINDERGARTEN 2	// 31.1Mnps
+#define MOVE_GENERATOR_SSE 3		// 33.3Mnps
+#define MOVE_GENERATOR_BITSCAN 4	// 32.7Mnps
+#define MOVE_GENERATOR_ROXANE 5		// 29.0Mnps
+#define MOVE_GENERATOR_32 6		// 31.3Mnps
+#define MOVE_GENERATOR_SSE_BSWAP 7	// 30.6Mnps
+#define MOVE_GENERATOR_AVX 8		// 34.4Mnps
 
-#define	COUNT_LAST_FLIP_CARRY 1
-#define COUNT_LAST_FLIP_KINDERGARTEN 2
-#define COUNT_LAST_FLIP_SSE 3
-#define COUNT_LAST_FLIP_BITSCAN 4
-#define COUNT_LAST_FLIP_PLAIN 5
-#define COUNT_LAST_FLIP_32 6
-#define COUNT_LAST_FLIP_BMI2 7
+#define	COUNT_LAST_FLIP_CARRY 1		// 33.8Mnps
+#define COUNT_LAST_FLIP_KINDERGARTEN 2	// 33.5Mnps
+#define COUNT_LAST_FLIP_SSE 3		// 33.2Mnps
+#define COUNT_LAST_FLIP_BITSCAN 4	// 33.9Mnps
+#define COUNT_LAST_FLIP_PLAIN 5		// 33.3Mnps
+#define COUNT_LAST_FLIP_32 6		// 33.1Mnps
+#define COUNT_LAST_FLIP_BMI2 7		// 34.4Mnps
 
 /**move generation. */
 #ifndef MOVE_GENERATOR
-	#ifdef __AVX2__
-		#define MOVE_GENERATOR MOVE_GENERATOR_AVX
-	#elif defined(__x86_64__)
-		#define MOVE_GENERATOR MOVE_GENERATOR_BITSCAN
+	#if defined(__x86_64__) || defined(_M_X64)
+		#ifdef __AVX2__
+			#define MOVE_GENERATOR MOVE_GENERATOR_AVX
+		#else
+			#define MOVE_MOVE_GENERATOR MOVE_GENERATOR_BITSCAN
+		#endif
 	#else
 		#define MOVE_GENERATOR MOVE_GENERATOR_32
 	#endif
 #endif
 #ifndef LAST_FLIP_COUNTER
-	#ifdef __x86_64__
-		#if defined(__BMI2__) && !defined(__BDVER4__) && !defined(__ZNVER1__)	// BMI2 is slow on AMD
+	#if defined(__x86_64__) || defined(_M_X64)
+		#if defined(__AVX2__) && !defined(__BDVER4__) && !defined(__ZNVER1__)	// BMI2 is slow on AMD
 			#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_BMI2
 		#else
 			#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_BITSCAN

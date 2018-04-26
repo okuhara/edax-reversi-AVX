@@ -37,7 +37,7 @@
  * If the OUTFLANK search is in MSB to LSB direction, lzcnt64 is used if 
  * available, or __builtin_bswap is used to use carry propagation backwards.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2018
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.4
@@ -263,26 +263,22 @@ static const unsigned long long FLIPPED_5_V[137] = {
 	0x00ff00ff00000000ULL
 };
 
+#include "bit.h"
 
-#ifdef USE_MSVC_X64
-#include <intrin.h>
-
+#if defined(_M_X64) && !defined(__AVX2__)
 static inline int __builtin_clzll(unsigned long long n) {	// n != 0
 	unsigned long i;
 	_BitScanReverse64(&i, n);
 	return (int) i ^ 63;
 }
-
-#define	__builtin_bswap64(x)	_byteswap_uint64(x)
 #endif
 
-#if defined(__LZCNT__) && defined(__x86_64__)
-	#include <x86intrin.h>
+#if (defined(__LZCNT__) && defined(__x86_64__)) || (defined(_M_X64) && defined(__AVX2__))
 	// Strictly, (long long) >> 64 is undefined in C, but either 0 bit (no change)
 	// or 64 bit (zero out) shift will lead valid result (i.e. flipped == 0).
 	#define	outflank_right(O,maskr,masko)	(0x8000000000000000ULL >> __lzcnt64(~(O) & (maskr)))
 #elif 1	// bswap to use carry propagation backwards
-	#define	outflank_right(O,maskr,masko)	(__builtin_bswap64(__builtin_bswap64((O) | ~(maskr)) + 1) & (maskr))
+	#define	outflank_right(O,maskr,masko)	(vertical_mirror(vertical_mirror((O) | ~(maskr)) + 1) & (maskr))
 #else	// with guardian bit to avoid __builtin_clz(0)
 	#define	outflank_right(O,maskr,masko)	(0x8000000000000000ULL >> __builtin_clzll(((O) & (masko)) ^ (maskr)))
 #endif
@@ -697,7 +693,7 @@ static unsigned long long flip_A3(const unsigned long long P, const unsigned lon
 
 	outflank_a8a3c1 = OUTFLANK_5[((O & 0x0001010101010200ULL) * 0x2020201008040201ULL) >> 57]
 		& (((P & 0x0101010101010204ULL) * 0x2020201008040201ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_5_V[outflank_a8a3c1]) & 0x0001010101010200ULL;
+	flipped |= vertical_mirror(FLIPPED_5_V[outflank_a8a3c1]) & 0x0001010101010200ULL;
 
 	outflank_h = ((O & 0x007e0000u) + 0x00020000u) & P;
 	flipped |= (outflank_h - (outflank_h >> 8)) & 0x007e0000u;
@@ -723,7 +719,7 @@ static unsigned long long flip_B3(const unsigned long long P, const unsigned lon
 
 	outflank_b8b3d1 = OUTFLANK_5[((O & 0x0002020202020400ULL) * 0x0010100804020100ULL) >> 57]
 		& ((((P & 0x0202020202020408ULL) >> 1) * 0x2020201008040201ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_5_V[outflank_b8b3d1]) & 0x0002020202020400ULL;
+	flipped |= vertical_mirror(FLIPPED_5_V[outflank_b8b3d1]) & 0x0002020202020400ULL;
 
 	outflank_h = ((O & 0x007c0000u) + 0x00040000u) & P;
 	flipped |= (outflank_h - (outflank_h >> 8)) & 0x007c0000u;
@@ -861,7 +857,7 @@ static unsigned long long flip_G3(const unsigned long long P, const unsigned lon
 
 	outflank_b8g3g1 = OUTFLANK_5[((O & 0x0004081020404000ULL) * 0x0402010101010101ULL) >> 58]
 		& ((((P & 0x0204081020404040ULL) >> 1) * 0x0402010101010101ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_5_V[outflank_b8g3g1]) & 0x0004081020404000ULL;
+	flipped |= vertical_mirror(FLIPPED_5_V[outflank_b8g3g1]) & 0x0004081020404000ULL;
 
 	outflank_h = OUTFLANK_7[(O >> 16) & 0x3e] & (P >> 15);
 	flipped |= ((-outflank_h) & 0x3e) << 16;
@@ -887,7 +883,7 @@ static unsigned long long flip_H3(const unsigned long long P, const unsigned lon
 
 	outflank_c8h3h1 = OUTFLANK_5[((O & 0x0008102040808000ULL) * 0x0000804040404040ULL) >> 57]
 		& ((((P & 0x0408102040808080ULL) >> 2) * 0x0402010101010101ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_5_V[outflank_c8h3h1]) & 0x0008102040808000ULL;
+	flipped |= vertical_mirror(FLIPPED_5_V[outflank_c8h3h1]) & 0x0008102040808000ULL;
 
 	outflank_h = OUTFLANK_7[(O >> 17) & 0x3f] & (P >> 16);
 	flipped |= ((-outflank_h) & 0x3f) << 17;
@@ -913,7 +909,7 @@ static unsigned long long flip_A4(const unsigned long long P, const unsigned lon
 
 	outflank_a8a4d1 = OUTFLANK_4[((O & 0x0001010101020400ULL) * 0x1010101008040201ULL) >> 57]
 		& (((P & 0x0101010101020408ULL) * 0x1010101008040201ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_4_V[outflank_a8a4d1]) & 0x0001010101020400ULL;
+	flipped |= vertical_mirror(FLIPPED_4_V[outflank_a8a4d1]) & 0x0001010101020400ULL;
 
 	outflank_h = ((O & 0x7e000000u) + 0x02000000u) & P;
 	flipped |= (outflank_h - (outflank_h >> 8)) & 0x7e000000u;
@@ -939,7 +935,7 @@ static unsigned long long flip_B4(const unsigned long long P, const unsigned lon
 
 	outflank_b8b4e1 = OUTFLANK_4[((O & 0x0002020202040800ULL) * 0x1010101008040201ULL) >> 58]
 		& ((((P & 0x0202020202040810ULL) >> 1) * 0x1010101008040201ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_4_V[outflank_b8b4e1]) & 0x0002020202040800ULL;
+	flipped |= vertical_mirror(FLIPPED_4_V[outflank_b8b4e1]) & 0x0002020202040800ULL;
 
 	outflank_h = ((O & 0x7c000000u) + 0x04000000u) & P;
 	flipped |= (outflank_h - (outflank_h >> 8)) & 0x7c000000u;
@@ -965,7 +961,7 @@ static unsigned long long flip_C4(const unsigned long long P, const unsigned lon
 
 	outflank_c8c4f1 = OUTFLANK_4[((O & 0x0004040404081000ULL) * 0x0404040402010080ULL) >> 57]
 		& ((((P & 0x0404040404081020ULL) >> 2) * 0x1010101008040201ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_4_V[outflank_c8c4f1]) & 0x0004040404081000ULL;
+	flipped |= vertical_mirror(FLIPPED_4_V[outflank_c8c4f1]) & 0x0004040404081000ULL;
 
 	outflank_h = OUTFLANK_2[(O >> 25) & 0x3f] & (P >> 24);
 	flipped |= FLIPPED_2_H[outflank_h] & 0x00000000ff000000ULL;
@@ -1053,7 +1049,7 @@ static unsigned long long flip_F4(const unsigned long long P, const unsigned lon
 
 	outflank_b8f4f1 = OUTFLANK_4[((O & 0x0004081020202000ULL) * 0x0804020101010101ULL) >> 58]
 		& ((((P & 0x0204081020202020ULL) >> 1) * 0x0804020101010101ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_4_V[outflank_b8f4f1]) & 0x0004081020202000ULL;
+	flipped |= vertical_mirror(FLIPPED_4_V[outflank_b8f4f1]) & 0x0004081020202000ULL;
 
 	outflank_h = OUTFLANK_5[(O >> 25) & 0x3f] & (P >> 24);
 	flipped |= FLIPPED_5_H[outflank_h] & 0x00000000ff000000ULL;
@@ -1081,7 +1077,7 @@ static unsigned long long flip_G4(const unsigned long long P, const unsigned lon
 
 	outflank_c8g4g1 = OUTFLANK_4[((O & 0x0008102040404000ULL) * 0x0001008040404040ULL) >> 57]
 		& ((((P & 0x0408102040404040ULL) >> 2) * 0x0804020101010101ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_4_V[outflank_c8g4g1]) & 0x0008102040404000ULL;
+	flipped |= vertical_mirror(FLIPPED_4_V[outflank_c8g4g1]) & 0x0008102040404000ULL;
 
 	outflank_h = OUTFLANK_7[(O >> 24) & 0x3e] & (P >> 23);
 	flipped |= ((-outflank_h) & 0x3e) << 24;
@@ -1107,7 +1103,7 @@ static unsigned long long flip_H4(const unsigned long long P, const unsigned lon
 
 	outflank_d8h4h1 = OUTFLANK_4[((O & 0x0010204080808000ULL) * 0x0000804020202020ULL) >> 57]
 		& ((((P & 0x0810204080808080ULL) >> 3) * 0x0804020101010101ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_4_V[outflank_d8h4h1]) & 0x0010204080808000ULL;
+	flipped |= vertical_mirror(FLIPPED_4_V[outflank_d8h4h1]) & 0x0010204080808000ULL;
 
 	outflank_h = OUTFLANK_7[(O >> 25) & 0x3f] & (P >> 24);
 	flipped |= ((-outflank_h) & 0x3f) << 25;
@@ -1133,7 +1129,7 @@ static unsigned long long flip_A5(const unsigned long long P, const unsigned lon
 
 	outflank_a8a5e1 = OUTFLANK_3[((O & 0x0001010102040800ULL) * 0x0808080808040201ULL) >> 57]
 		& (((P & 0x0101010102040810ULL) * 0x0808080808040201ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_3_V[outflank_a8a5e1]) & 0x0001010102040800ULL;
+	flipped |= vertical_mirror(FLIPPED_3_V[outflank_a8a5e1]) & 0x0001010102040800ULL;
 
 	outflank_h = ((O & 0x0000007e00000000ULL) + 0x0000000200000000ULL) & P;
 	flipped |= (outflank_h - (outflank_h >> 8)) & 0x0000007e00000000ULL;
@@ -1159,7 +1155,7 @@ static unsigned long long flip_B5(const unsigned long long P, const unsigned lon
 
 	outflank_b8b5f1 = OUTFLANK_3[((O & 0x0002020204081000ULL) * 0x0808080808040201ULL) >> 58]
 		& ((((P & 0x0202020204081020ULL) >> 1) * 0x0808080808040201ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_3_V[outflank_b8b5f1]) & 0x0002020204081000ULL;
+	flipped |= vertical_mirror(FLIPPED_3_V[outflank_b8b5f1]) & 0x0002020204081000ULL;
 
 	outflank_h = ((O & 0x0000007c00000000ULL) + 0x0000000400000000ULL) & P;
 	flipped |= (outflank_h - (outflank_h >> 8)) & 0x0000007c00000000ULL;
@@ -1185,7 +1181,7 @@ static unsigned long long flip_C5(const unsigned long long P, const unsigned lon
 
 	outflank_c8c5g1 = OUTFLANK_3[((O & 0x0004040408102000ULL) * 0x0002020202010080ULL) >> 57]
 		& ((((P & 0x0404040408102040ULL) >> 2) * 0x0808080808040201ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_3_V[outflank_c8c5g1]) & 0x0004040408102000ULL;
+	flipped |= vertical_mirror(FLIPPED_3_V[outflank_c8c5g1]) & 0x0004040408102000ULL;
 
 	outflank_h = OUTFLANK_2[(O >> 33) & 0x3f] & (P >> 32);
 	flipped |= FLIPPED_2_H[outflank_h] & 0x000000ff00000000ULL;
@@ -1273,7 +1269,7 @@ static unsigned long long flip_F5(const unsigned long long P, const unsigned lon
 
 	outflank_c8f5f1 = OUTFLANK_3[((O & 0x0008102020202000ULL) * 0x0002010080404040ULL) >> 57]
 		& ((((P & 0x0408102020202020ULL) >> 2) * 0x1008040201010101ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_3_V[outflank_c8f5f1]) & 0x0008102020202000ULL;
+	flipped |= vertical_mirror(FLIPPED_3_V[outflank_c8f5f1]) & 0x0008102020202000ULL;
 
 	outflank_h = OUTFLANK_5[(O >> 33) & 0x3f] & (P >> 32);
 	flipped |= FLIPPED_5_H[outflank_h] & 0x000000ff00000000ULL;
@@ -1301,7 +1297,7 @@ static unsigned long long flip_G5(const unsigned long long P, const unsigned lon
 
 	outflank_d8g5g1 = OUTFLANK_3[((O & 0x0010204040404000ULL) * 0x0001008040202020ULL) >> 57]
 		& ((((P & 0x0810204040404040ULL) >> 3) * 0x1008040201010101ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_3_V[outflank_d8g5g1]) & 0x0010204040404000ULL;
+	flipped |= vertical_mirror(FLIPPED_3_V[outflank_d8g5g1]) & 0x0010204040404000ULL;
 
 	outflank_h = OUTFLANK_7[(O >> 32) & 0x3e] & (P >> 31);
 	flipped |= (unsigned long long) ((-outflank_h) & 0x3e) << 32;
@@ -1327,7 +1323,7 @@ static unsigned long long flip_H5(const unsigned long long P, const unsigned lon
 
 	outflank_e8h5h1 = OUTFLANK_3[((O & 0x0020408080808000ULL) * 0x0000804020101010ULL) >> 57]
 		& ((((P & 0x1020408080808080ULL) >> 4) * 0x1008040201010101ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_3_V[outflank_e8h5h1]) & 0x0020408080808000ULL;
+	flipped |= vertical_mirror(FLIPPED_3_V[outflank_e8h5h1]) & 0x0020408080808000ULL;
 
 	outflank_h = OUTFLANK_7[(O >> 33) & 0x3f] & (P >> 32);
 	flipped |= (unsigned long long) ((-outflank_h) & 0x3f) << 33;
@@ -1353,7 +1349,7 @@ static unsigned long long flip_A6(const unsigned long long P, const unsigned lon
 
 	outflank_a8a6f1 = OUTFLANK_2[((O & 0x0001010204081000ULL) * 0x0404040404040201ULL) >> 57]
 		& (((P & 0x0101010204081020ULL) * 0x0404040404040201ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_2_V[outflank_a8a6f1]) & 0x0001010204081000ULL;
+	flipped |= vertical_mirror(FLIPPED_2_V[outflank_a8a6f1]) & 0x0001010204081000ULL;
 
 	outflank_h = ((O & 0x00007e0000000000ULL) + 0x0000020000000000ULL) & P;
 	flipped |= (outflank_h - (outflank_h >> 8)) & 0x00007e0000000000ULL;
@@ -1379,7 +1375,7 @@ static unsigned long long flip_B6(const unsigned long long P, const unsigned lon
 
 	outflank_a8a6f1 = OUTFLANK_2[((O & 0x0002020408102000ULL) * 0x0404040404040201ULL) >> 58]
 		& ((((P & 0x0202020408102040ULL) >> 1) * 0x0404040404040201ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_2_V[outflank_a8a6f1]) & 0x0002020408102000ULL;
+	flipped |= vertical_mirror(FLIPPED_2_V[outflank_a8a6f1]) & 0x0002020408102000ULL;
 
 	outflank_h = ((O & 0x00007c0000000000ULL) + 0x0000040000000000ULL) & P;
 	flipped |= (outflank_h - (outflank_h >> 8)) & 0x00007c0000000000ULL;
@@ -1517,7 +1513,7 @@ static unsigned long long flip_G6(const unsigned long long P, const unsigned lon
 
 	outflank_e8g6g1 = OUTFLANK_2[((O & 0x0020404040404000ULL) * 0x0001008040201010ULL) >> 57]
 		& ((((P & 0x1020404040404040ULL) >> 4) * 0x2010080402010101ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_2_V[outflank_e8g6g1]) & 0x0020404040404000ULL;
+	flipped |= vertical_mirror(FLIPPED_2_V[outflank_e8g6g1]) & 0x0020404040404000ULL;
 
 	outflank_h = OUTFLANK_7[(O >> 40) & 0x3e] & (P >> 39);
 	flipped |= (unsigned long long) ((-outflank_h) & 0x3e) << 40;
@@ -1543,7 +1539,7 @@ static unsigned long long flip_H6(const unsigned long long P, const unsigned lon
 
 	outflank_f8h6h1 = OUTFLANK_2[((O & 0x0040808080808000ULL) * 0x0000804020100808ULL) >> 57]
 		& ((((P & 0x2040808080808080ULL) >> 5) * 0x2010080402010101ULL) >> 56);
-	flipped |= __builtin_bswap64(FLIPPED_2_V[outflank_f8h6h1]) & 0x0040808080808000ULL;
+	flipped |= vertical_mirror(FLIPPED_2_V[outflank_f8h6h1]) & 0x0040808080808000ULL;
 
 	outflank_h = OUTFLANK_7[(O >> 41) & 0x3f] & (P >> 40);
 	flipped |= (unsigned long long) ((-outflank_h) & 0x3f) << 41;

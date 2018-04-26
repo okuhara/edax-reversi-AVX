@@ -11,6 +11,7 @@
 #ifndef EDAX_SEARCH_H
 #define EDAX_SEARCH_H
 
+#include "bit.h"
 #include "board.h"
 #include "const.h"
 #include "empty.h"
@@ -220,7 +221,7 @@ int search_get_pv_cost(Search*);
 void show_current_move(FILE *f, Search*, const Move*, const int, const int, const bool);
 int search_bound(const Search*, int);
 
-#ifdef __SSE2__
+#ifdef hasSSE2
 	#ifdef __AVX2__
 		#define	mm_malloc(s)	_mm_malloc((s), 32)
 	#else

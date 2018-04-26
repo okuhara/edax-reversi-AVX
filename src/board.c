@@ -11,7 +11,7 @@
  * some board properties. Most of the functions are optimized to be as fast as
  * possible, while remaining readable.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2018
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.4
@@ -103,10 +103,10 @@ const unsigned long long A1_A8[256] = {
 	0x0101010101000000ULL, 0x0101010101000001ULL, 0x0101010101000100ULL, 0x0101010101000101ULL, 0x0101010101010000ULL, 0x0101010101010001ULL, 0x0101010101010100ULL, 0x0101010101010101ULL,
 };
 
-#ifdef USE_GAS_MMX
+#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 #include "board_mmx.c"
 #endif
-#if defined(USE_GAS_MMX) || defined(__x86_64__)
+#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(hasSSE2)
 #include "board_sse.c"
 #endif
 
@@ -304,7 +304,7 @@ void board_symetry(const Board *board, const int s, Board *sym)
 {
 	register unsigned long long player, opponent;
 
-#if (defined(USE_GAS_MMX) || defined(__x86_64__)) && !defined(DEBUG)	// crashes debug build on GCC5.1
+#if (defined(USE_GAS_MMX) || defined(hasSSE2)) && !defined(DEBUG)	// crashes debug build on GCC5.1
 	if (hasSSE2) {
 		board_symetry_sse(board, s, sym);
 		return;
@@ -433,7 +433,7 @@ bool board_check_move(const Board *board, Move *move)
 	else return true;
 }
 
-#if !(defined(USE_GAS_MMX) && defined(hasMMX))
+#if !(defined(hasMMX) && (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)))
 /**
  * @brief Update a board.
  *
@@ -467,7 +467,7 @@ void board_restore(Board *board, const Move *move)
 	board->opponent ^= move->flipped;
 	board_check(board);
 }
-#endif
+#endif // hasMMX
 
 /**
  * @brief Passing move
@@ -600,12 +600,12 @@ static inline unsigned long long get_some_moves(const unsigned long long P, cons
  * @param O bitboard with opponent's discs.
  * @return all legal moves in a 64-bit unsigned integer.
  */
-#ifndef __x86_64__
+#if !defined(__x86_64__) && !defined(_M_X64)
 unsigned long long get_moves(const unsigned long long P, const unsigned long long O)
 {
 	unsigned long long moves, OM;
 
-	#ifdef USE_GAS_MMX
+	#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 	if (hasSSE2)
 		return get_moves_sse((unsigned int) P, (unsigned int) (P >> 32), (unsigned int) O, (unsigned int) (O >> 32));
 	else if (hasMMX)
@@ -645,7 +645,7 @@ unsigned long long get_moves_6x6(const unsigned long long P, const unsigned long
  */
 bool can_move(const unsigned long long P, const unsigned long long O)
 {
-#if defined(USE_GAS_MMX) || defined(__x86_64__)
+#if defined(USE_GAS_MMX) || defined(__x86_64__) || defined(USE_MSVC_X86)
 	return get_moves(P, O) != 0;
 
 #else
@@ -731,7 +731,7 @@ static unsigned long long get_potential_moves(const unsigned long long P, const 
  */
 int get_potential_mobility(const unsigned long long P, const unsigned long long O)
 {
-#ifdef USE_GAS_MMX
+#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 	if (hasMMX)
 		return get_potential_mobility_mmx(P, O);
 #endif
@@ -839,7 +839,7 @@ void edge_stability_init(void)
 	}
 	// printf("edge_stability_init: %d\n", (int)(cpu_clock() - t));
 
-#if defined(USE_GAS_MMX) && !defined(hasSSE2)
+#if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)) && !defined(hasSSE2)
 	init_mmx();
 #endif
 }
@@ -852,7 +852,7 @@ void edge_stability_init(void)
 #define	packH1H8(X)	(((((unsigned int)((X) >> 32) & 0x80808080u) + (((unsigned int)(X) & 0x80808080u) >> 4)) * 0x00204081u) >> 24)
 #endif
 
-#ifndef __x86_64__
+#if !defined(__x86_64__) && !defined(_M_X64)
 /**
  * @brief Get full lines.
  *
@@ -970,7 +970,7 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 	unsigned long long P_central, disc, full_h, full_v, full_d7, full_d9;
 	unsigned long long stable_h, stable_v, stable_d7, stable_d9, stable, old_stable;
 
-#if defined(USE_GAS_MMX) && !(defined(__clang__) && (__clang__major__ < 3))
+#if (defined(USE_GAS_MMX) && !(defined(__clang__) && (__clang__major__ < 3))) || defined(USE_MSVC_X86)
 	if (hasMMX)
 		return get_stability_mmx((unsigned int) P, (unsigned int) (P >> 32), (unsigned int) O, (unsigned int) (O >> 32));
 #endif

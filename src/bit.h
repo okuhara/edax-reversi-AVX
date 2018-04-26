@@ -50,6 +50,9 @@ int get_rand_bit(unsigned long long, struct Random*);
 #if (defined(__GNUC__) && __GNUC__ >= 4) || __has_builtin(__builtin_ctzll)
 	#define	first_bit(x)	__builtin_ctzll(x)
 	#define	last_bit(x)	(63 - __builtin_clzll(x))
+#elif defined(__AVX2__)
+	#define	first_bit(x)	_tzcnt_u64(x)
+	#define	last_bit(x)	(63 - _lzcnt_u64(x))
 #else
 	int first_bit(unsigned long long);
 	int last_bit(unsigned long long);
@@ -58,9 +61,11 @@ int get_rand_bit(unsigned long long, struct Random*);
 /** Loop over each bit set. */
 #define foreach_bit(i, b)	for (i = first_bit(b); b; i = first_bit(b &= (b - 1)))
 
-#ifndef __x86_64__
+#if !defined(__x86_64__) && !defined(_M_X64)
 	#if (defined(__GNUC__) && __GNUC__ >= 4) || __has_builtin(__builtin_ctz)
 		#define	first_bit_32(x)	__builtin_ctz(x)
+	#elif defined(__AVX2__)
+		#define	first_bit_32(x)	_tzcnt_u32(x)
 	#else
 		int first_bit_32(unsigned int);
 	#endif
@@ -91,31 +96,65 @@ extern const unsigned long long X_TO_BIT[];
 			return y0 + y1;
 		}
 	*/
-	#if defined (USE_MSVC_X64)
-		#define	bit_count(x)	__popcnt64(x)
-	#elif defined (__x86_64__)
-		#define bit_count(x)	__builtin_popcountll(x)
+	#ifdef _MSC_VER
+		#ifdef _M_X64
+			#define	bit_count(x)	((int) __popcnt64(x))
+		#else
+			#define bit_count(x)	(__popcnt((unsigned int) (x)) + __popcnt((unsigned int) ((x) >> 32)))
+		#endif
 	#else
-		#define bit_count(x)	(__builtin_popcount((unsigned int) (x)) + __builtin_popcount((unsigned int) ((x) >> 32)))
+		#ifdef __x86_64__
+			#define bit_count(x)	__builtin_popcountll(x)
+		#else
+			#define bit_count(x)	(__builtin_popcount((unsigned int) (x)) + __builtin_popcount((unsigned int) ((x) >> 32)))
+		#endif
 	#endif
 #else
 	int bit_count(unsigned long long);
 #endif
 
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(_M_X64)
 	#define hasSSE2	1
 #endif
+
+#ifdef _MSC_VER
+	#include <intrin.h>
+	#ifdef _M_IX86
+		#define	USE_MSVC_X86	1
+	#endif
+#elif defined(hasSSE2)
+	#include <x86intrin.h>
+#endif
+
 #ifdef hasSSE2
 	#define	hasMMX	1
 #endif
 
-#ifdef USE_GAS_MMX
-#ifndef hasSSE2
-	extern bool	hasSSE2;
-#endif
-#ifndef hasMMX
-	extern bool	hasMMX;
-#endif
+#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+	#ifndef hasSSE2
+		extern bool	hasSSE2;
+	#endif
+	#ifndef hasMMX
+		extern bool	hasMMX;
+	#endif
 #endif
 
+typedef union {
+	unsigned long long	ull[2];
+#if defined(hasSSE2) || defined(USE_MSVC_X86)
+	__m128i	v2;
 #endif
+}
+#if defined(__GNUC__) && !defined(hasSSE2)
+__attribute__ ((aligned (16)))
+#endif
+V2DI;
+
+#ifdef __AVX2__
+typedef union {
+	unsigned long long	ull[4];
+	__m256i	v4;
+} V4DI;
+#endif
+
+#endif // EDAX_BIT_H

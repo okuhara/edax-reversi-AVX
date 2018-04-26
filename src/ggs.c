@@ -194,7 +194,7 @@ static void text_init(Text *text)
 static void text_add_line(Text *text, const char *line)
 {
 	++text->n_lines;
-	text->line = (const char**) realloc(text->line, text->n_lines * sizeof (const char*));
+	text->line = (const char**) realloc((void *) text->line, text->n_lines * sizeof (const char*));
 	if (text->line == NULL) fatal_error("Allocation error\n");
 	text->line[text->n_lines - 1] = line;
 	log_receive(ggs_log, "GGS ", "%s\n", line);

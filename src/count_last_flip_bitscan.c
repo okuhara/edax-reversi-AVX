@@ -79,12 +79,10 @@ static const char COUNT_FLIP_5[256] = {
 	 0,  8,  6,  6,  4,  4,  4,  4,  2,  2,  2,  2,  2,  2,  2,  2,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0
 };
 
-#ifdef __LZCNT__
+#include "bit.h"
 
-#include <x86intrin.h>
-
-#ifndef __x86_64__
-static int inline __lzcnt64(unsigned long long x) {
+#if defined(__LZCNT__) && !defined(__x86_64__)
+static int inline _lzcnt_u64(unsigned long long x) {
 	int	y;
 	__asm__ (
 		"lzcntl	%1, %0\n\t"
@@ -96,36 +94,30 @@ static int inline __lzcnt64(unsigned long long x) {
 }
 #endif
 
+#if defined(__LZCNT__) || defined(__AVX2__)
 static inline int count_V_flip_reverse (unsigned long long P, int ofs) {
-	return (__lzcnt64(P << ofs) >> 2) & 0x0E;
+	return (_lzcnt_u64(P << ofs) >> 2) & 0x0E;
 }
-
-#elif defined(USE_MSVC_X64)
-
-#include <intrin.h>
+#elif defined(_MSC_VER)
 static inline int count_V_flip_reverse (unsigned long long P, int ofs) {
 	unsigned long i;
 	return (((_BitScanReverse64(&i, (P << ofs)) ? (int) i : 127) ^ 63) >> 2) & 0x0E;
 }
-#define	__builtin_bswap64(x)	_byteswap_uint64(x)
-
 #else
-
 // with guardian bit to avoid __builtin_clz(0)
 static inline int count_V_flip_reverse (unsigned long long P, int ofs) {
 	return ((__builtin_clzll((P << ofs) | 1) + 1) >> 2) & 0x0E;
 }
-
 #endif
 
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 
 static inline int count_H1_flip_left (unsigned long long P, int pos, int mask) {
-	return (__lzcnt32((P << (8 - pos)) & (mask << 1)) & 0x07) * 2;
+	return (_lzcnt_u32((P << (8 - pos)) & (mask << 1)) & 0x07) * 2;
 }
 
 static inline int count_H_flip_left (unsigned long long P, int pos, int mask) {
-	return (__lzcnt32((P >> (pos - 8)) & (mask << 1)) & 0x07) * 2;
+	return (_lzcnt_u32((P >> (pos - 8)) & (mask << 1)) & 0x07) * 2;
 }
 
 #else
@@ -147,7 +139,7 @@ static inline int count_H_flip_left (unsigned long long P, int pos, int mask) {
 
 #endif
 
-#if defined(__BMI__) && !(defined(__GNUC__) && (__GNUC__ < 6))	// GCC Bug 78037
+#if (defined(__BMI__) || defined(__AVX2__)) && !(defined(__GNUC__) && (__GNUC__ < 6))	// GCC Bug 78037
 
 static inline int count_H_flip_right (unsigned long long P, int pos, int mask) {
 	return (_tzcnt_u32((P >> (pos + 1)) & mask) & 0x07) * 2;
@@ -1067,7 +1059,7 @@ static int count_last_flip_A7(const unsigned long long P)
 }
 #else
 static int count_last_flip_A7(const unsigned long long P) {
-	return count_last_flip_A2(__builtin_bswap64(P));
+	return count_last_flip_A2(vertical_mirror(P));
 }
 #endif
 
@@ -1090,7 +1082,7 @@ static int count_last_flip_B7(const unsigned long long P)
 }
 #else
 static int count_last_flip_B7(const unsigned long long P) {
-	return count_last_flip_B2(__builtin_bswap64(P));
+	return count_last_flip_B2(vertical_mirror(P));
 }
 #endif
 
@@ -1113,7 +1105,7 @@ static int count_last_flip_C7(const unsigned long long P)
 }
 #else
 static int count_last_flip_C7(const unsigned long long P) {
-	return count_last_flip_C2(__builtin_bswap64(P));
+	return count_last_flip_C2(vertical_mirror(P));
 }
 #endif
 
@@ -1136,7 +1128,7 @@ static int count_last_flip_D7(const unsigned long long P)
 }
 #else
 static int count_last_flip_D7(const unsigned long long P) {
-	return count_last_flip_D2(__builtin_bswap64(P));
+	return count_last_flip_D2(vertical_mirror(P));
 }
 #endif
 
@@ -1159,7 +1151,7 @@ static int count_last_flip_E7(const unsigned long long P)
 }
 #else
 static int count_last_flip_E7(const unsigned long long P) {
-	return count_last_flip_E2(__builtin_bswap64(P));
+	return count_last_flip_E2(vertical_mirror(P));
 }
 #endif
 
@@ -1182,7 +1174,7 @@ static int count_last_flip_F7(const unsigned long long P)
 }
 #else
 static int count_last_flip_F7(const unsigned long long P) {
-	return count_last_flip_F2(__builtin_bswap64(P));
+	return count_last_flip_F2(vertical_mirror(P));
 }
 #endif
 
@@ -1205,7 +1197,7 @@ static int count_last_flip_G7(const unsigned long long P)
 }
 #else
 static int count_last_flip_G7(const unsigned long long P) {
-	return count_last_flip_G2(__builtin_bswap64(P));
+	return count_last_flip_G2(vertical_mirror(P));
 }
 #endif
 
@@ -1228,7 +1220,7 @@ static int count_last_flip_H7(const unsigned long long P)
 }
 #else
 static int count_last_flip_H7(const unsigned long long P) {
-	return count_last_flip_H2(__builtin_bswap64(P));
+	return count_last_flip_H2(vertical_mirror(P));
 }
 #endif
 
@@ -1251,7 +1243,7 @@ static int count_last_flip_A8(const unsigned long long P)
 }
 #else
 static int count_last_flip_A8(const unsigned long long P) {
-	return count_last_flip_A1(__builtin_bswap64(P));
+	return count_last_flip_A1(vertical_mirror(P));
 }
 #endif
 
@@ -1274,7 +1266,7 @@ static int count_last_flip_B8(const unsigned long long P)
 }
 #else
 static int count_last_flip_B8(const unsigned long long P) {
-	return count_last_flip_B1(__builtin_bswap64(P));
+	return count_last_flip_B1(vertical_mirror(P));
 }
 #endif
 
@@ -1297,7 +1289,7 @@ static int count_last_flip_C8(const unsigned long long P)
 }
 #else
 static int count_last_flip_C8(const unsigned long long P) {
-	return count_last_flip_C1(__builtin_bswap64(P));
+	return count_last_flip_C1(vertical_mirror(P));
 }
 #endif
 
@@ -1320,7 +1312,7 @@ static int count_last_flip_D8(const unsigned long long P)
 }
 #else
 static int count_last_flip_D8(const unsigned long long P) {
-	return count_last_flip_D1(__builtin_bswap64(P));
+	return count_last_flip_D1(vertical_mirror(P));
 }
 #endif
 
@@ -1343,7 +1335,7 @@ static int count_last_flip_E8(const unsigned long long P)
 }
 #else
 static int count_last_flip_E8(const unsigned long long P) {
-	return count_last_flip_E1(__builtin_bswap64(P));
+	return count_last_flip_E1(vertical_mirror(P));
 }
 #endif
 
@@ -1366,7 +1358,7 @@ static int count_last_flip_F8(const unsigned long long P)
 }
 #else
 static int count_last_flip_F8(const unsigned long long P) {
-	return count_last_flip_F1(__builtin_bswap64(P));
+	return count_last_flip_F1(vertical_mirror(P));
 }
 #endif
 
@@ -1389,7 +1381,7 @@ static int count_last_flip_G8(const unsigned long long P)
 }
 #else
 static int count_last_flip_G8(const unsigned long long P) {
-	return count_last_flip_G1(__builtin_bswap64(P));
+	return count_last_flip_G1(vertical_mirror(P));
 }
 #endif
 
@@ -1412,7 +1404,7 @@ static int count_last_flip_H8(const unsigned long long P)
 }
 #else
 static int count_last_flip_H8(const unsigned long long P) {
-	return count_last_flip_H1(__builtin_bswap64(P));
+	return count_last_flip_H1(vertical_mirror(P));
 }
 #endif
 

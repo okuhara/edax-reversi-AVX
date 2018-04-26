@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#ifndef __SSE2__
+#ifndef hasSSE2
 
 /** coordinate to feature conversion */
 typedef struct CoordinateToFeature {
@@ -409,7 +409,7 @@ void eval_open(const char* file)
 	free(T);
 
 	// allocation
-	EVAL_WEIGHT = (short (*)[][EVAL_N_WEIGHT]) malloc(2 * sizeof (*EVAL_WEIGHT));
+	EVAL_WEIGHT = (short (*)[61][EVAL_N_WEIGHT]) malloc(2 * sizeof (*EVAL_WEIGHT));
 	if (EVAL_WEIGHT == NULL) fatal_error("Cannot allocate evaluation weights.\n");
 
 	// data reading
@@ -503,11 +503,11 @@ void eval_close(void)
 	EVAL_WEIGHT = NULL;
 }
 
-#if defined(__SSE2__) || defined(USE_GAS_MMX)
+#if defined(hasSSE2) || defined(USE_GAS_MMX)
 #include "eval_sse.c"
 #endif
 
-#ifndef __SSE2__
+#ifndef hasSSE2
 
 /**
  * @brief Set up evaluation features from a board.
@@ -834,7 +834,7 @@ void eval_pass(Eval *eval)
 	eval_swap(eval);
 }
 
-#endif // __SSE2__
+#endif // hasSSE2
 
 /**
  * @brief Compute the error-type of the evaluation function according to the
