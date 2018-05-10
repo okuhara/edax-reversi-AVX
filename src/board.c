@@ -213,7 +213,7 @@ int board_from_FEN(Board *board, const char *string)
 			board->opponent |= x_to_bit(i);
 			++i;
 		} else {
-			return EMPTY;	
+			return EMPTY;
 		}
 	}
 
@@ -293,6 +293,7 @@ bool board_equal(const Board *b1, const Board *b2)
 	return (b1->player == b2->player && b1->opponent == b2->opponent);
 }
 
+#ifndef hasSSE2
 /**
  * @brief symetric board
  *
@@ -303,13 +304,6 @@ bool board_equal(const Board *b1, const Board *b2)
 void board_symetry(const Board *board, const int s, Board *sym)
 {
 	register unsigned long long player, opponent;
-
-#if (defined(USE_GAS_MMX) || defined(hasSSE2)) && !defined(DEBUG)	// crashes debug build on GCC5.1
-	if (hasSSE2) {
-		board_symetry_sse(board, s, sym);
-		return;
-	}
-#endif
 
 	player = board->player;
 	opponent = board->opponent;
@@ -327,14 +321,12 @@ void board_symetry(const Board *board, const int s, Board *sym)
 		opponent = transpose(opponent);
 	}
 
-	// board_symetry_sse(board, s, sym);
-	// assert((sym->player == player) && (sym->opponent == opponent));
-
 	sym->player = player;
 	sym->opponent = opponent;
 
 	board_check(sym);
 }
+#endif
 
 /**
  * @brief unique board
@@ -1173,21 +1165,32 @@ int board_count_empties(const Board *board)
  */
 void board_print(const Board *board, const int player, FILE *f)
 {
-	int i, j, square, x;
+	int i, j, square;
+	unsigned long long bk, wh;
 	const char *color = "?*O-." + 1;
 	unsigned long long moves = get_moves(board->player, board->opponent);
+
+	if (player == BLACK) {
+		bk = board->player;
+		wh = board->opponent;
+	} else {
+		bk = board->opponent;
+		wh = board->player;
+	}
 
 	fputs("  A B C D E F G H\n", f);
 	for (i = 0; i < 8; ++i) {
 		fputc(i + '1', f);
 		fputc(' ', f);
 		for (j = 0; j < 8; ++j) {
-			x = i * 8 + j;
-			if (player == BLACK) square = 2 - ((board->opponent >> x) & 1) - 2 * ((board->player >> x) & 1);
-			else square = 2 - ((board->player >> x) & 1) - 2 * ((board->opponent >> x) & 1);
-			if (square == EMPTY && (moves & x_to_bit(x))) ++square;
+			square = 2 - (wh & 1) - 2 * (bk & 1);
+			if ((square == EMPTY) && (moves & 1))
+				square = EMPTY + 1;
 			fputc(color[square], f);
 			fputc(' ', f);
+			bk >>= 1;
+			wh >>= 1;
+			moves >>= 1;
 		}
 		fputc(i + '1', f);
 		if (i == 1)
@@ -1216,12 +1219,22 @@ void board_print(const Board *board, const int player, FILE *f)
 char* board_to_string(const Board *board, const int player, char *s)
 {
 	int square, x;
+	unsigned long long bk, wh;
 	static const char color[4] = "XO-?";
 
+	if (player == BLACK) {
+		bk = board->player;
+		wh = board->opponent;
+	} else {
+		bk = board->opponent;
+		wh = board->player;
+	}
+
 	for (x = 0; x < 64; ++x) {
-		if (player == BLACK) square = 2 - ((board->opponent >> x) & 1) - 2 * ((board->player >> x) & 1);
-		else square = 2 - ((board->player >> x) & 1) - 2 * ((board->opponent >> x) & 1);
+		square = 2 - (wh & 1) - 2 * (bk & 1);
 		s[x] = color[square];
+		bk >>= 1;
+		wh >>= 1;
 	}
 	s[64] = ' ';
 	s[65] = color[player];
@@ -1256,6 +1269,7 @@ void board_print_FEN(const Board *board, const int player, FILE *f)
 char* board_to_FEN(const Board *board, const int player, char *string)
 {
 	int square, x, r, c;
+	unsigned long long bk, wh;
 	static const char piece[4] = "pP-?";
 	static const char color[2] = "bw";
 	int n_empties = 0;
@@ -1264,32 +1278,35 @@ char* board_to_FEN(const Board *board, const int player, char *string)
 
 	if (s == NULL) s = string = local_string;
 
-	for (r = 7; r >= 0; --r)
-	for (c = 0; c < 8; ++c) {
-		if (c == 0 && r < 7) {
-			if (n_empties) {
-				*s++ = n_empties + '0';
-				n_empties = 0;
-			}
-			*s++ = '/';
-		}
-		x = 8 * r + c;
-		if (player == BLACK) square = 2 - ((board->opponent >> x) & 1) - 2 * ((board->player >> x) & 1);
-		else square = 2 - ((board->player >> x) & 1) - 2 * ((board->opponent >> x) & 1);
-
-		if (square == EMPTY) {
-			++n_empties;
-		} else {
-			if (n_empties) {
-				*s++ = n_empties + '0';
-				n_empties = 0;
-			}
-			*s++ = piece[square];
-		}
+	if (player == BLACK) {
+		bk = board->player;
+		wh = board->opponent;
+	} else {
+		bk = board->opponent;
+		wh = board->player;
 	}
-	if (n_empties) {
-		*s++ = n_empties + '0';
-		n_empties = 0;
+
+	for (r = 7; r >= 0; --r) {
+		for (c = 0; c < 8; ++c) {
+			x = 8 * r + c;
+			square = 2 - ((wh >> x) & 1) - 2 * ((bk >> x) & 1);
+
+			if (square == EMPTY) {
+				++n_empties;
+			} else {
+				if (n_empties) {
+					*s++ = n_empties + '0';
+					n_empties = 0;
+				}
+				*s++ = piece[square];
+			}
+		}
+		if (n_empties) {
+			*s++ = n_empties + '0';
+			n_empties = 0;
+		}
+		if (r > 0)
+			*s++ = '/';
 	}
 	*s++ = ' ';
 	*s++ = color[player];

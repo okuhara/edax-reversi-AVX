@@ -81,30 +81,17 @@ static const char COUNT_FLIP_5[256] = {
 
 #include "bit.h"
 
-#if defined(__LZCNT__) && !defined(__x86_64__)
-static int inline _lzcnt_u64(unsigned long long x) {
-	int	y;
-	__asm__ (
-		"lzcntl	%1, %0\n\t"
-		"lzcntl	%2, %2\n\t"
-		"leal	(%0, %2), %0\n\t"
-		"cmovnc	%2, %0"
-	: "=&r" (y) : "0" ((unsigned int) x), "r" ((unsigned int) (x >> 32)) );
-	return y;
-}
-#endif
-
 #if defined(__LZCNT__) || defined(__AVX2__)
 static inline int count_V_flip_reverse (unsigned long long P, int ofs) {
 	return (_lzcnt_u64(P << ofs) >> 2) & 0x0E;
 }
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER)	// Not used
 static inline int count_V_flip_reverse (unsigned long long P, int ofs) {
 	unsigned long i;
 	return (((_BitScanReverse64(&i, (P << ofs)) ? (int) i : 127) ^ 63) >> 2) & 0x0E;
 }
 #else
-// with guardian bit to avoid __builtin_clz(0)
+// with guardian bit to avoid __builtin_clz(0)	// Not used
 static inline int count_V_flip_reverse (unsigned long long P, int ofs) {
 	return ((__builtin_clzll((P << ofs) | 1) + 1) >> 2) & 0x0E;
 }
@@ -1046,7 +1033,7 @@ static int count_last_flip_H6(const unsigned long long P)
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_A7(const unsigned long long P)
 {
 	int n_flipped;
@@ -1069,7 +1056,7 @@ static int count_last_flip_A7(const unsigned long long P) {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_B7(const unsigned long long P)
 {
 	int n_flipped;
@@ -1092,7 +1079,7 @@ static int count_last_flip_B7(const unsigned long long P) {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_C7(const unsigned long long P)
 {
 	int n_flipped;
@@ -1115,7 +1102,7 @@ static int count_last_flip_C7(const unsigned long long P) {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_D7(const unsigned long long P)
 {
 	int n_flipped;
@@ -1138,7 +1125,7 @@ static int count_last_flip_D7(const unsigned long long P) {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_E7(const unsigned long long P)
 {
 	int n_flipped;
@@ -1161,7 +1148,7 @@ static int count_last_flip_E7(const unsigned long long P) {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_F7(const unsigned long long P)
 {
 	int n_flipped;
@@ -1184,7 +1171,7 @@ static int count_last_flip_F7(const unsigned long long P) {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_G7(const unsigned long long P)
 {
 	int n_flipped;
@@ -1207,7 +1194,7 @@ static int count_last_flip_G7(const unsigned long long P) {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_H7(const unsigned long long P)
 {
 	int n_flipped;
@@ -1230,7 +1217,7 @@ static int count_last_flip_H7(const unsigned long long P) {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_A8(const unsigned long long P)
 {
 	int n_flipped;
@@ -1253,7 +1240,7 @@ static int count_last_flip_A8(const unsigned long long P) {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_B8(const unsigned long long P)
 {
 	int n_flipped;
@@ -1276,7 +1263,7 @@ static int count_last_flip_B8(const unsigned long long P) {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_C8(const unsigned long long P)
 {
 	int n_flipped;
@@ -1299,7 +1286,7 @@ static int count_last_flip_C8(const unsigned long long P) {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_D8(const unsigned long long P)
 {
 	int n_flipped;
@@ -1322,7 +1309,7 @@ static int count_last_flip_D8(const unsigned long long P) {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_E8(const unsigned long long P)
 {
 	int n_flipped;
@@ -1345,7 +1332,7 @@ static int count_last_flip_E8(const unsigned long long P) {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_F8(const unsigned long long P)
 {
 	int n_flipped;
@@ -1368,7 +1355,7 @@ static int count_last_flip_F8(const unsigned long long P) {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_G8(const unsigned long long P)
 {
 	int n_flipped;
@@ -1391,7 +1378,7 @@ static int count_last_flip_G8(const unsigned long long P) {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-#ifdef __LZCNT__
+#if defined(__LZCNT__) || defined(__AVX2__)
 static int count_last_flip_H8(const unsigned long long P)
 {
 	int n_flipped;

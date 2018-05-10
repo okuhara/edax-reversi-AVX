@@ -3,7 +3,7 @@
  *
  * Edax play control.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2018
  * @author Richard Delorme
  * @version 4.4
  */
@@ -988,15 +988,31 @@ void play_print(Play *play, FILE *f)
 	const char player[2][6] = {"Black", "White"};
 	Board *board = play->board;
 	const int p = play->player;
-	const int o = !p;
-	const int ip = play->player ^ (play->i_game & 1);
-	unsigned long long moves;
+	unsigned long long bk, wh, bk0, wh0, moves;
+	bool gameover;
+
+	if (p == BLACK) {
+		bk = board->player;
+		wh = board->opponent;
+	} else {
+		bk = board->opponent;
+		wh = board->player;
+	}
+	if ((p ^ (play->i_game & 1)) == BLACK) {
+		bk0 = play->initial_board->player;
+		wh0 = play->initial_board->opponent;
+	} else {
+		bk0 = play->initial_board->opponent;
+		wh0 = play->initial_board->player;
+	}
 
 	moves = get_moves(board->player, board->opponent);
-	discs[p] = bit_count(board->player);
-	discs[o] = bit_count(board->opponent);
-	mobility[p] = get_mobility(board->player, board->opponent);
-	mobility[o] = get_mobility(board->opponent, board->player);
+	discs[BLACK] = bit_count(bk);
+	discs[WHITE] = bit_count(wh);
+	mobility[BLACK] = get_mobility(bk, wh);
+	mobility[WHITE] = get_mobility(wh, bk);
+	gameover = (mobility[BLACK] + mobility[WHITE] == 0);
+
 	memset(history, 0, 64);
 	for (i = j = 0; i < play->i_game; i++) {
 		x = play->game[i].x;
@@ -1008,12 +1024,14 @@ void play_print(Play *play, FILE *f)
 		fputc(i + '1', f);
 		fputc(' ', f);
 		for (j = 0; j < 8; j++) {
-			x = i * 8 + j;
-			if (p == BLACK) square = 2 - ((board->opponent >> x) & 1) - 2 * ((board->player >> x) & 1);
-			else square = 2 - ((board->player >> x) & 1) - 2 * ((board->opponent >> x) & 1);
-			if (square == EMPTY && (moves & x_to_bit(x))) ++square;
+			square = 2 - (wh & 1) - 2 * (bk & 1);
+			if ((square == EMPTY) && (moves & 1))
+				square = EMPTY + 1;
 			fputc(color[square], f);
 			fputc(' ', f);
+			bk >>= 1;
+			wh >>= 1;
+			moves >>= 1;
 		}
 		fputc(i + '1', f);
 
@@ -1025,11 +1043,11 @@ void play_print(Play *play, FILE *f)
 			fprintf(f,"   %2d discs  %2d moves   ", discs[BLACK], mobility[BLACK]);
 			break;
 		case 3:
-			if (mobility[BLACK] + mobility[WHITE] == 0) fprintf(f,"       Game over        ");
+			if (gameover) fprintf(f,"       Game over        ");
 			else fprintf(f,"  ply %2d (%2d empties)   ", play->i_game + 1, board_count_empties(board));
 			break;
 		case 4:
-			if (mobility[BLACK] + mobility[WHITE] == 0) {
+			if (gameover) {
 				if (discs[BLACK] > discs[WHITE]) fprintf(f,"       %s won        ", player[BLACK]);
 				else if (discs[BLACK] < discs[WHITE]) fprintf(f,"       %s won        ", player[WHITE]);
 				else fprintf(f,"          draw          ");
@@ -1048,12 +1066,12 @@ void play_print(Play *play, FILE *f)
 		fputc(i + '1', f); fputc(' ', f);
 		for (j = 0; j < 8; j++){
 			x = i * 8 + j;
-			if (history[x]) fprintf(f,"|%2d",history[x]);
-			else {
-				if (ip == BLACK) square = 2 - ((play->initial_board->opponent >> x) & 1) - 2 * ((play->initial_board->player >> x) & 1);
-				else square = 2 - ((play->initial_board->player >> x) & 1) - 2 * ((play->initial_board->opponent >> x) & 1);
-				fputs(big_color[square], f);
-			}
+			if (history[x])
+				fprintf(f, "|%2d", history[x]);
+			else
+				fputs(big_color[2 - (wh0 & 1) - 2 * (bk0 & 1)], f);
+			wh0 >>= 1;
+			bk0 >>= 1;
 		}
 		fprintf(f, "| %1d\n", i + 1);
 	}

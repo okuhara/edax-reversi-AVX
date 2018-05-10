@@ -73,7 +73,6 @@ const unsigned long long NEIGHBOUR[] = {
 #ifndef POPCOUNT
 int bit_count(unsigned long long b)
 {
-	register unsigned long long c;
 	#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 	static const unsigned long long M55 = 0x5555555555555555ULL;
 	static const unsigned long long M33 = 0x3333333333333333ULL;
@@ -135,12 +134,12 @@ int bit_count(unsigned long long b)
 
 	#endif
 
-	c = b - ((b >> 1) & 0x7777777777777777ULL)
+	b = b - ((b >> 1) & 0x7777777777777777ULL)
 	      - ((b >> 2) & 0x3333333333333333ULL)
 	      - ((b >> 3) & 0x1111111111111111ULL);
-	c = ((c + (c >> 4)) & 0x0F0F0F0F0F0F0F0FULL) * 0x0101010101010101ULL;
+	b = ((b + (b >> 4)) & 0x0F0F0F0F0F0F0F0FULL) * 0x0101010101010101ULL;
 
-	return  (int)(c >> 56);
+	return  (int)(b >> 56);
 }
 #endif
 
@@ -153,21 +152,19 @@ int bit_count(unsigned long long b)
  * @param v 64-bit integer to count bits of.
  * @return the number of bit set, counting the corners twice.
  */
-int bit_weighted_count(const unsigned long long v)
+int bit_weighted_count(unsigned long long v)
 {
 #if defined(POPCOUNT)
 
 	return bit_count(v) + bit_count(v & 0x8100000000000081ULL);
 
 #else
+	v  = v - ((v >> 1) & 0x1555555555555515ULL) + (v & 0x0100000000000001ULL);
+	v  = ((v >> 2) & 0x3333333333333333ULL) + (v & 0x3333333333333333ULL);
+	v  = ((v >> 4) + v) & 0x0f0f0f0f0f0f0f0fULL;
+	v *= 0x0101010101010101ULL;
 
-	register unsigned long long b;
-	b  = v - ((v >> 1) & 0x1555555555555515ULL) + (v & 0x0100000000000001ULL);
-	b  = ((b >> 2) & 0x3333333333333333ULL) + (b & 0x3333333333333333ULL);
-	b  = ((b >> 4) + b) & 0x0f0f0f0f0f0f0f0fULL;
-	b *= 0x0101010101010101ULL;
-
-	return  (int)(b >> 56);
+	return  (int)(v >> 56);
 
 #endif
 }
@@ -434,7 +431,7 @@ unsigned long long horizontal_mirror(unsigned long long b)
  * @param b An unsigned long long
  * @return The transposed unsigned long long.
  */
-#if defined(__AVX2__) && (defined(__x86_64__) || defined(_M_X64))
+#ifdef __AVX2__
 unsigned long long transpose(unsigned long long b)
 {
 	static const V4DI s3210 = {{ 3, 2, 1, 0 }};
@@ -486,9 +483,9 @@ int get_rand_bit(unsigned long long b, Random *r)
  * @param b The unsigned long long.
  * @param f Output stream.
  */
-void bitboard_write(const unsigned long long b, FILE *f)
+void bitboard_write(unsigned long long b, FILE *f)
 {
-	int i, j, x;
+	int i, j;
 	static const char color[2] = ".X";
 
 	fputs("  A B C D E F G H\n", f);
@@ -496,9 +493,9 @@ void bitboard_write(const unsigned long long b, FILE *f)
 		fputc(i + '1', f);
 		fputc(' ', f);
 		for (j = 0; j < 8; ++j) {
-			x = i * 8 + j;
-			fputc(color[((b >> (unsigned)x) & 1)], f);
+			fputc(color[b & 1], f);
 			fputc(' ', f);
+			b >>= 1;
 		}
 		fputc(i + '1', f);
 		fputc('\n', f);
