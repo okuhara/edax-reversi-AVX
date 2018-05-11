@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file util.c
  *
  * @brief Various utilities.
@@ -6,7 +6,7 @@
  * This should be the only file with linux/windows
  * dedicated code.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2018
  * @author Richard Delorme
  * @version 4.4
  */
@@ -222,7 +222,11 @@ void relax(int t)
  */
 char* format_scientific(double v, const char *unit, char *f)
 {
-	static const char *multiple = "EPTGMk mμnpfa"; //
+#ifdef UNICODE
+	static const wchar_t multiple[] = L"EPTGMK mµnpfa"; //
+#else
+	static const char multiple[] = "EPTGMK mµnpfa"; //
+#endif
 	int u;
 
 	if (fabs(v) < 1e-24) {
@@ -232,11 +236,18 @@ char* format_scientific(double v, const char *unit, char *f)
 		if (u > 6) u = 6; else if (u < -6) u = -6;
 		v /= pow(10, 3 * u);
 	}
-	
+
+#ifdef UNICODE
+	if (fabs(v) - floor(fabs(v)) < 0.01) sprintf(f, " %5.1f %lc%s", v, multiple[6 - u], unit);
+	else if (fabs(v + 0.05) < 10.0) sprintf(f, " %5.3f %lc%s", v, multiple[6 - u], unit);
+	else if (fabs(v + 0.5) < 100.0) sprintf(f, " %5.2f %lc%s", v, multiple[6 - u], unit);
+	else sprintf(f, " %5.1f %lc%s", v, multiple[6 - u], unit);
+#else
 	if (fabs(v) - floor(fabs(v)) < 0.01) sprintf(f, " %5.1f %c%s", v, multiple[6 - u], unit);
-	else if (fabs(v + 0.05) < 10.0) sprintf(f, " %5.3f  %c%s", v, multiple[6 - u], unit);
-	else if (fabs(v + 0.5) < 100.0) sprintf(f, " %5.2f  %c%s", v, multiple[6 - u], unit);
-	else sprintf(f, " %5.1f  %c%s", v, multiple[6 - u], unit);
+	else if (fabs(v + 0.05) < 10.0) sprintf(f, " %5.3f %c%s", v, multiple[6 - u], unit);
+	else if (fabs(v + 0.5) < 100.0) sprintf(f, " %5.2f %c%s", v, multiple[6 - u], unit);
+	else sprintf(f, " %5.1f %c%s", v, multiple[6 - u], unit);
+#endif
 
 	return f;
 }

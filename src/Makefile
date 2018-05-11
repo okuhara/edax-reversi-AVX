@@ -38,7 +38,7 @@ endif
 
 # gcc 4.x (x >= 7)
 ifeq ($(COMP),gcc)
-	CFLAGS = -std=c99 -pedantic -W -Wall -Wextra -pipe -D_GNU_SOURCE=1
+	CFLAGS = -std=c99 -pedantic -W -Wall -Wextra -pipe -D_GNU_SOURCE=1 -DUNICODE
 	PGO_GEN = -fprofile-generate
 	PGO_USE = -fprofile-correction -fprofile-use
 
@@ -100,7 +100,7 @@ endif
 
 ifeq ($(COMP),gcc-old)
 	CC = gcc
-	CFLAGS = -std=c99 -pedantic -W -Wall -Wextra -pipe -D_GNU_SOURCE=1
+	CFLAGS = -std=c99 -pedantic -W -Wall -Wextra -pipe -D_GNU_SOURCE=1 -DUNICODE
 
 	ifeq ($(BUILD),optimize)
 		CFLAGS += -O3 -fwhole-program -DNDEBUG
@@ -151,7 +151,7 @@ endif
 
 # g++
 ifeq ($(COMP),g++)
-	CFLAGS = -x c++ -std=c++11 -pedantic -W -Wall -Wextra -pipe -D_GNU_SOURCE=1
+	CFLAGS = -x c++ -std=c++11 -pedantic -W -Wall -Wextra -pipe -D_GNU_SOURCE=1 -DUNICODE
 	PGO_GEN = -fprofile-generate
 	PGO_USE = -fprofile-correction -fprofile-use
 
@@ -191,7 +191,7 @@ endif
 
 #icc
 ifeq ($(COMP),icc)
-	CFLAGS = -std=c99 -Wall -Wcheck -wd2259 -wd913 -D_GNU_SOURCE=1
+	CFLAGS = -std=c99 -Wall -Wcheck -wd2259 -wd913 -D_GNU_SOURCE=1 -DUNICODE
 	PGO_GEN = -prof_gen
 	PGO_USE = -prof_use -wd11505
 
@@ -217,7 +217,7 @@ endif
 
 #pcc
 ifeq ($(COMP),pcc)
-	CFLAGS = - -D_GNU_SOURCE=1
+	CFLAGS = - -D_GNU_SOURCE=1 -DUNICODE
 
 	ifeq ($(BUILD),optimize)
 		CFLAGS += -O4 -DNDEBUG
@@ -238,7 +238,7 @@ endif
 
 #clang
 ifeq ($(COMP),clang)
-	CFLAGS = -std=c99 -pedantic -W -Wall -D_GNU_SOURCE=1 -Wno-invalid-source-encoding
+	CFLAGS = -std=c99 -pedantic -W -Wall -D_GNU_SOURCE=1 -DUNICODE -Wno-invalid-source-encoding
 	PGO_GEN = -fprofile-instr-generate
 	PGO_USE = -fprofile-instr-use=edax.profdata
 	PGO = llvm-profdata merge -output=edax.profdata $(BIN)/*.profraw
