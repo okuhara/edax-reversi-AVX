@@ -78,7 +78,7 @@ Log search_log[1];
 #endif
 
 /** a quadrant id for each square */
-const int QUADRANT_ID[] = {
+const unsigned char QUADRANT_ID[] = {
 		1, 1, 1, 1, 2, 2, 2, 2,
 		1, 1, 1, 1, 2, 2, 2, 2,
 		1, 1, 1, 1, 2, 2, 2, 2,
@@ -105,7 +105,7 @@ const Selectivity selectivity_table [] = {
 
 /** threshold values to try stability cutoff during NWS search */
 // TODO: better values may exist.
-const int NWS_STABILITY_THRESHOLD[] = { // 99 = unused value...
+const unsigned char NWS_STABILITY_THRESHOLD[] = { // 99 = unused value...
 	 99, 99, 99, 99,  6,  8, 10, 12,
 	 14, 16, 20, 22, 24, 26, 28, 30,
 	 32, 34, 36, 38, 40, 42, 44, 46,
@@ -117,7 +117,7 @@ const int NWS_STABILITY_THRESHOLD[] = { // 99 = unused value...
 
 /** threshold values to try stability cutoff during PVS search */
 // TODO: better values may exist.
-const int PVS_STABILITY_THRESHOLD[] = { // 99 = unused value...
+const unsigned char PVS_STABILITY_THRESHOLD[] = { // 99 = unused value...
 	 99, 99, 99, 99, -2,  0,  2,  4,
 	  6,  8, 12, 14, 16, 18, 20, 22,
 	 24, 26, 28, 30, 32, 34, 36, 38,
@@ -129,7 +129,7 @@ const int PVS_STABILITY_THRESHOLD[] = { // 99 = unused value...
 
 
 /** square type */
-const int SQUARE_TYPE[] = {
+const unsigned char SQUARE_TYPE[] = {
 	0, 1, 2, 3, 3, 2, 1, 0,
 	1, 4, 5, 6, 6, 5, 4, 1,
 	2, 5, 7, 8, 8, 7, 5, 2,
@@ -465,9 +465,9 @@ void search_free(Search *search)
  */
 void search_setup(Search *search)
 {
-	int i;
+	int i, x;
 	SquareList *empty;
-	static const int presorted_x[] = {
+	static const unsigned char presorted_x[] = {
 		A1, A8, H1, H8,                    /* Corner */
 		C4, C5, D3, D6, E3, E6, F4, F5,    /* E */
 		C3, C6, F3, F6,                    /* D */
@@ -481,10 +481,11 @@ void search_setup(Search *search)
 	};
 
 	Board *board = search->board;
-	unsigned long long E;
+	unsigned long long E, B;
 
-	// init empties
+	// init empties, parity
 	search->n_empties = 0;
+	search->parity = 0;
 
 	empty = search->empties;
 	empty->x = NOMOVE; /* sentinel */
@@ -493,13 +494,16 @@ void search_setup(Search *search)
 	empty = empty->next;
 	E = ~(board->player | board->opponent);
 	for (i = 0; i < BOARD_SIZE; ++i) {    /* add empty squares */
-		if ((E & x_to_bit(presorted_x[i]))) {
-			empty->x = presorted_x[i];
-			empty->b = x_to_bit(presorted_x[i]);
-			empty->quadrant = QUADRANT_ID[empty->x];
+		x = presorted_x[i];
+		B = x_to_bit(x);
+		if (E & B) {
+			empty->x = x;
+			empty->b = B;
+			empty->quadrant = QUADRANT_ID[x];
+			search->parity ^= empty->quadrant;
 			empty->previous = empty - 1;
 			empty->next = empty + 1;
-			search->x_to_empties[presorted_x[i]] = empty;
+			search->x_to_empties[x] = empty;
 			empty = empty->next;
 			++search->n_empties;
 		}
@@ -520,12 +524,6 @@ void search_setup(Search *search)
 	empty->b = 0;
 	empty->previous = empty->next = empty;
 	search->x_to_empties[NOMOVE] = empty;
-
-	// init parity
-	search->parity = 0;
-	foreach_empty (empty, search->empties) {
-		search->parity ^= empty->quadrant;
-	}
 
 	// init the evaluation function
 	eval_set(search->eval, board);
@@ -1277,7 +1275,7 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 		foreach_move (move, movelist) {
 			next->opponent = search->board->player ^ (move->flipped | x_to_bit(move->x));
 			next->player = search->board->opponent ^ move->flipped;
-			SEARCH_UPDATE_ALL_NODES();
+			SEARCH_UPDATE_ALL_NODES(search->n_nodes);
 
 			if (USE_SC && alpha <= -NWS_STABILITY_THRESHOLD[search->n_empties]) {
 				*score = 2 * get_stability(next->opponent, next->player) - SCORE_MAX;

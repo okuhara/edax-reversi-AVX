@@ -37,24 +37,24 @@
 
 #if COUNT_NODES & 1
 	/** node counter for internal nodes */
-	#define SEARCH_UPDATE_INTERNAL_NODES() (++search->n_nodes)
+	#define SEARCH_UPDATE_INTERNAL_NODES(x) (++(x))
 #else
 	/** no node counter for internal nodes */
-	#define SEARCH_UPDATE_INTERNAL_NODES()
+	#define SEARCH_UPDATE_INTERNAL_NODES(x)
 #endif
 #if COUNT_NODES & 2
 	/** node counter for pattern changes */
-	#define SEARCH_UPDATE_EVAL_NODES() (++search->n_nodes)
+	#define SEARCH_UPDATE_EVAL_NODES(x) (++(x))
 #else
 	/** no node counter for pattern changes */
-	#define SEARCH_UPDATE_EVAL_NODES()
+	#define SEARCH_UPDATE_EVAL_NODES(x)
 #endif
 #if COUNT_NODES & 4
 	/** more general node counter */
-	#define SEARCH_UPDATE_ALL_NODES() (++search->n_nodes)
+	#define SEARCH_UPDATE_ALL_NODES(x) (++(x))
 #else
 	/** no general node counter */
-	#define SEARCH_UPDATE_ALL_NODES()
+	#define SEARCH_UPDATE_ALL_NODES(x)
 #endif
 
 /** \struct Statistics */

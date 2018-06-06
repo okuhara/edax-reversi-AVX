@@ -347,7 +347,7 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 	cassio_debug("PVS_root [%d, %d], %d@%d%%\n", alpha, beta, depth, selectivity_table[search->selectivity].percent);
 	if (search->options.verbosity == 4) printf("PVS_root [%d, %d], %d@%d%%\n", alpha, beta, depth, selectivity_table[search->selectivity].percent);
 	SEARCH_STATS(++statistics.n_PVS_root);
-	SEARCH_UPDATE_INTERNAL_NODES();
+	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	// transposition cutoff
 	hash_code = board_get_hash_code(board);

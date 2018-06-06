@@ -179,6 +179,7 @@ static const int EVAL_SIZE[] = {19683, 59049, 59049, 59049, 6561, 6561, 6561, 65
 static const int EVAL_PACKED_OFS[] = { 0, 10206, 40095, 69741, 99387, 102708, 106029, 109350, 112671, 113805, 114183, 114318, 114363 };
 // static const int EVAL_PACKED_SIZE[] = {10206, 29889, 29646, 29646, 3321, 3321, 3321, 3321, 1134, 378, 135, 45, 1};
 
+#ifdef DEBUG
 static const int EVAL_MAX_VALUE[] = {
 	 19682,  19682,  19682,  19682,
 	 59048,  59048,  59048,  59048,	//  78731,  78731,  78731,  78731,
@@ -186,13 +187,15 @@ static const int EVAL_MAX_VALUE[] = {
 	 59048,  59048,  59048,  59048,	// 196829, 196829, 196829, 196829,
 	  6560,   6560,   6560,   6560,	// 203390, 203390, 203390, 203390,
 	  6560,   6560,   6560,   6560,	// 209951, 209951, 209951, 209951,
-	  6560,   6560,			// 216512, 216512,
+	  6560,   6560,   6560,   6560, // 216512, 216512, X 223073, X 223073,
+	  6560,   6560,			// 223073, 223073,
 	  2186,   2186,   2186,   2186, // 225260, 225260, 225260, 225260,
 	   728,    728,    728,    728, // 225989, 225989, 225989, 225989,
 	   242,    242,    242,    242, // 226232, 226232, 226232, 226232,
 	    80,     80,     80,     80, // 226313, 226313, 226313, 226313,
 	     0				// 226314
 };
+#endif
 
 /** feature symetry packing */
 typedef struct {
@@ -503,7 +506,7 @@ void eval_close(void)
 	EVAL_WEIGHT = NULL;
 }
 
-#if defined(hasSSE2) || defined(USE_GAS_MMX)
+#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 #include "eval_sse.c"
 #endif
 
@@ -548,7 +551,7 @@ static void eval_swap(Eval *eval)
 static void eval_update_0(Eval *eval, const Move *move)
 {
 	const CoordinateToFeature *s = EVAL_X2F + move->x;
-	register int x;
+	int x;
 	unsigned long long f = move->flipped;
 #ifdef DEBUG
 	int i, j;
@@ -557,7 +560,7 @@ static void eval_update_0(Eval *eval, const Move *move)
 		j = s->feature[i].i;
 		assert(0 <= j && j < EVAL_N_FEATURE);
 		eval->feature.us[j] -= 2 * s->feature[i].x;
-		assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
+		assert(eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 	}
 
 	foreach_bit (x, f) {
@@ -566,7 +569,7 @@ static void eval_update_0(Eval *eval, const Move *move)
 			j = s->feature[i].i;
 			assert(0 <= j && j < EVAL_N_FEATURE);
 			eval->feature.us[j] -= s->feature[i].x;
-			assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
+			assert(eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 		}
 	}
 
@@ -582,6 +585,7 @@ static void eval_update_0(Eval *eval, const Move *move)
 		eval->feature.us[s->feature[0].i] -= 2 * s->feature[0].x;
 		break;
 	}
+
 	foreach_bit (x, f) {
 		s = EVAL_X2F + x;
 		switch (s->n_feature) {
@@ -609,9 +613,8 @@ static void eval_update_0(Eval *eval, const Move *move)
 static void eval_update_1(Eval *eval, const Move *move)
 {
 	const CoordinateToFeature *s = EVAL_X2F + move->x;
-	register int x;
+	int x;
 	unsigned long long f = move->flipped;
-
 #ifdef DEBUG
 	int i, j;
 
@@ -619,7 +622,7 @@ static void eval_update_1(Eval *eval, const Move *move)
 		j = s->feature[i].i;
 		assert(0 <= j && j < EVAL_N_FEATURE);
 		eval->feature.us[j] -= s->feature[i].x;
-		assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
+		assert(eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 	}
 
 	foreach_bit (x, f) {
@@ -628,7 +631,7 @@ static void eval_update_1(Eval *eval, const Move *move)
 			j = s->feature[i].i;
 			assert(0 <= j && j < EVAL_N_FEATURE);
 			eval->feature.us[j] += s->feature[i].x;
-			assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
+			assert(eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 		}
 	}
 
@@ -644,6 +647,7 @@ static void eval_update_1(Eval *eval, const Move *move)
 	       	eval->feature.us[s->feature[0].i] -= s->feature[0].x;
 	       	break;
 	}
+
 	foreach_bit (x, f) {
 		s = EVAL_X2F + x;
 		switch (s->n_feature) {
@@ -667,7 +671,7 @@ void eval_update(Eval *eval, const Move *move)
 	assert(move->flipped);
 	assert(WHITE == eval->player || BLACK == eval->player);
 
-#ifdef USE_GAS_MMX
+#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 	if (hasSSE2) {
 		if (eval->player)
 			eval_update_sse_1(eval, move);
@@ -694,9 +698,8 @@ void eval_update(Eval *eval, const Move *move)
 static void eval_restore_0(Eval *eval, const Move *move)
 {
 	const CoordinateToFeature *s = EVAL_X2F + move->x;
-	register int x;
+	int x;
 	unsigned long long f = move->flipped;
-
 #ifdef DEBUG
 	int i, j;
 
@@ -704,7 +707,7 @@ static void eval_restore_0(Eval *eval, const Move *move)
 		j = s->feature[i].i;
 		assert(0 <= j && j < EVAL_N_FEATURE);
 		eval->feature.us[j] += 2 * s->feature[i].x;
-		assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
+		assert(eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 	}
 
 	foreach_bit (x, f) {
@@ -713,7 +716,7 @@ static void eval_restore_0(Eval *eval, const Move *move)
 			j = s->feature[i].i;
 			assert(0 <= j && j < EVAL_N_FEATURE);
 			eval->feature.us[j] += s->feature[i].x;
-			assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
+			assert(eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 		}
 	}
 
@@ -729,6 +732,7 @@ static void eval_restore_0(Eval *eval, const Move *move)
 	       	eval->feature.us[s->feature[0].i] += 2 * s->feature[0].x;
 	       	break;
 	}
+
 	foreach_bit (x, f) {
 		s = EVAL_X2F + x;
 		switch (s->n_feature) {
@@ -750,9 +754,8 @@ static void eval_restore_0(Eval *eval, const Move *move)
 static void eval_restore_1(Eval *eval, const Move *move)
 {
 	const CoordinateToFeature *s = EVAL_X2F + move->x;
-	register int x;
+	int x;
 	unsigned long long f = move->flipped;
-
 #ifdef DEBUG
 	int i, j;
 
@@ -760,7 +763,7 @@ static void eval_restore_1(Eval *eval, const Move *move)
 		j = s->feature[i].i;
 		assert(0 <= j && j < EVAL_N_FEATURE);
 		eval->feature.us[j] += s->feature[i].x;
-		assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
+		assert(eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 	}
 
 	foreach_bit (x, f) {
@@ -769,7 +772,7 @@ static void eval_restore_1(Eval *eval, const Move *move)
 			j = s->feature[i].i;
 			assert(0 <= j && j < EVAL_N_FEATURE);
 			eval->feature.us[j] -= s->feature[i].x;
-			assert(0 <= eval->feature.us[j] && eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
+			assert(eval->feature.us[j] <= EVAL_MAX_VALUE[j]);
 		}
 	}
 
@@ -785,6 +788,7 @@ static void eval_restore_1(Eval *eval, const Move *move)
 	       	eval->feature.us[s->feature[0].i] += s->feature[0].x;
 	       	break;
 	}
+
 	foreach_bit (x, f) {
 		s = EVAL_X2F + x;
 		switch (s->n_feature) {
@@ -808,7 +812,7 @@ void eval_restore(Eval *eval, const Move *move)
 	eval_swap(eval);
 	assert(WHITE == eval->player || BLACK == eval->player);
 
-#ifdef USE_GAS_MMX
+#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 	if (hasSSE2) {
 		if (eval->player)
 			eval_restore_sse_1(eval, move);

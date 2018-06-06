@@ -26,19 +26,15 @@
  */
 void version(void)
 {
-	fprintf(stderr, "Edax version " VERSION_STRING " " __DATE__ " " __TIME__);
-
+	fprintf(stderr, "Edax version " VERSION_STRING " " __DATE__ " " __TIME__
 #if defined(__linux__)
-	fprintf(stderr, " for Linux\n");
+		" for Linux"
 #elif defined(_WIN32)
-	fprintf(stderr, " for Windows\n");
+		" for Windows"
 #elif defined(__APPLE__)
-	fprintf(stderr, " for Apple\n");
-#else
-	fprintf(stderr, "\n");
+		" for Apple"
 #endif
-
-	fprintf(stderr, "copyright 1998 - 2018 Richard Delorme\n\n");
+		"\ncopyright 1998 - 2018 Richard Delorme\n\n");
 }
 
 
@@ -47,17 +43,17 @@ void version(void)
  */
 void usage(void)
 {
-	fprintf(stderr, "Usage: edax <protocol> <options>\n");
-	fprintf(stderr,	"User Interface Protocols:\n");
-	fprintf(stderr, " -edax     Edax's user interface (default)\n");
-	fprintf(stderr, " -ggs      Generic Game Server interface (play through internet)\n");
-	fprintf(stderr, " -gtp      Go Text Protocol.\n");
-	fprintf(stderr, " -xboard xboard/winboard protocol.\n");
-	fprintf(stderr, " -nboard NBoard protocol.\n");
-	fprintf(stderr, " -cassio Cassio protocol.\n");
-	fprintf(stderr, " -solve <problem_file>    Automatic problem solver/checker.\n");
-	fprintf(stderr, " -wtest <wthor_file>      Test edax using WThor's theoric score.\n");
-	fprintf(stderr, " -count <level>           Count positions up to <level>.\n");
+	fprintf(stderr, "Usage: edax <protocol> <options>\n"
+		"User Interface Protocols:\n"
+		" -edax     Edax's user interface (default)\n"
+		" -ggs      Generic Game Server interface (play through internet)\n"
+		" -gtp      Go Text Protocol.\n"
+		" -xboard xboard/winboard protocol.\n"
+		" -nboard NBoard protocol.\n"
+		" -cassio Cassio protocol.\n"
+		" -solve <problem_file>    Automatic problem solver/checker.\n"
+		" -wtest <wthor_file>      Test edax using WThor's theoric score.\n"
+		" -count <level>           Count positions up to <level>.\n");
 	options_usage();
 }
 

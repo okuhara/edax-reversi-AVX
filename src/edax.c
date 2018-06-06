@@ -168,23 +168,23 @@ void ui_free_edax(UI *ui)
  */
 void help_options(void) 
 {
-	printf("Options:\n");
-	printf("Options must be entered in the form '[set] <option> [=] <value>', with [set] and\n[=] being optional.\n");
-	printf("  verbose [n]          set Edax verbosity (default 1).\n");
-	printf("  noise [n]            start displaying Edax search result from this depth\n  (default 5).\n");
-	printf("  witdh [n]            display edax search results using <width> characters\n  (default 80).\n");
-	printf("  hash-table-size [n]  set hashtable size (default 18 bits).\n");
-	printf("  n-tasks [n]          control the number of parallel threads used in searching\n  (default 1).\n");
-	printf("  l|level [n]          search using limited depth (default 21).\n");
-	printf("  t|game-time <time>   search using limited time per game.\n");
-	printf("  move-time <time>     search using limited time per move.\n");
-	printf("  ponder [on/off]      set pondering on/off.\n");
-	printf("  book-file [file]     use [file] as default book file (default data/book.dat).\n");
-	printf("  book-usage [on/off]  use or do not use the opening book.\n");
-	printf("  book-randomness [n]  play various but worse moves from the opening book.\n");
-	printf("  auto-start [on/off]  automatically start a new game.\n");
-	printf("  auto-swap [on/off]   automatically swap players between each game.\n");
-	printf("  auto-store [on/off]  automatically store each game into the opening book.\n");
+	printf(	"Options:\n"
+		"Options must be entered in the form '[set] <option> [=] <value>', with [set] and\n[=] being optional.\n"
+		"  verbose [n]          set Edax verbosity (default 1).\n"
+		"  noise [n]            start displaying Edax search result from this depth\n  (default 5).\n"
+		"  witdh [n]            display edax search results using <width> characters\n  (default 80).\n"
+		"  hash-table-size [n]  set hashtable size (default 18 bits).\n"
+		"  n-tasks [n]          control the number of parallel threads used in searching\n  (default 1).\n"
+		"  l|level [n]          search using limited depth (default 21).\n"
+		"  t|game-time <time>   search using limited time per game.\n"
+		"  move-time <time>     search using limited time per move.\n"
+		"  ponder [on/off]      set pondering on/off.\n"
+		"  book-file [file]     use [file] as default book file (default data/book.dat).\n"
+		"  book-usage [on/off]  use or do not use the opening book.\n"
+		"  book-randomness [n]  play various but worse moves from the opening book.\n"
+		"  auto-start [on/off]  automatically start a new game.\n"
+		"  auto-swap [on/off]   automatically swap players between each game.\n"
+		"  auto-store [on/off]  automatically store each game into the opening book.\n");
 }
 
 /**
@@ -192,25 +192,25 @@ void help_options(void)
  */
 void help_commands(void) 
 {
-	printf("\nCommands:\n");
-	printf("Commands must be entered in the form '<command> <parameters>'.\n");
-	printf("  i|nit               start a new game from standard initial position.\n");
-	printf("  n|ew                start a new game from a personalized position.\n");
-	printf("  setboard <board>    set a personalized position to start from.\n");
-	printf("  o|open|load [file]  load a played game.\n");
-	printf("  s|save [file]       save a played game.\n");
-	printf("  q|quit|exit         quit from edax.\n");
-	printf("  u|undo              undo the last played move.\n");
-	printf("  r|redo              redo the last played move.\n");
-	printf("  play <moves>        play a sequence of moves.\n");
-	printf("  force <moves>       force to play an opening.\n");
-	printf("  go                  ask edax to play.\n");
-	printf("  stop                stop edax search.\n");
-	printf("  hint [n]            ask edax to search the first bestmoves.\n");
-	printf("  m|mode [n]          ask edax to automatically play (default = 3).\n");
-	printf("  a|analyze [n]       retro-analyze the game.\n");
-	printf("  ?|help              show this message.\n");
-	printf("  v|version           display the version number.\n");
+	printf(	"\nCommands:\n"
+		"Commands must be entered in the form '<command> <parameters>'.\n"
+		"  i|nit               start a new game from standard initial position.\n"
+		"  n|ew                start a new game from a personalized position.\n"
+		"  setboard <board>    set a personalized position to start from.\n"
+		"  o|open|load [file]  load a played game.\n"
+		"  s|save [file]       save a played game.\n"
+		"  q|quit|exit         quit from edax.\n"
+		"  u|undo              undo the last played move.\n"
+		"  r|redo              redo the last played move.\n"
+		"  play <moves>        play a sequence of moves.\n"
+		"  force <moves>       force to play an opening.\n"
+		"  go                  ask edax to play.\n"
+		"  stop                stop edax search.\n"
+		"  hint [n]            ask edax to search the first bestmoves.\n"
+		"  m|mode [n]          ask edax to automatically play (default = 3).\n"
+		"  a|analyze [n]       retro-analyze the game.\n"
+		"  ?|help              show this message.\n"
+		"  v|version           display the version number.\n");
 }
 
 /**
@@ -218,30 +218,30 @@ void help_commands(void)
  */
 void help_book(void) 
 {
-	printf("\nBook Commands:\n");
-	printf("Book Commands must be entered in the form 'b|book <command> <parameters>'.\n");
-	printf("  new <n1> <n2>       create a new empty book with level <n1> and depth <n2>.\n");
-	printf("  load [file]         load an opening book from a binary opening file.\n");
-	printf("  merge [file]        merge an opening book with the current opening book.\n");
-	printf("  save [file]         save an opening book to a binary opening file.\n");
-	printf("  import [file]       load an opening book from a portable text file.\n");
-	printf("  export [file]       save an opening book to a portable text file.\n");
-	printf("  on                  use the opening book.\n");
-	printf("  off                 do not use the opening book.\n");
-	printf("  show                display details about the current position.\n");
-	printf("  info                display book general information.\n");
-	printf("  a|analyze [n]       retro-analyze the game using the opening book.\n");
-	printf("  randomness [n]      play more various but worse move from the opening book.\n");
-	printf("  depth [n]           change book depth (up to which to add positions).\n");
-	printf("  deepen [n]          change book level & reevalute the whole book (very slow!).\n");
-	printf("  fix                 fix the opening book: add missing links and negamax the\n  whole book tree.\n");
-	printf("  store               add the last played game to the opening book.\n");
-	printf("  deviate <n1> <n2>   add positions by deviating with a relative error <n1> and\n  an absolute error <n2>.\n");
-	printf("  enhance <n1> <n2>   add positions by improving score accuracy with a midgame\n  error <n1> and an endcut error <n2>.\n");
-	printf("  fill [n]            add positions between existing positions.\n");
-	printf("  prune               remove unreachable positions.\n");
-	printf("  subtree             only keep positions from the current position.\n");
-	printf("  add [file]          add positions from a game base file (txt, ggf, sgf or\n  wthor format).\n");
+	printf(	"\nBook Commands:\n"
+		"Book Commands must be entered in the form 'b|book <command> <parameters>'.\n"
+		"  new <n1> <n2>       create a new empty book with level <n1> and depth <n2>.\n"
+		"  load [file]         load an opening book from a binary opening file.\n"
+		"  merge [file]        merge an opening book with the current opening book.\n"
+		"  save [file]         save an opening book to a binary opening file.\n"
+		"  import [file]       load an opening book from a portable text file.\n"
+		"  export [file]       save an opening book to a portable text file.\n"
+		"  on                  use the opening book.\n"
+		"  off                 do not use the opening book.\n"
+		"  show                display details about the current position.\n"
+		"  info                display book general information.\n"
+		"  a|analyze [n]       retro-analyze the game using the opening book.\n"
+		"  randomness [n]      play more various but worse move from the opening book.\n"
+		"  depth [n]           change book depth (up to which to add positions).\n"
+		"  deepen [n]          change book level & reevalute the whole book (very slow!).\n"
+		"  fix                 fix the opening book: add missing links and negamax the\n  whole book tree.\n"
+		"  store               add the last played game to the opening book.\n"
+		"  deviate <n1> <n2>   add positions by deviating with a relative error <n1> and\n  an absolute error <n2>.\n"
+		"  enhance <n1> <n2>   add positions by improving score accuracy with a midgame\n  error <n1> and an endcut error <n2>.\n"
+		"  fill [n]            add positions between existing positions.\n"
+		"  prune               remove unreachable positions.\n"
+		"  subtree             only keep positions from the current position.\n"
+		"  add [file]          add positions from a game base file (txt, ggf, sgf or\n  wthor format).\n");
 }
 
 /**
@@ -249,13 +249,13 @@ void help_book(void)
  */
 void help_base(void) 
 {
-	printf("\nGame DataBase :\n");
-	printf("  convert [file_in] [file_out]     convert between different format.\n");
-	printf("  unique [file_in] [file_out]      remove doublons in the base.\n");
-	printf("  check [file_in] [n]              check error in the last <n> moves.\n");
-	printf("  correct [file_in] [n]            correct error in the last <n> moves.\n");
-	printf("  complete [file_in]               complete a database by playing the last\n  missing moves.\n");
-	printf("  problem [file_in] [n] [file_out] build a set of <n> problems from a game\n  database.\n");
+	printf(	"\nGame DataBase :\n"
+		"  convert [file_in] [file_out]     convert between different format.\n"
+		"  unique [file_in] [file_out]      remove doublons in the base.\n"
+		"  check [file_in] [n]              check error in the last <n> moves.\n"
+		"  correct [file_in] [n]            correct error in the last <n> moves.\n"
+		"  complete [file_in]               complete a database by playing the last\n  missing moves.\n"
+		"  problem [file_in] [n] [file_out] build a set of <n> problems from a game\n  database.\n");
 }
 
 /**
@@ -263,17 +263,17 @@ void help_base(void)
  */
 void help_test(void) 
 {
-	printf("\nTests:\n");
-	printf("  bench               test edax speed.\n");
-	printf("  microbench          test CPU cycle speed of some major functions.\n");
-	printf("  obftest [file]      Test from an obf file.\n");
-	printf("  script-to-obf [file]Convert a script to an obf file.\n");
-	printf("  wtest [file]        check the theoric scores of a wthor base file.\n");
-	printf("  count games [d]     compute the number of moves from the current position up\n  to depth [d].\n");
-	printf("  perft [d]           same as above, but without hash table.\n");
-	printf("  estimate [d] [n]    estimate the number of moves from the current position up\n  to depth [d].\n");
-	printf("  count positions [d] compute the number of positions from the current position\n  up to depth [d].\n");
-	printf("  count shapes [d]    compute the number of shapes from the current position up\n  to depth [d].\n");
+	printf(	"\nTests:\n"
+		"  bench               test edax speed.\n"
+		"  microbench          test CPU cycle speed of some major functions.\n"
+		"  obftest [file]      Test from an obf file.\n"
+		"  script-to-obf [file]Convert a script to an obf file.\n"
+		"  wtest [file]        check the theoric scores of a wthor base file.\n"
+		"  count games [d]     compute the number of moves from the current position up\n  to depth [d].\n"
+		"  perft [d]           same as above, but without hash table.\n"
+		"  estimate [d] [n]    estimate the number of moves from the current position up\n  to depth [d].\n"
+		"  count positions [d] compute the number of positions from the current position\n  up to depth [d].\n"
+		"  count shapes [d]    compute the number of shapes from the current position up\n  to depth [d].\n");
 }
 
 

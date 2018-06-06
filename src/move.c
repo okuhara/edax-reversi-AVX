@@ -25,7 +25,7 @@
 const Move MOVE_INIT = {0, NOMOVE, -SCORE_INF, 0, NULL};
 const Move MOVE_PASS = {0, PASS, -SCORE_INF, 0, NULL};
 
-const int SQUARE_VALUE[] = {
+const unsigned char SQUARE_VALUE[] = {
 	// JCW's score:
 	18,  4,  16, 12, 12, 16,  4, 18,
 	 4,  2,   6,  8,  8,  6,  2,  4,
@@ -48,13 +48,13 @@ int symetry(int x, const int sym)
 {
 	if (A1 <= x && x <= H8) {
 		if (sym & 1) {
-			x = ((x & 070) | (7 - (x & 7)));
+			x = x ^ 7;
 		}
 		if (sym & 2) {
-			x = ((070 - (x & 070)) | (x & 7));
+			x = x ^ 070;
 		}
 		if (sym & 4) {
-			x = (((x & 070) >> 3) | ((x & 7) << 3));
+			x = (x >> 3) + (x & 7) * 8;
 		}
 		assert(A1 <= x && x <= H8);
 	}
@@ -64,10 +64,10 @@ int symetry(int x, const int sym)
 
 
 /**
- * @brief Print out a move
+ * @brief Print a move to string
  *
  * Print the move, using letter case to distinguish player's color,
- * to an output stream.
+ * to a string.
  * @param x Square coordinate to print.
  * @param player Player color.
  * @param s Output string.
@@ -109,31 +109,15 @@ char* move_to_string(const int x, const int player, char *s)
  */
 void move_print(const int x, const int player, FILE *f)
 {
-	int s[2];
+	char s[3];
 
-	if (x == NOMOVE) {
-		s[0] = '-';
-		s[1] = '-';
-	} else if (x == PASS) {
-		s[0] = 'p';
-		s[1] = 's';
-	} else if (x >= A1 && x <= H8) {
-		s[0] = x % 8 + 'a';
-		s[1] = x / 8 + '1';
-	} else {
-		s[0] = '?';
-		s[1] = '?';
-	}
-
-	if (player == BLACK) {
-		s[0] = toupper(s[0]);
-		s[1] = toupper(s[1]);
+	move_to_string(x, player, s);
+	if (x == PASS) {
+		s[1] += 's' - 'a';	// ps/PS instead of pa/PA
 	}
 	fputc(s[0], f);
 	fputc(s[1], f);
 }
-
-
 
 
 /**
@@ -212,7 +196,7 @@ static void move_evaluate(Move *move, Search *search, const HashData *hash_data,
 
 		if (sort_depth < 0) {
 			board_update(board, move);
-				SEARCH_UPDATE_ALL_NODES();
+				SEARCH_UPDATE_ALL_NODES(search->n_nodes);
 				move->score += (36 - get_potential_mobility(board->player, board->opponent)) * w_potential_mobility; // potential mobility
 				move->score += get_corner_stability(board->opponent) * w_corner_stability; // corner stability
 				move->score += (36 - get_weighted_mobility(board->player, board->opponent)) * w_mobility; // real mobility
@@ -221,7 +205,7 @@ static void move_evaluate(Move *move, Search *search, const HashData *hash_data,
 			int selectivity = search->selectivity;
 			search->selectivity = NO_SELECTIVITY;
 			search_update_midgame(search, move);
-				SEARCH_UPDATE_INTERNAL_NODES();
+				SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 				move->score += (36 - get_potential_mobility(board->player, board->opponent)) * w_potential_mobility; // potential mobility
 				move->score += get_edge_stability(board->opponent, board->player) * w_edge_stability; // edge stability
 				move->score += (36 - get_weighted_mobility(board->player, board->opponent)) *  w_mobility; // real mobility
@@ -490,7 +474,6 @@ void movelist_sort_cost(MoveList *movelist, const HashData *hash_data)
 {
 	Move *iter;
 
-
 	foreach_move(iter, movelist) {
 		if (iter->x == hash_data->move[0]) iter->cost = INT_MAX;
 		else if (iter->x == hash_data->move[1]) iter->cost = INT_MAX - 1;
@@ -505,6 +488,7 @@ void movelist_sort_cost(MoveList *movelist, const HashData *hash_data)
 void movelist_sort(MoveList *movelist)
 {
 	Move *move;
+
 	foreach_best_move(move, movelist) ;
 }
 

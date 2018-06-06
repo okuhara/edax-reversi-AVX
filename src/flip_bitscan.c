@@ -43,6 +43,8 @@
  * @version 4.4
  */
 
+#include "bit.h"
+
 /** outflank array (indexed with inner 6 bits) */
 /* static const unsigned char OUTFLANK_0[64] = {
 	0x00, 0x04, 0x00, 0x08, 0x00, 0x04, 0x00, 0x10, 0x00, 0x04, 0x00, 0x08, 0x00, 0x04, 0x00, 0x20,
@@ -263,21 +265,20 @@ static const unsigned long long FLIPPED_5_V[137] = {
 	0x00ff00ff00000000ULL
 };
 
-#include "bit.h"
-
-#if defined(_M_X64) && !defined(__AVX2__)
-static inline int __builtin_clzll(unsigned long long n) {	// n != 0
+#if 0 // defined(_MSC_VER) && defined(_M_X64) && !defined(__AVX2__)
+static inline int _lzcnt_u64(unsigned long long n) {
 	unsigned long i;
-	_BitScanReverse64(&i, n);
-	return (int) i ^ 63;
+	if (!_BitScanReverse64(&i, n))
+		i = -1;
+	return 63 - i;
 }
 #endif
 
-#if (defined(__LZCNT__) && defined(__x86_64__)) || (defined(_M_X64) && defined(__AVX2__))
+#if (defined(__x86_64__) && defined(__LZCNT__)) || (defined(_M_X64) && defined(__AVX2__))
 	// Strictly, (long long) >> 64 is undefined in C, but either 0 bit (no change)
 	// or 64 bit (zero out) shift will lead valid result (i.e. flipped == 0).
-	#define	outflank_right(O,maskr,masko)	(0x8000000000000000ULL >> __lzcnt64(~(O) & (maskr)))
-#elif 1	// bswap to use carry propagation backwards
+	#define	outflank_right(O,maskr,masko)	(0x8000000000000000ULL >> _lzcnt_u64(~(O) & (maskr)))
+#elif defined(vertical_mirror)	// bswap to use carry propagation backwards
 	#define	outflank_right(O,maskr,masko)	(vertical_mirror(vertical_mirror((O) | ~(maskr)) + 1) & (maskr))
 #else	// with guardian bit to avoid __builtin_clz(0)
 	#define	outflank_right(O,maskr,masko)	(0x8000000000000000ULL >> __builtin_clzll(((O) & (masko)) ^ (maskr)))

@@ -36,7 +36,7 @@ int search_eval_0(Search *search)
 	int score;
 
 	SEARCH_STATS(++statistics.n_search_eval_0);
-	SEARCH_UPDATE_EVAL_NODES();
+	SEARCH_UPDATE_EVAL_NODES(search->n_nodes);
 
 	score = w[f[ 0] + 0] + w[f[ 1] + 0] + w[f[ 2] + 0] + w[f[ 3] + 0]
 	  + w[f[ 4] + 19683] + w[f[ 5] + 19683] + w[f[ 6] + 19683] + w[f[ 7] + 19683]
@@ -82,7 +82,7 @@ int search_eval_1(Search *search, const int alpha, int beta)
 	unsigned short *f;
 
 	SEARCH_STATS(++statistics.n_search_eval_1);
-	SEARCH_UPDATE_INTERNAL_NODES();
+	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	if (moves) {
 		bestscore = -SCORE_INF;
@@ -93,7 +93,7 @@ int search_eval_1(Search *search, const int alpha, int beta)
 				if (move_wipeout(move, board)) return SCORE_MAX;
 				eval_update(search->eval, move);
 				f = search->eval->feature.us;
-				SEARCH_UPDATE_EVAL_NODES();
+				SEARCH_UPDATE_EVAL_NODES(search->n_nodes);
 				score = -w[f[ 0] + 0] - w[f[ 1] + 0] - w[f[ 2] + 0] - w[f[ 3] + 0]
 				  - w[f[ 4] + 19683] - w[f[ 5] + 19683] - w[f[ 6] + 19683] - w[f[ 7] + 19683]
 				  - w[f[ 8] + 78732] - w[f[ 9] + 78732] - w[f[10] + 78732] - w[f[11] + 78732]
@@ -152,7 +152,7 @@ int search_eval_2(Search *search, int alpha, const int beta)
 	const unsigned long long moves = get_moves(board->player, board->opponent);
 
 	SEARCH_STATS(++statistics.n_search_eval_2);
-	SEARCH_UPDATE_INTERNAL_NODES();
+	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	assert(-SCORE_MAX <= alpha && alpha <= SCORE_MAX);
 	assert(-SCORE_MAX <= beta && beta <= SCORE_MAX);
@@ -311,7 +311,7 @@ int NWS_shallow(Search *search, const int alpha, int depth, HashTable *hash_tabl
 	if (depth == 2) return search_eval_2(search, alpha, beta);
 
 	SEARCH_STATS(++statistics.n_NWS_midgame);
-	SEARCH_UPDATE_INTERNAL_NODES();
+	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	assert(search->n_empties == bit_count(~(search->board->player|search->board->opponent)));
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
@@ -393,7 +393,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 	if (depth == 2) return search_eval_2(search, alpha, beta);
 
 	SEARCH_STATS(++statistics.n_PVS_shallow);
-	SEARCH_UPDATE_INTERNAL_NODES();
+	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	assert(search->n_empties == bit_count(~(search->board->player|search->board->opponent)));
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
@@ -496,7 +496,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	else if (search->n_empties <= depth && depth < DEPTH_MIDGAME_TO_ENDGAME) return NWS_endgame(search, alpha);
 
 	SEARCH_STATS(++statistics.n_NWS_midgame);
-	SEARCH_UPDATE_INTERNAL_NODES();
+	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	// stability cutoff
 	if (search_SC_NWS(search, alpha, &score)) return score;
@@ -612,7 +612,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 	else if (depth == 2 && search->n_empties > 2) return search_eval_2(search, alpha, beta);
 
 	cost = -search_count_nodes(search);
-	SEARCH_UPDATE_INTERNAL_NODES();
+	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	search_get_movelist(search, movelist);
 	node_init(node, search, alpha, beta, depth, movelist->n_moves, parent);

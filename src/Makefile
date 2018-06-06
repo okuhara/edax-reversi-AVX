@@ -38,12 +38,13 @@ endif
 
 # gcc 4.x (x >= 7)
 ifeq ($(COMP),gcc)
-	CFLAGS = -std=c99 -pedantic -W -Wall -Wextra -pipe -D_GNU_SOURCE=1 -DUNICODE
+	CFLAGS = -std=c99 -pedantic -W -Wall -Wextra -pipe -DUNICODE
 	PGO_GEN = -fprofile-generate
 	PGO_USE = -fprofile-correction -fprofile-use
 
 	ifeq ($(BUILD),optimize)
-		CFLAGS += -Ofast -fwhole-program -flto -DNDEBUG
+		CFLAGS += -Ofast -fwhole-program -DNDEBUG
+		LTOFLAG = -flto
 	else
 		CFLAGS += -O0 -g -DDEBUG
 	endif
@@ -100,7 +101,7 @@ endif
 
 ifeq ($(COMP),gcc-old)
 	CC = gcc
-	CFLAGS = -std=c99 -pedantic -W -Wall -Wextra -pipe -D_GNU_SOURCE=1 -DUNICODE
+	CFLAGS = -std=c99 -pedantic -W -Wall -Wextra -pipe -DUNICODE
 
 	ifeq ($(BUILD),optimize)
 		CFLAGS += -O3 -fwhole-program -DNDEBUG
@@ -151,12 +152,13 @@ endif
 
 # g++
 ifeq ($(COMP),g++)
-	CFLAGS = -x c++ -std=c++11 -pedantic -W -Wall -Wextra -pipe -D_GNU_SOURCE=1 -DUNICODE
+	CFLAGS = -x c++ -std=c++11 -pedantic -W -Wall -Wextra -pipe -DUNICODE
 	PGO_GEN = -fprofile-generate
 	PGO_USE = -fprofile-correction -fprofile-use
 
 	ifeq ($(BUILD),optimize)
-		CFLAGS += -Ofast -fwhole-program -flto -DNDEBUG
+		CFLAGS += -Ofast -fwhole-program -DNDEBUG
+		LTOFLAG = -flto
 	else
 		CFLAGS += -O0 -g -DDEBUG
 	endif
@@ -191,7 +193,7 @@ endif
 
 #icc
 ifeq ($(COMP),icc)
-	CFLAGS = -std=c99 -Wall -Wcheck -wd2259 -wd913 -D_GNU_SOURCE=1 -DUNICODE
+	CFLAGS = -std=c99 -Wall -Wcheck -wd2259 -wd913 -DUNICODE
 	PGO_GEN = -prof_gen
 	PGO_USE = -prof_use -wd11505
 
@@ -217,7 +219,7 @@ endif
 
 #pcc
 ifeq ($(COMP),pcc)
-	CFLAGS = - -D_GNU_SOURCE=1 -DUNICODE
+	CFLAGS = - -DUNICODE
 
 	ifeq ($(BUILD),optimize)
 		CFLAGS += -O4 -DNDEBUG
@@ -238,13 +240,14 @@ endif
 
 #clang
 ifeq ($(COMP),clang)
-	CFLAGS = -std=c99 -pedantic -W -Wall -D_GNU_SOURCE=1 -DUNICODE -Wno-invalid-source-encoding
+	CFLAGS = -std=c99 -pedantic -W -Wall -DUNICODE -Wno-invalid-source-encoding
 	PGO_GEN = -fprofile-instr-generate
 	PGO_USE = -fprofile-instr-use=edax.profdata
 	PGO = llvm-profdata merge -output=edax.profdata $(BIN)/*.profraw
 
 	ifeq ($(BUILD),optimize)
-		CFLAGS += -O3 -flto -ffast-math -fomit-frame-pointer -DNDEBUG
+		CFLAGS += -O3 -ffast-math -fomit-frame-pointer -DNDEBUG
+		LTOFLAG = -flto
 	else
 		CFLAGS += -O0 -g -DDEBUG
 	endif
@@ -338,29 +341,29 @@ help:
 
 build:
 	@echo "building edax..."
-	$(CC) $(CFLAGS) all.c -s -o $(BIN)/$(EXE) $(LIBS)
+	$(CC) $(CFLAGS) $(LTOFLAG) all.c -s -o $(BIN)/$(EXE) $(LIBS)
 
 source:
-	$(CC) $(CFLAGS) all.c -S
+	$(CC) $(CFLAGS) -S all.c
 
 pgo-build:
 	@echo "building edax with pgo..."
 	$(MAKE) clean
-	$(CC) $(CFLAGS) $(PGO_GEN) all.c -o $(BIN)/$(EXE) $(LIBS)
+	$(CC) $(CFLAGS) $(LTOFLAG) $(PGO_GEN) all.c -o $(BIN)/$(EXE) $(LIBS)
 	cd $(BIN); echo -e 'count games 10\ncount positions 9\n' | ./$(EXE) 
 	cd $(BIN); ./$(EXE) -l 60 -solve ../problem/fforum-20-39.obf
 	cd $(BIN); ./$(EXE) -l 18 -auto-store on -auto-start on -repeat 2 -auto-quit on -mode 2 -book-file book.pgo
 	rm -f ../bin/book.pgo ../bin/book.pgo.store
 	$(PGO)	
-	$(CC) $(CFLAGS) $(PGO_USE) all.c -s -o $(BIN)/$(EXE) $(LIBS)
+	$(CC) $(CFLAGS) $(LTOFLAG) $(PGO_USE) all.c -s -o $(BIN)/$(EXE) $(LIBS)
 
 pgo-rebuild:
 	@echo "rebuilding edax with pgo..."
-	$(CC) $(CFLAGS) $(PGO_USE) all.c -s -o $(BIN)/$(EXE) $(LIBS)
+	$(CC) $(CFLAGS) $(LTOFLAG) $(PGO_USE) all.c -s -o $(BIN)/$(EXE) $(LIBS)
 
 prof:
 	@echo "rebuilding edax for profiling..."
-	$(CC) $(CFLAGS) all.c -pg -o $(BIN)/$(EXE) $(LIBS) # -inline-level=0 -lprofiler
+	$(CC) $(CFLAGS) $(LTOFLAG) all.c -pg -o $(BIN)/$(EXE) $(LIBS) # -inline-level=0 -lprofiler
 
 debug:
 	make ARCH=$(ARCH) COMP=$(COMP) OS=$(OS) BUILD=debug prof
@@ -386,11 +389,11 @@ clean:
 	rm -f pgopti* *.dyn all.gc* *~ *.o generate_flip generate_count_flip *.prof*
 
 noip:
-	$(CC) -g $(CFLAGS) $(SRC) -o $(BIN)/$(EXE) $(LIBS)
+	$(CC) -g $(CFLAGS) $(LTOFLAG) $(SRC) -o $(BIN)/$(EXE) $(LIBS)
 
 code:
-	$(CC) $(CFLAGS) generate_flip.c -o generate_flip
-	$(CC) $(CFLAGS) generate_count_flip.c -o generate_count_flip
+	$(CC) $(CFLAGS) $(LTOFLAG) generate_flip.c -o generate_flip
+	$(CC) $(CFLAGS) $(LTOFLAG) generate_count_flip.c -o generate_count_flip
 	generate_flip
 	generate_count_flip
 

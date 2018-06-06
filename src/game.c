@@ -714,6 +714,7 @@ void game_export_ggf(const Game *game, FILE *f)
 {
 	Board board[1];
 	int player;
+	unsigned long long bk, wh;
 	static const char board_color[] = "*O-?";
 	int i, x, square;
 //	time_t t:
@@ -728,10 +729,20 @@ void game_export_ggf(const Game *game, FILE *f)
 	fprintf(f, "PB[%s]PW[%s]", game->name[BLACK], game->name[WHITE]);
 	fprintf(f, "RE[%+d.000]", game_score(game));
 	fputs("BO[8 ", f);
+
+	if (game->player == BLACK) {
+		bk = game->initial_board->player;
+		wh = game->initial_board->opponent;
+	} else {
+		bk = game->initial_board->opponent;
+		wh = game->initial_board->player;
+	}
 	for (x = 0; x < 64; ++x) {
-		if (game->player == BLACK) square = 2 - ((game->initial_board->opponent >> x) & 1) - 2 * ((game->initial_board->player >> x) & 1);
-		else square = 2 - ((game->initial_board->player >> x) & 1) - 2 * ((game->initial_board->opponent >> x) & 1);
-		putc(board_color[square], f); if ((x & 7) == 7) putc(' ', f);
+		square = 2 - (wh & 1) - 2 * (bk & 1);
+		putc(board_color[square], f);
+		if ((x & 7) == 7) putc(' ', f);
+		bk >>= 1;
+		wh >>= 1;
 	}
 	putc(board_color[(int) game->player], f); fputc(']', f);
 

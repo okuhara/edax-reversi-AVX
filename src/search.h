@@ -129,12 +129,12 @@ typedef struct Search {
 
 struct Node;
 
-extern const int QUADRANT_ID[];
+extern const unsigned char QUADRANT_ID[];
 extern const Selectivity selectivity_table[];
 extern const int NO_SELECTIVITY;
-extern const int NWS_STABILITY_THRESHOLD[];
-extern const int PVS_STABILITY_THRESHOLD[];
-extern const int SQUARE_TYPE[];
+extern const unsigned char NWS_STABILITY_THRESHOLD[];
+extern const unsigned char PVS_STABILITY_THRESHOLD[];
+extern const unsigned char SQUARE_TYPE[];
 
 /* function definition */
 void search_global_init(void);

@@ -223,11 +223,13 @@ void relax(int t)
 char* format_scientific(double v, const char *unit, char *f)
 {
 #ifdef UNICODE
-	static const wchar_t multiple[] = L"EPTGMK mµnpfa"; //
+	static const wchar_t multiple[] = L"EPTGMK mμnpfa"; //
+	static const char fmt[] = " %5.*f %lc%s";
 #else
-	static const char multiple[] = "EPTGMK mµnpfa"; //
+	static const char multiple[] = "EPTGMK mμnpfa"; //
+	static const char fmt[] = " %5.*f %c%s";
 #endif
-	int u;
+	int u, d;
 
 	if (fabs(v) < 1e-24) {
 		u = 0;
@@ -237,17 +239,11 @@ char* format_scientific(double v, const char *unit, char *f)
 		v /= pow(10, 3 * u);
 	}
 
-#ifdef UNICODE
-	if (fabs(v) - floor(fabs(v)) < 0.01) sprintf(f, " %5.1f %lc%s", v, multiple[6 - u], unit);
-	else if (fabs(v + 0.05) < 10.0) sprintf(f, " %5.3f %lc%s", v, multiple[6 - u], unit);
-	else if (fabs(v + 0.5) < 100.0) sprintf(f, " %5.2f %lc%s", v, multiple[6 - u], unit);
-	else sprintf(f, " %5.1f %lc%s", v, multiple[6 - u], unit);
-#else
-	if (fabs(v) - floor(fabs(v)) < 0.01) sprintf(f, " %5.1f %c%s", v, multiple[6 - u], unit);
-	else if (fabs(v + 0.05) < 10.0) sprintf(f, " %5.3f %c%s", v, multiple[6 - u], unit);
-	else if (fabs(v + 0.5) < 100.0) sprintf(f, " %5.2f %c%s", v, multiple[6 - u], unit);
-	else sprintf(f, " %5.1f %c%s", v, multiple[6 - u], unit);
-#endif
+	if (fabs(v) - floor(fabs(v)) < 0.01) d = 1;
+	else if (fabs(v + 0.05) < 10.0) d = 3;
+	else if (fabs(v + 0.5) < 100.0) d = 2;
+	else d = 1;
+	sprintf(f, fmt, d, v, multiple[6 - u], unit);
 
 	return f;
 }
@@ -262,7 +258,7 @@ char* format_scientific(double v, const char *unit, char *f)
 void print_scientific(double v, const char *unit, FILE *f)
 {
 	char s[32];
-	fprintf(f, "%s", format_scientific(v, unit, s));
+	fputs(format_scientific(v, unit, s), f);
 }
 
 
@@ -695,34 +691,34 @@ char* parse_board(const char *string, Board *board, int *player)
 {
 	if (string) {
 		int i;
-		const char *s = parse_skip_spaces(string);
+		unsigned long long b = 1;
+		const char *s = string;
 
 		board->player = board->opponent = 0;
 		for (i = A1; i <= H8; ++i) {
-			if (*s == '\0') return (char*) string;
+			s = parse_skip_spaces(s);
 			switch (tolower(*s)) {
 			case 'b':
 			case 'x':
 			case '*':
-				board->player |= x_to_bit(i);
+				board->player |= b;
 				break;
 			case 'o':
 			case 'w':
-				board->opponent |= x_to_bit(i);
+				board->opponent |= b;
 				break;
 			case '-':
 			case '.':
 				break;
 			default:
-				if (!isspace(*s)) return (char*) string;
-				i--;
-				break;
+				return (char*) string;
 			}
 			++s;
+			b <<= 1;
 		}
 		board_check(board);
 
-		for (;*s; ++s) {
+		for (; *s; ++s) {
 			switch (tolower(*s)) {
 			case 'b':
 			case 'x':
