@@ -9,7 +9,7 @@
 
 # Microsoft Visual C++ 2008 or better for Windows (7 or Vista).
 # VC_FLAGS = /source-charset:.1252 /execution-charset:.1252\
-VC_FLAGS = /D UNICODE /utf-8\
+VC_FLAGS = /D UNICODE /utf-8 /D _CRT_SECURE_NO_DEPRECATE\
            /I"..\include" /O2 /GL /fp:fast /D NDEBUG /D inline=__forceinline /D __func__=__FUNCTION__\
            /MT
 
@@ -19,8 +19,20 @@ vc-w64-modern:
 vc-w64:
 	cl $(VC_FLAGS) /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-w64.exe /link /machine:x64 /VERSION:4.4
 
+vc-w32-sse:
+	cl $(VC_FLAGS) /D hasSSE2 all.c ws2_32.lib /Fe..\bin\wEdax-w32-sse.exe
+
 vc-w32:
 	cl $(VC_FLAGS) /arch:IA32 all.c ws2_32.lib /Fe..\bin\wEdax-w32.exe
+
+clang-w64-modern:
+	clang-cl $(VC_FLAGS) /D HAS_CPU_64 /arch:AVX2 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-w64-modern.exe /link /machine:x64 /VERSION:4.4
+
+clang-w64:
+	clang-cl $(VC_FLAGS) /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-w64.exe /link /machine:x64 /VERSION:4.4
+
+clang-w32:
+	clang-cl $(VC_FLAGS) /arch:IA32 all.c ws2_32.lib /Fe..\bin\wEdax-w32.exe
 
 vc-pgo-w64-modern:
 	set VCPROFILE_PATH=..\src

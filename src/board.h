@@ -13,6 +13,7 @@
 
 #include "const.h"
 #include "settings.h"
+#include "bit.h"
 
 #include <stdio.h>
 #include <stdbool.h>
@@ -91,17 +92,34 @@ extern const unsigned long long A1_A8[256];
 	#define	last_flip(x,P)	count_last_flip[x](P)
 #endif
 
-#if (MOVE_GENERATOR == MOVE_GENERATOR_SSE_BSWAP) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX)
-	extern unsigned long long Flip(int, const unsigned long long, const unsigned long long);
+#if MOVE_GENERATOR == MOVE_GENERATOR_AVX
+	extern __m128i vectorcall mm_Flip(const __m128i OP, int pos);
+	#define	Flip(x,P,O)	((unsigned long long) _mm_cvtsi128_si64(mm_Flip(_mm_unpacklo_epi64(_mm_cvtsi64_si128(P), _mm_cvtsi64_si128(O)), (x))))
+	#define	board_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(mm_Flip(_mm_loadu_si128((__m128i *) (board)), (x))))
+
+#elif MOVE_GENERATOR == MOVE_GENERATOR_SSE
+	extern __m128i (vectorcall *mm_flip[])(const __m128i);
+	#define	Flip(x,P,O)	((unsigned long long) _mm_cvtsi128_si64(mm_flip[x](_mm_unpacklo_epi64(_mm_cvtsi64_si128(P), _mm_cvtsi64_si128(O)))))
+	#define mm_Flip(OP,x)	mm_flip[x](OP)
+	#define	board_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(mm_flip[x](_mm_loadu_si128((__m128i *) (board)))))
+
+#elif MOVE_GENERATOR == MOVE_GENERATOR_SSE_BSWAP
+	extern unsigned long long flip(int, const unsigned long long, const unsigned long long);
+	#define	Flip(x,P,O)	flip((x), (P), (O))
+	#define	board_flip(board,x)	flip((x), (board)->player, (board)->opponent)
+
 #elif MOVE_GENERATOR == MOVE_GENERATOR_32
 	extern unsigned long long (*flip[BOARD_SIZE + 2])(unsigned int, unsigned int, unsigned int, unsigned int);
 	#define Flip(x,P,O)	flip[x]((unsigned int)(P), (unsigned int)((P) >> 32), (unsigned int)(O), (unsigned int)((O) >> 32))
-	#if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)) && !defined(hasSSE2)
+	#define	board_flip(board,x)	flip[x]((unsigned int)((board)->player), ((unsigned int *) &board->player)[1], (unsigned int)((board)->opponent), ((unsigned int *) &board->opponent)[1])
+	#if defined(USE_GAS_MMX) && !defined(hasSSE2)
 		extern void init_flip_sse(void);
 	#endif
+
 #else
 	extern unsigned long long (*flip[BOARD_SIZE + 2])(const unsigned long long, const unsigned long long);
 	#define	Flip(x,P,O)	flip[x]((P), (O))
+	#define	board_flip(board,x)	flip[x]((board)->player, (board)->opponent)
 #endif
 
 #endif
