@@ -106,16 +106,16 @@ int board_score_1(const Board *board, const int beta, const int x)
 
 	score = 2 * bit_count(board->opponent) - SCORE_MAX;
 
-	if ((n_flips = last_flip(x, board->player)) != 0) {
-		score -= n_flips;
-	} else {
+	n_flips = last_flip(x, board->player);
+	score -= n_flips;
+
+	if (n_flips == 0) {
 		score2 = score + 2;	// empty for player
 		if (score >= 0)
 			score = score2;
 		if (score < beta) {	// lazy cut-off
-			if ((n_flips = last_flip(x, board->opponent)) != 0) {
+			if ((n_flips = last_flip(x, board->opponent)) != 0)
 				score = score2 + n_flips;
-			}
 		}
 	}
 

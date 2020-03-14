@@ -3,7 +3,7 @@
  *
  * Constants as macros, enums, or global consts.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -85,8 +85,8 @@ typedef enum {
 
 #define VERSION 4
 #define RELEASE 4
-#define VERSION_STRING "4.4.6"
-#define EDAX_NAME "Edax 4.4.6"
+#define VERSION_STRING "4.4.7"
+#define EDAX_NAME "Edax 4.4.7"
 #define BOOK 0x424f4f4b
 #define EDAX 0x45444158
 #define EVAL 0x4556414c

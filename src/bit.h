@@ -3,7 +3,7 @@
  *
  * Bitwise operations header file.
  *
- * @date 1998 - 2018
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -150,10 +150,13 @@ __attribute__ ((aligned (16)))
 #endif
 V2DI;
 
-#ifdef __AVX2__
+#ifdef hasSSE2
 typedef union {
 	unsigned long long	ull[4];
-	__m256i	v4;
+	#ifdef __AVX2__
+		__m256i	v4;
+	#endif
+	__m128i	v2[2];
 } V4DI;
 #endif
 
