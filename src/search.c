@@ -465,8 +465,7 @@ void search_free(Search *search)
  */
 void search_setup(Search *search)
 {
-	int i, x;
-	SquareList *empty;
+	int i, x, prev;
 	static const unsigned char presorted_x[] = {
 		A1, A8, H1, H8,                    /* Corner */
 		C4, C5, D3, D6, E3, E6, F4, F5,    /* E */
@@ -481,49 +480,29 @@ void search_setup(Search *search)
 	};
 
 	const Board * const board = &search->board;
-	unsigned long long E, B;
+	unsigned long long E;
 
 	// init empties, parity
 	search->n_empties = 0;
 	search->eval.parity = 0;
 
-	empty = search->empties;
-	empty->x = NOMOVE; /* sentinel */
-	empty->previous = NULL;
-	empty->next = empty + 1;
-	empty = empty->next;
+	prev = NOMOVE;
 	E = ~(board->player | board->opponent);
 	for (i = 0; i < BOARD_SIZE; ++i) {    /* add empty squares */
 		x = presorted_x[i];
-		B = x_to_bit(x);
-		if (E & B) {
-			empty->x = x;
-			empty->b = B;
-			empty->quadrant = QUADRANT_ID[x];
-			search->eval.parity ^= empty->quadrant;
-			empty->previous = empty - 1;
-			empty->next = empty + 1;
-			search->x_to_empties[x] = empty;
-			empty = empty->next;
+		if (E & x_to_bit(x)) {
+			search->eval.parity ^= QUADRANT_ID[x];
+			search->empties[prev].next = x;
+			search->empties[x].previous = prev;
+			prev = x;
 			++search->n_empties;
 		}
 	}
-	empty->x = NOMOVE; /* sentinel */
-	empty->b = 0;
-	empty->previous = empty - 1;
-	empty->next = NULL;
+	search->empties[prev].next = NOMOVE;	/* sentinel */
+	search->empties[NOMOVE].previous = prev;
 
-	empty = search->empties + PASS;
-	empty->x = PASS;
-	empty->b = 0;
-	empty->previous = empty->next = empty;
-	search->x_to_empties[PASS] = empty;
-
-	empty = search->empties + NOMOVE;
-	empty->x = NOMOVE;
-	empty->b = 0;
-	empty->previous = empty->next = empty;
-	search->x_to_empties[NOMOVE] = empty;
+	search->empties[PASS].next = NOMOVE;
+	search->empties[PASS].previous = NOMOVE;
 
 	// init the evaluation function
 	eval_set(&search->eval, board);
@@ -886,10 +865,10 @@ void search_get_movelist(const Search *search, MoveList *movelist)
 	}
 	previous->next = NULL;
 	movelist->n_moves = move - movelist->move - 1;
-	assert(movelist->n_moves == get_mobility(board->player, board->opponent));
+	assert(movelist->n_moves == bit_count(moves));
 }
 
-#if 0
+#if 0	// inlined
 /**
  * @brief Update the search state after a move.
  *
@@ -899,7 +878,7 @@ void search_get_movelist(const Search *search, MoveList *movelist)
 void search_update_endgame(Search *search, const Move *move)
 {
 	search_swap_parity(search, move->x);
-	empty_remove(search->x_to_empties[move->x]);
+	empty_remove(search->empties, move->x);
 	board_update(&search->board, move);
 	--search->n_empties;
 
@@ -914,7 +893,7 @@ void search_update_endgame(Search *search, const Move *move)
 void search_restore_endgame(Search *search, const Move *move)
 {
 	search_swap_parity(search, move->x);
-	empty_restore(search->x_to_empties[move->x]);
+	empty_restore(search->empties, move->x);
 	board_restore(&search->board, move);
 	++search->n_empties;
 }
@@ -952,7 +931,7 @@ void search_update_midgame(Search *search, const Move *move)
 //	line_push(&debug_line, move->x);
 
 	search_swap_parity(search, move->x);
-	empty_remove(search->x_to_empties[move->x]);
+	empty_remove(search->empties, move->x);
 	board_update(&search->board, move);
 	eval_update(&search->eval, move);
 	assert(search->n_empties > 0);
@@ -973,7 +952,7 @@ void search_restore_midgame(Search *search, const Move *move, const Eval *eval_t
 //	line_pop(&debug_line);
 
 	search_swap_parity(search, move->x);
-	empty_restore(search->x_to_empties[move->x]);
+	empty_restore(search->empties, move->x);
 	board_restore(&search->board, move);
 	// eval_restore(search->eval, move);
 	search->eval.feature = eval_to_restore->feature;

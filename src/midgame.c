@@ -74,9 +74,8 @@ int search_eval_0(Search *search)
 int search_eval_1(Search *search, const int alpha, int beta, unsigned long long moves)
 {
 	Move move;
-	SquareList *empty;
 	Eval Ev;
-	int score, bestscore;
+	int x, score, bestscore;
 	const short *w;
 	const unsigned short *f;
 
@@ -87,9 +86,9 @@ int search_eval_1(Search *search, const int alpha, int beta, unsigned long long 
 		w = EVAL_WEIGHT[search->eval.player ^ 1][61 - search->n_empties];
 		bestscore = -SCORE_INF;
 		if (beta >= SCORE_MAX) beta = SCORE_MAX - 1;
-		foreach_empty (empty, search->empties) {
-			if (moves & empty->b) {
-				board_get_move(&search->board, empty->x, &move);
+		foreach_empty (x, search->empties) {
+			if (moves & x_to_bit(x)) {
+				board_get_move(&search->board, x, &move);
 				if (move_wipeout(&move, &search->board)) return SCORE_MAX;
 
 				eval_update_leaf(&Ev, &search->eval, &move);
@@ -147,8 +146,7 @@ int search_eval_1(Search *search, const int alpha, int beta, unsigned long long 
  */
 int search_eval_2(Search *search, int alpha, const int beta, unsigned long long moves)
 {
-	int bestscore, score;
-	SquareList *empty;
+	int x, bestscore, score;
 	Move move;
 	Eval Ev0;
 	Board board0;
@@ -168,14 +166,14 @@ int search_eval_2(Search *search, int alpha, const int beta, unsigned long long 
 		board0 = search->board;
 		--search->n_empties;
 
-		foreach_empty(empty, search->empties) {
-			if (moves & empty->b) {
-				move.x = empty->x;
-				move.flipped = board_next(&board0, move.x, &search->board);
-				// empty_remove(search->x_to_empties[move.x]);
+		foreach_empty(x, search->empties) {
+			if (moves & x_to_bit(x)) {
+				move.x = x;
+				move.flipped = board_next(&board0, x, &search->board);
+				// empty_remove(search->empties, x);
 				eval_update_leaf(&search->eval, &Ev0, &move);
 				score = -search_eval_1(search, -beta, -alpha, get_moves(search->board.player, search->board.opponent));
-				// empty_restore(search->x_to_empties[move.x]);
+				// empty_restore(search->empties, x);
 
 				if (score > bestscore) {
 					bestscore = score;
