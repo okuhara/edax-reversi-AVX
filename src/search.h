@@ -3,7 +3,7 @@
  *
  * Search's header file.
  *
- * @date 1998 - 2018
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -64,6 +64,8 @@ extern struct Level {
 /** search stare */
 typedef struct Search {
 	Board board[1];                               /**< othello board */
+	Eval eval;                                    /**< eval */
+
 	SquareList empties[BOARD_SIZE + 2];           /**< list of empty squares */
 	SquareList *x_to_empties[BOARD_SIZE + 2];     /**< link position to the list */
 	int n_empties;                                /**< number of empty squares */
@@ -73,7 +75,6 @@ typedef struct Search {
 	HashTable hash_table[1];                      /**< hashtable */
 	HashTable pv_table[1];                        /**< hashtable for the pv */
 	HashTable shallow_table[1];                   /**< hashtable for short search */
-	Eval eval[1];                                 /**< eval */
 	Random random[1];                             /**< random generator */
 
 	struct TaskStack *tasks;                      /**< available task queue */
@@ -87,7 +88,6 @@ typedef struct Search {
 	int depth;                                    /**< depth level */
 	int selectivity;                              /**< selectivity level */
 	int probcut_level;                            /**< probcut recursivity level */
-	unsigned int parity;                          /**< parity */
 	int depth_pv_extension;                       /**< depth for pv_extension */
 	volatile Stop stop;                           /**< thinking status */
 	bool allow_node_splitting;                    /**< allow parallelism */
@@ -164,7 +164,7 @@ void search_update_endgame(Search*, const Move*);
 void search_restore_endgame(Search*, const Move*);
 void search_pass_endgame(Search*);
 void search_update_midgame(Search*, const Move*);
-void search_restore_midgame(Search*, const Move*);
+void search_restore_midgame(Search*, const Move*, const Eval*);
 void search_update_pass_midgame(Search*);
 void search_restore_pass_midgame(Search*);
 long long search_clock(Search*);

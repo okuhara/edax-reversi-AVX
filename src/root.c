@@ -3,7 +3,7 @@
  *
  * Search near the end of the game.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -334,6 +334,7 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 	Board *board = search->board;
 	Move *move;
 	Node node[1];
+	Eval Ev0;
 	long long cost = -search_count_nodes(search);
 	unsigned long long hash_code;
 	assert(alpha < beta);
@@ -373,6 +374,7 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 	} else {
 
 		// first move
+		Ev0 = search->eval;
 		if ((move = node_first_move(node, movelist))) {
 			assert(board_check_move(board, move));
 			search_update_midgame(search, move); search->node_type[search->height] = PV_NODE;
@@ -380,7 +382,7 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 				move->cost = search_get_pv_cost(search);
 				assert(SCORE_MIN <= move->score && move->score <= SCORE_MAX);
 				assert(search->stability_bound.lower <= move->score && move->score <= search->stability_bound.upper);
-			search_restore_midgame(search, move);
+			search_restore_midgame(search, move, &Ev0);
 			if (log_is_open(search_log)) show_current_move(search_log->f, search, move, alpha, beta, false);
 			node_update(node, move);
 			if (search->options.verbosity == 4) pv_debug(search, move, stdout);
@@ -402,7 +404,7 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 						}
 						move->cost = search_get_pv_cost(search);
 					assert(SCORE_MIN <= move->score && move->score <= SCORE_MAX);
-					search_restore_midgame(search, move);
+					search_restore_midgame(search, move, &Ev0);
 					if (log_is_open(search_log)) show_current_move(search_log->f, search, move, alpha, beta, false);
 					node_update(node, move);
 					assert(SCORE_MIN <= node->bestscore && node->bestscore <= SCORE_MAX);

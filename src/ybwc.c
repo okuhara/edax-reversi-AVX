@@ -22,7 +22,7 @@
  * ICCA Journal, Vol. 12, No. 2, pp. 65-73.
  * -# Feldmann R. (1993) Game-Tree Search on Massively Parallel System - PhD Thesis, Paderborn (English version).
  *
- * @date 1998 - 2018
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -365,6 +365,7 @@ void task_search(Task *task)
 	Node *node = task->node;
 	Search *search = task->search;
 	Move *move = task->move;
+	Eval Ev0;
 	int i;
 
 	search_set_state(search, node->search->stop);
@@ -375,13 +376,14 @@ void task_search(Task *task)
 		const int alpha = node->alpha;
 		if (alpha >= node->beta) break;
 
+		Ev0 = search->eval;
 		search_update_midgame(search, move);
 			move->score = -NWS_midgame(search, -alpha - 1, node->depth - 1, node);
 			if (alpha < move->score && move->score < node->beta) {
 				move->score = -PVS_midgame(search, -node->beta, -alpha, node->depth - 1, node);
 				assert(node->pv_node == true);
 			}
-		search_restore_midgame(search, move);
+		search_restore_midgame(search, move, &Ev0);
 		if (node->height == 0) {
 			move->cost = search_get_pv_cost(search);
 			move->score = search_bound(search, move->score);

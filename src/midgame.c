@@ -3,7 +3,7 @@
  *
  * Search near the end of the game.
  *
- * @date 1998 - 2018
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -31,8 +31,8 @@
  */
 int search_eval_0(Search *search)
 {
-	const short *w = EVAL_WEIGHT[search->eval->player][60 - search->n_empties];
-	unsigned short int *f = search->eval->feature.us;
+	const short *w = EVAL_WEIGHT[search->eval.player][60 - search->n_empties];
+	unsigned short int *f = search->eval.feature.us;
 	int score;
 
 	SEARCH_STATS(++statistics.n_search_eval_0);
@@ -73,10 +73,11 @@ int search_eval_0(Search *search)
  */
 int search_eval_1(Search *search, const int alpha, int beta)
 {
-	const short *w = EVAL_WEIGHT[search->eval->player ^ 1][61 - search->n_empties];
+	const short *w = EVAL_WEIGHT[search->eval.player ^ 1][61 - search->n_empties];
 	Move move[1];
 	SquareList *empty;
-	register int score, bestscore;
+	Eval	Ev;
+	int score, bestscore;
 	const Board *board = search->board;
 	unsigned long long moves = get_moves(board->player, board->opponent);
 	unsigned short *f;
@@ -91,8 +92,10 @@ int search_eval_1(Search *search, const int alpha, int beta)
 			if (moves & empty->b) {
 				board_get_move(board, empty->x, move);
 				if (move_wipeout(move, board)) return SCORE_MAX;
-				eval_update(search->eval, move);
-				f = search->eval->feature.us;
+
+				Ev = search->eval;
+				eval_update(&Ev, move);
+				f = Ev.feature.us;
 				SEARCH_UPDATE_EVAL_NODES(search->n_nodes);
 				score = -w[f[ 0] + 0] - w[f[ 1] + 0] - w[f[ 2] + 0] - w[f[ 3] + 0]
 				  - w[f[ 4] + 19683] - w[f[ 5] + 19683] - w[f[ 6] + 19683] - w[f[ 7] + 19683]
@@ -107,7 +110,7 @@ int search_eval_1(Search *search, const int alpha, int beta)
 				  - w[f[38] + 225990] - w[f[39] + 225990] - w[f[40] + 225990] - w[f[41] + 225990]
 				  - w[f[42] + 226233] - w[f[43] + 226233] - w[f[44] + 226233] - w[f[45] + 226233]
 				  - w[f[46] + 226314];
-				eval_restore(search->eval, move);
+				// eval_restore(search->eval, move);
 
 				if (score > 0) score += 64; else score -= 64;
 				score /= 128;
@@ -148,6 +151,7 @@ int search_eval_2(Search *search, int alpha, const int beta)
 	register int bestscore, score;
 	SquareList *empty;
 	Move move[1];
+	Eval Ev0;
 	const Board *board = search->board;
 	const unsigned long long moves = get_moves(board->player, board->opponent);
 
@@ -160,12 +164,13 @@ int search_eval_2(Search *search, int alpha, const int beta)
 
 	if (moves) {
 		bestscore = -SCORE_INF;
+		Ev0 = search->eval;
 		foreach_empty(empty, search->empties) {
 			if (moves & empty->b) {
 				board_get_move(board, empty->x, move);
 				search_update_midgame(search, move);
 					score = -search_eval_1(search, -beta, -alpha);
-				search_restore_midgame(search, move);
+				search_restore_midgame(search, move, &Ev0);
 				if (score > bestscore) {
 					bestscore = score;
 					if (bestscore >= beta) break;
@@ -305,6 +310,7 @@ int NWS_shallow(Search *search, const int alpha, int depth, HashTable *hash_tabl
 	Board *board = search->board;
 	MoveList movelist[1];
 	Move *move;
+	Eval Ev0;
 	int bestscore, bestmove;
 	long long cost = -search->n_nodes;
 
@@ -343,10 +349,11 @@ int NWS_shallow(Search *search, const int alpha, int depth, HashTable *hash_tabl
 
 		// loop over all moves
 		bestscore = -SCORE_INF; bestmove = NOMOVE;
+		Ev0 = search->eval;
 		foreach_move(move, movelist) {
 			search_update_midgame(search, move);
 				score = -NWS_shallow(search, -beta, depth - 1, hash_table);
-			search_restore_midgame(search, move);
+			search_restore_midgame(search, move, &Ev0);
 			if (score > bestscore) {
 				bestscore = score;
 				bestmove = move->x;
@@ -386,6 +393,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 	Board *board = search->board;
 	MoveList movelist[1];
 	Move *move;
+	Eval Ev0;
 	int bestscore, bestmove;
 	long long cost = -search->n_nodes;
 	int lower;
@@ -426,6 +434,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 		// loop over all moves
 		bestscore = -SCORE_INF; bestmove = NOMOVE;
 		lower = alpha;
+		Ev0 = search->eval;
 		foreach_move(move, movelist) {
 			search_update_midgame(search, move);
 				if (bestscore == -SCORE_INF) {
@@ -436,7 +445,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 						score = -PVS_shallow(search, -beta, -lower, depth - 1);
 					}
 				}
-			search_restore_midgame(search, move);
+			search_restore_midgame(search, move, &Ev0);
 			if (score > bestscore) {
 				bestscore = score;
 				bestmove = move->x;
@@ -481,6 +490,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	MoveList movelist[1];
 	Move *move;
 	Node node[1];
+	Eval Ev0;
 	long long cost = -search->n_nodes - search->child_nodes;
 	int hash_selectivity;
 
@@ -533,11 +543,12 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		node_init(node, search, alpha, beta, depth, movelist->n_moves, parent);
 
 		// loop over all moves
+		Ev0 = search->eval;
 		for (move = node_first_move(node, movelist); move; move = node_next_move(node)) {
 			if (!node_split(node, move)) {
 				search_update_midgame(search, move);
 					move->score = -NWS_midgame(search, -beta, depth - 1, node);
-				search_restore_midgame(search, move);
+				search_restore_midgame(search, move, &Ev0);
 				node_update(node, move);
 			}
 		}
@@ -592,6 +603,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 	MoveList movelist[1];
 	Move *move;
 	Node node[1];
+	Eval Ev0;
 	long long cost;
 	int reduced_depth, depth_pv_extension, saved_selectivity;
 	int hash_selectivity;
@@ -655,10 +667,11 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 		}
 
 		// first move
+		Ev0 = search->eval;
 		if ((move = node_first_move(node, movelist))) { // why if there ?
 			search_update_midgame(search, move); search->node_type[search->height] = PV_NODE;
 				move->score = -PVS_midgame(search, -beta, -alpha, depth - 1, node);
-			search_restore_midgame(search, move);
+			search_restore_midgame(search, move, &Ev0);
 			node_update(node, move);
 
 			// other moves : try to refute the first/best one
@@ -671,7 +684,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 							search->node_type[search->height] = PV_NODE;
 							move->score = -PVS_midgame(search, -beta, -alpha, depth - 1, node);
 						}
-					search_restore_midgame(search, move);
+					search_restore_midgame(search, move, &Ev0);
 					node_update(node, move);
 				}
 			}

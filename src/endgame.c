@@ -3,7 +3,7 @@
  *
  * Search near the end of the game.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -296,7 +296,7 @@ static int search_solve_4(Search *search, const int alpha)
 	// The following hole sizes are possible:
 	//    4 - 1 3 - 2 2 - 1 1 2 - 1 1 1 1
 	// Only the 1 1 2 case needs move sorting.
-	parity = search->parity;
+	parity = search->eval.parity;
 	if (!(parity & QUADRANT_ID[x1])) {
 		if (parity & QUADRANT_ID[x2]) {
 			if (parity & QUADRANT_ID[x3]) { // case 1(x2) 1(x3) 2(x1 x4)
@@ -394,9 +394,9 @@ static int search_shallow(Search *search, const int alpha)
 	// stability cutoff
 	if (search_SC_NWS(search, alpha, &score)) return score;
 
-	if (search->parity > 0 && search->parity < 15) {
+	if (search->eval.parity > 0 && search->eval.parity < 15) {
 
-		foreach_odd_empty (empty, search->empties, search->parity) {
+		foreach_odd_empty (empty, search->empties, search->eval.parity) {
 			if ((NEIGHBOUR[empty->x] & board->opponent)
 			&& board_get_move(board, empty->x, &move)) {
 				search_update_endgame(search, &move);
@@ -408,7 +408,7 @@ static int search_shallow(Search *search, const int alpha)
 			}
 		}
 
-		foreach_even_empty (empty, search->empties, search->parity) {
+		foreach_even_empty (empty, search->empties, search->eval.parity) {
 			if ((NEIGHBOUR[empty->x] & board->opponent)
 			&& board_get_move(board, empty->x, &move)) {
 				search_update_endgame(search, &move);

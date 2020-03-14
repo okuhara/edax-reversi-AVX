@@ -643,6 +643,8 @@ void eval_update(Eval *eval, const Move *move)
 	eval_swap(eval);
 }
 
+#if 0 // replaced with simple save-restore
+
 /**
  * @brief Restore the features as before a player's move.
  *
@@ -702,7 +704,6 @@ static void eval_restore_0(Eval *eval, const Move *move)
 		}
 	}
 #endif
-
 }
 
 static void eval_restore_1(Eval *eval, const Move *move)
@@ -766,21 +767,14 @@ void eval_restore(Eval *eval, const Move *move)
 	eval_swap(eval);
 	assert(WHITE == eval->player || BLACK == eval->player);
 
-#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
-	if (hasSSE2) {
-		if (eval->player)
-			eval_restore_sse_1(eval, move);
-		else
-			eval_restore_sse_0(eval, move);
-		return;
-	}
-#endif
-
 	if (eval->player)
 		eval_restore_1(eval, move);
 	else
 		eval_restore_0(eval, move);
 }
+
+#endif // if 0
+#endif // hasSSE2
 
 /**
  * @brief Update/Restore the features after a passing move.
@@ -791,8 +785,6 @@ void eval_pass(Eval *eval)
 {
 	eval_swap(eval);
 }
-
-#endif // hasSSE2
 
 /**
  * @brief Compute the error-type of the evaluation function according to the

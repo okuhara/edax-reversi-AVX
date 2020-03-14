@@ -52,7 +52,7 @@
  * -# Reinsfeld A. (1983) An Improvement Of the Scout Tree-Search Algorithm. ICCA
  *     journal, 6(4), pp. 4-14.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -371,7 +371,7 @@ void search_init(Search *search)
 	search->player = EMPTY;
 
 	/* evaluation function */
-	// eval_init(search->eval);
+	// eval_init(&search->eval);
 
 	// radom generator
 	random_seed(search->random, real_clock());
@@ -444,7 +444,7 @@ void search_free(Search *search)
 	hash_free(search->hash_table);
 	hash_free(search->pv_table);
 	hash_free(search->shallow_table);
-	// eval_free(search->eval);
+	// eval_free(&search->eval);
 	
 	task_stack_free(search->tasks);
 	free(search->tasks);
@@ -485,7 +485,7 @@ void search_setup(Search *search)
 
 	// init empties, parity
 	search->n_empties = 0;
-	search->parity = 0;
+	search->eval.parity = 0;
 
 	empty = search->empties;
 	empty->x = NOMOVE; /* sentinel */
@@ -500,7 +500,7 @@ void search_setup(Search *search)
 			empty->x = x;
 			empty->b = B;
 			empty->quadrant = QUADRANT_ID[x];
-			search->parity ^= empty->quadrant;
+			search->eval.parity ^= empty->quadrant;
 			empty->previous = empty - 1;
 			empty->next = empty + 1;
 			search->x_to_empties[x] = empty;
@@ -526,7 +526,7 @@ void search_setup(Search *search)
 	search->x_to_empties[NOMOVE] = empty;
 
 	// init the evaluation function
-	eval_set(search->eval, board);
+	eval_set(&search->eval, board);
 }
 
 /**
@@ -857,7 +857,7 @@ void search_set_task_number(Search *search, const int n)
  */
 void search_swap_parity(Search *search, const int x)
 {
-	search->parity ^= QUADRANT_ID[x];
+	search->eval.parity ^= QUADRANT_ID[x];
 }
 
 /**
@@ -946,7 +946,7 @@ void search_update_midgame(Search *search, const Move *move)
 	search_swap_parity(search, move->x);
 	empty_remove(search->x_to_empties[move->x]);
 	board_update(search->board, move);
-	eval_update(search->eval, move);
+	eval_update(&search->eval, move);
 	assert(search->n_empties > 0);
 	--search->n_empties;
 	++search->height;
@@ -958,16 +958,18 @@ void search_update_midgame(Search *search, const Move *move)
  *
  * @param search  search.
  * @param move    played move.
+ * @param Ev	  eval to restore.
  */
-void search_restore_midgame(Search *search, const Move *move)
+void search_restore_midgame(Search *search, const Move *move, const Eval *Ev)
 {
 //	line_print(&debug_line, 100, " ", stdout); putchar('\n');
 //	line_pop(&debug_line);
 
-	search_swap_parity(search, move->x);
 	empty_restore(search->x_to_empties[move->x]);
 	board_restore(search->board, move);
-	eval_restore(search->eval, move);
+	// search_swap_parity(search, move->x);
+	// eval_restore(&search->eval, move);
+	search->eval = *Ev;
 	++search->n_empties;
 	assert(search->height > 0);
 	--search->height;
@@ -983,7 +985,7 @@ void search_update_pass_midgame(Search *search)
 	static const NodeType next_node_type[] = {CUT_NODE, ALL_NODE, CUT_NODE};
 
 	board_pass(search->board);
-	eval_pass(search->eval);
+	eval_pass(&search->eval);
 	++search->height;
 	search->node_type[search->height] = next_node_type[search->node_type[search->height- 1]];
 }
@@ -996,7 +998,7 @@ void search_update_pass_midgame(Search *search)
 void search_restore_pass_midgame(Search *search)
 {
 	board_pass(search->board);
-	eval_pass(search->eval);
+	eval_pass(&search->eval);
 	assert(search->height > 0);
 	--search->height;
 }

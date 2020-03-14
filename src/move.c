@@ -3,7 +3,7 @@
  *
  * @brief Move & list of moves management.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -183,6 +183,7 @@ static void move_evaluate(Move *move, Search *search, const HashData *hash_data,
 
 	Board *board = search->board;
 	HashData dummy[1];
+	Eval Ev0;
 
 	if (move_wipeout(move, board)) move->score = (1 << 30);
 	else if (move->x == hash_data->move[0]) move->score = (1 << 29);
@@ -190,9 +191,9 @@ static void move_evaluate(Move *move, Search *search, const HashData *hash_data,
 	else {
 
 		move->score = SQUARE_VALUE[move->x]; // square type
-		if (search->n_empties < 12 && search->parity & QUADRANT_ID[move->x]) move->score += w_low_parity; // parity
-		else if (search->n_empties < 21 && search->parity & QUADRANT_ID[move->x]) move->score += w_mid_parity; // parity
-		else if (search->n_empties < 30 && search->parity & QUADRANT_ID[move->x]) move->score += w_high_parity; // parity
+		if (search->n_empties < 12 && search->eval.parity & QUADRANT_ID[move->x]) move->score += w_low_parity; // parity
+		else if (search->n_empties < 21 && search->eval.parity & QUADRANT_ID[move->x]) move->score += w_mid_parity; // parity
+		else if (search->n_empties < 30 && search->eval.parity & QUADRANT_ID[move->x]) move->score += w_high_parity; // parity
 
 		if (sort_depth < 0) {
 			board_update(board, move);
@@ -204,6 +205,7 @@ static void move_evaluate(Move *move, Search *search, const HashData *hash_data,
 		} else {
 			int selectivity = search->selectivity;
 			search->selectivity = NO_SELECTIVITY;
+			Ev0 = search->eval;
 			search_update_midgame(search, move);
 				SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 				move->score += (36 - get_potential_mobility(board->player, board->opponent)) * w_potential_mobility; // potential mobility
@@ -224,7 +226,7 @@ static void move_evaluate(Move *move, Search *search, const HashData *hash_data,
 					move->score += ((SCORE_MAX - PVS_shallow(search, SCORE_MIN, -sort_alpha, sort_depth))) * w_eval; // > 3 level bonus
 					break;
 				}
-			search_restore_midgame(search, move);
+			search_restore_midgame(search, move, &Ev0);
 			search->selectivity = selectivity;
 		}
 	}
