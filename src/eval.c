@@ -460,6 +460,16 @@ void eval_close(void)
 	EVAL_WEIGHT = NULL;
 }
 
+/**
+ * @brief Swap player's feature.
+ *
+ * @param eval  Evaluation function.
+ */
+void eval_swap(Eval *eval)
+{
+	eval->player ^= 1;
+}
+
 #if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 #include "eval_sse.c"
 #endif
@@ -484,16 +494,6 @@ void eval_set(Eval *eval, const Board *board)
 		}
 	}
 	eval->player = 0;
-}
-
-/**
- * @brief Swap player's feature.
- *
- * @param eval  Evaluation function.
- */
-static void eval_swap(Eval *eval)
-{
-	eval->player ^= 1;
 }
 
 /**
@@ -626,19 +626,23 @@ void eval_update(Eval *eval, const Move *move)
 
 #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 	if (hasSSE2) {
-		if (eval->player)
+		if (eval->player) {
+			eval->player = 0;
 			eval_update_sse_1(eval, eval, move);
-		else
+		} else {
+			eval->player = 1;
 			eval_update_sse_0(eval, eval, move);
-		eval_swap(eval);
+		}
 		return;
 	}
 #endif
-	if (eval->player)
+	if (eval->player) {
+		eval->player = 0;
 		eval_update_1(eval, move);
-	else
+	} else {
+		eval->player = 1;
 		eval_update_0(eval, move);
-	eval_swap(eval);
+	}
 }
 
 void eval_update_leaf(Eval *eval_out, const Eval *eval_in, const Move *move)

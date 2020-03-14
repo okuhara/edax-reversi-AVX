@@ -624,16 +624,6 @@ void eval_set(Eval *eval, const Board *board)
 }
 
 /**
- * @brief Swap player's feature.
- *
- * @param eval  Evaluation function.
- */
-static void eval_swap(Eval *eval)
-{
-	eval->player ^= 1;
-}
-
-/**
  * @brief Update the features after a player's move.
  *
  * @param eval  Evaluation function.
@@ -643,11 +633,13 @@ void eval_update(Eval *eval, const Move *move)
 {
 	assert(move->flipped);
 	assert(WHITE == eval->player || BLACK == eval->player);
-	if (eval->player)
+	if (eval->player) {
+		eval->player = 0;
 		eval_update_sse_1(eval, eval, move);
-	else
+	} else {
+		eval->player = 1;
 		eval_update_sse_0(eval, eval, move);
-	eval_swap(eval);
+	}
 }
 
 void eval_update_leaf(Eval *eval_out, const Eval *eval_in, const Move *move)
