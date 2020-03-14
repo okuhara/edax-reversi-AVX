@@ -139,11 +139,11 @@ void ui_init_edax(UI *ui)
 	Play *play = ui->play;
 
 	book_verbose = true;
-	play_init(play, ui->book);
-	ui->book->search = play->search;
-	book_load(ui->book, options.book_file);
-	play->search->id = 1;
-	search_set_observer(play->search, edax_observer);
+	play_init(play, &ui->book);
+	ui->book.search = &play->search;
+	book_load(&ui->book, options.book_file);
+	play->search.id = 1;
+	search_set_observer(&play->search, edax_observer);
 	ui->mode = options.mode;
 	play->type = ui->type;
 
@@ -156,8 +156,8 @@ void ui_init_edax(UI *ui)
  */
 void ui_free_edax(UI *ui)
 {
-	if (ui->book->need_saving) book_save(ui->book, options.book_file);
-	book_free(ui->book);
+	if (ui->book.need_saving) book_save(&ui->book, options.book_file);
+	book_free(&ui->book);
 	play_free(ui->play);
 	log_close(edax_log);
 	book_verbose = false;
@@ -360,7 +360,7 @@ void ui_loop_edax(UI *ui)
 
 			// new game from standard position
 			} else if (strcmp(cmd, "i") == 0 || strcmp(cmd, "init") == 0) {
-				board_init(play->initial_board);
+				board_init(&play->initial_board);
 				play->initial_player = BLACK;
 				play_force_init(play, "F5");
 				play_new(play);
@@ -459,16 +459,16 @@ void ui_loop_edax(UI *ui)
 				char problem_file[FILENAME_MAX + 1], *hard_file;
 				hard_file = parse_word(param, problem_file, FILENAME_MAX);
 				parse_word(hard_file, hard_file, FILENAME_MAX);
-				obf_test(play->search, problem_file, hard_file);
-				search_set_observer(play->search, edax_observer);
+				obf_test(&play->search, problem_file, hard_file);
+				search_set_observer(&play->search, edax_observer);
 
 			// convert a set of problems in a .script file to a .obf file
 			} else if (strcmp(cmd, "script-to-obf") == 0) {
 				char script_file[FILENAME_MAX + 1], *obf_file;
 				obf_file = parse_word(param, script_file, FILENAME_MAX);
 				parse_word(obf_file, obf_file, FILENAME_MAX);
-				script_to_obf(play->search, script_file, obf_file);
-				search_set_observer(play->search, edax_observer);
+				script_to_obf(&play->search, script_file, obf_file);
+				search_set_observer(&play->search, edax_observer);
 
 			} else if (strcmp(cmd, "select-hard") == 0) {
 				char full_file[FILENAME_MAX + 1], *hard_file;
@@ -486,11 +486,11 @@ void ui_loop_edax(UI *ui)
 				if (count_param) parse_int(count_param, &size); BOUND(size, 6, 8, "board-size");
 
 				if (strcmp(count_cmd, "games") == 0) { // game enumeration
-					quick_count_games(play->board, depth, size);
+					quick_count_games(&play->board, depth, size);
 				} else if (strcmp(count_cmd, "positions") == 0) { // position enumeration
-					count_positions(play->board, depth, size);
+					count_positions(&play->board, depth, size);
 				} else if (strcmp(count_cmd, "shapes") == 0) { // shape enumeration
-					count_shapes(play->board, depth, size);
+					count_shapes(&play->board, depth, size);
 				} else {
 					warn("Unknown count command: \"%s %s\"\n", cmd, param);
 				}
@@ -498,21 +498,21 @@ void ui_loop_edax(UI *ui)
 			} else if (strcmp(cmd, "perft") == 0) {
 				int depth = 14;
 				depth = string_to_int(param, 10); BOUND(depth, 1, 90, "max-ply");
-				count_games(play->board, depth);
+				count_games(&play->board, depth);
 			
 			// game/position enumeration
 			} else if (strcmp(cmd, "estimate") == 0) {
 				int n = 1000;
 				n = string_to_int(param, 10); BOUND(n, 1, 2000000000, "max-trials");
 
-				estimate_games(play->board, n);
+				estimate_games(&play->board, n);
 	
 			// seek highest mobility
 			} else if (strcmp(cmd, "mobility") == 0) {
 				int t = 3600; // 1 hour
 				t = string_to_int(param, 10); BOUND(t, 1, 3600*24*365*10, "max time");
 
-				seek_highest_mobility(play->board, t);
+				seek_highest_mobility(&play->board, t);
 
 			// seek a position
 			} else if (strcmp(cmd, "seek") == 0) {
@@ -522,7 +522,7 @@ void ui_loop_edax(UI *ui)
 				board_set(&target, param);
 				line_init(&solution, play->player);
 				
-				if (seek_position(&target, play->board, &solution)) {
+				if (seek_position(&target, &play->board, &solution)) {
 					printf("Solution found:\n");
 					line_print(&solution, 200, " ", stdout);
 					putchar('\n');
@@ -535,11 +535,11 @@ void ui_loop_edax(UI *ui)
 			// bench (a serie of low level tests).
 			} else if (strcmp(cmd, "bench") == 0) {
 				int n = string_to_int(param, -1); BOUND(n, -1, 100, "n_problems");
-				obf_speed(play->search, n);
+				obf_speed(&play->search, n);
 
 			// wtest test the engine against wthor theoretical scores
 			} else if (strcmp(cmd, "wtest") == 0) {
-				wthor_test(param, play->search);
+				wthor_test(param, &play->search);
 
 			// make wthor games played by "Edax (Delorme)" as "Etudes" tournament.
 			} else if (strcmp(cmd, "edaxify") == 0) {
@@ -547,7 +547,7 @@ void ui_loop_edax(UI *ui)
 
 			// wtest test the engine against wthor theoretical scores
 			} else if (strcmp(cmd, "weval") == 0) {
-				wthor_eval(param, play->search, histogram);
+				wthor_eval(param, &play->search, histogram);
 				histogram_print(histogram);
 				histogram_stats(histogram);
 				histogram_to_ppm("weval.ppm", histogram);
@@ -579,10 +579,10 @@ void ui_loop_edax(UI *ui)
 
 			// debug pv
 			} else if (strcmp(cmd, "debug-pv") == 0) {
-				Move move[1];
-				if (parse_move(param, play->board, move) != param) {
-					search_set_board(play->search, play->board, play->player);
-					pv_debug(play->search, move, stdout);
+				Move move;
+				if (parse_move(param, &play->board, &move) != param) {
+					search_set_board(&play->search, &play->board, play->player);
+					pv_debug(&play->search, &move, stdout);
 				}
 			} else if (strcmp(cmd, "options") == 0) {
 					options_dump(stdout);
@@ -623,7 +623,7 @@ void ui_loop_edax(UI *ui)
 				int val_1, val_2;
 				Book *book = play->book;
 
-				book->search = play->search;
+				book->search = &play->search;
 				book->search->options.verbosity = book->options.verbosity;
 				book_param = parse_word(param, book_cmd, FILENAME_MAX);
 
@@ -684,12 +684,12 @@ void ui_loop_edax(UI *ui)
 
 				// merge an opening book to the current one
 				} else if (strcmp(book_cmd, "merge") == 0) {
-					Book src[1];
+					Book src;
 					parse_word(book_param, book_file, FILENAME_MAX);
-					src->search = play->search;
-					book_load(src, book_file);
-					book_merge(book, src);
-					book_free(src);
+					src.search = &play->search;
+					book_load(&src, book_file);
+					book_merge(book, &src);
+					book_free(&src);
 					warn("Book needs to be fixed before usage\n");
 
 				// fix an opening book
@@ -722,7 +722,7 @@ void ui_loop_edax(UI *ui)
 
 				// subtree an opening book
 				} else if (strcmp(book_cmd, "subtree") == 0) {
-					book_subtree(book, play->board); // remove unreachable lines.
+					book_subtree(book, &play->board); // remove unreachable lines.
 					book_fix(book); // do nothing (or edax is buggy)
 					book_link(book); // links nodes
 					book_negamax(book); // negamax nodes
@@ -730,7 +730,7 @@ void ui_loop_edax(UI *ui)
 
 				// show the current position as stored in the book
 				} else if (strcmp(book_cmd, "show") == 0) {
-					book_show(book, play->board);
+					book_show(book, &play->board);
 
 				// show book general information
 				} else if (strcmp(book_cmd, "info") == 0) {
@@ -753,21 +753,21 @@ void ui_loop_edax(UI *ui)
 
 				// add positions from a game database
 				} else if (strcmp(book_cmd, "add") == 0) {
-					Base base[1];
+					Base base;
 					parse_word(book_param, book_file, FILENAME_MAX);
-					base_init(base);
-					base_load(base, book_file);
-					book_add_base(book, base);
-					base_free(base);
+					base_init(&base);
+					base_load(&base, book_file);
+					book_add_base(book, &base);
+					base_free(&base);
 
 				// check positions from a game database
 				} else if (strcmp(book_cmd, "check") == 0) {
-					Base base[1];
+					Base base;
 					parse_word(book_param, book_file, FILENAME_MAX);
-					base_init(base);
-					base_load(base, book_file);
-					book_check_base(book, base);
-					base_free(base);
+					base_init(&base);
+					base_load(&base, book_file);
+					book_check_base(book, &base);
+					base_free(&base);
 
 				// extract positions
 				} else if (strcmp(book_cmd, "problem") == 0) {
@@ -777,24 +777,24 @@ void ui_loop_edax(UI *ui)
 					
 				// extract pv to a game database
 				} else if (strcmp(book_cmd, "extract") == 0) {
-					Base base[1];
+					Base base;
 					parse_word(book_param, book_file, FILENAME_MAX);
-					base_init(base);
-					book_extract_skeleton(book, base);
-					base_save(base, book_file);
-					base_free(base);
+					base_init(&base);
+					book_extract_skeleton(book, &base);
+					base_save(&base, book_file);
+					base_free(&base);
 
 				// add position using the "deviate algorithm"
 				} else if (strcmp(book_cmd, "deviate") == 0) {
 					val_1 = 2; book_param = parse_int(book_param, &val_1); BOUND(val_1, -129, 129, "relative error");
 					val_2 = 4; book_param = parse_int(book_param, &val_2); BOUND(val_2, 0, 65, "absolute error");
-					book_deviate(book, play->board, val_1, val_2);
+					book_deviate(book, &play->board, val_1, val_2);
 
 				// add position using the "enhance algorithm"
 				} else if (strcmp(book_cmd, "enhance") == 0) {
 					val_1 = 2; book_param = parse_int(book_param, &val_1); BOUND(val_1, 0, 129, "midgame error");
 					val_2 = 4; book_param = parse_int(book_param, &val_2); BOUND(val_2, 0, 129, "endcut error");
-					book_enhance(book, play->board, val_1, val_2);
+					book_enhance(book, &play->board, val_1, val_2);
 
 				// add position by filling hole in the book
 				} else if (strcmp(book_cmd, "fill") == 0) {
@@ -811,7 +811,7 @@ void ui_loop_edax(UI *ui)
 
 				// add book positions to the hash table
 				} else if (strcmp(book_cmd, "feed-hash") == 0) {
-					book_feed_hash(book, play->board, play->search);
+					book_feed_hash(book, &play->board, &play->search);
 
 				// wrong command ?
 				} else {
@@ -824,9 +824,9 @@ void ui_loop_edax(UI *ui)
 			} else if (strcmp(cmd, "base") == 0) {
 				char base_file[FILENAME_MAX + 1];
 				char base_cmd[512], *base_param;
-				Base base[1];
+				Base base;
 
-				base_init(base);
+				base_init(&base);
 				base_param = parse_word(param, base_cmd, 511);
 				base_param = parse_word(base_param, base_file, FILENAME_MAX);
 
@@ -837,8 +837,8 @@ void ui_loop_edax(UI *ui)
 					base_param = parse_int(base_param, &n_empties);
 					base_param = parse_word(base_param, problem_file, FILENAME_MAX);
 
-					base_load(base, base_file);
-					base_to_problem(base, n_empties, problem_file);
+					base_load(&base, base_file);
+					base_to_problem(&base, n_empties, problem_file);
 
 				// extract FEN 
 				} else if (strcmp(base_cmd, "tofen") == 0) {
@@ -847,46 +847,46 @@ void ui_loop_edax(UI *ui)
 					base_param = parse_int(base_param, &n_empties);
 					base_param = parse_word(base_param, problem_file, FILENAME_MAX);
 
-					base_load(base, base_file);
-					base_to_FEN(base, n_empties, problem_file);
+					base_load(&base, base_file);
+					base_to_FEN(&base, n_empties, problem_file);
 	
 				// correct erroneous games
 				} else if (strcmp(base_cmd, "correct") == 0) {
 					int n_empties = 24;
 					base_param = parse_int(base_param, &n_empties);
 
-					base_load(base, base_file);
-					base_analyze(base, play->search, n_empties, true);
+					base_load(&base, base_file);
+					base_analyze(&base, &play->search, n_empties, true);
 					remove(base_file);
-					base_save(base, base_file);
+					base_save(&base, base_file);
 
 				// check erroneous games
 				} else if (strcmp(base_cmd, "check") == 0) {
 					int n_empties = 24;
 					base_param = parse_int(base_param, &n_empties);
 
-					base_load(base, base_file);
-					base_analyze(base, play->search, n_empties, false);
+					base_load(&base, base_file);
+					base_analyze(&base, &play->search, n_empties, false);
 
 				// terminate unfinished base
 				} else if (strcmp(base_cmd, "complete") == 0) {
-					base_load(base, base_file);
-					base_complete(base, play->search);
+					base_load(&base, base_file);
+					base_complete(&base, &play->search);
 					remove(base_file);
-					base_save(base, base_file);
+					base_save(&base, base_file);
 
 				// convert a base to another format
 				} else if (strcmp(base_cmd, "convert") == 0) {
-					base_load(base, base_file);
+					base_load(&base, base_file);
 					base_param = parse_word(base_param, base_file, FILENAME_MAX);
-					base_save(base, base_file);
+					base_save(&base, base_file);
 
 				// make a base unique by removing identical games
 				} else if (strcmp(base_cmd, "unique") == 0) {
-					base_load(base, base_file);
+					base_load(&base, base_file);
 					base_param = parse_word(base_param, base_file, FILENAME_MAX);
-					base_unique(base);
-					base_save(base, base_file);
+					base_unique(&base);
+					base_save(&base, base_file);
 
 				// compare two game bases
 				} else if (strcmp(base_cmd, "compare") == 0) {
@@ -898,15 +898,15 @@ void ui_loop_edax(UI *ui)
 					warn("Unknown base command: \"%s %s\"\n", cmd, param);
 				}
 
-				base_free(base);
+				base_free(&base);
 
 			/* edax options */
 			} else if (options_read(cmd, param)) {
 				options_bound();
 				// parallel search changes:
-				if (search_count_tasks(play->search) != options.n_task) {
+				if (search_count_tasks(&play->search) != options.n_task) {
 					play_stop_pondering(play);
-					search_set_task_number(play->search, options.n_task);
+					search_set_task_number(&play->search, options.n_task);
 				}
 
 			/* switch to another protocol */
@@ -953,8 +953,8 @@ void ui_loop_edax(UI *ui)
 				char *w_name;
 				play_stop_pondering(play);
 				w_name = parse_word(param, problem, FILENAME_MAX);
-				tune_move_evaluate(play->search, problem, parse_skip_spaces(w_name));
-				search_set_observer(play->search, edax_observer);
+				tune_move_evaluate(&play->search, problem, parse_skip_spaces(w_name));
+				search_set_observer(&play->search, edax_observer);
 #endif
 			/* illegal cmd/move */
 			} else {

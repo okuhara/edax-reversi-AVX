@@ -665,14 +665,14 @@ char* parse_move(const char *string, const Board *board, Move *move)
 char* parse_game(const char *string, const Board *board_init, Line *line)
 {
 	const char *next;
-	Board board[1];
-	Move move[1];
+	Board board;
+	Move move;
 
-	*board = *board_init;
+	board = *board_init;
 
-	while ((next = parse_move(string, board, move)) != string || move->x == PASS) {
-		line_push(line, move->x);
-		board_update(board, move);
+	while ((next = parse_move(string, &board, &move)) != string || move.x == PASS) {
+		line_push(line, move.x);
+		board_update(&board, &move);
 		string = next;
 	}
 

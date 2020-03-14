@@ -76,11 +76,11 @@ bool movelist_is_single(const MoveList*);
 
 /** macro to iterate over the movelist */
 #define foreach_move(iter, movelist) \
-	for ((iter) = (movelist)->move->next; (iter); (iter) = (iter)->next)
+	for ((iter) = (movelist).move->next; (iter); (iter) = (iter)->next)
 
 /** macro to iterate over the movelist from best to worst move */
 #define foreach_best_move(iter, movelist) \
-	for ((iter) = movelist_best(movelist); (iter); (iter) = move_next_best(iter))
+	for ((iter) = movelist_best(&movelist); (iter); (iter) = move_next_best(iter))
 
 void line_init(Line*, const int);
 void line_push(Line*, const int);

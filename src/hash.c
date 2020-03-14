@@ -14,7 +14,7 @@
  * When doing parallel search with a shared hashtable, a locked implementation
  * avoid concurrency collisions.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -126,7 +126,7 @@ void hash_init(HashTable *hash_table, const unsigned long long size)
  */
 void hash_cleanup(HashTable *hash_table)
 {
-	register unsigned int i;
+	unsigned int i;
 
 	assert(hash_table != NULL && hash_table->hash != NULL);
 
@@ -164,6 +164,7 @@ void hash_clear(HashTable *hash_table)
 void hash_free(HashTable *hash_table)
 {
 	int i;
+
 	assert(hash_table != NULL && hash_table->hash != NULL);
 	free(hash_table->memory);
 	hash_table->hash = NULL;
@@ -414,7 +415,7 @@ static bool hash_update(Hash *hash, HashLock *lock, const Board *board, const in
 static bool hash_replace(Hash *hash, HashLock *lock, const Board *board, const int date, const int depth, const int selectivity, const int cost, const int alpha, const int beta, const int score, const int move)
 {
 	bool ok = false;
-	
+
 	if (hash->board.player == board->player && hash->board.opponent == board->opponent) {
 		spin_lock(lock);
 		if (hash->board.player == board->player && hash->board.opponent == board->opponent) {
@@ -543,7 +544,7 @@ void hash_feed(HashTable *hash_table, const Board *board, const unsigned long lo
  */
 void hash_store(HashTable *hash_table, const Board *board, const unsigned long long hash_code, const int depth, const int selectivity, const int cost, const int alpha, const int beta, const int score, const int move)
 {
-	register int i;
+	int i;
 	Hash *worst, *hash;
 	HashLock *lock;
 
@@ -582,14 +583,14 @@ void hash_store(HashTable *hash_table, const Board *board, const unsigned long l
  */
 void hash_force(HashTable *hash_table, const Board *board, const unsigned long long hash_code, const int depth, const int selectivity, const int cost, const int alpha, const int beta, const int score, const int move)
 {
-	register int i;
+	int i;
 	Hash *worst, *hash;
 	HashLock *lock;
-	
+
 	worst = hash = hash_table->hash + (hash_code & hash_table->hash_mask);
 	lock = hash_table->lock + (hash_code & hash_table->lock_mask);
 	if (hash_replace(hash, lock, board, hash_table->date, depth, selectivity, cost, alpha, beta, score, move)) return;
-	
+
 	for (i = 1; i < HASH_N_WAY; ++i) {
 		++hash;
 		if (hash_replace(hash, lock, board, hash_table->date, depth, selectivity, cost, alpha, beta, score, move)) return;
@@ -597,7 +598,7 @@ void hash_force(HashTable *hash_table, const Board *board, const unsigned long l
 			worst = hash;
 		}
 	}
-	
+
 #if (HASH_COLLISIONS(1)+0) 
 	hash_new(worst, lock, hash_code, board, hash_table->date, depth, selectivity, cost, alpha, beta, score, move);
 #else 
@@ -615,7 +616,7 @@ void hash_force(HashTable *hash_table, const Board *board, const unsigned long l
  */
 bool hash_get(HashTable *hash_table, const Board *board, const unsigned long long hash_code, HashData *data)
 {
-	register int i;
+	int i;
 	Hash *hash;
 	HashLock *lock;
 	bool ok = false;
@@ -661,7 +662,7 @@ bool hash_get(HashTable *hash_table, const Board *board, const unsigned long lon
  */
 void hash_exclude_move(HashTable *hash_table, const Board *board, const unsigned long long hash_code, const int move)
 {
-	register int i;
+	int i;
 	Hash *hash;
 	HashLock *lock;
 
@@ -694,7 +695,7 @@ void hash_exclude_move(HashTable *hash_table, const Board *board, const unsigned
  */
 void hash_copy(const HashTable *src, HashTable *dest)
 {
-	register unsigned int i;
+	unsigned int i;
 
 	assert(src->hash_mask == dest->hash_mask);
 	info("<hash copy>\n");
@@ -713,11 +714,10 @@ void hash_copy(const HashTable *src, HashTable *dest)
 void hash_print(const HashData *data, FILE *f)
 {
 	char s_move[4];
-	int p_selectivity[] = {72, 87, 95, 98, 99, 100};
 
 	fprintf(f, "moves = %s, ", move_to_string(data->move[0], WHITE, s_move));
 	fprintf(f, "%s ; ", move_to_string(data->move[1], WHITE, s_move));
 	fprintf(f, "score = [%+02d, %+02d] ; ", data->lower, data->upper);
-	fprintf(f, "level = %2d:%2d:%2d@%3d%%", data->date, data->cost, data->depth, p_selectivity[data->selectivity]);
+	fprintf(f, "level = %2d:%2d:%2d@%3d%%", data->date, data->cost, data->depth, selectivity_table[data->selectivity].percent);
 }
 

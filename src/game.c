@@ -3,7 +3,7 @@
  *
  * Game management
  *
- * @date 1998 - 2017
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -83,7 +83,7 @@ static int move_from_oko(int x)
 void game_init(Game *game)
 {
 	char name[2] = "?";
-	board_init(game->initial_board);
+	board_init(&game->initial_board);
 	memset(game->move, NOMOVE, 60);
 	game->player = BLACK;
 	memcpy(game->name[0], name, 2);
@@ -152,14 +152,14 @@ bool wthor_equals(const WthorGame *game_1, const WthorGame *game_2)
  */
 bool game_update_board(Board *board, int x)
 {
-	Move move[1];
+	Move move;
 
 	if (x < A1 || x > H8 || board_is_occupied(board, x)) return false;
 	if (!can_move(board->player, board->opponent)) {
 		board_pass(board);
 	}
-	if (board_get_move(board, x, move) == 0) return false;
-	board_update(board, move);
+	if (board_get_move(board, x, &move) == 0) return false;
+	board_update(board, &move);
 
 	return true;
 }
@@ -170,7 +170,7 @@ bool game_update_board(Board *board, int x)
  */
 static bool game_update_player(Board *board, int x)
 {
-	Move move[1];
+	Move move;
 	bool swap = false;
 	
 	if (A1 <= x && x <= H8 && !board_is_occupied(board, x)) {
@@ -178,7 +178,7 @@ static bool game_update_player(Board *board, int x)
 			board_pass(board);
 			swap = !swap;
 		}
-		if (board_get_move(board, x, move) == 0) swap = !swap;
+		if (board_get_move(board, x, &move) == 0) swap = !swap;
 	}
 	
 	return swap;
@@ -196,7 +196,7 @@ bool game_get_board(const Game *game, const int ply, Board *board)
 {
 	int i;
 
-	*board = *game->initial_board;
+	*board = game->initial_board;
 	for (i = 0; i < ply; i++) {
 		if (!game_update_board(board, game->move[i])) return false;
 	}
@@ -212,12 +212,12 @@ bool game_get_board(const Game *game, const int ply, Board *board)
  */
 bool game_check(Game *game)
 {
-	Board board[1];
+	Board board;
 	int i;
 
-	*board = *game->initial_board;
+	board = game->initial_board;
 	for (i = 0; i < 60 && game->move[i] != NOMOVE; ++i) {
-		if (!game_update_board(board, game->move[i])) {
+		if (!game_update_board(&board, game->move[i])) {
 			return false;
 		}
 	}
@@ -234,21 +234,21 @@ int game_score(const Game *game)
 {
 	int n_discs_p, n_discs_o, n_empties;
 	int i, player, score;
-	Board board[1];
+	Board board;
 
-	*board = *game->initial_board;
+	board = game->initial_board;
 	player = game->player;
 	for (i = 0; i < 60 && game->move[i] != NOMOVE; ++i) {
-		player ^= game_update_player(board, game->move[i]);
-		if (!game_update_board(board, game->move[i])) {
+		player ^= game_update_player(&board, game->move[i]);
+		if (!game_update_board(&board, game->move[i])) {
 			return -SCORE_INF;
 		}
 	}
 
-	if (!board_is_game_over(board)) return -SCORE_INF;
+	if (!board_is_game_over(&board)) return -SCORE_INF;
 
-	n_discs_p = bit_count(board->player);
-	n_discs_o = bit_count(board->opponent);
+	n_discs_p = bit_count(board.player);
+	n_discs_o = bit_count(board.opponent);
 	n_empties = 64 - n_discs_p - n_discs_o;
 	score = n_discs_p - n_discs_o;
 
@@ -267,21 +267,21 @@ int game_score(const Game *game)
 void text_to_game(const char *line, Game *game)
 {
 	int i;
-	Board board[1];
-	Move move[1];
+	Board board;
+	Move move;
 	char *s;
 
-	board_init(game->initial_board);
+	board_init(&game->initial_board);
 	game_init(game);
-	*board = *game->initial_board;
+	board = game->initial_board;
 	for (i = 0; i < 60 && *line;) {
-		s = parse_move(line, board, move);
-		if (s == line && move->x == NOMOVE) return;
-		if (move->x != PASS) {
-			game->hash ^= hash_move[move->x][i];
-			game->move[i++] = move->x;
+		s = parse_move(line, &board, &move);
+		if (s == line && move.x == NOMOVE) return;
+		if (move.x != PASS) {
+			game->hash ^= hash_move[move.x][i];
+			game->move[i++] = move.x;
 		}
-		board_update(board, move);
+		board_update(&board, &move);
 		line = s;
 	}
 }
@@ -313,13 +313,13 @@ void game_to_text(const Game *game, char *line)
 void oko_to_game(const OkoGame *oko, Game *game)
 {
 	int i;
-	Board board[1];
+	Board board;
 
 	game_init(game);
-	*board = *game->initial_board;
+	board = game->initial_board;
 	for (i = 0; i < 60; i++) {
 		game->move[i] = move_from_oko(oko->move[i]);
-		if (!game_update_board(board, game->move[i])) {
+		if (!game_update_board(&board, game->move[i])) {
 			game->move[i] = NOMOVE;
 			break;
 		}
@@ -340,13 +340,13 @@ void oko_to_game(const OkoGame *oko, Game *game)
 void wthor_to_game(const WthorGame *thor, Game *game)
 {
 	int i;
-	Board board[1];
+	Board board;
 
 	game_init(game);
-	*board = *game->initial_board;
+	board = game->initial_board;
 	for (i = 0; i < 60; i++) {
 		game->move[i] = move_from_wthor(thor->x[i]);
-		if (!game_update_board(board, game->move[i])) {
+		if (!game_update_board(&board, game->move[i])) {
 			game->move[i] = NOMOVE;
 			break;
 		}
@@ -388,12 +388,12 @@ void game_to_wthor(const Game *game, WthorGame *thor)
 void game_append_line(Game *game, const Line *line, const int from)
 {
 	int i, j;
-	Board board[1];
+	Board board;
 
-	if (game_get_board(game, from, board)) {
+	if (game_get_board(game, from, &board)) {
 		for (i = 0, j = from; i < line->n_moves && j < 60; ++i) {
 			if (line->move[i] != PASS) {
-				if (game_update_board(board, line->move[i])) {
+				if (game_update_board(&board, line->move[i])) {
 					game->hash ^= hash_move[(int)line->move[i]][j];
 					game->move[j++] = line->move[i];
 				} else {
@@ -415,7 +415,7 @@ void game_append_line(Game *game, const Line *line, const int from)
 void line_to_game(const Board *initial_board, const Line *line, Game *game)
 {
 	game_init(game);
-	*game->initial_board = *initial_board;
+	game->initial_board = *initial_board;
 	game->player = line->color;
 	game_append_line(game, line, 0);
 }
@@ -467,11 +467,11 @@ void game_import_text(Game *game, FILE *f)
 void game_export_text(const Game *game, FILE *f)
 {
 	char s_game[128], s_board[80];
-	Board board[1];
+	Board board;
 
-	board_init(board);
-	if (!board_equal(board, game->initial_board)) {
-		board_to_string(game->initial_board, game->player, s_board);
+	board_init(&board);
+	if (!board_equal(&board, &game->initial_board)) {
+		board_to_string(&game->initial_board, game->player, s_board);
 		fprintf(f, "%s;", s_board);
 	}
 	game_to_text(game, s_game);
@@ -597,7 +597,7 @@ void game_import_ggf(Game* game, FILE* f)
 			if (strcmp(tag,"GM") == 0 && strcmp(value, "othello") != 0) break;
 			if (strcmp(tag, "BO") == 0) {
 				if (value[0] != '8') break;
-				game->player = board_set(game->initial_board, value + 2);
+				game->player = board_set(&game->initial_board, value + 2);
 			} else if (strcmp(tag, "PB") == 0) {
 				memcpy(game->name[BLACK], value, 31);
 				game->name[BLACK][31] = '\0';
@@ -685,7 +685,7 @@ char* parse_ggf(Game *game, const char *string)
 					s = string;
 					break;
 				}
-				game->player = board_set(game->initial_board, value + 2);
+				game->player = board_set(&game->initial_board, value + 2);
 			} else if (strcmp(tag, "PB") == 0) {
 				memcpy(game->name[BLACK], value, 31);
 				game->name[BLACK][31] = '\0';
@@ -712,7 +712,7 @@ char* parse_ggf(Game *game, const char *string)
  */
 void game_export_ggf(const Game *game, FILE *f)
 {
-	Board board[1];
+	Board board;
 	int player;
 	unsigned long long bk, wh;
 	static const char board_color[] = "*O-?";
@@ -731,11 +731,11 @@ void game_export_ggf(const Game *game, FILE *f)
 	fputs("BO[8 ", f);
 
 	if (game->player == BLACK) {
-		bk = game->initial_board->player;
-		wh = game->initial_board->opponent;
+		bk = game->initial_board.player;
+		wh = game->initial_board.opponent;
 	} else {
-		bk = game->initial_board->opponent;
-		wh = game->initial_board->player;
+		bk = game->initial_board.opponent;
+		wh = game->initial_board.player;
 	}
 	for (x = 0; x < 64; ++x) {
 		square = 2 - (wh & 1) - 2 * (bk & 1);
@@ -746,14 +746,14 @@ void game_export_ggf(const Game *game, FILE *f)
 	}
 	putc(board_color[(int) game->player], f); fputc(']', f);
 
-	*board = *game->initial_board;
+	board = game->initial_board;
 	player = game->player;
 	for (i = 0; i < 60 && game->move[i] != NOMOVE; ++i) {
-		if (!can_move(board->player, board->opponent)) {
+		if (!can_move(board.player, board.opponent)) {
 			fprintf(f, "%c[PA]", move_color[player]);
 			player = !player;
 		}
-		if (game_update_board(board, game->move[i])) {
+		if (game_update_board(&board, game->move[i])) {
 			fprintf(f, "%c[%s]", move_color[player], move_to_string(game->move[i], 0, move_string));
 			player = !player;
 		}
@@ -880,7 +880,7 @@ void game_import_sgf(Game *game, FILE *f)
  */
 void game_save_sgf(const Game *game, FILE *f, const bool multiline)
 {
-	Board board[1];
+	Board board;
 	int player;
 	static const char color[2] = {'B', 'W'};
 	char s[8];
@@ -901,11 +901,11 @@ void game_save_sgf(const Game *game, FILE *f, const bool multiline)
 
 	// initial board
 	if (game->player == BLACK) {
-		black = game->initial_board->player;
-		white = game->initial_board->opponent;
+		black = game->initial_board.player;
+		white = game->initial_board.opponent;
 	} else {
-		white = game->initial_board->player;
-		black = game->initial_board->opponent;
+		white = game->initial_board.player;
+		black = game->initial_board.opponent;
 	}
 	fputs("SZ[8]",f);
 	if (black) {
@@ -934,15 +934,15 @@ void game_save_sgf(const Game *game, FILE *f, const bool multiline)
 	if (multiline) fputc('\n', f);
 
 	/* moves */
-	*board = *game->initial_board;
+	board = game->initial_board;
 	player = game->player;
 	for (i = 0; i < 60 && game->move[i] != NOMOVE; ++i) {
-		if (!can_move(board->player, board->opponent)) {
+		if (!can_move(board.player, board.opponent)) {
 			fprintf(f, "%c[PA];", color[player]);
 			player = !player;
 			if (multiline && player == game->player) fputc('\n', f);
 		}
-		if (game_update_board(board, game->move[i])) {
+		if (game_update_board(&board, game->move[i])) {
 			fprintf(f, "%c[%s];", color[player], move_to_string(game->move[i], WHITE, s));
 			player = !player;
 			if (multiline && player == game->player) fputc('\n', f);
@@ -1049,7 +1049,7 @@ void game_import_pgn(Game *game, FILE *f)
 						sscanf(info_value, "%d:%d:%d", value, value + 1, value + 2);
 						game->date.hour = value[0]; game->date.minute = value[1]; game->date.second = value[2];
 					} else if (strcmp(info_tag, "FEN") == 0) {
-						game->player = board_from_FEN(game->initial_board, info_value);
+						game->player = board_from_FEN(&game->initial_board, info_value);
 					}
 					break;
 			}				
@@ -1218,12 +1218,12 @@ void game_export_pgn(const Game *game, FILE *f)
 	int half_score = game_score(game) / 2;
 	const char *result = half_score < -32 ? "*" : (half_score < 0 ? "0-1" : (half_score > 0 ? "1-0" : "1/2-1/2"));
 	const char *winner = (half_score < 0 ?  game->name[WHITE]: (half_score > 0 ? game->name[BLACK] : NULL));
-	Board board[1];
+	Board board;
 	char s[80];
 	int i, j, k;
 	int player;
 
-	board_init(board);
+	board_init(&board);
 
 	fputs("[Event \"?\"]\n", f);
 	fputs("[Site \"edax\"]\n", f);
@@ -1236,18 +1236,18 @@ void game_export_pgn(const Game *game, FILE *f)
 	fprintf(f, "[Black \"%s\"]\n", game->name[BLACK]);
 	fprintf(f, "[White \"%s\"]\n", game->name[WHITE]);
 	fprintf(f, "[Result \"%s\"]\n", result);
-	if (!board_equal(game->initial_board, board)) {
-		fprintf(f, "[FEN \"%s\"]\n", board_to_FEN(game->initial_board, game->player, s));
-		*board = *game->initial_board;
+	if (!board_equal(&game->initial_board, &board)) {
+		fprintf(f, "[FEN \"%s\"]\n", board_to_FEN(&game->initial_board, game->player, s));
+		board = game->initial_board;
 	}
 	fputc('\n', f);
 
 	player = game->player;
 	for (i = j = k = 0; i < 60 && game->move[i] != NOMOVE; ++i, ++k) {
-		if (!can_move(board->player, board->opponent)) {
+		if (!can_move(board.player, board.opponent)) {
 			s[0] = 'p'; s[1] = 'a'; s[2] = 's'; s[3] = 's'; s[4] = '\0'; --i;
-			board_pass(board);
-		} else if (game_update_board(board, game->move[i])) {
+			board_pass(&board);
+		} else if (game_update_board(&board, game->move[i])) {
 			move_to_string(game->move[i], WHITE, s);
 		}
 		if ((j >= 78) || (player == game->player && j >= 74)) {
@@ -1276,7 +1276,7 @@ void game_export_eps(const Game *game, FILE *f)
 {
 	time_t t = time(NULL);
 	struct tm *date = localtime(&t);
-	Board board[1];
+	Board board;
 	int i, color, player;
 	char s_player[2][8] = {"black", "white"};
 	char s[8];
@@ -1392,9 +1392,9 @@ void game_export_eps(const Game *game, FILE *f)
 	fputs("\tboard_grid\n",f);
 	fputs("\n\t% draw the discs\n",f);
 
-	*board = *game->initial_board;
+	board = game->initial_board;
 	for (i = A1; i <= H8; i++) {
-		color = board_get_square_color(board, i);
+		color = board_get_square_color(&board, i);
 		if (color != EMPTY) {
 			if (game->player == WHITE) color = !color;
 			fprintf(f, "\t%s disc_%s\n", move_to_string(i, 0, s), s_player[color]);
@@ -1405,10 +1405,10 @@ void game_export_eps(const Game *game, FILE *f)
 	fputs("\t/Utopia-Bold findfont 12 scalefont setfont\n",f);
 	player = game->player;
 	for (i = 0; i < 60 && game->move[i] != NOMOVE; ++i) {
-		if (!can_move(board->player, board->opponent)) {
+		if (!can_move(board.player, board.opponent)) {
 			player = !player;
 		}
-		if (game_update_board(board, game->move[i])) {
+		if (game_update_board(&board, game->move[i])) {
 			fprintf(f, "\t(%d) %s move_%s\n", i + 1,  move_to_string(game->move[i], BLACK, s), s_player[player]);
 			player = !player;
 		}
@@ -1421,7 +1421,7 @@ void game_export_svg(const Game *game, FILE *f)
 {
 	int i, color, player;
 	char s_color[2][8] = {"black", "white"};
-	Board board[1];
+	Board board;
 	const char *style = "font-size:22px;text-align:center;text-anchor:middle;font-family:Times New Roman;font-weight:bold";
 
 	// prolog
@@ -1468,7 +1468,7 @@ void game_export_svg(const Game *game, FILE *f)
 
 	// discs
 	for (i = A1; i <= H8; i++) {
-		color = board_get_square_color(game->initial_board, i);
+		color = board_get_square_color(&game->initial_board, i);
 		if (color != EMPTY) {
 			if (game->player == WHITE) color = !color;
 			fprintf(f, "\t<circle cx=\"%d\" cy=\"%d\"  r=\"17\" fill=\"%s\" stroke=\"%s\" />\n",
@@ -1477,13 +1477,13 @@ void game_export_svg(const Game *game, FILE *f)
 	}
 
 	// moves
-	*board = *game->initial_board;
+	board = game->initial_board;
 	player = game->player;
 	for (i = 0; i < 60 && game->move[i] != NOMOVE; ++i) {
-		if (!can_move(board->player, board->opponent)) {
+		if (!can_move(board.player, board.opponent)) {
 			player = !player;
 		}
-		if (game_update_board(board, game->move[i])) {
+		if (game_update_board(&board, game->move[i])) {
 			fprintf(f, "\t<circle cx=\"%d\" cy=\"%d\" r=\"17\" fill=\"%s\" stroke=\"%s\" />\n",
 				 80 + 40 * (game->move[i] % 8), 80 + 40 * (game->move[i] / 8), s_color[player], s_color[!player]);
 			player = !player;
@@ -1507,26 +1507,26 @@ void game_export_svg(const Game *game, FILE *f)
  */
 void game_rand(Game *game, int n_ply, Random *r)
 {
-	Move move[1];
+	Move move;
 	unsigned long long moves;
 	int ply;
-	Board board[1];
+	Board board;
 
 	game_init(game);
-	board_init(board);
+	board_init(&board);
 	for (ply = 0; ply < n_ply; ply++) {
-		moves = get_moves(board->player, board->opponent);
+		moves = get_moves(board.player, board.opponent);
 		if (!moves) {
-			board_pass(board);
-			moves = get_moves(board->player, board->opponent);
+			board_pass(&board);
+			moves = get_moves(board.player, board.opponent);
 			if (!moves) {
 				break;
 			}
 		}
 		;
-		board_get_move(board, get_rand_bit(moves, r), move);
-		game->move[ply] = move->x;
-		board_update(board, move);
+		board_get_move(&board, get_rand_bit(moves, r), &move);
+		game->move[ply] = move.x;
+		board_update(&board, &move);
 	}
 }
 
@@ -1542,11 +1542,11 @@ void game_rand(Game *game, int n_ply, Random *r)
  */
 int game_analyze(Game *game, Search *search, const int n_empties, const bool apply_correction)
 {
-	Board board[1];
+	Board board;
 	struct {
 		Move played;
 		Move best;
-		Line pv[1];
+		Line pv;
 		int n_empties;
 	} stack[99];
 	int n_error = 0;
@@ -1558,42 +1558,42 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
 
 	search->options.verbosity = 0;
 	search_cleanup(search);
-	*board = *game->initial_board;
+	board = game->initial_board;
 	player = game->player;
 	for (i = n_move = 0; i < 60 && game->move[i] != NOMOVE; ++i) {
-		if (!can_move(board->player, board->opponent)) {
+		if (!can_move(board.player, board.opponent)) {
 			stack[n_move].best = MOVE_INIT;
-			line_init(stack[n_move].pv, player);
+			line_init(&stack[n_move].pv, player);
 			stack[n_move++].played = MOVE_PASS;
-			board_pass(board);
+			board_pass(&board);
 			player = !player;
 		} 
-		if (!board_is_occupied(board, game->move[i]) && board_get_move(board, game->move[i], &stack[n_move].played)) {
+		if (!board_is_occupied(&board, game->move[i]) && board_get_move(&board, game->move[i], &stack[n_move].played)) {
 			stack[n_move].best = MOVE_INIT;
-			line_init(stack[n_move].pv, player);
-			search_set_board(search, board, player);
+			line_init(&stack[n_move].pv, player);
+			search_set_board(search, &board, player);
 			search_set_level(search, 60, search->n_empties);
 			stack[n_move].n_empties = search->n_empties;
-			if (search->movelist->n_moves > 1 && search->n_empties <= n_empties) {
-				movelist_exclude(search->movelist, game->move[i]);
+			if (search->movelist.n_moves > 1 && search->n_empties <= n_empties) {
+				movelist_exclude(&search->movelist, game->move[i]);
 				search_run(search);
-				stack[n_move].best = *(movelist_first(search->movelist));
-				*stack[n_move].pv = *search->result->pv;
+				stack[n_move].best = *(movelist_first(&search->movelist));
+				stack[n_move].pv = search->result->pv;
 			}
-			board_update(board, &stack[n_move].played);
+			board_update(&board, &stack[n_move].played);
 			player = !player;
 			++n_move;
 		} else {
 			char s[4];
 			warn("\nillegal move %s in game:\n", move_to_string(game->move[i], player, s));			
 			game_export_text(game, stderr);
-			board_print(board, player, stderr);
+			board_print(&board, player, stderr);
 			fprintf(stderr, "\n\n");			
 			return 1; // stop, illegal moves
 		}
 	}
 
-	search_set_board(search, board, player);
+	search_set_board(search, &board, player);
 	if (search->n_empties <= n_empties) {
 		search_set_level(search, 60, search->n_empties);
 		search_run(search);
@@ -1612,7 +1612,7 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
 				if (apply_correction && stack[n_move].best.x != NOMOVE) {
 					for (i = 0; i < 60 && game->move[i] != 0; ++i) {
 						if (game->move[i] == stack[n_move].played.x) {
-							game_append_line(game, stack[n_move].pv, i);
+							game_append_line(game, &stack[n_move].pv, i);
 						}
 					}
 				}
@@ -1635,7 +1635,7 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
  */
 int game_complete(Game *game, Search *search) 
 {
-	Board board[1];
+	Board board;
 	const int verbosity = search->options.verbosity;
 	int i, n;
 	int player;
@@ -1645,24 +1645,24 @@ int game_complete(Game *game, Search *search)
 
 	player = game->player;
 	for (n = 0; n < 60; ++n) {
-		*board = *game->initial_board;
+		board = game->initial_board;
 		for (i = 0; i < 60 && game->move[i] != NOMOVE; ++i) {
-			player ^= game_update_player(board, game->move[i]);
-			if (!game_update_board(board, game->move[i])) {
+			player ^= game_update_player(&board, game->move[i]);
+			if (!game_update_board(&board, game->move[i])) {
 				break;
 			}
 		}
 
-		if (!can_move(board->player, board->opponent)) {
-			if (!can_move(board->opponent, board->player)) break;
+		if (!can_move(board.player, board.opponent)) {
+			if (!can_move(board.opponent, board.player)) break;
 			player ^= 1;
-			board_pass(board);
+			board_pass(&board);
 		}
 
-		search_set_board(search, board, player);
+		search_set_board(search, &board, player);
 		search_run(search);
 		if (search->result->depth == search->n_empties && search->result->selectivity == NO_SELECTIVITY) {
-			game_append_line(game, search->result->pv, i);
+			game_append_line(game, &search->result->pv, i);
 		} else {
 			game->move[i] = search->result->move;
 		}

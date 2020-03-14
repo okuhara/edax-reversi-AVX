@@ -45,7 +45,7 @@ typedef struct Result {
 	int move;                    /**< best move found */
 	int score;                   /**< best score */
 	Bound bound[BOARD_SIZE + 2]; /**< score bounds / move */
-	Line pv[1];                  /**< principal variation */
+	Line pv;                     /**< principal variation */
 	long long time;              /**< searched time */
 	unsigned long long n_nodes;  /**< searched node count */
 	bool book_move;              /**< book move origin */
@@ -63,7 +63,7 @@ extern struct Level {
 
 /** search stare */
 typedef struct Search {
-	Board board[1];                               /**< othello board */
+	Board board;                                  /**< othello board */
 	Eval eval;                                    /**< eval */
 
 	SquareList empties[BOARD_SIZE + 2];           /**< list of empty squares */
@@ -72,10 +72,10 @@ typedef struct Search {
 	int player;                                   /**< player color */
 	int id;                                       /**< search id */
 
-	HashTable hash_table[1];                      /**< hashtable */
-	HashTable pv_table[1];                        /**< hashtable for the pv */
-	HashTable shallow_table[1];                   /**< hashtable for short search */
-	Random random[1];                             /**< random generator */
+	HashTable hash_table;                         /**< hashtable */
+	HashTable pv_table;                           /**< hashtable for the pv */
+	HashTable shallow_table;                      /**< hashtable for short search */
+	Random random;                                /**< random generator */
 
 	struct TaskStack *tasks;                      /**< available task queue */
 	struct Task *task;                            /**< search task */
@@ -99,7 +99,7 @@ typedef struct Search {
 		long long  mini;                          /**< minimal alloted time */
 		long long  maxi;                          /**< maximal alloted time */
 	} time;                                       /**< time */
-	MoveList movelist[1];                         /**< list of moves */
+	MoveList movelist;                            /**< list of moves */
 	int height;                                   /**< search height from root */
 	NodeType node_type[GAME_SIZE];                /**< node type (pv node, cut node, all node) */
 	Bound stability_bound;                        /**< score bounds according to stable squares */

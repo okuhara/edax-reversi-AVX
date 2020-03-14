@@ -3,7 +3,7 @@
  *
  * Opening Name aliasing.
  *
- * @date 1998 - 2018
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -1354,11 +1354,11 @@ const char *opening_get_line(const char *opening_name)
 const char *opening_get_english_name(const Board *board)
 {
 	const PositionName *p;
-	Board unique[1];
+	Board unique;
 
-	board_unique(board, unique);
+	board_unique(board, &unique);
 	for (p = POSITION_NAME; p->name != NULL; ++p) {
-		if (board_equal(unique, &p->board)) break;
+		if (board_equal(&unique, &p->board)) break;
 	}
 
 	return p->name;
@@ -1373,13 +1373,12 @@ const char *opening_get_english_name(const Board *board)
 const char *opening_get_french_name(const Board *board)
 {
 	const PositionName *p;
-	Board unique[1];
+	Board unique;
 
-	board_unique(board, unique);
+	board_unique(board, &unique);
 	for (p = NOM_POSITION; p->name != NULL; ++p) {
-		if (board_equal(unique, &p->board)) break;
+		if (board_equal(&unique, &p->board)) break;
 	}
 
 	return p->name;
 }
-

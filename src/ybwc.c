@@ -119,7 +119,7 @@ static bool get_helper(Node *master, Node *node, Move *move)
 			lock(master);
 			if (master->n_slave && master->is_waiting && !master->is_helping) {
 				master->is_helping = true;
-				task = master->help;
+				task = &master->help;
 				task_init(task) ;
 				task->is_helping = true;
 				task->node = node;
@@ -230,9 +230,9 @@ void node_wait_slaves(Node* node)
 		condition_wait(node);
 
 		if (node->is_helping) {
-			assert(node->help->run);
-			task_search(node->help);
-			task_free(node->help);
+			assert(node.help->run);
+			task_search(&node->help);
+			task_free(&node->help);
 			node->is_helping = false;
 		} else {
 			node->is_waiting = false;
@@ -269,7 +269,7 @@ void node_update(Node* node, Move *move)
 		node->bestscore = score;
 		node->bestmove = move->x;
 		if (node->height == 0) {
-			record_best_move(search, search->board, move, node->alpha, node->beta, node->depth);
+			record_best_move(search, &search->board, move, node->alpha, node->beta, node->depth);
 			search->result->n_moves_left--;
 		}
 		if (score > node->alpha) node->alpha = score;
@@ -395,7 +395,7 @@ void task_search(Task *task)
 			node->bestscore = move->score;
 			node->bestmove = move->x;
 			if (node->height == 0) {
-				record_best_move(search, search->board, move, alpha, node->beta, node->depth);
+				record_best_move(search, &search->board, move, alpha, node->beta, node->depth);
 				search->result->n_moves_left--;
 				if (search->options.verbosity == 4) pv_debug(search, move, stdout);
 			}

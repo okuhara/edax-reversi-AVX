@@ -808,4 +808,3 @@ double eval_sigma(const int n_empty, const int depth, const int probcut_depth)
 
 	return sigma;
 }
-

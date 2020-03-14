@@ -3,7 +3,7 @@
  *
  * @brief Main file.
  *
- * @date 1998 - 2018
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -122,22 +122,22 @@ int main(int argc, char **argv)
 
 	// solver & tester
 	if (problem_file || wthor_file || n_bench) {
-		Search search[1];
-		search_init(search);
-		search->options.header = " depth|score|       time   |  nodes (N)  |   N/s    | principal variation";
-		search->options.separator = "------+-----+--------------+-------------+----------+---------------------";
+		Search search;
+		search_init(&search);
+		search.options.header = " depth|score|       time   |  nodes (N)  |   N/s    | principal variation";
+		search.options.separator = "------+-----+--------------+-------------+----------+---------------------";
 		if (options.verbosity) version();
-		if (problem_file) obf_test(search, problem_file, NULL);
-		if (wthor_file) wthor_test(wthor_file, search);
-		if (n_bench) obf_speed(search, n_bench);
-		search_free(search);
+		if (problem_file) obf_test(&search, problem_file, NULL);
+		if (wthor_file) wthor_test(wthor_file, &search);
+		if (n_bench) obf_speed(&search, n_bench);
+		search_free(&search);
 
 	} else if (count_type){
-		Board board[1];
-		board_init(board);
-		if (strcmp(count_type, "games") == 0) quick_count_games(board, level, size);		
-		else if (strcmp(count_type, "positions") == 0) count_positions(board, level, size);		
-		else if (strcmp(count_type, "shapes") == 0) count_shapes(board, level, size);		
+		Board board;
+		board_init(&board);
+		if (strcmp(count_type, "games") == 0) quick_count_games(&board, level, size);
+		else if (strcmp(count_type, "positions") == 0) count_positions(&board, level, size);
+		else if (strcmp(count_type, "shapes") == 0) count_shapes(&board, level, size);
 
 	} else if (ui->type == UI_CASSIO) {
 		engine_loop();

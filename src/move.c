@@ -181,11 +181,10 @@ static void move_evaluate(Move *move, Search *search, const HashData *hash_data,
 	const int w_high_parity = 1 << 1;
 #endif	
 
-	Board *board = search->board;
 	HashData dummy[1];
 	Eval Ev0;
 
-	if (move_wipeout(move, board)) move->score = (1 << 30);
+	if (move_wipeout(move, &search->board)) move->score = (1 << 30);
 	else if (move->x == hash_data->move[0]) move->score = (1 << 29);
 	else if (move->x == hash_data->move[1]) move->score = (1 << 28);
 	else {
@@ -196,21 +195,21 @@ static void move_evaluate(Move *move, Search *search, const HashData *hash_data,
 		else if (search->n_empties < 30 && search->eval.parity & QUADRANT_ID[move->x]) move->score += w_high_parity; // parity
 
 		if (sort_depth < 0) {
-			board_update(board, move);
+			board_update(&search->board, move);
 				SEARCH_UPDATE_ALL_NODES(search->n_nodes);
-				move->score += (36 - get_potential_mobility(board->player, board->opponent)) * w_potential_mobility; // potential mobility
-				move->score += get_corner_stability(board->opponent) * w_corner_stability; // corner stability
-				move->score += (36 - get_weighted_mobility(board->player, board->opponent)) * w_mobility; // real mobility
-			board_restore(board, move);
+				move->score += (36 - get_potential_mobility(search->board.player, search->board.opponent)) * w_potential_mobility; // potential mobility
+				move->score += get_corner_stability(search->board.opponent) * w_corner_stability; // corner stability
+				move->score += (36 - get_weighted_mobility(search->board.player, search->board.opponent)) * w_mobility; // real mobility
+			board_restore(&search->board, move);
 		} else {
 			int selectivity = search->selectivity;
 			search->selectivity = NO_SELECTIVITY;
 			Ev0 = search->eval;
 			search_update_midgame(search, move);
 				SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
-				move->score += (36 - get_potential_mobility(board->player, board->opponent)) * w_potential_mobility; // potential mobility
-				move->score += get_edge_stability(board->opponent, board->player) * w_edge_stability; // edge stability
-				move->score += (36 - get_weighted_mobility(board->player, board->opponent)) *  w_mobility; // real mobility
+				move->score += (36 - get_potential_mobility(search->board.player, search->board.opponent)) * w_potential_mobility; // potential mobility
+				move->score += get_edge_stability(search->board.opponent, search->board.player) * w_edge_stability; // edge stability
+				move->score += (36 - get_weighted_mobility(search->board.player, search->board.opponent)) *  w_mobility; // real mobility
 				switch(sort_depth) {
 				case 0:
 					move->score += ((SCORE_MAX - search_eval_0(search)) >> 2) * w_eval; // 1 level score bonus
@@ -222,7 +221,7 @@ static void move_evaluate(Move *move, Search *search, const HashData *hash_data,
 					move->score += ((SCORE_MAX - search_eval_2(search, SCORE_MIN, -sort_alpha)) >> 1) * w_eval;  // 3 level score bonus
 					break;
 				default:
-					if (hash_get(search->hash_table, search->board, board_get_hash_code(search->board), dummy)) move->score += w_hash; // bonus if the position leads to a position stored in the hash-table
+					if (hash_get(&search->hash_table, &search->board, board_get_hash_code(&search->board), dummy)) move->score += w_hash; // bonus if the position leads to a position stored in the hash-table
 					move->score += ((SCORE_MAX - PVS_shallow(search, SCORE_MIN, -sort_alpha, sort_depth))) * w_eval; // > 3 level bonus
 					break;
 				}
@@ -437,7 +436,7 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 	}
 
 	sort_alpha = MAX(SCORE_MIN, alpha - SORT_ALPHA_DELTA);
-	foreach_move (move, movelist) {
+	foreach_move (move, *movelist) {
 		move_evaluate(move, search, hash_data, sort_alpha, sort_depth);
 	}
 }
@@ -476,7 +475,7 @@ void movelist_sort_cost(MoveList *movelist, const HashData *hash_data)
 {
 	Move *iter;
 
-	foreach_move(iter, movelist) {
+	foreach_move(iter, *movelist) {
 		if (iter->x == hash_data->move[0]) iter->cost = INT_MAX;
 		else if (iter->x == hash_data->move[1]) iter->cost = INT_MAX - 1;
 	}
@@ -491,7 +490,7 @@ void movelist_sort(MoveList *movelist)
 {
 	Move *move;
 
-	foreach_best_move(move, movelist) ;
+	foreach_best_move(move, *movelist) ;
 }
 
 /**

@@ -335,9 +335,9 @@ void search_resize_hashtable(Search *search) {
 		const int hash_size = 1u << options.hash_table_size;
 		const int pv_size = hash_size > 16 ? hash_size >> 4 : 16;
 
-		hash_init(search->hash_table, hash_size);
-		hash_init(search->pv_table, pv_size);
-		hash_init(search->shallow_table, hash_size);
+		hash_init(&search->hash_table, hash_size);
+		hash_init(&search->pv_table, pv_size);
+		hash_init(&search->shallow_table, hash_size);
 		search->options.hash_size = options.hash_table_size;
 	}
 }
@@ -358,23 +358,23 @@ void search_init(Search *search)
 
 	/* hash_table */
 	search->options.hash_size = 0;
-	search->hash_table->hash = NULL;
-	search->hash_table->hash_mask = 0;
-	search->pv_table->hash = NULL;
-	search->pv_table->hash_mask = 0;
-	search->shallow_table->hash = NULL;
-	search->shallow_table->hash_mask = 0;
+	search->hash_table.hash = NULL;
+	search->hash_table.hash_mask = 0;
+	search->pv_table.hash = NULL;
+	search->pv_table.hash_mask = 0;
+	search->shallow_table.hash = NULL;
+	search->shallow_table.hash_mask = 0;
 	search_resize_hashtable(search);
 
 	/* board */
-	search->board->player = search->board->opponent = 0;
+	search->board.player = search->board.opponent = 0;
 	search->player = EMPTY;
 
 	/* evaluation function */
-	// eval_init(&search->eval);
+	// eval_init(search->eval);
 
 	// radom generator
-	random_seed(search->random, real_clock());
+	random_seed(&search->random, real_clock());
 
 	/* task stack */
 	search->tasks = (TaskStack*) malloc(sizeof (TaskStack));
@@ -441,10 +441,10 @@ void search_init(Search *search)
 void search_free(Search *search)
 {
 
-	hash_free(search->hash_table);
-	hash_free(search->pv_table);
-	hash_free(search->shallow_table);
-	// eval_free(&search->eval);
+	hash_free(&search->hash_table);
+	hash_free(&search->pv_table);
+	hash_free(&search->shallow_table);
+	// eval_free(search->eval);
 	
 	task_stack_free(search->tasks);
 	free(search->tasks);
@@ -480,7 +480,7 @@ void search_setup(Search *search)
 		D4, E4, D5, E5,                    /* center */
 	};
 
-	Board *board = search->board;
+	const Board * const board = &search->board;
 	unsigned long long E, B;
 
 	// init empties, parity
@@ -539,11 +539,11 @@ void search_clone(Search *search, Search *master)
 {
 	search->stop = STOP_END;
 	search->player = master->player;
-	*search->board = *master->board;
+	search->board = master->board;
 	search_setup(search);
-	*search->hash_table = *master->hash_table; // share the hashtable
-	*search->pv_table = *master->pv_table; // share the pvtable
-	*search->shallow_table = *master->shallow_table; // share the pvtable
+	search->hash_table = master->hash_table; // share the hashtable
+	search->pv_table = master->pv_table; // share the pvtable
+	search->shallow_table = master->shallow_table; // share the pvtable
 	search->tasks = master->tasks;
 	search->observer = master->observer;
 
@@ -575,9 +575,9 @@ void search_clone(Search *search, Search *master)
  */
 void search_cleanup(Search *search)
 {
-	hash_cleanup(search->hash_table);
-	hash_cleanup(search->pv_table);
-	hash_cleanup(search->shallow_table);
+	hash_cleanup(&search->hash_table);
+	hash_cleanup(&search->pv_table);
+	hash_cleanup(&search->shallow_table);
 }
 
 
@@ -591,9 +591,9 @@ void search_cleanup(Search *search)
 void search_set_board(Search *search, const Board *board, const int player)
 {
 	search->player = player;
-	*search->board = *board;
+	search->board = *board;
 	search_setup(search);
-	search_get_movelist(search, search->movelist);
+	search_get_movelist(search, &search->movelist);
 }
 
 /**
@@ -874,7 +874,7 @@ void search_get_movelist(const Search *search, MoveList *movelist)
 {
 	Move *previous = movelist->move;
 	Move *move = movelist->move + 1;
-	const Board *board = search->board;
+	const Board * const board = &search->board;
 	unsigned long long moves = get_moves(board->player, board->opponent);
 	register int x;
 
@@ -899,7 +899,7 @@ void search_update_endgame(Search *search, const Move *move)
 {
 	search_swap_parity(search, move->x);
 	empty_remove(search->x_to_empties[move->x]);
-	board_update(search->board, move);
+	board_update(&search->board, move);
 	--search->n_empties;
 
 }
@@ -914,7 +914,7 @@ void search_restore_endgame(Search *search, const Move *move)
 {
 	search_swap_parity(search, move->x);
 	empty_restore(search->x_to_empties[move->x]);
-	board_restore(search->board, move);
+	board_restore(&search->board, move);
 	++search->n_empties;
 }
 
@@ -925,7 +925,7 @@ void search_restore_endgame(Search *search, const Move *move)
  */
 void search_pass_endgame(Search *search)
 {
-	board_pass(search->board);
+	board_pass(&search->board);
 }
 
 
@@ -945,7 +945,7 @@ void search_update_midgame(Search *search, const Move *move)
 
 	search_swap_parity(search, move->x);
 	empty_remove(search->x_to_empties[move->x]);
-	board_update(search->board, move);
+	board_update(&search->board, move);
 	eval_update(&search->eval, move);
 	assert(search->n_empties > 0);
 	--search->n_empties;
@@ -966,9 +966,9 @@ void search_restore_midgame(Search *search, const Move *move, const Eval *Ev)
 //	line_pop(&debug_line);
 
 	empty_restore(search->x_to_empties[move->x]);
-	board_restore(search->board, move);
+	board_restore(&search->board, move);
 	// search_swap_parity(search, move->x);
-	// eval_restore(&search->eval, move);
+	// eval_restore(search->eval, move);
 	search->eval = *Ev;
 	++search->n_empties;
 	assert(search->height > 0);
@@ -984,7 +984,7 @@ void search_update_pass_midgame(Search *search)
 {
 	static const NodeType next_node_type[] = {CUT_NODE, ALL_NODE, CUT_NODE};
 
-	board_pass(search->board);
+	board_pass(&search->board);
 	eval_pass(&search->eval);
 	++search->height;
 	search->node_type[search->height] = next_node_type[search->node_type[search->height- 1]];
@@ -997,7 +997,7 @@ void search_update_pass_midgame(Search *search)
  */
 void search_restore_pass_midgame(Search *search)
 {
-	board_pass(search->board);
+	board_pass(&search->board);
 	eval_pass(&search->eval);
 	assert(search->height > 0);
 	--search->height;
@@ -1128,7 +1128,7 @@ void result_print(Result *result, FILE *f)
 		if (result->time > 0) fprintf(f, "%10.0f ", 1000.0 * result->n_nodes / result->time);
 		else fprintf(f, "           ");
 	} else fputs("                          ", f);
-	line_print(result->pv, options.width - PRINTED_WIDTH, " ", f);
+	line_print(&result->pv, options.width - PRINTED_WIDTH, " ", f);
 	fflush(f);
 
 	spin_unlock(result);
@@ -1145,7 +1145,7 @@ void result_print(Result *result, FILE *f)
  */
 bool search_SC_PVS(Search *search, volatile int *alpha, volatile int *beta, int *score)
 {
-	const Board *board = search->board;
+	const Board * const board = &search->board;
 
 	if (USE_SC && *beta >= PVS_STABILITY_THRESHOLD[search->n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
@@ -1169,7 +1169,7 @@ bool search_SC_PVS(Search *search, volatile int *alpha, volatile int *beta, int 
  */
 bool search_SC_NWS(Search *search, const int alpha, int *score)
 {
-	const Board *board = search->board;
+	const Board * const board = &search->board;
 
 	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
@@ -1266,33 +1266,33 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 	if (USE_ETC && depth > ETC_MIN_DEPTH) {
 
 		Move *move;
-		Board next[1];
-		HashData etc[1];
+		Board next;
+		HashData etc;
 		unsigned long long etc_hash_code;
-		HashTable *hash_table = search->hash_table;
+		HashTable *hash_table = &search->hash_table;
 		const int etc_depth = depth - 1;
 		const int beta = alpha + 1;
 	
 		CUTOFF_STATS(++statistics.n_etc_try;)
-		foreach_move (move, movelist) {
-			next->opponent = search->board->player ^ (move->flipped | x_to_bit(move->x));
-			next->player = search->board->opponent ^ move->flipped;
+		foreach_move (move, *movelist) {
+			next.opponent = search->board.player ^ (move->flipped | x_to_bit(move->x));
+			next.player = search->board.opponent ^ move->flipped;
 			SEARCH_UPDATE_ALL_NODES(search->n_nodes);
 
 			if (USE_SC && alpha <= -NWS_STABILITY_THRESHOLD[search->n_empties]) {
-				*score = 2 * get_stability(next->opponent, next->player) - SCORE_MAX;
+				*score = 2 * get_stability(next.opponent, next.player) - SCORE_MAX;
 				if (*score > alpha) {
-					hash_store(hash_table, search->board, hash_code, depth, selectivity, 0, alpha, beta, *score, move->x);
+					hash_store(hash_table, &search->board, hash_code, depth, selectivity, 0, alpha, beta, *score, move->x);
 					CUTOFF_STATS(++statistics.n_esc_high_cutoff;)
 					return true;
 				}
 			}
 
-			etc_hash_code = board_get_hash_code(next);
-			if (USE_TC && hash_get(hash_table, next, etc_hash_code, etc) && etc->selectivity >= selectivity && etc->depth >= etc_depth) {
-				*score = -etc->upper;
+			etc_hash_code = board_get_hash_code(&next);
+			if (USE_TC && hash_get(hash_table, &next, etc_hash_code, &etc) && etc.selectivity >= selectivity && etc.depth >= etc_depth) {
+				*score = -etc.upper;
 				if (*score > alpha) {
-					hash_store(hash_table, search->board, hash_code, depth, selectivity, 0, alpha, beta, *score, move->x);
+					hash_store(hash_table, &search->board, hash_code, depth, selectivity, 0, alpha, beta, *score, move->x);
 					CUTOFF_STATS(++statistics.n_etc_high_cutoff;)
 					return true;
 				}
@@ -1311,8 +1311,8 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
  */
 void search_share(const Search *src, Search *dest)
 {
-	hash_copy(src->pv_table, dest->pv_table);
-	hash_copy(src->hash_table, dest->hash_table);
+	hash_copy(&src->pv_table, &dest->pv_table);
+	hash_copy(&src->hash_table, &dest->hash_table);
 }
 
 /**
@@ -1368,11 +1368,13 @@ void search_set_state(Search *search, const Stop stop)
  */
 int search_guess(Search *search, const Board *board)
 {
-	HashData hash_data[1];
+	HashData hash_data;
 	int move = NOMOVE;
+	unsigned long long hash_code;
 
-	if (hash_get(search->pv_table, board, board_get_hash_code(board), hash_data)) move = hash_data->move[0];
-	if (move == NOMOVE && hash_get(search->hash_table, board, board_get_hash_code(board), hash_data)) move = hash_data->move[0];
+	hash_code = board_get_hash_code(board);
+	if (hash_get(&search->pv_table, board, hash_code, &hash_data)) move = hash_data.move[0];
+	if (move == NOMOVE && hash_get(&search->hash_table, board, hash_code, &hash_data)) move = hash_data.move[0];
 
 	return move;
 }

@@ -356,7 +356,7 @@ int board_unique(const Board *board, Board *unique)
  */
 void board_rand(Board *board, int n_ply, Random *r)
 {
-	Move move[1];
+	Move move;
 	unsigned long long moves;
 	int ply;
 
@@ -370,8 +370,8 @@ void board_rand(Board *board, int n_ply, Random *r)
 				break;
 			}
 		}
-		board_get_move(board, get_rand_bit(moves, r), move);
-		board_update(board, move);
+		board_get_move(board, get_rand_bit(moves, r), &move);
+		board_update(board, &move);
 	}
 }
 
@@ -1052,7 +1052,7 @@ int get_corner_stability(const unsigned long long P)
  */
 unsigned long long board_get_hash_code(const Board *board)
 {
-	const unsigned char *p = (const unsigned char*)board;
+	const unsigned char *const p = (const unsigned char*)board;
 	unsigned long long h1, h2;
 
 #if defined(USE_GAS_MMX) && defined(__3dNOW__)	// Faster on AMD but not suitable for CPU with slow emms
