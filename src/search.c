@@ -960,16 +960,17 @@ void search_update_midgame(Search *search, const Move *move)
  * @param move    played move.
  * @param Ev	  eval to restore.
  */
-void search_restore_midgame(Search *search, const Move *move, const Eval *Ev)
+void search_restore_midgame(Search *search, const Move *move, const Eval *eval_to_restore)
 {
 //	line_print(&debug_line, 100, " ", stdout); putchar('\n');
 //	line_pop(&debug_line);
 
+	search_swap_parity(search, move->x);
 	empty_restore(search->x_to_empties[move->x]);
 	board_restore(&search->board, move);
-	// search_swap_parity(search, move->x);
 	// eval_restore(search->eval, move);
-	search->eval = *Ev;
+	search->eval.feature = eval_to_restore->feature;
+	eval_swap(&search->eval);
 	++search->n_empties;
 	assert(search->height > 0);
 	--search->height;

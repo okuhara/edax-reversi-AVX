@@ -376,7 +376,7 @@ void task_search(Task *task)
 		const int alpha = node->alpha;
 		if (alpha >= node->beta) break;
 
-		Ev0 = search->eval;
+		Ev0.feature = search->eval.feature;
 		search_update_midgame(search, move);
 			move->score = -NWS_midgame(search, -alpha - 1, node->depth - 1, node);
 			if (alpha < move->score && move->score < node->beta) {

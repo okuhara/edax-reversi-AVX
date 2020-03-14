@@ -374,7 +374,7 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 	} else {
 
 		// first move
-		Ev0 = search->eval;
+		Ev0.feature = search->eval.feature;
 		if ((move = node_first_move(&node, movelist))) {
 			assert(board_check_move(&search->board, move));
 			search_update_midgame(search, move); search->node_type[search->height] = PV_NODE;

@@ -73,18 +73,19 @@ int search_eval_0(Search *search)
  */
 int search_eval_1(Search *search, const int alpha, int beta)
 {
-	const short *w = EVAL_WEIGHT[search->eval.player ^ 1][61 - search->n_empties];
 	Move move;
 	SquareList *empty;
 	Eval Ev;
 	int score, bestscore;
 	unsigned long long moves = get_moves(search->board.player, search->board.opponent);
-	unsigned short *f;
+	const short *w;
+	const unsigned short *f;
 
 	SEARCH_STATS(++statistics.n_search_eval_1);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	if (moves) {
+		w = EVAL_WEIGHT[search->eval.player ^ 1][61 - search->n_empties];
 		bestscore = -SCORE_INF;
 		if (beta >= SCORE_MAX) beta = SCORE_MAX - 1;
 		foreach_empty (empty, search->empties) {
@@ -92,8 +93,7 @@ int search_eval_1(Search *search, const int alpha, int beta)
 				board_get_move(&search->board, empty->x, &move);
 				if (move_wipeout(&move, &search->board)) return SCORE_MAX;
 
-				Ev = search->eval;
-				eval_update(&Ev, &move);
+				eval_update_leaf(&Ev, &search->eval, &move);
 				f = Ev.feature.us;
 				SEARCH_UPDATE_EVAL_NODES(search->n_nodes);
 				score = -w[f[ 0] + 0] - w[f[ 1] + 0] - w[f[ 2] + 0] - w[f[ 3] + 0]
@@ -109,7 +109,6 @@ int search_eval_1(Search *search, const int alpha, int beta)
 				  - w[f[38] + 225990] - w[f[39] + 225990] - w[f[40] + 225990] - w[f[41] + 225990]
 				  - w[f[42] + 226233] - w[f[43] + 226233] - w[f[44] + 226233] - w[f[45] + 226233]
 				  - w[f[46] + 226314];
-				// eval_restore(&search->eval, &move);
 
 				if (score > 0) score += 64; else score -= 64;
 				score /= 128;
@@ -162,7 +161,7 @@ int search_eval_2(Search *search, int alpha, const int beta)
 
 	if (moves) {
 		bestscore = -SCORE_INF;
-		Ev0 = search->eval;
+		Ev0.feature = search->eval.feature;
 		foreach_empty(empty, search->empties) {
 			if (moves & empty->b) {
 				board_get_move(&search->board, empty->x, &move);
@@ -347,7 +346,7 @@ int NWS_shallow(Search *search, const int alpha, int depth, HashTable *hash_tabl
 
 		// loop over all moves
 		bestscore = -SCORE_INF; hash_store_data.move = NOMOVE;
-		Ev0 = search->eval;
+		Ev0.feature = search->eval.feature;
 		foreach_move(move, movelist) {
 			search_update_midgame(search, move);
 				score = -NWS_shallow(search, -(alpha + 1), depth - 1, hash_table);
@@ -438,7 +437,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 		// loop over all moves
 		bestscore = -SCORE_INF; hash_store_data.move = NOMOVE;
 		lower = alpha;
-		Ev0 = search->eval;
+		Ev0.feature = search->eval.feature;
 		foreach_move(move, movelist) {
 			search_update_midgame(search, move);
 				if (bestscore == -SCORE_INF) {
@@ -552,7 +551,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		node_init(&node, search, alpha, beta, depth, movelist.n_moves, parent);
 
 		// loop over all moves
-		Ev0 = search->eval;
+		Ev0.feature = search->eval.feature;
 		for (move = node_first_move(&node, &movelist); move; move = node_next_move(&node)) {
 			if (!node_split(&node, move)) {
 				search_update_midgame(search, move);
@@ -682,7 +681,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 		}
 
 		// first move
-		Ev0 = search->eval;
+		Ev0.feature = search->eval.feature;
 		if ((move = node_first_move(&node, &movelist))) { // why if there ?
 			search_update_midgame(search, move); search->node_type[search->height] = PV_NODE;
 				move->score = -PVS_midgame(search, -beta, -alpha, depth - 1, &node);
