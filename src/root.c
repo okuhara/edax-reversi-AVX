@@ -51,7 +51,7 @@ void pv_debug(Search *search, const Move *bestmove, FILE *f)
 	fprintf(f, "pv = %s ", move_to_string(x, player, s));
 	hash_code = board_get_hash_code(&board);
 	if (hash_get(&search->pv_table, &board, hash_code, &hash_data)) {
-		fprintf(f, ":%02d@%d%%[%+03d,%+03d]; ", hash_data.depth, selectivity_table[hash_data.selectivity].percent, hash_data.lower, hash_data.upper);
+		fprintf(f, ":%02d@%d%%[%+03d,%+03d]; ", hash_data.wl.c.depth, selectivity_table[hash_data.wl.c.selectivity].percent, hash_data.lower, hash_data.upper);
 	}
 	while (x != NOMOVE) {
 		board_get_move(&board, x, &move);
@@ -61,10 +61,10 @@ void pv_debug(Search *search, const Move *bestmove, FILE *f)
 		hash_code = board_get_hash_code(&board);
 		if (hash_get(&search->pv_table, &board, hash_code, &hash_data)) {
 			x = hash_data.move[0];
-			fprintf(f, "%s:%02d@%d%%[%+03d,%+03d]; ", move_to_string(x, player, s), hash_data.depth, selectivity_table[hash_data.selectivity].percent, hash_data.lower, hash_data.upper);
+			fprintf(f, "%s:%02d@%d%%[%+03d,%+03d]; ", move_to_string(x, player, s), hash_data.wl.c.depth, selectivity_table[hash_data.wl.c.selectivity].percent, hash_data.lower, hash_data.upper);
 		} else if (hash_get(&search->hash_table, &board, hash_code, &hash_data)) {
 			x = hash_data.move[0];
-			fprintf(f, "{%s}:%2d@%d%%[%+03d,%+03d]; ", move_to_string(x, player, s), hash_data.depth, selectivity_table[hash_data.selectivity].percent, hash_data.lower, hash_data.upper);
+			fprintf(f, "{%s}:%2d@%d%%[%+03d,%+03d]; ", move_to_string(x, player, s), hash_data.wl.c.depth, selectivity_table[hash_data.wl.c.selectivity].percent, hash_data.lower, hash_data.upper);
 		} else x = NOMOVE;
 	}
 	fputc('\n', f);
@@ -102,7 +102,7 @@ bool is_pv_ok(Search *search, int bestmove, int search_depth)
 		} else if (hash_get(&search->hash_table, &board, hash_code, &hash_data)) {
 			x = hash_data.move[0];
 		} else break;
-		if (hash_data.depth < search_depth || hash_data.selectivity < search->selectivity || hash_data.lower != hash_data.upper) return false;
+		if (hash_data.wl.c.depth < search_depth || hash_data.wl.c.selectivity < search->selectivity || hash_data.lower != hash_data.upper) return false;
 		if (x == NOMOVE && !board_is_game_over(&board)) return false;
 	}
 	return true;
@@ -201,7 +201,7 @@ void record_best_move(Search *search, const Board *init_board, const Move *bestm
 
 			hash_code = board_get_hash_code(&board);
 			if ((hash_get(&search->pv_table, &board, hash_code, &hash_data) || hash_get(&search->hash_table, &board, hash_code, &hash_data)) 
-			 && (hash_data.depth >= expected_depth && hash_data.selectivity >= expected_selectivity)
+			 && (hash_data.wl.c.depth >= expected_depth && hash_data.wl.c.selectivity >= expected_selectivity)
 			 && (hash_data.upper <= expected_bound.upper && hash_data.lower >= expected_bound.lower)) {
 				x = hash_data.move[0];
 			} else x = NOMOVE;
@@ -425,13 +425,13 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 		record_best_move(search, &search->board, movelist_first(movelist), alpha, beta, depth);
 
 		if (movelist->n_moves == get_mobility(search->board.player, search->board.opponent)) {
-			hash_store_data.data.depth = depth;
-			hash_store_data.data.selectivity = search->selectivity;
-			hash_store_data.data.cost = last_bit(search_count_nodes(search) - nodes_org);
+			hash_store_data.data.wl.c.depth = depth;
+			hash_store_data.data.wl.c.selectivity = search->selectivity;
+			hash_store_data.data.wl.c.cost = last_bit(search_count_nodes(search) - nodes_org);
+			hash_store_data.data.move[0] = node.bestmove;
 			hash_store_data.alpha = alpha;
 			hash_store_data.beta = beta;
 			hash_store_data.score = node.bestscore;
-			hash_store_data.move = node.bestmove;
 
 			hash_store(&search->hash_table, &search->board, hash_code, &hash_store_data);
 			if (search->options.guess_pv) hash_force(&search->pv_table, &search->board, hash_code, &hash_store_data);
@@ -598,8 +598,8 @@ static bool get_last_level(Search *search, int *depth, int *selectivity)
 			x = hash_data.move[0];
 		} else break;
 
-		d = hash_data.depth + i;
-		s = hash_data.selectivity;
+		d = hash_data.wl.c.depth + i;
+		s = hash_data.wl.c.selectivity;
 
 		if (d > *depth) *depth = d;
 		if (s > *selectivity) *selectivity = s;
@@ -691,15 +691,15 @@ void iterative_deepening(Search *search, int alpha, int beta)
 				hash_data.lower, hash_data.upper,
 				move_to_string(hash_data.move[0], search->player, s[0]),
 				move_to_string(hash_data.move[1], search->player, s[1]),
-				hash_data.depth, selectivity_table[hash_data.selectivity].percent,
-				hash_data.date, hash_data.cost);
+				hash_data.wl.c.depth, selectivity_table[hash_data.wl.c.selectivity].percent,
+				hash_data.wl.c.date, hash_data.wl.c.cost);
 		}
 		if (log_is_open(search_log)) {
 			log_print(search_log, "--- Next Search ---: ");
 			hash_print(&hash_data, search_log->f);
 		}
-		old_depth = hash_data.depth;
-		old_selectivity = hash_data.selectivity;
+		old_depth = hash_data.wl.c.depth;
+		old_selectivity = hash_data.wl.c.selectivity;
 
 		if (USE_PREVIOUS_SEARCH) {
 			if (hash_data.lower == hash_data.upper) {

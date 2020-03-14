@@ -3,7 +3,7 @@
  *
  * Hash table's header.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -21,10 +21,32 @@
 
 /** HashData : data stored in the hash table */
 typedef struct HashData {
-	unsigned char depth;      /*!< depth */
-	unsigned char selectivity;/*!< selectivity */
-	unsigned char cost;       /*!< search cost */
-	unsigned char date;       /*!< dating technique */
+	union {
+#ifdef __BIG_ENDIAN__
+		struct {
+			unsigned char date;       /*!< dating technique */
+			unsigned char cost;       /*!< search cost */
+			unsigned char selectivity;/*!< selectivity */
+			unsigned char depth;      /*!< depth */
+		} c;
+		struct {
+			unsigned short date_cost;
+			unsigned short selectivity_depth;
+		} us;
+#else
+		struct {
+			unsigned char depth;      /*!< depth */
+			unsigned char selectivity;/*!< selectivity */
+			unsigned char cost;       /*!< search cost */
+			unsigned char date;       /*!< dating technique */
+		} c;
+		struct {
+			unsigned short selectivity_depth;
+			unsigned short date_cost;
+		} us;
+#endif
+		unsigned int	ui;      /*!< as writable level */
+	} wl;
 	signed char lower;        /*!< lower bound of the position score */
 	signed char upper;        /*!< upper bound of the position score */
 	unsigned char move[2];    /*!< best moves */
@@ -61,7 +83,6 @@ typedef struct HashStoreData {
 	int alpha;
 	int beta;
 	int score;
-	unsigned char move;
 } HashStoreData;
 
 /* declaration */

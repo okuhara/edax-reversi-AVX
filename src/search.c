@@ -1196,7 +1196,7 @@ bool search_SC_NWS(Search *search, const int alpha, int *score)
  */
 bool search_TC_PVS(HashData *data, const int depth, const int selectivity, volatile int *alpha, volatile int *beta, int *score)
 {
-	if (USE_TC && (data->selectivity >= selectivity && data->depth >= depth)) {
+	if (USE_TC && (data->wl.c.selectivity >= selectivity && data->wl.c.depth >= depth)) {
 		CUTOFF_STATS(++statistics.n_hash_try;)
 		if (*alpha < data->lower) {
 			*alpha = data->lower;
@@ -1230,7 +1230,7 @@ bool search_TC_PVS(HashData *data, const int depth, const int selectivity, volat
  */
 bool search_TC_NWS(HashData *data, const int depth, const int selectivity, const int alpha, int *score)
 {
-	if (USE_TC && (data->selectivity >= selectivity && data->depth >= depth)) {
+	if (USE_TC && (data->wl.c.selectivity >= selectivity && data->wl.c.depth >= depth)) {
 		CUTOFF_STATS(++statistics.n_hash_try;)
 		if (alpha < data->lower) {
 			CUTOFF_STATS(++statistics.n_hash_high_cutoff;)
@@ -1275,9 +1275,9 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 		const int etc_depth = depth - 1;
 		const int beta = alpha + 1;
 
-		hash_store_data.data.depth = depth;
-		hash_store_data.data.selectivity = selectivity;
-		hash_store_data.data.cost = 0;
+		hash_store_data.data.wl.c.depth = depth;
+		hash_store_data.data.wl.c.selectivity = selectivity;
+		hash_store_data.data.wl.c.cost = 0;
 		hash_store_data.alpha = alpha;
 		hash_store_data.beta = beta;
 
@@ -1291,7 +1291,7 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 				*score = 2 * get_stability(next.opponent, next.player) - SCORE_MAX;
 				if (*score > alpha) {
 					hash_store_data.score = *score;
-					hash_store_data.move = move->x;
+					hash_store_data.data.move[0] = move->x;
 					hash_store(hash_table, &search->board, hash_code, &hash_store_data);
 					CUTOFF_STATS(++statistics.n_esc_high_cutoff;)
 					return true;
@@ -1299,11 +1299,11 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 			}
 
 			etc_hash_code = board_get_hash_code(&next);
-			if (USE_TC && hash_get(hash_table, &next, etc_hash_code, &etc) && etc.selectivity >= selectivity && etc.depth >= etc_depth) {
+			if (USE_TC && hash_get(hash_table, &next, etc_hash_code, &etc) && etc.wl.c.selectivity >= selectivity && etc.wl.c.depth >= etc_depth) {
 				*score = -etc.upper;
 				if (*score > alpha) {
 					hash_store_data.score = *score;
-					hash_store_data.move = move->x;
+					hash_store_data.data.move[0] = move->x;
 					hash_store(hash_table, &search->board, hash_code, &hash_store_data);
 					CUTOFF_STATS(++statistics.n_etc_high_cutoff;)
 					return true;
