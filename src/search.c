@@ -1268,11 +1268,18 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 		Move *move;
 		Board next;
 		HashData etc;
+		HashStoreData hash_store_data;
 		unsigned long long etc_hash_code;
 		HashTable *hash_table = &search->hash_table;
 		const int etc_depth = depth - 1;
 		const int beta = alpha + 1;
-	
+
+		hash_store_data.data.depth = depth;
+		hash_store_data.data.selectivity = selectivity;
+		hash_store_data.data.cost = 0;
+		hash_store_data.alpha = alpha;
+		hash_store_data.beta = beta;
+
 		CUTOFF_STATS(++statistics.n_etc_try;)
 		foreach_move (move, *movelist) {
 			next.opponent = search->board.player ^ (move->flipped | x_to_bit(move->x));
@@ -1282,7 +1289,9 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 			if (USE_SC && alpha <= -NWS_STABILITY_THRESHOLD[search->n_empties]) {
 				*score = 2 * get_stability(next.opponent, next.player) - SCORE_MAX;
 				if (*score > alpha) {
-					hash_store(hash_table, &search->board, hash_code, depth, selectivity, 0, alpha, beta, *score, move->x);
+					hash_store_data.score = *score;
+					hash_store_data.move = move->x;
+					hash_store(hash_table, &search->board, hash_code, &hash_store_data);
 					CUTOFF_STATS(++statistics.n_esc_high_cutoff;)
 					return true;
 				}
@@ -1292,7 +1301,9 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 			if (USE_TC && hash_get(hash_table, &next, etc_hash_code, &etc) && etc.selectivity >= selectivity && etc.depth >= etc_depth) {
 				*score = -etc.upper;
 				if (*score > alpha) {
-					hash_store(hash_table, &search->board, hash_code, depth, selectivity, 0, alpha, beta, *score, move->x);
+					hash_store_data.score = *score;
+					hash_store_data.move = move->x;
+					hash_store(hash_table, &search->board, hash_code, &hash_store_data);
 					CUTOFF_STATS(++statistics.n_etc_high_cutoff;)
 					return true;
 				}

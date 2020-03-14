@@ -54,6 +54,16 @@ typedef struct HashTable {
 	unsigned char date;           /*!< date */
 } HashTable;
 
+/** HashStoreData : data to store */
+typedef struct HashStoreData {
+	HashData data;
+	HASH_COLLISIONS(unsigned long long hash_code;)
+	int alpha;
+	int beta;
+	int score;
+	unsigned char move;
+} HashStoreData;
+
 /* declaration */
 void hash_code_init(void);
 void hash_move_init(void);
@@ -61,13 +71,13 @@ void hash_init(HashTable*, const unsigned long long);
 void hash_cleanup(HashTable*);
 void hash_clear(HashTable*);
 void hash_free(HashTable*);
-void hash_store(HashTable*, const Board*, const unsigned long long, const int, const int, const int, const int, const int, const int, const int);
-void hash_force(HashTable*, const Board*, const unsigned long long, const int, const int, const int, const int, const int, const int, const int);
+void hash_feed(HashTable*, const Board*, const unsigned long long, HashStoreData *);
+void hash_store(HashTable*, const Board*, const unsigned long long, HashStoreData *);
+void hash_force(HashTable*, const Board*, const unsigned long long, HashStoreData *);
 bool hash_get(HashTable*, const Board*, const unsigned long long, HashData *);
+void hash_exclude_move(HashTable*, const Board*, const unsigned long long, const int);
 void hash_copy(const HashTable*, HashTable*);
 void hash_print(const HashData*, FILE*);
-void hash_feed(HashTable*, const Board*, const unsigned long long, const int, const int, const int, const int, const int);
-void hash_exclude_move(HashTable*, const Board*, const unsigned long long, const int);
 extern unsigned int writeable_level(HashData *data);
 
 extern const HashData HASH_DATA_INIT;

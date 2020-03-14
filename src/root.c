@@ -329,14 +329,14 @@ int search_get_pv_cost(Search *search)
  */
 int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 {
+	unsigned long long hash_code;
 	HashData hash_data;
+	HashStoreData hash_store_data;
 	MoveList *const movelist = &search->movelist;
 	Move *move;
 	Node node;
 	Eval Ev0;
-	long long cost = -search_count_nodes(search);
-	int cost_bits;
-	unsigned long long hash_code;
+	long long nodes_org = search_count_nodes(search);
 	assert(alpha < beta);
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
 	assert(SCORE_MIN <= beta && beta <= SCORE_MAX);
@@ -425,11 +425,17 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 		record_best_move(search, &search->board, movelist_first(movelist), alpha, beta, depth);
 
 		if (movelist->n_moves == get_mobility(search->board.player, search->board.opponent)) {
-			cost += search_count_nodes(search);
-			cost_bits = last_bit(cost);
-			hash_store(&search->hash_table, &search->board, hash_code, depth, search->selectivity, cost_bits, alpha, beta, node.bestscore, node.bestmove);
-			if (search->options.guess_pv) hash_force(&search->pv_table, &search->board, hash_code, depth, search->selectivity, cost_bits, alpha, beta, node.bestscore, node.bestmove);
-			else hash_store(&search->pv_table, &search->board, hash_code, depth, search->selectivity, cost_bits, alpha, beta, node.bestscore, node.bestmove);
+			hash_store_data.data.depth = depth;
+			hash_store_data.data.selectivity = search->selectivity;
+			hash_store_data.data.cost = last_bit(search_count_nodes(search) - nodes_org);
+			hash_store_data.alpha = alpha;
+			hash_store_data.beta = beta;
+			hash_store_data.score = node.bestscore;
+			hash_store_data.move = node.bestmove;
+
+			hash_store(&search->hash_table, &search->board, hash_code, &hash_store_data);
+			if (search->options.guess_pv) hash_force(&search->pv_table, &search->board, hash_code, &hash_store_data);
+			else hash_store(&search->pv_table, &search->board, hash_code, &hash_store_data);
 		}
 
 		assert(SCORE_MIN <= node.bestscore && node.bestscore <= SCORE_MAX);
