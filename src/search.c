@@ -889,6 +889,7 @@ void search_get_movelist(const Search *search, MoveList *movelist)
 	assert(movelist->n_moves == get_mobility(board->player, board->opponent));
 }
 
+#if 0
 /**
  * @brief Update the search state after a move.
  *
@@ -917,6 +918,7 @@ void search_restore_endgame(Search *search, const Move *move)
 	board_restore(&search->board, move);
 	++search->n_empties;
 }
+#endif
 
 /**
  * @brief Update the search state after a passing move.
@@ -937,10 +939,16 @@ void search_pass_endgame(Search *search)
  * @param search  search.
  * @param move    played move.
  */
-void search_update_midgame(Search *search, const Move *move)
+static void search_update_midgame_tail(Search *search)
 {
 	static const NodeType next_node_type[] = {CUT_NODE, ALL_NODE, CUT_NODE};
 
+	++search->height;
+	search->node_type[search->height] = next_node_type[search->node_type[search->height - 1]];
+}
+
+void search_update_midgame(Search *search, const Move *move)
+{
 //	line_push(&debug_line, move->x);
 
 	search_swap_parity(search, move->x);
@@ -949,8 +957,7 @@ void search_update_midgame(Search *search, const Move *move)
 	eval_update(&search->eval, move);
 	assert(search->n_empties > 0);
 	--search->n_empties;
-	++search->height;
-	search->node_type[search->height] = next_node_type[search->node_type[search->height- 1]];
+	search_update_midgame_tail(search);
 }
 
 /**
@@ -983,12 +990,9 @@ void search_restore_midgame(Search *search, const Move *move, const Eval *eval_t
  */
 void search_update_pass_midgame(Search *search)
 {
-	static const NodeType next_node_type[] = {CUT_NODE, ALL_NODE, CUT_NODE};
-
 	board_pass(&search->board);
 	eval_pass(&search->eval);
-	++search->height;
-	search->node_type[search->height] = next_node_type[search->node_type[search->height- 1]];
+	search_update_midgame_tail(search);
 }
 
 /**

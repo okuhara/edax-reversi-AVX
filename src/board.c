@@ -11,7 +11,7 @@
  * some board properties. Most of the functions are optimized to be as fast as
  * possible, while remaining readable.
  *
- * @date 1998 - 2018
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.4
@@ -420,9 +420,9 @@ bool board_check_move(const Board *board, Move *move)
  */
 void board_update(Board *board, const Move *move)
 {
-	board->player ^= (move->flipped | x_to_bit(move->x));
-	board->opponent ^= move->flipped;
-	board_swap_players(board);
+	unsigned long long O = board->opponent;
+	board->opponent = board->player ^ (move->flipped | x_to_bit(move->x));
+	board->player = O ^ move->flipped;
 	board_check(board);
 }
 
@@ -437,9 +437,9 @@ void board_update(Board *board, const Move *move)
  */
 void board_restore(Board *board, const Move *move)
 {
-	board_swap_players(board);
-	board->player ^= (move->flipped | x_to_bit(move->x));
-	board->opponent ^= move->flipped;
+	unsigned long long P = board->player;
+	board->player = board->opponent ^ (move->flipped | x_to_bit(move->x));
+	board->opponent = P ^ move->flipped;
 	board_check(board);
 }
 #endif // hasMMX

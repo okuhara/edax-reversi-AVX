@@ -46,13 +46,5 @@ static inline void empty_restore(SquareList *empty)
 #define foreach_empty(empty, list)\
 	for ((empty) = (list)->next; (empty)->next; (empty) = (empty)->next)
 
-/** Loop over all empty squares on even quadrants */
-#define foreach_even_empty(empty, list, parity)\
-	for ((empty) = (list)->next; (empty)->next; (empty) = (empty)->next) if ((parity & empty->quadrant) == 0)
-
-/** Loop over all empty squares on odd quadrants */
-#define foreach_odd_empty(empty, list, parity)\
-	for ((empty) = (list)->next; (empty)->next; (empty) = (empty)->next) if (parity & empty->quadrant)
-
 #endif
 

@@ -160,8 +160,8 @@ void search_set_task_number(Search*, const int);
 
 void search_swap_parity(Search*, const int);
 void search_get_movelist(const Search*, MoveList*);
-void search_update_endgame(Search*, const Move*);
-void search_restore_endgame(Search*, const Move*);
+// void search_update_endgame(Search*, const Move*);
+// void search_restore_endgame(Search*, const Move*);
 void search_pass_endgame(Search*);
 void search_update_midgame(Search*, const Move*);
 void search_restore_midgame(Search*, const Move*, const Eval*);
@@ -191,8 +191,8 @@ extern int board_score_1(const Board*, const int, const int);
 int NWS_endgame(Search*, const int);
 
 int search_eval_0(Search*);
-int search_eval_1(Search*, const int, int);
-int search_eval_2(Search*, int, const int);
+int search_eval_1(Search*, const int, int, unsigned long long);
+int search_eval_2(Search*, int, const int, unsigned long long);
 int NWS_midgame(Search*, const int, int, struct Node*);
 int PVS_midgame(Search*, const int, const int, int, struct Node*);
 int NWS_shallow(Search*, const int, int, HashTable*);
