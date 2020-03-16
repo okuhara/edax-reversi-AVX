@@ -585,9 +585,9 @@ unsigned long long get_moves(const unsigned long long P, const unsigned long lon
 
 	#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 	if (hasSSE2)
-		return get_moves_sse((unsigned int) P, (unsigned int) (P >> 32), (unsigned int) O, (unsigned int) (O >> 32));
+		return get_moves_sse(P, O);
 	else if (hasMMX)
-		return get_moves_mmx((unsigned int) P, (unsigned int) (P >> 32), (unsigned int) O, (unsigned int) (O >> 32));
+		return get_moves_mmx(P, O);
 	#endif
 
 	OM = O & 0x7e7e7e7e7e7e7e7e;
@@ -950,7 +950,7 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 
 #if (defined(USE_GAS_MMX) && !(defined(__clang__) && (__clang__major__ < 3))) || defined(USE_MSVC_X86)
 	if (hasMMX)
-		return get_stability_mmx((unsigned int) P, (unsigned int) (P >> 32), (unsigned int) O, (unsigned int) (O >> 32));
+		return get_stability_mmx(P, O);
 #endif
 
 	disc = (P | O);
