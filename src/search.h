@@ -67,7 +67,6 @@ typedef struct Search {
 	Eval eval;                                    /**< eval */
 
 	SquareList empties[BOARD_SIZE + 2];           /**< list of empty squares */
-	int n_empties;                                /**< number of empty squares */
 	int player;                                   /**< player color */
 	int id;                                       /**< search id */
 

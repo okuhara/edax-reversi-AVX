@@ -319,7 +319,7 @@ void play_go(Play *play, const bool update)
 			if (search->options.separator) puts(search->options.separator);
 		}
 		search_set_board(search, &play->board, play->player);
-		search_set_level(search, options.level, search->n_empties);
+		search_set_level(search, options.level, search->eval.n_empties);
 		if (options.play_type == EDAX_TIME_PER_MOVE) search_set_move_time(search, options.time);
 		else search_set_game_time(search, play->time[play->player].left);
 
@@ -384,7 +384,7 @@ void play_hint(Play *play, int n)
 		if (search->options.separator) puts(search->options.separator);
 	}
 	search_set_board(search, &play->board, play->player);
-	search_set_level(search, options.level, search->n_empties);
+	search_set_level(search, options.level, search->eval.n_empties);
 	if (n > search->movelist.n_moves) n = search->movelist.n_moves;
 	info("<hint %d moves>\n", n);
 
@@ -467,7 +467,7 @@ void* play_ponder_run(void *v)
 			board_update(&board, &move);
 				play->ponder.board = board;
 				search_set_board(search, &board, player ^ 1);
-				search_set_level(search, options.level, search->n_empties);
+				search_set_level(search, options.level, search->eval.n_empties);
 				search_run(search);
 				if (options.info && play->state == IS_PONDERING) {
 					printf("[ponder after %s id.%d: ", move_to_string(move.x, player, m), search->id);
@@ -478,7 +478,7 @@ void* play_ponder_run(void *v)
 		} else {
 			play->ponder.board = board;
 			search_set_board(search, &board, player);
-			search_set_ponder_level(search, options.level, search->n_empties);
+			search_set_ponder_level(search, options.level, search->eval.n_empties);
 			log_print(xboard_log, "edax (ponder)> start search\n");
 			search_run(search);
 			log_print(xboard_log, "edax (ponder)> search ended\n");
@@ -726,7 +726,7 @@ static int play_alternative(Play *play, Move *played, Move *alternative, int *de
 		}
 	}
 	if (search->movelist.n_moves >= 1 || played->x == NOMOVE) {
-		search_set_level(search, options.level, search->n_empties);
+		search_set_level(search, options.level, search->eval.n_empties);
 		search->options.verbosity = 0;
 		search_run(search);
 		search->options.verbosity = options.verbosity;

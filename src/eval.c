@@ -16,6 +16,7 @@
 #include "options.h"
 #include "move.h"
 #include "util.h"
+#include "search.h"
 
 #include <stdlib.h>
 #include <assert.h>
@@ -199,14 +200,14 @@ static const int EVAL_MAX_VALUE[] = {
 
 /** feature symetry packing */
 typedef struct {
-	short EVAL_C10[2][59049];
-	short EVAL_S10[2][59049];
-	short EVAL_C9[2][19683];
-	short EVAL_S8[2][6561];
-	short EVAL_S7[2][2187];
-	short EVAL_S6[2][729];
-	short EVAL_S5[2][243];
-	short EVAL_S4[2][81];
+	short EVAL_C10[59049];
+	short EVAL_S10[59049];
+	short EVAL_C9[19683];
+	short EVAL_S8[6561];
+	short EVAL_S7[2187];
+	short EVAL_S6[729];
+	short EVAL_S5[243];
+	short EVAL_S4[81];
 } SymetryPacking;
 
 /** eval weight load status */
@@ -214,6 +215,9 @@ static int EVAL_LOADED = 0;
 
 /** eval weights */
 short (*EVAL_WEIGHT)[EVAL_N_PLY][EVAL_N_WEIGHT];
+
+/** opponent feature */
+static unsigned short *OPPONENT_FEATURE;
 
 /** evaluation function error coefficient parameters */
 static double EVAL_A, EVAL_B, EVAL_C, EVAL_a, EVAL_b, EVAL_c;
@@ -228,7 +232,7 @@ static double EVAL_A, EVAL_B, EVAL_C, EVAL_a, EVAL_b, EVAL_c;
  * @return updated opponent feature pointer
  */
 // #define OPPONENT(x)	((9 >> (x)) & 3)	// (0, 1, 2) to (1, 0, 2)
-static int *set_opponent_feature(int *p, int o, int d)
+static unsigned short *set_opponent_feature(unsigned short *p, int o, int d)
 {
 	if (--d) {
 		p = set_opponent_feature(p, (o + 1) * 3, d);
@@ -307,9 +311,9 @@ void eval_open(const char* file)
 	int ply, i, j, k;
 	int r;
 	FILE* f;
-	short *w;
-	int *O;
-	SymetryPacking *P;
+	short *w, *pe;
+	SymetryPacking (*P)[2];
+	SymetryPacking *pp;
 	static const int kd_S10[] = { 19683, 6561, 2187, 729, 243, 81, 27, 9, 3, 1 };
 	static const int kd_C10[] = { 19683, 6561, 2187, 729, 81, 243, 27, 9, 3, 1 };
 	static const int kd_C9[] = { 1, 9, 3, 81, 27, 243, 2187, 729, 6561 };
@@ -323,46 +327,45 @@ void eval_open(const char* file)
 	if (sizeof (short) != 2) fatal_error("short size is not compatible with Edax.\n");
 
 	// create unpacking tables
-	P = (SymetryPacking *) malloc(sizeof(*P));
+	OPPONENT_FEATURE = (unsigned short *) malloc(59049 * sizeof(*OPPONENT_FEATURE));
+	P = (SymetryPacking (*)[2]) malloc(2 * sizeof(*P));
 	T = (int *) malloc(2 * 59049 * sizeof(*T));
-	O = (int *) malloc(59049 * sizeof(*O));
-	if ((P == NULL) || (T == NULL) || (O == NULL))
+	if ((OPPONENT_FEATURE == NULL) || (P == NULL) || (T == NULL))
 		fatal_error("Cannot allocate temporary table variable.\n");
 
-	set_opponent_feature(O, 0, 10);
+	set_opponent_feature(OPPONENT_FEATURE, 0, 10);
 
-	set_eval_packing(P->EVAL_S8[0], T, kd_S10 + 2, 0, 0, 0, 8);	/* 8 squares : 6561 -> 3321 */
+	set_eval_packing((*P)[0].EVAL_S8, T, kd_S10 + 2, 0, 0, 0, 8);	/* 8 squares : 6561 -> 3321 */
 	for (j = 0; j < 6561; ++j)
-		P->EVAL_S8[1][j] = P->EVAL_S8[0][O[j + 26244]];
+		(*P)[1].EVAL_S8[j] = (*P)[0].EVAL_S8[OPPONENT_FEATURE[j + 26244]];
 
-	set_eval_packing(P->EVAL_S7[0], T, kd_S10 + 3, 0, 0, 0, 7);	/* 7 squares : 2187 -> 1134 */
+	set_eval_packing((*P)[0].EVAL_S7, T, kd_S10 + 3, 0, 0, 0, 7);	/* 7 squares : 2187 -> 1134 */
 	for (j = 0; j < 2187; ++j)
-		P->EVAL_S7[1][j] = P->EVAL_S7[0][O[j + 28431]];
+		(*P)[1].EVAL_S7[j] = (*P)[0].EVAL_S7[OPPONENT_FEATURE[j + 28431]];
 
-	set_eval_packing(P->EVAL_S6[0], T, kd_S10 + 4, 0, 0, 0, 6);	/* 6 squares : 729 -> 378 */
+	set_eval_packing((*P)[0].EVAL_S6, T, kd_S10 + 4, 0, 0, 0, 6);	/* 6 squares : 729 -> 378 */
 	for (j = 0; j < 729; ++j)
-		P->EVAL_S6[1][j] = P->EVAL_S6[0][O[j + 29160]];
+		(*P)[1].EVAL_S6[j] = (*P)[0].EVAL_S6[OPPONENT_FEATURE[j + 29160]];
 
-	set_eval_packing(P->EVAL_S5[0], T, kd_S10 + 5, 0, 0, 0, 5);	/* 5 squares : 243 -> 135 */
+	set_eval_packing((*P)[0].EVAL_S5, T, kd_S10 + 5, 0, 0, 0, 5);	/* 5 squares : 243 -> 135 */
 	for (j = 0; j < 243; ++j)
-		P->EVAL_S5[1][j] = P->EVAL_S5[0][O[j + 29403]];
+		(*P)[1].EVAL_S5[j] = (*P)[0].EVAL_S5[OPPONENT_FEATURE[j + 29403]];
 
-	set_eval_packing(P->EVAL_S4[0], T, kd_S10 + 6, 0, 0, 0, 4);	/* 4 squares : 81 -> 45 */
+	set_eval_packing((*P)[0].EVAL_S4, T, kd_S10 + 6, 0, 0, 0, 4);	/* 4 squares : 81 -> 45 */
 	for (j = 0; j < 81; ++j)
-		P->EVAL_S4[1][j] = P->EVAL_S4[0][O[j + 29484]];
+		(*P)[1].EVAL_S4[j] = (*P)[0].EVAL_S4[OPPONENT_FEATURE[j + 29484]];
 
-	set_eval_packing(P->EVAL_C9[0], T, kd_C9, 0, 0, 0, 9);	 	/* 9 corner squares : 19683 -> 10206 */
+	set_eval_packing((*P)[0].EVAL_C9, T, kd_C9, 0, 0, 0, 9);	 	/* 9 corner squares : 19683 -> 10206 */
 	for (j = 0; j < 19683; ++j)
-		P->EVAL_C9[1][j] = P->EVAL_C9[0][O[j + 19683]];
+		(*P)[1].EVAL_C9[j] = (*P)[0].EVAL_C9[OPPONENT_FEATURE[j + 19683]];
 
-	set_eval_packing(P->EVAL_S10[0], T, kd_S10, 0, 0, 0, 10);	/* 10 squares (edge + X) : 59049 -> 29646 */
-	set_eval_packing(P->EVAL_C10[0], T, kd_C10, 0, 0, 0, 10);	/* 10 squares (angle + X) : 59049 -> 29889 */
+	set_eval_packing((*P)[0].EVAL_S10, T, kd_S10, 0, 0, 0, 10);	/* 10 squares (edge + X) : 59049 -> 29646 */
+	set_eval_packing((*P)[0].EVAL_C10, T, kd_C10, 0, 0, 0, 10);	/* 10 squares (angle + X) : 59049 -> 29889 */
 	for (j = 0; j < 59049; ++j) {
-		P->EVAL_S10[1][j] = P->EVAL_S10[0][O[j]];
-		P->EVAL_C10[1][j] = P->EVAL_C10[0][O[j]];
+		(*P)[1].EVAL_S10[j] = (*P)[0].EVAL_S10[OPPONENT_FEATURE[j]];
+		(*P)[1].EVAL_C10[j] = (*P)[0].EVAL_C10[OPPONENT_FEATURE[j]];
 	}
 
-	free(O);
 	free(T);
 
 	// allocation
@@ -398,37 +401,39 @@ void eval_open(const char* file)
 		if (edax_header == XADE) for (i = 0; i < n_w; ++i) w[i] = bswap_short(w[i]);
 
 		for (j = 0; j <= 1; ++j) {
+			pe = EVAL_WEIGHT[j][ply];
+			pp = *P + j;
 			for (k = 0; k < EVAL_SIZE[0]; k++) {
-				EVAL_WEIGHT[j][ply][k] = w[P->EVAL_C9[j][k] + EVAL_PACKED_OFS[0]];
+				pe[k] = w[pp->EVAL_C9[k] + EVAL_PACKED_OFS[0]];
 			}
 			for (k = 0; k < EVAL_SIZE[1]; k++) {
-				EVAL_WEIGHT[j][ply][k + 19683] = w[P->EVAL_C10[j][k] + EVAL_PACKED_OFS[1]];
+				pe[k + 19683] = w[pp->EVAL_C10[k] + EVAL_PACKED_OFS[1]];
 			}
 			for (k = 0; k < EVAL_SIZE[2]; k++) {
-				i = P->EVAL_S10[j][k];
-				EVAL_WEIGHT[j][ply][k + 78732] = w[i + EVAL_PACKED_OFS[2]];
-				EVAL_WEIGHT[j][ply][k + 137781] = w[i + EVAL_PACKED_OFS[3]];
+				i = pp->EVAL_S10[k];
+				pe[k + 78732] = w[i + EVAL_PACKED_OFS[2]];
+				pe[k + 137781] = w[i + EVAL_PACKED_OFS[3]];
 			}
 			for (k = 0; k < EVAL_SIZE[4]; k++) {
-				i = P->EVAL_S8[j][k];
-				EVAL_WEIGHT[j][ply][k + 196830] = w[i + EVAL_PACKED_OFS[4]];
-				EVAL_WEIGHT[j][ply][k + 203391] = w[i + EVAL_PACKED_OFS[5]];
-				EVAL_WEIGHT[j][ply][k + 209952] = w[i + EVAL_PACKED_OFS[6]];
-				EVAL_WEIGHT[j][ply][k + 216513] = w[i + EVAL_PACKED_OFS[7]];
+				i = pp->EVAL_S8[k];
+				pe[k + 196830] = w[i + EVAL_PACKED_OFS[4]];
+				pe[k + 203391] = w[i + EVAL_PACKED_OFS[5]];
+				pe[k + 209952] = w[i + EVAL_PACKED_OFS[6]];
+				pe[k + 216513] = w[i + EVAL_PACKED_OFS[7]];
 			}
 			for (k = 0; k < EVAL_SIZE[8]; k++) {
-				EVAL_WEIGHT[j][ply][k + 223074] = w[P->EVAL_S7[j][k] + EVAL_PACKED_OFS[8]];
+				pe[k + 223074] = w[pp->EVAL_S7[k] + EVAL_PACKED_OFS[8]];
 			}
 			for (k = 0; k < EVAL_SIZE[9]; k++) {
-				EVAL_WEIGHT[j][ply][k + 225261] = w[P->EVAL_S6[j][k] + EVAL_PACKED_OFS[9]];
+				pe[k + 225261] = w[pp->EVAL_S6[k] + EVAL_PACKED_OFS[9]];
 			}
 			for (k = 0; k < EVAL_SIZE[10]; k++) {
-				EVAL_WEIGHT[j][ply][k + 225990] = w[P->EVAL_S5[j][k] + EVAL_PACKED_OFS[10]];
+				pe[k + 225990] = w[pp->EVAL_S5[k] + EVAL_PACKED_OFS[10]];
 			}
 			for (k = 0; k < EVAL_SIZE[11]; k++) {
-				EVAL_WEIGHT[j][ply][k + 226233] = w[P->EVAL_S4[j][k] + EVAL_PACKED_OFS[11]];
+				pe[k + 226233] = w[pp->EVAL_S4[k] + EVAL_PACKED_OFS[11]];
 			}
-			EVAL_WEIGHT[j][ply][226314] = w[EVAL_PACKED_OFS[12]];
+			pe[226314] = w[EVAL_PACKED_OFS[12]];
 		}
 	}
 
@@ -456,6 +461,7 @@ void eval_open(const char* file)
  */
 void eval_close(void)
 {
+	free(OPPONENT_FEATURE);
 	free(EVAL_WEIGHT);
 	EVAL_WEIGHT = NULL;
 }
@@ -479,21 +485,20 @@ void eval_swap(Eval *eval)
 /**
  * @brief Set up evaluation features from a board.
  *
- * @param eval  Evaluation function.
- * @param board Board to setup features from.
+ * @param search Evaluation function and Board to setup features from.
  */
-void eval_set(Eval *eval, const Board *board)
+void eval_set(Search *search)
 {
 	int i, j, c;
 
 	for (i = 0; i < EVAL_N_FEATURE; ++i) {
-		eval->feature.us[i] = 0;
+		search->eval.feature.us[i] = 0;
 		for (j = 0; j < EVAL_F2X[i].n_square; j++) {
-			c = board_get_square_color(board, EVAL_F2X[i].x[j]);
-			eval->feature.us[i] = eval->feature.us[i] * 3 + c;
+			c = board_get_square_color(&search->board, EVAL_F2X[i].x[j]);
+			search->eval.feature.us[i] = search->eval.feature.us[i] * 3 + c;
 		}
 	}
-	eval->player = 0;
+	search->eval.player = 0;
 }
 
 /**

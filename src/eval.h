@@ -31,9 +31,11 @@ typedef struct Eval {
 #endif
 	} feature;
 	int player;
+	int n_empties;                                /**< number of empty squares */
 	unsigned int parity;                          /**< parity */
 } Eval;
 
+struct Search;
 struct Board;
 struct Move;
 
@@ -52,7 +54,7 @@ void eval_close(void);
 // void eval_init(Eval*);
 // void eval_free(Eval*);
 void eval_swap(Eval*);
-void eval_set(Eval*, const struct Board*);
+void eval_set(struct Search*);
 void eval_update(Eval*, const struct Move*);
 void eval_update_leaf(Eval*, const Eval*, const struct Move*);
 void eval_restore(Eval*, const struct Move*);

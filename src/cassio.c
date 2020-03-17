@@ -323,14 +323,14 @@ static int engine_open(Search *search, const Board *board, const int player, con
 
 	// set level
 	search->depth = depth;
-	if (options.transgress_cassio && (search->n_empties & 1) != (depth & 1)) ++search->depth;
-	if (options.transgress_cassio && search->depth > search->n_empties - 10) search->depth = search->n_empties;
+	if (options.transgress_cassio && (search->eval.n_empties & 1) != (depth & 1)) ++search->depth;
+	if (options.transgress_cassio && search->depth > search->eval.n_empties - 10) search->depth = search->eval.n_empties;
 	search->options.depth = search->depth;
 
-	BOUND(search->depth, 0, search->n_empties, "depth");
-	search->depth_pv_extension = get_pv_extension(search->depth, search->n_empties);
+	BOUND(search->depth, 0, search->eval.n_empties, "depth");
+	search->depth_pv_extension = get_pv_extension(search->depth, search->eval.n_empties);
 
-	if (options.transgress_cassio && depth < search->n_empties) k = 0;
+	if (options.transgress_cassio && depth < search->eval.n_empties) k = 0;
 	else if (precision <= 73) k = 0;
 	else if (precision <= 87) k = 1;
 	else if (precision <= 95) k = 2;

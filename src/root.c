@@ -127,7 +127,7 @@ static int guess_move(Search *search, Board *board)
 
 	search->board = *board; search_setup(search);
 
-	PVS_shallow(search, SCORE_MIN, SCORE_MAX, MIN(search->n_empties, 6));
+	PVS_shallow(search, SCORE_MIN, SCORE_MAX, MIN(search->eval.n_empties, 6));
 	hash_get(&search->shallow_table, board, board_get_hash_code(board), &hash_data);
 
 	search->board = saved; search_setup(search);
@@ -187,7 +187,7 @@ void record_best_move(Search *search, const Board *init_board, const Move *bestm
 	line_init(&result->pv, search->player);
 	x = bestmove->x;
 
-	guess_pv = (search->options.guess_pv && depth == search->n_empties && (bestmove->score <= alpha || bestmove->score >= beta));
+	guess_pv = (search->options.guess_pv && depth == search->eval.n_empties && (bestmove->score <= alpha || bestmove->score >= beta));
 	fail_low = (bestmove->score <= alpha);
 
 	while (x != NOMOVE) {
@@ -274,9 +274,9 @@ static int search_route_PVS(Search *search, int alpha, int beta, const int depth
 	assert(alpha < beta);
 	assert(SCORE_MIN <= alpha);
 	assert(beta <= SCORE_MAX);
-	assert(depth >= 0 && depth <= search->n_empties);
+	assert(depth >= 0 && depth <= search->eval.n_empties);
 
-	if (depth == search->n_empties) {
+	if (depth == search->eval.n_empties) {
 		if (depth == 0) score = search_solve_0(search);
 		else score = PVS_midgame(search, alpha, beta, depth, node);
 	} else {
@@ -340,7 +340,7 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 	assert(alpha < beta);
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
 	assert(SCORE_MIN <= beta && beta <= SCORE_MAX);
-	assert(depth > 0 && depth <= search->n_empties);
+	assert(depth > 0 && depth <= search->eval.n_empties);
 
 	search->probcut_level = 0;
 	search->result->n_moves_left = search->result->n_moves;
@@ -470,11 +470,11 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
 	assert(SCORE_MIN <= beta && beta <= SCORE_MAX);
 	assert(SCORE_MIN <= score && score <= SCORE_MAX);
-	assert(depth >= 0 && depth <= search->n_empties);
+	assert(depth >= 0 && depth <= search->eval.n_empties);
 
 	log_print(xboard_log, "edax (search)> search [%d, %d] %d (%d)\n", alpha, beta, depth, score);
 
-	if (is_depth_solving(depth, search->n_empties)) {
+	if (is_depth_solving(depth, search->eval.n_empties)) {
 		if (alpha & 1) --alpha;
 		if (beta & 1) ++beta;
 	}
@@ -500,7 +500,7 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 	}
 
 	width = 10 - depth; if (width < 1) width = 1;
-	if ((width & 1) && depth == search->n_empties) ++width;
+	if ((width & 1) && depth == search->eval.n_empties) ++width;
 	
 	for (i = 0; i < 10; ++i) {
 		old_score = score;
@@ -536,7 +536,7 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 		if (search->stop) break;
 
 		// check PV if alpha < score < beta
-		if (is_depth_solving(depth, search->n_empties)
+		if (is_depth_solving(depth, search->eval.n_empties)
 		&& ((alpha < score && score < beta) || (score == alpha && score == options.alpha) || (score == beta && score == options.beta))
 		&& !is_pv_ok(search, search->result->move, depth)) {
 			log_print(search_log, "*** WRONG PV => re-research id %d ***\n", search->id);
@@ -553,7 +553,7 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 			}
 			continue;
 		}
-		if (is_depth_solving(depth, search->n_empties) && (score & 1)) {
+		if (is_depth_solving(depth, search->eval.n_empties) && (score & 1)) {
 			log_print(search_log, "*** UNEXPECTED ODD SCORE (score=%+d) => re-research id %d ***\n", score, search->id);			
 			cassio_debug("wrong odd score => re-research.\n");
 			continue;
@@ -654,7 +654,7 @@ void iterative_deepening(Search *search, int alpha, int beta)
 	if (movelist_is_empty(movelist) && !can_move(search->board.opponent, search->board.player)) {
 		result->move = NOMOVE;
 		result->score = search_solve(search);
-		result->depth = search->n_empties;
+		result->depth = search->eval.n_empties;
 		result->selectivity = NO_SELECTIVITY;
 		result->time = search_time(search);
 		result->n_nodes = search_count_nodes(search);
@@ -665,9 +665,9 @@ void iterative_deepening(Search *search, int alpha, int beta)
 
 	score = search_bound(search, search_eval_0(search));
 	end = search->options.depth;
-	if (end >= search->n_empties) {
-		end = search->n_empties - ITERATIVE_MIN_EMPTIES + 2;
-		if (end <= 0) end = 2 - (search->n_empties & 1);
+	if (end >= search->eval.n_empties) {
+		end = search->eval.n_empties - ITERATIVE_MIN_EMPTIES + 2;
+		if (end <= 0) end = 2 - (search->eval.n_empties & 1);
 	}
 	start = 6 - (end & 1);
 	if (start > end - 2) start = end - 2;
@@ -722,8 +722,8 @@ void iterative_deepening(Search *search, int alpha, int beta)
 	if (search->selectivity > search->options.selectivity) search->selectivity = search->options.selectivity;
 
 	if (start > search->options.depth) start = search->options.depth;
-	if (start > search->n_empties) start = search->n_empties;
-	if (start < search->n_empties) {
+	if (start > search->eval.n_empties) start = search->eval.n_empties;
+	if (start < search->eval.n_empties) {
 		if ((start & 1) != (end & 1)) ++start;
 		if (start <= 0) start = 2 - (end & 1);
 		if (start > end) start = end;
@@ -771,21 +771,21 @@ void iterative_deepening(Search *search, int alpha, int beta)
 
 	// midgame : iterative depth
 	for (search->depth = start; search->depth < end; search->depth += 2) {
-		search->depth_pv_extension = get_pv_extension(search->depth, search->n_empties);
+		search->depth_pv_extension = get_pv_extension(search->depth, search->eval.n_empties);
 		score = aspiration_search(search, alpha, beta, search->depth, score);
 		if (!search_continue(search)) return;
-		if (abs(score) >= SCORE_MAX - 1 && search->depth > end - ITERATIVE_MIN_EMPTIES && search->options.depth >= search->n_empties) break;
+		if (abs(score) >= SCORE_MAX - 1 && search->depth > end - ITERATIVE_MIN_EMPTIES && search->options.depth >= search->eval.n_empties) break;
 	}
 	search->depth = end;
 
 	// switch to endgame
-	if (search->options.depth >= search->n_empties) search->depth = search->n_empties;
+	if (search->options.depth >= search->eval.n_empties) search->depth = search->eval.n_empties;
 
 	// iterative selectivity
 	t = (search->options.time - search_time(search));
 	has_time = (solvable_depth(t / 10, search_count_tasks(search)) > search->depth);
 	for (; search->selectivity <= search->options.selectivity; ++search->selectivity) {
-		if (search->depth == search->n_empties && 
+		if (search->depth == search->eval.n_empties && 
 		(  (search->depth < 21 && search->selectivity >= 1)
 		|| (search->depth < 24 && search->selectivity >= 2)
 		|| (search->depth < 27 && search->selectivity >= 3)
@@ -833,7 +833,7 @@ void* search_run(void *v)
 	}
 	search->height = 0;
 	search->node_type[search->height] = PV_NODE;
-	search->depth_pv_extension = get_pv_extension(0, search->n_empties);
+	search->depth_pv_extension = get_pv_extension(0, search->eval.n_empties);
 	search->stability_bound.upper = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player);
 	search->stability_bound.lower = 2 * get_stability(search->board.player, search->board.opponent) - SCORE_MAX;
 	search->result->score = search_bound(search, search_eval_0(search));

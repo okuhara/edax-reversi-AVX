@@ -702,7 +702,7 @@ static void position_search(Position *position, Book *book)
 
 	if (position->n_link < n_moves || (position->n_link == 0 && n_moves == 0 && position->score.value == -SCORE_INF)) {
 		search_set_board(search, &position->board, BLACK);
-		search_set_level(search, position->level, search->n_empties);
+		search_set_level(search, position->level, search->eval.n_empties);
 
 		foreach_link (l, position) {
 			movelist_exclude(&search->movelist, l->move);

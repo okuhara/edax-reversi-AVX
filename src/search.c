@@ -483,7 +483,7 @@ void search_setup(Search *search)
 	unsigned long long E;
 
 	// init empties, parity
-	search->n_empties = 0;
+	search->eval.n_empties = 0;
 	search->eval.parity = 0;
 
 	prev = NOMOVE;
@@ -495,7 +495,7 @@ void search_setup(Search *search)
 			search->empties[prev].next = x;
 			search->empties[x].previous = prev;
 			prev = x;
-			++search->n_empties;
+			++search->eval.n_empties;
 		}
 	}
 	search->empties[prev].next = NOMOVE;	/* sentinel */
@@ -505,7 +505,7 @@ void search_setup(Search *search)
 	search->empties[PASS].previous = NOMOVE;
 
 	// init the evaluation function
-	eval_set(&search->eval, board);
+	eval_set(search);
 }
 
 /**
@@ -684,7 +684,7 @@ void search_time_init(Search *search)
 	} else {
 		long long t = search->options.time;
 		const int sd = solvable_depth(t / 10, search_count_tasks(search)); // depth solvable with 10% of the time
-		const int d = MAX((search->n_empties - sd) / 2, 2); // unsolvable ply to play
+		const int d = MAX((search->eval.n_empties - sd) / 2, 2); // unsolvable ply to play
 		t = MAX(t / d - 10, 100); // keep 0.25 s./remaining move, make at least 1s. available
 		search->time.extra = t;
 		search->time.maxi = t * 3 / 4;
@@ -880,7 +880,7 @@ void search_update_endgame(Search *search, const Move *move)
 	search_swap_parity(search, move->x);
 	empty_remove(search->empties, move->x);
 	board_update(&search->board, move);
-	--search->n_empties;
+	--search->eval.n_empties;
 
 }
 
@@ -895,7 +895,7 @@ void search_restore_endgame(Search *search, const Move *move)
 	search_swap_parity(search, move->x);
 	empty_restore(search->empties, move->x);
 	board_restore(&search->board, move);
-	++search->n_empties;
+	++search->eval.n_empties;
 }
 #endif
 
@@ -934,8 +934,8 @@ void search_update_midgame(Search *search, const Move *move)
 	empty_remove(search->empties, move->x);
 	board_update(&search->board, move);
 	eval_update(&search->eval, move);
-	assert(search->n_empties > 0);
-	--search->n_empties;
+	assert(search->eval.n_empties > 0);
+	--search->eval.n_empties;
 	search_update_midgame_tail(search);
 }
 
@@ -957,7 +957,7 @@ void search_restore_midgame(Search *search, const Move *move, const Eval *eval_t
 	// eval_restore(search->eval, move);
 	search->eval.feature = eval_to_restore->feature;
 	eval_swap(&search->eval);
-	++search->n_empties;
+	++search->eval.n_empties;
 	assert(search->height > 0);
 	--search->height;
 }
@@ -1131,7 +1131,7 @@ bool search_SC_PVS(Search *search, volatile int *alpha, volatile int *beta, int 
 {
 	const Board * const board = &search->board;
 
-	if (USE_SC && *beta >= PVS_STABILITY_THRESHOLD[search->n_empties]) {
+	if (USE_SC && *beta >= PVS_STABILITY_THRESHOLD[search->eval.n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
 		*score = SCORE_MAX - 2 * get_stability(board->opponent, board->player);
 		if (*score <= *alpha) {
@@ -1155,7 +1155,7 @@ bool search_SC_NWS(Search *search, const int alpha, int *score)
 {
 	const Board * const board = &search->board;
 
-	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->n_empties]) {
+	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
 		*score = SCORE_MAX - 2 * get_stability(board->opponent, board->player);
 		if (*score <= alpha) {
@@ -1270,7 +1270,7 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 			next.player = search->board.opponent ^ move->flipped;
 			SEARCH_UPDATE_ALL_NODES(search->n_nodes);
 
-			if (USE_SC && alpha <= -NWS_STABILITY_THRESHOLD[search->n_empties]) {
+			if (USE_SC && alpha <= -NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {
 				*score = 2 * get_stability(next.opponent, next.player) - SCORE_MAX;
 				if (*score > alpha) {
 					hash_store_data.score = *score;

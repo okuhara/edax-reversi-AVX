@@ -1572,9 +1572,9 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
 			stack[n_move].best = MOVE_INIT;
 			line_init(&stack[n_move].pv, player);
 			search_set_board(search, &board, player);
-			search_set_level(search, 60, search->n_empties);
-			stack[n_move].n_empties = search->n_empties;
-			if (search->movelist.n_moves > 1 && search->n_empties <= n_empties) {
+			search_set_level(search, 60, search->eval.n_empties);
+			stack[n_move].n_empties = search->eval.n_empties;
+			if (search->movelist.n_moves > 1 && search->eval.n_empties <= n_empties) {
 				movelist_exclude(&search->movelist, game->move[i]);
 				search_run(search);
 				stack[n_move].best = *(movelist_first(&search->movelist));
@@ -1594,8 +1594,8 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
 	}
 
 	search_set_board(search, &board, player);
-	if (search->n_empties <= n_empties) {
-		search_set_level(search, 60, search->n_empties);
+	if (search->eval.n_empties <= n_empties) {
+		search_set_level(search, 60, search->eval.n_empties);
 		search_run(search);
 		score = search->result->score;
 		
@@ -1661,7 +1661,7 @@ int game_complete(Game *game, Search *search)
 
 		search_set_board(search, &board, player);
 		search_run(search);
-		if (search->result->depth == search->n_empties && search->result->selectivity == NO_SELECTIVITY) {
+		if (search->result->depth == search->eval.n_empties && search->result->selectivity == NO_SELECTIVITY) {
 			game_append_line(game, &search->result->pv, i);
 		} else {
 			game->move[i] = search->result->move;

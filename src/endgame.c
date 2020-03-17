@@ -71,7 +71,7 @@ static int board_solve(const Board *board, const int n_empties)
  */
 int search_solve(const Search *search)
 {
-	return board_solve(&search->board, search->n_empties);
+	return board_solve(&search->board, search->eval.n_empties);
 }
 
 /**
@@ -382,7 +382,7 @@ static int search_shallow(Search *search, const int alpha)
 	unsigned int parity0, paritymask;
 
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
-	assert(0 <= search->n_empties && search->n_empties <= DEPTH_TO_SHALLOW_SEARCH);
+	assert(0 <= search->eval.n_empties && search->eval.n_empties <= DEPTH_TO_SHALLOW_SEARCH);
 
 	SEARCH_STATS(++statistics.n_NWS_shallow);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
@@ -400,15 +400,15 @@ static int search_shallow(Search *search, const int alpha)
 						search_swap_parity(search, x);
 						empty_remove(search->empties, x);
 						board_update(&search->board, &move);
-						--search->n_empties;
+						--search->eval.n_empties;
 
-						if (search->n_empties == 4) score = -search_solve_4(search, -(alpha + 1));
+						if (search->eval.n_empties == 4) score = -search_solve_4(search, -(alpha + 1));
 						else score = -search_shallow(search, -(alpha + 1));
 
 						search->eval.parity = parity0;
 						empty_restore(search->empties, x);
 						search->board = board0;
-						++search->n_empties;
+						++search->eval.n_empties;
 
 						if (score > alpha) return score;
 						else if (score > bestscore) bestscore = score;
@@ -461,12 +461,12 @@ int NWS_endgame(Search *search, const int alpha)
 
 	if (search->stop) return alpha;
 
-	assert(search->n_empties == bit_count(~(search->board.player|search->board.opponent)));
+	assert(search->eval.n_empties == bit_count(~(search->board.player|search->board.opponent)));
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
 
 	SEARCH_STATS(++statistics.n_NWS_endgame);
 
-	if (search->n_empties <= DEPTH_TO_SHALLOW_SEARCH) return search_shallow(search, alpha);
+	if (search->eval.n_empties <= DEPTH_TO_SHALLOW_SEARCH) return search_shallow(search, alpha);
 
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
@@ -475,7 +475,7 @@ int NWS_endgame(Search *search, const int alpha)
 
 	// transposition cutoff
 	hash_code = board_get_hash_code(&search->board);
-	if (hash_get(hash_table, &search->board, hash_code, &hash_data) && search_TC_NWS(&hash_data, search->n_empties, NO_SELECTIVITY, alpha, &score)) return score;
+	if (hash_get(hash_table, &search->board, hash_code, &hash_data) && search_TC_NWS(&hash_data, search->eval.n_empties, NO_SELECTIVITY, alpha, &score)) return score;
 
 	search_get_movelist(search, &movelist);
 
@@ -505,14 +505,14 @@ int NWS_endgame(Search *search, const int alpha)
 			search_swap_parity(search, move->x);
 			empty_remove(search->empties, move->x);
 			board_update(&search->board, move);
-			--search->n_empties;
+			--search->eval.n_empties;
 
 			move->score = -NWS_endgame(search, -(alpha + 1));
 
 			search->eval.parity = parity0;
 			empty_restore(search->empties, move->x);
 			search->board = board0;
-			++search->n_empties;
+			++search->eval.n_empties;
 
 			if (move->score > bestmove->score) {
 				bestmove = move;
@@ -522,7 +522,7 @@ int NWS_endgame(Search *search, const int alpha)
 	}
 
 	if (!search->stop) {
-		hash_store_data.data.wl.c.depth = search->n_empties;
+		hash_store_data.data.wl.c.depth = search->eval.n_empties;
 		hash_store_data.data.wl.c.selectivity = NO_SELECTIVITY;
 		hash_store_data.data.wl.c.cost = last_bit(search->n_nodes - nodes_org);
 		hash_store_data.data.move[0] = bestmove->x;
@@ -533,8 +533,8 @@ int NWS_endgame(Search *search, const int alpha)
 
 		if (SQUARE_STATS(1) + 0) {
 			foreach_move(move, movelist)
-				++statistics.n_played_square[search->n_empties][SQUARE_TYPE[move->x]];
-			if (bestmove->score > alpha) ++statistics.n_good_square[search->n_empties][SQUARE_TYPE[bestmove->score]];
+				++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];
+			if (bestmove->score > alpha) ++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[bestmove->score]];
 		}
 	 	assert(SCORE_MIN <= bestmove->score && bestmove->score <= SCORE_MAX);
 	 	assert((bestmove->score & 1) == 0);
