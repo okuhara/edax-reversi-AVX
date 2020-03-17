@@ -31,7 +31,7 @@
  */
 int search_eval_0(Search *search)
 {
-	const short *w = EVAL_WEIGHT[search->eval.player][60 - search->eval.n_empties];
+	const short *w = (*EVAL_WEIGHT)[60 - search->eval.n_empties];
 	unsigned short int *f = search->eval.feature.us;
 	int score;
 
@@ -83,7 +83,7 @@ int search_eval_1(Search *search, const int alpha, int beta, unsigned long long 
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	if (moves) {
-		w = EVAL_WEIGHT[search->eval.player ^ 1][61 - search->eval.n_empties];
+		w = (*EVAL_WEIGHT)[61 - search->eval.n_empties];
 		bestscore = -SCORE_INF;
 		if (beta >= SCORE_MAX) beta = SCORE_MAX - 1;
 		foreach_empty (x, search->empties) {
@@ -161,10 +161,8 @@ int search_eval_2(Search *search, int alpha, const int beta, unsigned long long 
 	if (moves) {
 		bestscore = -SCORE_INF;
 		Ev0.feature = search->eval.feature;
-		Ev0.player = search->eval.player;
-		eval_swap(&search->eval);
+		Ev0.n_empties = search->eval.n_empties--;
 		board0 = search->board;
-		--search->eval.n_empties;
 
 		foreach_empty(x, search->empties) {
 			if (moves & x_to_bit(x)) {
@@ -183,7 +181,6 @@ int search_eval_2(Search *search, int alpha, const int beta, unsigned long long 
 			}
 		}
 		search->eval.feature = Ev0.feature;
-		search->eval.player = Ev0.player;
 		search->board = board0;
 		++search->eval.n_empties;
 

@@ -505,7 +505,7 @@ void search_setup(Search *search)
 	search->empties[PASS].previous = NOMOVE;
 
 	// init the evaluation function
-	eval_set(search);
+	eval_set(&search->eval, &search->board);
 }
 
 /**
@@ -954,10 +954,9 @@ void search_restore_midgame(Search *search, const Move *move, const Eval *eval_t
 	search_swap_parity(search, move->x);
 	empty_restore(search->empties, move->x);
 	board_restore(&search->board, move);
+	++search->eval.n_empties;
 	// eval_restore(search->eval, move);
 	search->eval.feature = eval_to_restore->feature;
-	eval_swap(&search->eval);
-	++search->eval.n_empties;
 	assert(search->height > 0);
 	--search->height;
 }
