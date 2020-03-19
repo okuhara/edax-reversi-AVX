@@ -100,7 +100,8 @@ void hash_init(HashTable *hash_table, const unsigned long long size)
 	}
 
 	if (HASH_ALIGNED) {
-		const size_t alignment = n_way * sizeof (Hash) - 1;
+		size_t alignment = n_way * sizeof (Hash);
+		alignment = (alignment & -alignment) - 1;	// LS1B - 1
 		hash_table->hash = (Hash*) (((size_t) hash_table->memory + alignment) & ~alignment);
 		hash_table->hash_mask = size - n_way;
 	} else {
