@@ -798,7 +798,7 @@ void edge_stability_init(void)
 		} else {
 			rPO = horizontal_mirror_32(PO);
 			if (PO > rPO)
-				edge_stability[PO] = horizontal_mirror_32(edge_stability[rPO]);
+				edge_stability[PO] = mirror_byte(edge_stability[rPO]);
 			else
 				edge_stability[PO] = find_edge_stable(P, O, P);
 		}

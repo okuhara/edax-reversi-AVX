@@ -25,6 +25,13 @@ unsigned int horizontal_mirror_32(unsigned int b);
 unsigned long long horizontal_mirror(unsigned long long);
 int get_rand_bit(unsigned long long, struct Random*);
 
+// http://graphics.stanford.edu/~seander/bithacks.html
+#ifdef HAS_CPU_64
+#define mirror_byte(b)	(unsigned char)((((b) * 0x80200802ULL) & 0x0884422110ULL) * 0x0101010101ULL >> 32)
+#else
+static inline unsigned char mirror_byte(unsigned int b) { return ((((b * 0x200802) & 0x4422110) + ((b << 7) & 0x880)) * 0x01010101 >> 24); }
+#endif
+
 #ifndef __has_builtin
 	#define __has_builtin(x) 0  // Compatibility with non-clang compilers.
 #endif
