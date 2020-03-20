@@ -142,45 +142,45 @@ static int board_solve_2(Board *board, int alpha, const int x1, const int x2, vo
 	// const int beta = alpha + 1;
 
 	SEARCH_STATS(++statistics.n_board_solve_2);
-	nodes = 0;
-	SEARCH_UPDATE_INTERNAL_NODES(nodes);
 
-	bestscore = -SCORE_INF;
 	if ((NEIGHBOUR[x1] & board->opponent) && board_next(board, x1, &next)) {
-		SEARCH_UPDATE_INTERNAL_NODES(nodes);
 		bestscore = board_score_1(&next, alpha + 1, x2);
-	}
+		nodes = 2;
 
-	if (bestscore <= alpha) {
-		if ((NEIGHBOUR[x2] & board->opponent) && board_next(board, x2, &next)) {
-			SEARCH_UPDATE_INTERNAL_NODES(nodes);
+		if ((bestscore <= alpha) && (NEIGHBOUR[x2] & board->opponent) && board_next(board, x2, &next)) {
 			score = board_score_1(&next, alpha + 1, x1);
 			if (score > bestscore) bestscore = score;
+			nodes = 3;
 		}
 
-		// pass
-		if (bestscore == -SCORE_INF) {
-			bestscore = SCORE_INF;
-			if ((NEIGHBOUR[x1] & board->player) && board_pass_next(board, x1, &next)) {
-				SEARCH_UPDATE_INTERNAL_NODES(nodes);
-				bestscore = -board_score_1(&next, -alpha, x2);
+	} else if ((NEIGHBOUR[x2] & board->opponent) && board_next(board, x2, &next)) {
+		bestscore = board_score_1(&next, alpha + 1, x1);
+		nodes = 2;
+
+	} else {	// pass
+		if ((NEIGHBOUR[x1] & board->player) && board_pass_next(board, x1, &next)) {
+			bestscore = -board_score_1(&next, -alpha, x2);
+			nodes = 2;
+
+			if ((bestscore > alpha) && (NEIGHBOUR[x2] & board->player) && board_pass_next(board, x2, &next)) {
+				score = -board_score_1(&next, -alpha, x1);
+				if (score < bestscore) bestscore = score;
+				nodes = 3;
 			}
 
-			if (bestscore > alpha) {
-				if ((NEIGHBOUR[x2] & board->player) && board_pass_next(board, x2, &next)) {
-					SEARCH_UPDATE_INTERNAL_NODES(nodes);
-					score = -board_score_1(&next, -alpha, x1);
-					if (score < bestscore) bestscore = score;
-				}
-				// gameover
-				if (bestscore == SCORE_INF) bestscore = board_solve(board, 2);
-			}
+		} else if ((NEIGHBOUR[x2] & board->player) && board_pass_next(board, x2, &next)) {
+			bestscore = -board_score_1(&next, -alpha, x1);
+			nodes = 2;
+
+		} else {	// gameover
+			bestscore = board_solve(board, 2);
+			nodes = 1;
 		}
 	}
 
-	*n_nodes += nodes;
- 	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
- 	assert((bestscore & 1) == 0);
+	SEARCH_UPDATE_2EMPTIES_NODES(*n_nodes += nodes;)
+	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
+	assert((bestscore & 1) == 0);
 	return bestscore;
 }
 
@@ -233,7 +233,7 @@ static int search_solve_3(Search *search, const int alpha, Board *board, unsigne
 	}
 
 	// pass ?
-	if (bestscore == -SCORE_INF) {
+	else if (bestscore == -SCORE_INF) {
 		// best move alphabeta search
 		bestscore = SCORE_INF;
 		if ((NEIGHBOUR[x1] & board->player) && board_pass_next(board, x1, &next)) {
@@ -252,8 +252,8 @@ static int search_solve_3(Search *search, const int alpha, Board *board, unsigne
 			if (score < bestscore) bestscore = score;
 		}
 
-		// gameover
-		if (bestscore == SCORE_INF) bestscore = board_solve(board, 3);
+		else if (bestscore == SCORE_INF)	// gameover
+			bestscore = board_solve(board, 3);
 	}
 
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
@@ -345,8 +345,7 @@ static int search_solve_4(Search *search, const int alpha)
 		if (score > bestscore) bestscore = score;
 	}
 
-	// no move
-	if (bestscore == -SCORE_INF) {
+	else if (bestscore == -SCORE_INF) {	// no move
 		if (can_move(search->board.opponent, search->board.player)) { // pass
 			search_pass_endgame(search);
 			bestscore = -search_solve_4(search, -(alpha + 1));
