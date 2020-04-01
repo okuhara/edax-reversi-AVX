@@ -388,8 +388,8 @@ void board_rand(Board *board, int n_ply, Random *r)
  */
 unsigned long long board_get_move(const Board *board, const int x, Move *move)
 {
-	move->flipped = board_flip(board, x);
 	move->x = x;
+	move->flipped = board_flip(board, x);
 	return move->flipped;
 }
 
