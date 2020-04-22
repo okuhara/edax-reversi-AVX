@@ -37,11 +37,13 @@
  * If the OUTFLANK search is in MSB to LSB direction, CONTIG_X tables
  * are used to determine coutiguous opponent discs.
  *
- * @date 1998 - 2018
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.4
  */
+
+#include "bit.h"
 
 /** outflank array (indexed with inner 6 bits) */
 /* static const unsigned char OUTFLANK_0[64] = {
@@ -372,7 +374,13 @@ static const unsigned long long  FLIPPED_5_U[137] = {
 /*
  * Set all bits below the sole outflank bit if outfrank != 0
  */
-#if defined(_M_X64) && (_MSC_VER >= 1800)
+#if __has_builtin(__builtin_subcll)
+static inline unsigned long long OutflankToFlipmask(unsigned long long outflank) {
+	unsigned long long flipmask, cy;
+	flipmask = __builtin_subcll(outflank, 1, 0, &cy);
+	return __builtin_addcll(flipmask, 0, cy, &cy);
+}
+#elif (defined(_M_X64) && (_MSC_VER >= 1800)) || (defined(__x86_64__) && defined(__GNUC__) && (__GNUC__ > 7 || (__GNUC__ == 7 && __GNUC_MINOR__ >= 2)))
 static inline unsigned long long OutflankToFlipmask(unsigned long long outflank) {
 	unsigned long long flipmask;
 	unsigned char cy = _subborrow_u64(0, outflank, 1, &flipmask);
@@ -380,7 +388,7 @@ static inline unsigned long long OutflankToFlipmask(unsigned long long outflank)
 	return flipmask;
 }
 #else
-	#define OutFlankToFlipmask(x)	((x) - (unsigned int) ((x) != 0))
+	#define OutflankToFlipmask(outflank)	((outflank) - (unsigned int) ((outflank) != 0))
 #endif
 
 /*

@@ -147,13 +147,16 @@ static const unsigned long long FLIPPED_5_V[18] = {
 };
 
 
+/*
+ * Set all bits below the sole outflank bit if outfrank != 0
+ */
 #if __has_builtin(__builtin_subcll)
 static inline unsigned long long OutflankToFlipmask(unsigned long long outflank) {
 	unsigned long long flipmask, cy;
 	flipmask = __builtin_subcll(outflank, 1, 0, &cy);
 	return __builtin_addcll(flipmask, 0, cy, &cy);
 }
-#elif (defined(_M_X64) && (_MSC_VER >= 1800)) // || (defined(__GNUC__) && (__GNUC__ > 7 || (__GNUC__ == 7 && __GNUC_MINOR__ >= 2))) // not tested
+#elif (defined(_M_X64) && (_MSC_VER >= 1800)) || (defined(__x86_64__) && defined(__GNUC__) && (__GNUC__ > 7 || (__GNUC__ == 7 && __GNUC_MINOR__ >= 2)))
 static inline unsigned long long OutflankToFlipmask(unsigned long long outflank) {
 	unsigned long long flipmask;
 	unsigned char cy = _subborrow_u64(0, outflank, 1, &flipmask);
