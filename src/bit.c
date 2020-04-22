@@ -338,15 +338,16 @@ int last_bit(unsigned long long b)
 	}
 
 #elif defined(HAS_CPU_64)
+	// https://www.chessprogramming.org/BitScan#De_Bruijn_Multiplication_2
 	static const unsigned char magic[64] = {
-		63, 0, 58, 1, 59, 47, 53, 2,
-		60, 39, 48, 27, 54, 33, 42, 3,
-		61, 51, 37, 40, 49, 18, 28, 20,
-		55, 30, 34, 11, 43, 14, 22, 4,
-		62, 57, 46, 52, 38, 26, 32, 41,
-		50, 36, 17, 19, 29, 10, 13, 21,
-		56, 45, 25, 31, 35, 16, 9, 12,
-		44, 24, 15, 8, 23, 7, 6, 5
+		 0, 47,  1, 56, 48, 27,  2, 60,
+		57, 49, 41, 37, 28, 16,  3, 61,
+		54, 58, 35, 52, 50, 42, 21, 44,
+		38, 32, 29, 23, 17, 11,  4, 62,
+		46, 55, 26, 59, 40, 36, 15, 53,
+		34, 51, 20, 43, 31, 22, 10, 45,
+		25, 39, 14, 33, 19, 30,  9, 24,
+		13, 18,  8, 12,  7,  6,  5, 63
 	};
 
 	b |= b >> 1;
@@ -355,9 +356,8 @@ int last_bit(unsigned long long b)
 	b |= b >> 8;
 	b |= b >> 16;
 	b |= b >> 32;
-	b = (b >> 1) + 1;
 
-	return magic[(b * 0x07EDD5E59A4E28C2ULL) >> 58];
+	return magic[(b * 0x03f79d71b4cb0a89) >> 58];
 
 #else
 	static const unsigned char clz_table_4bit[16] = { 4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0 };
