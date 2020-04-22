@@ -145,7 +145,8 @@ static const unsigned long long *FLIPPED_5_V = FLIPPED_7_V + 20;
 
 
 /*
- * Extract most significant bit set from 4 x i32
+ * Extract most significant bit set from 4 x u31 (3 inst)
+ * valid only for x < 0x7fffff80
  */
 static inline __m128i MS1B_epu31(const __m128i x) {
 	const __m128 exp_mask = _mm_castsi128_ps(_mm_set1_epi32(0xff800000));
@@ -153,13 +154,30 @@ static inline __m128i MS1B_epu31(const __m128i x) {
 }
 
 /*
- * Extract most significant bit set
+ * Extract most significant bit set from 4 x u32 (7 inst)
+ * cf. http://umezawa.dyndns.info/wordpress/?p=3743
+ */
+static inline __m128i MS1B_epu32(const __m128i x) {
+	__m128i y = MS1B_epu31(x);
+	return _mm_andnot_si128(_mm_srli_epi32(_mm_srai_epi32(y, 31), 1), y);	// clear except sign if negative
+}
+
+/*
+ * Extract most significant bit set from 2 x u64 (12 inst)
+ */
+static inline __m128i MS1B_epu64(const __m128i x) {
+	__m128i y = MS1B_epu32(x);
+	return _mm_and_si128(y, _mm_cmpeq_epi32(_mm_srli_epi64(y, 32), _mm_setzero_si128()));	// clear low if high != 0
+}
+
+/*
+ * Extract most significant bit set (6 inst)
  * valid only for x < 0x000fffffffffffffULL
  *
  * https://software.intel.com/en-us/forums/intel-isa-extensions/topic/301988
  * https://stackoverflow.com/questions/41144668/how-to-efficiently-perform-double-int64-conversions-with-sse-avx/41148578#41148578
  */
-static inline __m128i MS1B_epu52(const __m128i x) {
+ static inline __m128i MS1B_epu52(const __m128i x) {
 	const __m128d k1e52 = _mm_castsi128_pd(_mm_set1_epi64x((1023ULL + 52) << 52));
 	const __m128d exp_mask = _mm_castsi128_pd(_mm_set1_epi64x(0xfff0000000000000));
 	__m128d f;
@@ -204,8 +222,9 @@ static __m128i vectorcall flip_A1(const __m128i OP)
 	const __m128i next_h = _mm_loadl_epi64((__m128i *) &X_TO_BIT[1]);
 
 	outflank_vd = _mm_andnot_si128(OO, mask);
-	outflank_vd = _mm_and_si128(_mm_and_si128(outflank_vd, _mm_sub_epi64(_mm_setzero_si128(), outflank_vd)), PP);
-	flipped = _mm_and_si128(mask, _mm_sub_epi64(outflank_vd, _mm_sub_epi64(flipmask(outflank_vd), minusone)));
+	outflank_vd = _mm_and_si128(_mm_andnot_si128(_mm_add_epi64(outflank_vd, minusone), outflank_vd), PP);
+	outflank_vd = _mm_add_epi64(outflank_vd, minusone);
+	flipped = _mm_and_si128(mask, _mm_add_epi64(outflank_vd, _mm_srli_epi64(outflank_vd, 63)));
 
 	outflank_h = _mm_and_si128(_mm_add_epi8(OO, next_h), PP);
 	flipped = _mm_or_si128(flipped, _mm_subs_epu8(outflank_h, next_h));
@@ -229,8 +248,9 @@ static __m128i vectorcall flip_B1(const __m128i OP)
 	const __m128i next_h = _mm_loadl_epi64((__m128i *) &X_TO_BIT[2]);
 
 	outflank_vd = _mm_andnot_si128(OO, mask);
-	outflank_vd = _mm_and_si128(_mm_and_si128(outflank_vd, _mm_sub_epi64(_mm_setzero_si128(), outflank_vd)), PP);
-	flipped = _mm_and_si128(mask, _mm_sub_epi64(outflank_vd, _mm_sub_epi64(flipmask(outflank_vd), minusone)));
+	outflank_vd = _mm_and_si128(_mm_andnot_si128(_mm_add_epi64(outflank_vd, minusone), outflank_vd), PP);
+	outflank_vd = _mm_add_epi64(outflank_vd, minusone);
+	flipped = _mm_and_si128(mask, _mm_add_epi64(outflank_vd, _mm_srli_epi64(outflank_vd, 63)));
 
 	outflank_h = _mm_and_si128(_mm_add_epi8(OO, next_h), PP);
 	flipped = _mm_or_si128(flipped, _mm_subs_epu8(outflank_h, next_h));
@@ -253,8 +273,9 @@ static __m128i vectorcall flip_C1(const __m128i OP)
 	const __m128i mask = _mm_set_epi64x(0x0000804020100800, 0x0404040404040400);
 
 	outflank_vd = _mm_andnot_si128(OO, mask);
-	outflank_vd = _mm_and_si128(_mm_and_si128(outflank_vd, _mm_sub_epi64(_mm_setzero_si128(), outflank_vd)), PP);
-	flipped = _mm_and_si128(mask, _mm_sub_epi64(outflank_vd, _mm_sub_epi64(flipmask(outflank_vd), minusone)));
+	outflank_vd = _mm_and_si128(_mm_andnot_si128(_mm_add_epi64(outflank_vd, minusone), outflank_vd), PP);
+	outflank_vd = _mm_add_epi64(outflank_vd, minusone);
+	flipped = _mm_and_si128(mask, _mm_add_epi64(outflank_vd, _mm_srli_epi64(outflank_vd, 63)));
 
 	flipped_h_b1b2 = _mm_and_si128(_mm_adds_epu8(OO, _mm_set_epi8(0, 0, 0, 0, 0, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0x08)), PP);
 	flipped_h_b1b2 = _mm_srli_epi64(_mm_mullo_epi16(flipped_h_b1b2, _mm_set_epi16(0, 0, 0x0002, 0x0200, 0, 0, 0, 0x00ff)), 8);
@@ -278,8 +299,9 @@ static __m128i vectorcall flip_D1(const __m128i OP)
 	const __m128i mask = _mm_set_epi64x(0x0000008041221408, 0x0808080808080800);	// A4D1H5
 
 	outflank_v = _mm_andnot_si128(_mm_shuffle_epi32(OP, DUPHI), mask);
-	outflank_v = _mm_and_si128(_mm_and_si128(outflank_v, _mm_sub_epi64(_mm_setzero_si128(), outflank_v)), OP);
-	flipped = _mm_sub_epi64(outflank_v, _mm_sub_epi64(flipmask(outflank_v), minusone));
+	outflank_v = _mm_and_si128(_mm_andnot_si128(_mm_add_epi64(outflank_v, minusone), outflank_v), OP);
+	outflank_v = _mm_add_epi64(outflank_v, minusone);
+	flipped = _mm_add_epi64(outflank_v, _mm_srli_epi64(outflank_v, 63));
 
 	index_d = _mm_sad_epu8(_mm_and_si128(OP, _mm_shuffle_epi32(mask, DUPHI)), _mm_setzero_si128());
 	outflank_d = OUTFLANK_3[(_mm_extract_epi16(index_d, 4) >> 1) & 0x3f] & rotl8(_mm_cvtsi128_si32(index_d), 3);
@@ -307,8 +329,9 @@ static __m128i vectorcall flip_E1(const __m128i OP)
 	const __m128i mask = _mm_set_epi64x(0x0000000182442810, 0x1010101010101000);	// A5E1H4
 
 	outflank_v = _mm_andnot_si128(_mm_shuffle_epi32(OP, DUPHI), mask);
-	outflank_v = _mm_and_si128(_mm_and_si128(outflank_v, _mm_sub_epi64(_mm_setzero_si128(), outflank_v)), OP);
-	flipped = _mm_sub_epi64(outflank_v, _mm_sub_epi64(flipmask(outflank_v), minusone));
+	outflank_v = _mm_and_si128(_mm_andnot_si128(_mm_add_epi64(outflank_v, minusone), outflank_v), OP);
+	outflank_v = _mm_add_epi64(outflank_v, minusone);
+	flipped = _mm_add_epi64(outflank_v, _mm_srli_epi64(outflank_v, 63));
 
 	index_d = _mm_sad_epu8(_mm_and_si128(OP, _mm_shuffle_epi32(mask, DUPHI)), _mm_setzero_si128());
 	outflank_d = OUTFLANK_4[(_mm_extract_epi16(index_d, 4) >> 1) & 0x3f] & rotl8(_mm_cvtsi128_si32(index_d), 2);
@@ -343,9 +366,9 @@ static __m128i vectorcall flip_F1(const __m128i OP)
 	flipped_h_g1g2 = _mm_and_si128(_mm_and_si128(flipped_h_g1g2, OO), _mm_set_epi16(0, 0, 0, 0x4040, 0, 0, 0, 0x001f));
 
 	outflank_vd = _mm_andnot_si128(OO, mask);
-	outflank_vd = _mm_and_si128(_mm_and_si128(outflank_vd, _mm_sub_epi64(_mm_setzero_si128(), outflank_vd)), PP);
-	outflank_vd = _mm_sub_epi64(outflank_vd, _mm_sub_epi64(flipmask(outflank_vd), minusone));
-	flipped = _mm_or_si128(flipped_h_g1g2, _mm_and_si128(mask, outflank_vd));
+	outflank_vd = _mm_and_si128(_mm_andnot_si128(_mm_add_epi64(outflank_vd, minusone), outflank_vd), PP);
+	outflank_vd = _mm_add_epi64(outflank_vd, minusone);
+	flipped = _mm_or_si128(flipped_h_g1g2, _mm_and_si128(mask, _mm_add_epi64(outflank_vd, _mm_srli_epi64(outflank_vd, 63))));
 
 	return _mm_or_si128(flipped, _mm_shuffle_epi32(flipped, SWAP64));
 }
@@ -414,8 +437,9 @@ static __m128i vectorcall flip_A2(const __m128i OP)
 	const __m128i next_h = _mm_loadl_epi64((__m128i *) &X_TO_BIT[9]);
 
 	outflank_vd = _mm_andnot_si128(OO, mask);
-	outflank_vd = _mm_and_si128(_mm_and_si128(outflank_vd, _mm_sub_epi64(_mm_setzero_si128(), outflank_vd)), PP);
-	flipped = _mm_and_si128(mask, _mm_sub_epi64(outflank_vd, _mm_sub_epi64(flipmask(outflank_vd), minusone)));
+	outflank_vd = _mm_and_si128(_mm_andnot_si128(_mm_add_epi64(outflank_vd, minusone), outflank_vd), PP);
+	outflank_vd = _mm_add_epi64(outflank_vd, minusone);
+	flipped = _mm_and_si128(mask, _mm_add_epi64(outflank_vd, _mm_srli_epi64(outflank_vd, 63)));
 
 	outflank_h = _mm_and_si128(_mm_add_epi8(OO, next_h), PP);
 	flipped = _mm_or_si128(flipped, _mm_subs_epu8(outflank_h, next_h));
@@ -439,8 +463,9 @@ static __m128i vectorcall flip_B2(const __m128i OP)
 	const __m128i next_h = _mm_loadl_epi64((__m128i *) &X_TO_BIT[10]);
 
 	outflank_vd = _mm_andnot_si128(OO, mask);
-	outflank_vd = _mm_and_si128(_mm_and_si128(outflank_vd, _mm_sub_epi64(_mm_setzero_si128(), outflank_vd)), PP);
-	flipped = _mm_and_si128(mask, _mm_sub_epi64(outflank_vd, _mm_sub_epi64(flipmask(outflank_vd), minusone)));
+	outflank_vd = _mm_and_si128(_mm_andnot_si128(_mm_add_epi64(outflank_vd, minusone), outflank_vd), PP);
+	outflank_vd = _mm_add_epi64(outflank_vd, minusone);
+	flipped = _mm_and_si128(mask, _mm_add_epi64(outflank_vd, _mm_srli_epi64(outflank_vd, 63)));
 
 	outflank_h = _mm_and_si128(_mm_add_epi8(OO, next_h), PP);
 	flipped = _mm_or_si128(flipped, _mm_subs_epu8(outflank_h, next_h));
@@ -463,8 +488,9 @@ static __m128i vectorcall flip_C2(const __m128i OP)
 	const __m128i mask = _mm_set_epi64x(0x0080402010080000, 0x0404040404040000);
 
 	outflank_vd = _mm_andnot_si128(OO, mask);
-	outflank_vd = _mm_and_si128(_mm_and_si128(outflank_vd, _mm_sub_epi64(_mm_setzero_si128(), outflank_vd)), PP);
-	flipped = _mm_and_si128(mask, _mm_sub_epi64(outflank_vd, _mm_sub_epi64(flipmask(outflank_vd), minusone)));
+	outflank_vd = _mm_and_si128(_mm_andnot_si128(_mm_add_epi64(outflank_vd, minusone), outflank_vd), PP);
+	outflank_vd = _mm_add_epi64(outflank_vd, minusone);
+	flipped = _mm_and_si128(mask, _mm_add_epi64(outflank_vd, _mm_srli_epi64(outflank_vd, 63)));
 
 	flipped_h_b2b3 = _mm_and_si128(_mm_adds_epu8(OO, _mm_set_epi8(0, 0, 0, 0, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0x08, 0)), PP);
 	flipped_h_b2b3 = _mm_mullo_epi16(_mm_srli_epi64(flipped_h_b2b3, 8), _mm_set_epi16(0, 0, 0x0002, 0x0200, 0, 0, 0, 0x00ff));
@@ -488,8 +514,9 @@ static __m128i vectorcall flip_D2(const __m128i OP)
 	const __m128i mask = _mm_set_epi64x(0x000080412214ff00, 0x0808080808080000);
 
 	outflank_v = _mm_andnot_si128(_mm_shuffle_epi32(OP, DUPHI), mask);
-	outflank_v = _mm_and_si128(_mm_and_si128(outflank_v, _mm_sub_epi64(_mm_setzero_si128(), outflank_v)), OP);
-	flipped = _mm_sub_epi64(outflank_v, _mm_sub_epi64(flipmask(outflank_v), minusone));
+	outflank_v = _mm_and_si128(_mm_andnot_si128(_mm_add_epi64(outflank_v, minusone), outflank_v), OP);
+	outflank_v = _mm_add_epi64(outflank_v, minusone);
+	flipped = _mm_add_epi64(outflank_v, _mm_srli_epi64(outflank_v, 63));
 
 	index_d = _mm_sad_epu8(_mm_and_si128(OP, _mm_set1_epi64x(0x0000804122140800)), _mm_setzero_si128());	// A5D2H6
 	outflank_d = OUTFLANK_3[(_mm_extract_epi16(index_d, 4) >> 1) & 0x3f] & rotl8(_mm_cvtsi128_si32(index_d), 3);
@@ -517,8 +544,9 @@ static __m128i vectorcall flip_E2(const __m128i OP)
 	const __m128i mask = _mm_set_epi64x(0x000001824428ff00, 0x1010101010100000);
 
 	outflank_v = _mm_andnot_si128(_mm_shuffle_epi32(OP, DUPHI), mask);
-	outflank_v = _mm_and_si128(_mm_and_si128(outflank_v, _mm_sub_epi64(_mm_setzero_si128(), outflank_v)), OP);
-	flipped = _mm_sub_epi64(outflank_v, _mm_sub_epi64(flipmask(outflank_v), minusone));
+	outflank_v = _mm_and_si128(_mm_andnot_si128(_mm_add_epi64(outflank_v, minusone), outflank_v), OP);
+	outflank_v = _mm_add_epi64(outflank_v, minusone);
+	flipped = _mm_add_epi64(outflank_v, _mm_srli_epi64(outflank_v, 63));
 
 	index_d = _mm_sad_epu8(_mm_and_si128(OP, _mm_set1_epi64x(0x0000018244281000)), _mm_setzero_si128());	// A6E2H5
 	outflank_d = OUTFLANK_4[(_mm_extract_epi16(index_d, 4) >> 1) & 0x3f] & rotl8(_mm_cvtsi128_si32(index_d), 2);
@@ -553,9 +581,9 @@ static __m128i vectorcall flip_F2(const __m128i OP)
 	flipped_h_g2g3 = _mm_and_si128(_mm_and_si128(flipped_h_g2g3, OO), _mm_set_epi16(0, 0, 0x0040, 0x4000, 0, 0, 0, 0x1f00));
 
 	outflank_vd = _mm_andnot_si128(OO, mask);
-	outflank_vd = _mm_and_si128(_mm_and_si128(outflank_vd, _mm_sub_epi64(_mm_setzero_si128(), outflank_vd)), PP);
-	outflank_vd = _mm_sub_epi64(outflank_vd, _mm_sub_epi64(flipmask(outflank_vd), minusone));
-	flipped = _mm_or_si128(flipped_h_g2g3, _mm_and_si128(mask, outflank_vd));
+	outflank_vd = _mm_and_si128(_mm_andnot_si128(_mm_add_epi64(outflank_vd, minusone), outflank_vd), PP);
+	outflank_vd = _mm_add_epi64(outflank_vd, minusone);
+	flipped = _mm_or_si128(flipped_h_g2g3, _mm_and_si128(mask, _mm_add_epi64(outflank_vd, _mm_srli_epi64(outflank_vd, 63))));
 
 	return _mm_or_si128(flipped, _mm_shuffle_epi32(flipped, SWAP64));
 }
@@ -623,8 +651,9 @@ static __m128i vectorcall flip_A3(const __m128i OP)
 	const __m128i mask = _mm_set_epi64x(0x2010080402000000, 0x0101010101000000);
 
 	outflank_vd = _mm_andnot_si128(OO, mask);
-	outflank_vd = _mm_and_si128(_mm_and_si128(outflank_vd, _mm_sub_epi64(_mm_setzero_si128(), outflank_vd)), PP);
-	flipped = _mm_and_si128(mask, _mm_sub_epi64(outflank_vd, _mm_sub_epi64(flipmask(outflank_vd), minusone)));
+	outflank_vd = _mm_and_si128(_mm_andnot_si128(_mm_add_epi64(outflank_vd, minusone), outflank_vd), PP);
+	outflank_vd = _mm_add_epi64(outflank_vd, minusone);
+	flipped = _mm_and_si128(mask, _mm_add_epi64(outflank_vd, _mm_srli_epi64(outflank_vd, 63)));
 
 	outflank_h = _mm_and_si128(PP, _mm_adds_epu8(OO, _mm_set_epi8(0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 2, 0, -1)));
 	flipped_h_a2b2 = _mm_srli_epi16(_mm_mullo_epi16(outflank_h, _mm_set_epi16(0, 0, 0, 0x2000, 0, 0, 0x003f, 0x4000)), 6);
@@ -649,8 +678,9 @@ static __m128i vectorcall flip_B3(const __m128i OP)
 	const __m128i mask = _mm_set_epi64x(0x4020100804000000, 0x0202020202000000);
 
 	outflank_vd = _mm_andnot_si128(OO, mask);
-	outflank_vd = _mm_and_si128(_mm_and_si128(outflank_vd, _mm_sub_epi64(_mm_setzero_si128(), outflank_vd)), PP);
-	flipped = _mm_and_si128(mask, _mm_sub_epi64(outflank_vd, _mm_sub_epi64(flipmask(outflank_vd), minusone)));
+	outflank_vd = _mm_and_si128(_mm_andnot_si128(_mm_add_epi64(outflank_vd, minusone), outflank_vd), PP);
+	outflank_vd = _mm_add_epi64(outflank_vd, minusone);
+	flipped = _mm_and_si128(mask, _mm_add_epi64(outflank_vd, _mm_srli_epi64(outflank_vd, 63)));
 
 	outflank_h = _mm_and_si128(PP, _mm_adds_epu8(OO, _mm_set_epi8(0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 4, 0, -1)));
 	flipped_h_b2c2 = _mm_srli_epi16(_mm_mullo_epi16(outflank_h, _mm_set_epi16(0, 0, 0, 0x1000, 0, 0, 0x001f, 0x2000)), 5);
@@ -676,7 +706,8 @@ static __m128i vectorcall flip_C3(const __m128i OP)
 	const __m128i next_h = _mm_loadl_epi64((__m128i *) &X_TO_BIT[19]);
 
 	outflank_vd = _mm_and_si128(_mm_andnot_si128(mask, _mm_sub_epi64(_mm_or_si128(OO, mask), minusone)), PP);
-	flipped = _mm_andnot_si128(mask, _mm_sub_epi64(outflank_vd, _mm_sub_epi64(flipmask(outflank_vd), minusone)));
+	outflank_vd = _mm_add_epi64(outflank_vd, minusone);
+	flipped = _mm_andnot_si128(mask, _mm_add_epi64(outflank_vd, _mm_srli_epi64(outflank_vd, 63)));
 
 	outflank_h = _mm_and_si128(_mm_add_epi8(OO, next_h), PP);
 	flipped = _mm_or_si128(flipped, _mm_subs_epu8(outflank_h, next_h));
@@ -770,7 +801,8 @@ static __m128i vectorcall flip_F3(const __m128i OP)
 	flipped = _mm_srli_epi16(_mm_mullo_epi16(outflank_h, _mm_set_epi16(0, 0, 0, 0, 0, 0, -0x1000, 0)), 11);
 
 	outflank_vd = _mm_and_si128(_mm_andnot_si128(mask, _mm_sub_epi64(_mm_or_si128(OO, mask), minusone)), PP);
-	flipped_vd = _mm_andnot_si128(mask, _mm_sub_epi64(outflank_vd, _mm_sub_epi64(flipmask(outflank_vd), minusone)));
+	outflank_vd = _mm_add_epi64(outflank_vd, minusone);
+	flipped_vd = _mm_andnot_si128(mask, _mm_add_epi64(outflank_vd, _mm_srli_epi64(outflank_vd, 63)));
 	flipped = _mm_or_si128(flipped, flipped_vd);
 
 	flipped_g4g3g2f2e2 = _mm_and_si128(_mm_shufflelo_epi16(PP, 0x90), _mm_set_epi16(0, 0, 0, 0x0080, 0x0080, 0x0080, 0x0020, 0x0008));	// ...h1h5h3f1d1
@@ -851,9 +883,9 @@ static __m128i vectorcall flip_A4(const __m128i OP)
 	flipped = _mm_and_si128(maskL, _mm_mul_epu32(outflankL, _mm_set1_epi32(-2)));
 
 	outflankH = _mm_andnot_si128(OO, maskH);
-	outflankH = _mm_and_si128(_mm_and_si128(outflankH, _mm_sub_epi32(_mm_setzero_si128(), outflankH)), PP);
-	outflankH = _mm_sub_epi32(outflankH, _mm_sub_epi32(_mm_cmpeq_epi32(outflankH, _mm_setzero_si128()), minusone));
-	flipped = _mm_or_si128(flipped, _mm_and_si128(maskH, outflankH));
+	outflankH = _mm_and_si128(_mm_andnot_si128(_mm_add_epi32(outflankH, minusone), outflankH), PP);
+	outflankH = _mm_add_epi32(outflankH, minusone);
+	flipped = _mm_or_si128(flipped, _mm_and_si128(maskH, _mm_add_epi32(outflankH, _mm_srli_epi32(outflankH, 31))));
 
 	return _mm_or_si128(flipped, _mm_shuffle_epi32(flipped, SWAP64));
 }
@@ -877,9 +909,9 @@ static __m128i vectorcall flip_B4(const __m128i OP)
 	flipped = _mm_and_si128(maskL, _mm_mul_epu32(outflankL, _mm_set1_epi32(-2)));
 
 	outflankH = _mm_andnot_si128(OO, maskH);
-	outflankH = _mm_and_si128(_mm_and_si128(outflankH, _mm_sub_epi32(_mm_setzero_si128(), outflankH)), PP);
-	outflankH = _mm_sub_epi32(outflankH, _mm_sub_epi32(_mm_cmpeq_epi32(outflankH, _mm_setzero_si128()), minusone));
-	flipped = _mm_or_si128(flipped, _mm_and_si128(maskH, outflankH));
+	outflankH = _mm_and_si128(_mm_andnot_si128(_mm_add_epi32(outflankH, minusone), outflankH), PP);
+	outflankH = _mm_add_epi32(outflankH, minusone);
+	flipped = _mm_or_si128(flipped, _mm_and_si128(maskH, _mm_add_epi32(outflankH, _mm_srli_epi32(outflankH, 31))));
 
 	return _mm_or_si128(flipped, _mm_shuffle_epi32(flipped, SWAP64));
 }
@@ -900,8 +932,9 @@ static __m128i vectorcall flip_C4(const __m128i OP)
 	OH = _mm_shuffle_epi32(OP, 0xfe);
 	PH = _mm_shuffle_epi32(OP, 0x54);
 	outflankH = _mm_andnot_si128(OH, maskH);
-	outflankH = _mm_and_si128(_mm_and_si128(outflankH, _mm_sub_epi32(_mm_setzero_si128(), outflankH)), PH);
-	flippedH = _mm_and_si128(maskH, _mm_sub_epi32(outflankH, _mm_sub_epi32(_mm_cmpeq_epi32(outflankH, _mm_setzero_si128()), minusone)));
+	outflankH = _mm_and_si128(_mm_andnot_si128(_mm_add_epi32(outflankH, minusone), outflankH), PH);
+	outflankH = _mm_add_epi32(outflankH, minusone);
+	flippedH = _mm_and_si128(maskH, _mm_add_epi32(outflankH, _mm_srli_epi32(outflankH, 31)));
 	flipped = _mm_or_si128(_mm_move_epi64(flippedH), _mm_shuffle_epi32(flippedH, 0xc8));
 
 	OL = _mm_shuffle_epi32(OP, 0xaa);
@@ -929,8 +962,9 @@ static __m128i vectorcall flip_D4(const __m128i OP)
 	OH = _mm_shuffle_epi32(OP, 0xfe);
 	PH = _mm_shuffle_epi32(OP, 0x54);
 	outflankH = _mm_andnot_si128(OH, maskH);
-	outflankH = _mm_and_si128(_mm_and_si128(outflankH, _mm_sub_epi32(_mm_setzero_si128(), outflankH)), PH);
-	flippedH = _mm_and_si128(maskH, _mm_sub_epi32(outflankH, _mm_sub_epi32(_mm_cmpeq_epi32(outflankH, _mm_setzero_si128()), minusone)));
+	outflankH = _mm_and_si128(_mm_andnot_si128(_mm_add_epi32(outflankH, minusone), outflankH), PH);
+	outflankH = _mm_add_epi32(outflankH, minusone);
+	flippedH = _mm_and_si128(maskH, _mm_add_epi32(outflankH, _mm_srli_epi32(outflankH, 31)));
 	flipped = _mm_or_si128(_mm_move_epi64(flippedH), _mm_shuffle_epi32(flippedH, 0xc8));
 
 	OL = _mm_shuffle_epi32(OP, 0xaa);
@@ -958,8 +992,9 @@ static __m128i vectorcall flip_E4(const __m128i OP)
 	OH = _mm_shuffle_epi32(OP, 0xfe);
 	PH = _mm_shuffle_epi32(OP, 0x54);
 	outflankH = _mm_andnot_si128(OH, maskH);
-	outflankH = _mm_and_si128(_mm_and_si128(outflankH, _mm_sub_epi32(_mm_setzero_si128(), outflankH)), PH);
-	flippedH = _mm_and_si128(maskH, _mm_sub_epi32(outflankH, _mm_sub_epi32(_mm_cmpeq_epi32(outflankH, _mm_setzero_si128()), minusone)));
+	outflankH = _mm_and_si128(_mm_andnot_si128(_mm_add_epi32(outflankH, minusone), outflankH), PH);
+	outflankH = _mm_add_epi32(outflankH, minusone);
+	flippedH = _mm_and_si128(maskH, _mm_add_epi32(outflankH, _mm_srli_epi32(outflankH, 31)));
 	flipped = _mm_or_si128(_mm_move_epi64(flippedH), _mm_shuffle_epi32(flippedH, 0xc8));
 
 	OL = _mm_shuffle_epi32(OP, 0xaa);
@@ -987,8 +1022,9 @@ static __m128i vectorcall flip_F4(const __m128i OP)
 	OH = _mm_shuffle_epi32(OP, 0xfe);
 	PH = _mm_shuffle_epi32(OP, 0x54);
 	outflankH = _mm_andnot_si128(OH, maskH);
-	outflankH = _mm_and_si128(_mm_and_si128(outflankH, _mm_sub_epi32(_mm_setzero_si128(), outflankH)), PH);
-	flippedH = _mm_and_si128(maskH, _mm_sub_epi32(outflankH, _mm_sub_epi32(_mm_cmpeq_epi32(outflankH, _mm_setzero_si128()), minusone)));
+	outflankH = _mm_and_si128(_mm_andnot_si128(_mm_add_epi32(outflankH, minusone), outflankH), PH);
+	outflankH = _mm_add_epi32(outflankH, minusone);
+	flippedH = _mm_and_si128(maskH, _mm_add_epi32(outflankH, _mm_srli_epi32(outflankH, 31)));
 	flipped = _mm_or_si128(_mm_move_epi64(flippedH), _mm_shuffle_epi32(flippedH, 0xc8));
 
 	OL = _mm_shuffle_epi32(OP, 0xaa);
@@ -1128,14 +1164,15 @@ static __m128i vectorcall flip_C5(const __m128i OP)
 	OL = _mm_shuffle_epi32(OP, 0xae);
 	PL = _mm_shuffle_epi32(OP, 0x04);
 	outflankL = _mm_and_si128(MS1B_epu31(_mm_andnot_si128(OL, maskL)), PL);
-	flippedL = _mm_and_si128(_mm_sub_epi32(_mm_setzero_si128(), _mm_add_epi32(outflankL, outflankL)), maskL);
+	flippedL = _mm_andnot_si128(_mm_add_epi32(_mm_add_epi32(outflankL, outflankL), minusone), maskL);
 	flipped = _mm_or_si128(_mm_move_epi64(flippedL), _mm_shuffle_epi32(flippedL, 0x76));
 
 	OH = _mm_shuffle_epi32(OP, 0xff);
 	PH = _mm_shuffle_epi32(OP, 0x55);
 	outflankH = _mm_andnot_si128(OH, maskH);
-	outflankH = _mm_and_si128(_mm_and_si128(outflankH, _mm_sub_epi32(_mm_setzero_si128(), outflankH)), PH);
-	flippedH = _mm_and_si128(maskH, _mm_sub_epi32(outflankH, _mm_sub_epi32(_mm_cmpeq_epi32(outflankH, _mm_setzero_si128()), minusone)));
+	outflankH = _mm_and_si128(_mm_andnot_si128(_mm_add_epi32(outflankH, minusone), outflankH), PH);
+	outflankH = _mm_add_epi32(outflankH, minusone);
+	flippedH = _mm_and_si128(maskH, _mm_add_epi32(outflankH, _mm_srli_epi32(outflankH, 31)));
 	flipped = _mm_or_si128(flipped, _mm_xor_si128(flippedH, _mm_shuffle_epi32(flippedH, 0xa0)));
 
 	return _mm_or_si128(flipped, _mm_shuffle_epi32(flipped, SWAP64));
@@ -1157,14 +1194,15 @@ static __m128i vectorcall flip_D5(const __m128i OP)
 	OL = _mm_shuffle_epi32(OP, 0xae);
 	PL = _mm_shuffle_epi32(OP, 0x04);
 	outflankL = _mm_and_si128(MS1B_epu31(_mm_andnot_si128(OL, maskL)), PL);
-	flippedL = _mm_and_si128(_mm_sub_epi32(_mm_setzero_si128(), _mm_add_epi32(outflankL, outflankL)), maskL);
+	flippedL = _mm_andnot_si128(_mm_add_epi32(_mm_add_epi32(outflankL, outflankL), minusone), maskL);
 	flipped = _mm_or_si128(_mm_move_epi64(flippedL), _mm_shuffle_epi32(flippedL, 0x76));
 
 	OH = _mm_shuffle_epi32(OP, 0xff);
 	PH = _mm_shuffle_epi32(OP, 0x55);
 	outflankH = _mm_andnot_si128(OH, maskH);
-	outflankH = _mm_and_si128(_mm_and_si128(outflankH, _mm_sub_epi32(_mm_setzero_si128(), outflankH)), PH);
-	flippedH = _mm_and_si128(maskH, _mm_sub_epi32(outflankH, _mm_sub_epi32(_mm_cmpeq_epi32(outflankH, _mm_setzero_si128()), minusone)));
+	outflankH = _mm_and_si128(_mm_andnot_si128(_mm_add_epi32(outflankH, minusone), outflankH), PH);
+	outflankH = _mm_add_epi32(outflankH, minusone);
+	flippedH = _mm_and_si128(maskH, _mm_add_epi32(outflankH, _mm_srli_epi32(outflankH, 31)));
 	flipped = _mm_or_si128(flipped, _mm_xor_si128(flippedH, _mm_shuffle_epi32(flippedH, 0xa0)));
 
 	return _mm_or_si128(flipped, _mm_shuffle_epi32(flipped, SWAP64));
@@ -1186,14 +1224,15 @@ static __m128i vectorcall flip_E5(const __m128i OP)
 	OL = _mm_shuffle_epi32(OP, 0xae);
 	PL = _mm_shuffle_epi32(OP, 0x04);
 	outflankL = _mm_and_si128(MS1B_epu31(_mm_andnot_si128(OL, maskL)), PL);
-	flippedL = _mm_and_si128(_mm_sub_epi32(_mm_setzero_si128(), _mm_add_epi32(outflankL, outflankL)), maskL);
+	flippedL = _mm_andnot_si128(_mm_add_epi32(_mm_add_epi32(outflankL, outflankL), minusone), maskL);
 	flipped = _mm_or_si128(_mm_move_epi64(flippedL), _mm_shuffle_epi32(flippedL, 0x76));
 
 	OH = _mm_shuffle_epi32(OP, 0xff);
 	PH = _mm_shuffle_epi32(OP, 0x55);
 	outflankH = _mm_andnot_si128(OH, maskH);
-	outflankH = _mm_and_si128(_mm_and_si128(outflankH, _mm_sub_epi32(_mm_setzero_si128(), outflankH)), PH);
-	flippedH = _mm_and_si128(maskH, _mm_sub_epi32(outflankH, _mm_sub_epi32(_mm_cmpeq_epi32(outflankH, _mm_setzero_si128()), minusone)));
+	outflankH = _mm_and_si128(_mm_andnot_si128(_mm_add_epi32(outflankH, minusone), outflankH), PH);
+	outflankH = _mm_add_epi32(outflankH, minusone);
+	flippedH = _mm_and_si128(maskH, _mm_add_epi32(outflankH, _mm_srli_epi32(outflankH, 31)));
 	flipped = _mm_or_si128(flipped, _mm_xor_si128(flippedH, _mm_shuffle_epi32(flippedH, 0xa0)));
 
 	return _mm_or_si128(flipped, _mm_shuffle_epi32(flipped, SWAP64));
@@ -1215,14 +1254,15 @@ static __m128i vectorcall flip_F5(const __m128i OP)
 	OL = _mm_shuffle_epi32(OP, 0xae);
 	PL = _mm_shuffle_epi32(OP, 0x04);
 	outflankL = _mm_and_si128(MS1B_epu31(_mm_andnot_si128(OL, maskL)), PL);
-	flippedL = _mm_and_si128(_mm_sub_epi32(_mm_setzero_si128(), _mm_add_epi32(outflankL, outflankL)), maskL);
+	flippedL = _mm_andnot_si128(_mm_add_epi32(_mm_add_epi32(outflankL, outflankL), minusone), maskL);
 	flipped = _mm_or_si128(_mm_move_epi64(flippedL), _mm_shuffle_epi32(flippedL, 0x76));
 
 	OH = _mm_shuffle_epi32(OP, 0xff);
 	PH = _mm_shuffle_epi32(OP, 0x55);
 	outflankH = _mm_andnot_si128(OH, maskH);
-	outflankH = _mm_and_si128(_mm_and_si128(outflankH, _mm_sub_epi32(_mm_setzero_si128(), outflankH)), PH);
-	flippedH = _mm_and_si128(maskH, _mm_sub_epi32(outflankH, _mm_sub_epi32(_mm_cmpeq_epi32(outflankH, _mm_setzero_si128()), minusone)));
+	outflankH = _mm_and_si128(_mm_andnot_si128(_mm_add_epi32(outflankH, minusone), outflankH), PH);
+	outflankH = _mm_add_epi32(outflankH, minusone);
+	flippedH = _mm_and_si128(maskH, _mm_add_epi32(outflankH, _mm_srli_epi32(outflankH, 31)));
 	flipped = _mm_or_si128(flipped, _mm_xor_si128(flippedH, _mm_shuffle_epi32(flippedH, 0xa0)));
 
 	return _mm_or_si128(flipped, _mm_shuffle_epi32(flipped, SWAP64));
@@ -1261,21 +1301,17 @@ static __m128i vectorcall flip_G5(const __m128i OP)
  */
 static __m128i vectorcall flip_H5(const __m128i OP)
 {
-	__m128i	outflank_h, flipped;
-	unsigned int outflank_v, outflank_d, index_v, index_d;
-	const __m128i mask_d = _mm_set1_epi64x(0x1020408040201008);	// D1H5E8
+	__m128i PP = _mm_shuffle_epi32(OP, DUPLO);
+	__m128i OO = _mm_shuffle_epi32(OP, DUPHI);
+	__m128i	outflankH, outflankL, flipped;
+	const __m128i maskL = _mm_set_epi32(0, 0x40201008, 0x0000007f, 0x80808080);
+	const __m128i maskH = _mm_set_epi64x(~0x1020400000000000ULL, ~0x8080800000000000ULL);
 
-	index_v = _mm_movemask_epi8(OP);
-	outflank_v = OUTFLANK_4[(index_v >> 9) & 0x3f] & rotl8(index_v, 2);
+	outflankH = _mm_and_si128(_mm_andnot_si128(maskH, _mm_sub_epi64(_mm_or_si128(OO, maskH), minusone)), PP);
+	flipped = _mm_andnot_si128(maskH, _mm_sub_epi64(outflankH, _mm_shuffle_epi32(outflankH, SWAP32)));
 
-	index_d = _mm_movemask_epi8(_mm_cmpeq_epi8(_mm_and_si128(OP, mask_d), mask_d));
-	outflank_d = OUTFLANK_4[(index_d >> 9) & 0x3f] & rotl8(index_d, 2);
-
-	flipped = load64x2(&FLIPPED_4_V[outflank_v], &FLIPPED_4_V[outflank_d]);
-
-	outflank_h = _mm_and_si128(MS1B_epu31(_mm_andnot_si128(_mm_shuffle_epi32(OP, DUPHI), _mm_set_epi32(0, 0, 0x0000007f, 0))), OP);
-	flipped = _mm_sub_epi8(flipped, _mm_add_epi8(outflank_h, outflank_h));
-	flipped = _mm_and_si128(flipped, _mm_set_epi64x(0x1020408040201008, 0x8080807e80808080));
+	outflankL = _mm_and_si128(MS1B_epu32(_mm_andnot_si128(OO, maskL)), PP);
+	flipped = _mm_or_si128(flipped, _mm_and_si128(_mm_sub_epi32(_mm_setzero_si128(), _mm_add_epi32(outflankL, outflankL)), maskL));
 
 	return _mm_or_si128(flipped, _mm_shuffle_epi32(flipped, SWAP64));
 }
@@ -1299,8 +1335,8 @@ static __m128i vectorcall flip_A6(const __m128i OP)
 	flipped = _mm_andnot_si128(mask2, _mm_mulhi_epu16(outflank_h_a7b7, minusone));
 
 	outflank_vd = _mm_and_si128(MS1B_epu52(_mm_andnot_si128(OO, mask1)), PP);
-	outflank_vd = _mm_sub_epi64(_mm_setzero_si128(), _mm_add_epi64(outflank_vd, outflank_vd));
-	flipped = _mm_or_si128(flipped, _mm_and_si128(outflank_vd, mask1));
+	outflank_vd = _mm_add_epi64(_mm_add_epi64(outflank_vd, outflank_vd), minusone);
+	flipped = _mm_or_si128(flipped, _mm_andnot_si128(outflank_vd, mask1));
 
 	return _mm_or_si128(flipped, _mm_shuffle_epi32(flipped, SWAP64));
 }
@@ -1324,8 +1360,8 @@ static __m128i vectorcall flip_B6(const __m128i OP)
 	flipped = _mm_andnot_si128(mask2, _mm_mulhi_epu16(outflank_h_b7c7, minusone));
 
 	outflank_vd = _mm_and_si128(MS1B_epu52(_mm_andnot_si128(OO, mask1)), PP);
-	outflank_vd = _mm_sub_epi64(_mm_setzero_si128(), _mm_add_epi64(outflank_vd, outflank_vd));
-	flipped = _mm_or_si128(flipped, _mm_and_si128(outflank_vd, mask1));
+	outflank_vd = _mm_add_epi64(_mm_add_epi64(outflank_vd, outflank_vd), minusone);
+	flipped = _mm_or_si128(flipped, _mm_andnot_si128(outflank_vd, mask1));
 
 	return _mm_or_si128(flipped, _mm_shuffle_epi32(flipped, SWAP64));
 }
@@ -1922,9 +1958,11 @@ static __m128i vectorcall flip_H8(const __m128i OP)
 	__m128i outflank, flipped;
 	__m128i mask = _mm_set_epi64x(0x0080808080808080, 0x7e40201008040201);
 
+	// outflank = MS1B_epu64(_mm_andnot_si128(OO, _mm_set_epi64x(0x0080808080808080, 0x0040201008040201)));
 	outflank = _mm_andnot_si128(OO, mask);
 	outflank = _mm_min_epu8(outflank, _mm_set_epi64x(0x0008080808080808, 0x0004020108040201));	// pack to 52 bits
 	outflank = _mm_mullo_epi16(MS1B_epu52(outflank), _mm_set_epi16(16, 16, 16, 16, 16, 16, 1, 1));	// unpack
+
 	outflank = _mm_or_si128(outflank, MS1B_epu31(_mm_andnot_si128(OO, _mm_set_epi32(0, 0, 0x7f000000, 0))));
 	outflank = _mm_and_si128(outflank, PP);
 
