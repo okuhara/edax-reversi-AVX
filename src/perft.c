@@ -891,7 +891,7 @@ unsigned long long shape_get_hash_code(const unsigned long long shape)
 	h ^= hash_rank[5][p[5]];
 	h ^= hash_rank[6][p[6]];
 	h ^= hash_rank[7][p[7]];
-	h ^= hash_rank[8][p[8]];
+	// h ^= hash_rank[8][p[8]];	// gcc9: outside array bounds
 
 	return h;
 }

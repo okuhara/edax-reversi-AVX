@@ -6,7 +6,7 @@
  * This should be the only file with linux/windows
  * dedicated code.
  *
- * @date 1998 - 2018
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -933,7 +933,7 @@ void thread_create(Thread *thread, void* (*function)(void*), void *data)
 	pthread_create(thread, NULL, function, data);
 #elif defined(_WIN32)
 	DWORD id;
-	*thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) function, data, 0, &id);
+	*thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)(void (*)(void)) function, data, 0, &id);
 #endif
 }
 
