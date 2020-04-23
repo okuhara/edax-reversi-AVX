@@ -42,7 +42,7 @@
 #elif MOVE_GENERATOR == MOVE_GENERATOR_SSE_BSWAP
 	#include "flip_sse_bswap.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_AVX
-	#include "flip_avx.c"
+	#include "flip_avx_ppfill.c"
 #else // MOVE_GENERATOR == MOVE_GENERATOR_KINDERGARTEN
 	#include "flip_kindergarten.c"
 #endif
@@ -804,10 +804,6 @@ void edge_stability_init(void)
 		}
 	}
 	// printf("edge_stability_init: %d\n", (int)(cpu_clock() - t));
-
-#if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)) && !defined(hasSSE2)
-	init_mmx();
-#endif
 }
 
 #ifdef HAS_CPU_64
