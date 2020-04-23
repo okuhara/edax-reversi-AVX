@@ -6,7 +6,7 @@
  * a macro needs to be defined to chose between different flavors of the
  * algorithm.
  *
- * @date 1998 - 2018
+ * @date 1998 - 2020
  * @author Richard Delorme
  * @version 4.4
  */
@@ -70,7 +70,7 @@ const unsigned long long NEIGHBOUR[] = {
  * @return the number of bits set.
  */
 
-#ifndef POPCOUNT
+#if 0 // ndef POPCOUNT
 int bit_count(unsigned long long b)
 {
 	int	c;
@@ -147,6 +147,35 @@ int bit_count(unsigned long long b)
 	return c;
 }
 #endif
+
+#ifndef POPCOUNT
+// https://github.com/official-stockfish/Stockfish/pull/620/files
+// 2% faster than SWAR bit_count for 32 & 64 non-POPCOUNT build
+unsigned char PopCnt16[1 << 16];
+
+static int bit_count_32(unsigned int b)
+{
+	b = b - ((b >> 1) & 0x55555555);
+	b = ((b >> 2) & 0x333333333) + (b & 0x33333333);
+	b = ((b >> 4) + b) & 0x0F0F0F0F;
+	return (b * 0x01010101) >> 24;
+}
+#endif
+
+/**
+ * @brief initialize PopCnt16 table and check MMX/SSE availability.
+ */
+void bit_init(void)
+{
+#ifndef POPCOUNT
+	unsigned int	i;
+	for (i = 0; i < (1 << 16); ++i)
+		PopCnt16[i] = bit_count_32(i);
+#endif
+#if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)) && !defined(hasSSE2)
+	init_mmx();
+#endif
+}
 
 /**
  * @brief count the number of discs, counting the corners twice.

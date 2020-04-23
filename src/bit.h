@@ -17,6 +17,7 @@
 struct Random;
 
 /* declaration */
+void bit_init(void);
 int bit_weighted_count(unsigned long long);
 // int next_bit(unsigned long long*);
 void bitboard_write(unsigned long long, FILE*);
@@ -126,7 +127,11 @@ static inline unsigned char mirror_byte(unsigned int b) { return ((((b * 0x20080
 		#endif
 	#endif
 #else
-	int bit_count(unsigned long long);
+	extern unsigned char PopCnt16[1 << 16];
+	inline int bit_count(unsigned long long b) {
+		union { unsigned long long bb; unsigned short u[4]; } v = { b };
+		return PopCnt16[v.u[0]] + PopCnt16[v.u[1]] + PopCnt16[v.u[2]] + PopCnt16[v.u[3]];
+	}
 #endif
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__AVX2__)

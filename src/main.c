@@ -113,6 +113,7 @@ int main(int argc, char **argv)
 	options_bound();
 
 	// initialize
+	bit_init();
 	edge_stability_init();
 	hash_code_init();
 	hash_move_init();
