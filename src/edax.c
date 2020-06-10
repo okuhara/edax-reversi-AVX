@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file edax.c
  *
  * @brief Edax protocol.
@@ -281,6 +281,14 @@ void help_test(void)
  * @brief Loop event.
  * @param ui user interface.
  */
+static void ui_play_print(Play *play, FILE *f)
+{
+	putc('\n', f);
+	play_print(play, f);
+	if (play_is_game_over(play)) fputs("\n*** Game Over ***\n", f);
+	putc('\n', f);
+}
+
 void ui_loop_edax(UI *ui)
 {
 	char *cmd = NULL, *param = NULL;
@@ -295,19 +303,11 @@ void ui_loop_edax(UI *ui)
 	for (;;) {
 		errno = 0;
 
-		if (options.verbosity) {
-			putchar('\n');
-			play_print(play, stdout);
-			if (play_is_game_over(play)) printf("\n*** Game Over ***\n");
-			putchar('\n');
-		}
+		if (options.verbosity)
+			ui_play_print(play, stdout);
 
-		if (log_is_open(edax_log)) {
-			putc('\n', edax_log->f);
-			play_print(play, edax_log->f);
-			if (play_is_game_over(play)) fputs("\n*** Game Over ***\n", edax_log->f);
-			putc('\n', edax_log->f);
-		}
+		if (log_is_open(edax_log))
+			ui_play_print(play, edax_log->f);
 
 		// edax turn ? (automatic play mode)
 		if (!ui_event_exist(ui) && !play_is_game_over(play) && (ui->mode == !play->player || ui->mode == 2)) {

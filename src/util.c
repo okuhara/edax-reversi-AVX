@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file util.c
  *
  * @brief Various utilities.
@@ -223,10 +223,10 @@ void relax(int t)
 char* format_scientific(double v, const char *unit, char *f)
 {
 #ifdef UNICODE
-	static const wchar_t multiple[] = L"EPTGMK mμnpfa"; //
+	static const wchar_t multiple[] = L"EPTGMK mμnpfa"; // μ:U+03BC
 	static const char fmt[] = " %5.*f %lc%s";
 #else
-	static const char multiple[] = "EPTGMK mμnpfa"; //
+	static const char multiple[] = "EPTGMK mμnpfa"; // μ:B5@CP1252
 	static const char fmt[] = " %5.*f %c%s";
 #endif
 	int u, d;

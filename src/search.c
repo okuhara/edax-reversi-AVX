@@ -855,17 +855,17 @@ void search_get_movelist(const Search *search, MoveList *movelist)
 	Move *move = movelist->move + 1;
 	const Board * const board = &search->board;
 	unsigned long long moves = get_moves(board->player, board->opponent);
-	register int x;
+	int x;
 
+	movelist->n_moves = 0;
 	foreach_bit(x, moves) {
 		board_get_move(board, x, move);
 		move->cost = 0;
 		previous = previous->next = move;
 		++move;
+		++(movelist->n_moves);
 	}
 	previous->next = NULL;
-	movelist->n_moves = move - movelist->move - 1;
-	assert(movelist->n_moves == bit_count(moves));
 }
 
 #if 0	// inlined

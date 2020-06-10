@@ -230,7 +230,7 @@ void node_wait_slaves(Node* node)
 		condition_wait(node);
 
 		if (node->is_helping) {
-			assert(node.help->run);
+			assert(node->help.run);
 			task_search(&node->help);
 			task_free(&node->help);
 			node->is_helping = false;
