@@ -233,7 +233,7 @@ int first_bit_32(unsigned int b)
 		bsf	eax, word ptr b
 	}
 
-#elif defined(USE_GCC_ARM)
+#elif 0 // defined(USE_GCC_ARM)
 	return  __builtin_clz(b & -b) ^ 31;
 
 #else
@@ -263,7 +263,7 @@ int first_bit(unsigned long long b)
 	"1:" : "=&q" (x) : "g" ((int) (b >> 32)), "g" ((int) b));
 	return x;
 
-#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM))
+#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
 	unsigned long index;
 	_BitScanForward64(&index, b);
 	return (int) index;
@@ -335,7 +335,7 @@ int last_bit(unsigned long long b)
 	__asm__("bsrq	%1, %0" :"=r" (b) :"rm" (b));
 	return b;
 
-#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM))
+#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
 	unsigned long index;
 	_BitScanReverse64(&index, b);
 	return (int) index;
@@ -349,7 +349,7 @@ int last_bit(unsigned long long b)
         "1:" : "=&q" (x) : "g" ((int) (b >> 32)), "g" ((int) b));
 	return x;
 
-#elif defined(USE_GCC_ARM)
+#elif 0 // defined(USE_GCC_ARM)
 	const unsigned int hb = b >> 32;
 	if (hb) {
 		return 63 - __builtin_clz(hb);

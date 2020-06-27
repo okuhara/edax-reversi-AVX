@@ -34,7 +34,7 @@ static unsigned long long click()
 	__asm__ volatile (
 		"rdtsc" : "=A" (a));
 	return a;
-#elif defined(_WIN32)
+#elif defined(_WIN32) && (defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64))
 	return __rdtsc();
 #else
 	return cpu_clock();

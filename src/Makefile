@@ -52,6 +52,9 @@ ifeq ($(COMP),gcc)
 	ifeq ($(ARCH),x64-modern)
 		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
+	ifeq ($(ARCH),x64-popcnt)
+		CFLAGS += -m64 -mpopcnt -mtune=generic -DUSE_GAS_X64 -DPOPCOUNT
+	endif
 	ifeq ($(ARCH),x64-k10)
 		CFLAGS += -m64 -march=amdfam10 -DUSE_GAS_X64 -DPOPCOUNT -DMOVE_GENERATOR=MOVE_GENERATOR_BITSCAN
 	endif
@@ -75,12 +78,12 @@ ifeq ($(COMP),gcc)
 	endif
 	ifeq ($(ARCH),ARM)
 		ifeq ($(BUILD),optimize)
-			CFLAGS += -fomit-frame-pointer -DUSE_GCC_ARM
+			CFLAGS += -fomit-frame-pointer
 		endif
 	endif
 	ifeq ($(ARCH),ARMv7)
 		ifeq ($(BUILD),optimize)
-			CFLAGS += -fomit-frame-pointer -march=armv7-a -mfpu=neon -DUSE_GCC_ARM
+			CFLAGS += -fomit-frame-pointer -march=armv7-a -mfpu=neon
 		endif
 	endif
 
@@ -375,12 +378,12 @@ release:
 	$(MAKE) pgo-build ARCH=x64 OS=linux COMP=gcc 
 	$(MAKE) build ARCH=x64 OS=windows COMP=gcc CC='x86_64-w64-mingw32-gcc'
 	$(MAKE) build ARCH=x86 OS=windows COMP=gcc CC='i686-w64-mingw32-gcc'
-	$(MAKE) build ARCH=ARMv7 OS=android COMP=gcc CC='arm-linux-androideabi-gcc'
+	$(MAKE) build ARCH=ARMv7 OS=android COMP=gcc CC='arm-linux-androideabi-gcc --sysroot=$SYSROOT'
 	$(MAKE) clean
 	$(MAKE) build ARCH=x64 OS=osx COMP=gcc-old CC=i686-apple-darwin10-gcc
 
 android:
-	$(MAKE) build ARCH=ARMv7 OS=android COMP=gcc-old CC='arm-linux-androideabi-gcc'
+	ndk-build NDK_PROJECT_PATH=. NDK_APPLICATION_MK=./Application.mk # NDK_DEBUG=1
 
 macuniversal:
 	$(MAKE) build ARCH=x86 OS=osx COMP=clang

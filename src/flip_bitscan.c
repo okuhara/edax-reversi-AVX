@@ -167,7 +167,7 @@ static inline unsigned long long OutflankToFlipmask(unsigned long long outflank)
 	#define OutflankToFlipmask(outflank)	((outflank) - (unsigned int) ((outflank) != 0))
 #endif
 
-#if ((defined(__x86_64__) || defined(USE_GAS_X86)) && defined(__LZCNT__)) || defined(_MSC_VER)
+#if ((defined(__x86_64__) || defined(USE_GAS_X86)) && defined(__LZCNT__)) || defined(__ARM_FEATURE_CLZ) || defined(_MSC_VER)
 	// Strictly, (long long) >> 64 is undefined in C, but either 0 bit (no change)
 	// or 64 bit (zero out) shift will lead valid result (i.e. flipped == 0).
 	#define	outflank_right(O,maskr)	(0x8000000000000000ULL >> lzcnt_u64(~(O) & (maskr)))

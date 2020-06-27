@@ -116,6 +116,9 @@ extern const unsigned long long A1_A8[256];
 		extern void init_flip_sse(void);
 	#endif
 
+#elif MOVE_GENERATOR == MOVE_GENERATOR_NEON
+	extern unsigned long long Flip(int , unsigned long long, unsigned long long);
+
 #else
 	extern unsigned long long (*flip[BOARD_SIZE + 2])(const unsigned long long, const unsigned long long);
 	#define	Flip(x,P,O)	flip[x]((P), (O))

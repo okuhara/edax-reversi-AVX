@@ -22,6 +22,7 @@
 #define MOVE_GENERATOR_32 6		// 31.3Mnps	// best for 32bit X86
 #define MOVE_GENERATOR_SSE_BSWAP 7	// 30.6Mnps
 #define MOVE_GENERATOR_AVX 8		// 34.7Mnps	// best for modern X64
+#define MOVE_GENERATOR_NEON 10
 
 #define	COUNT_LAST_FLIP_CARRY 1		// 33.8Mnps
 #define COUNT_LAST_FLIP_KINDERGARTEN 2	// 33.5Mnps
@@ -33,10 +34,14 @@
 
 /**move generation. */
 #ifndef MOVE_GENERATOR
-	#ifdef __AVX2__
+	#if defined(__AVX512CD__) && defined(__AVX512VL__)
+		#define MOVE_GENERATOR MOVE_GENERATOR_AVX512
+	#elif defined(__AVX2__)
 		#define MOVE_GENERATOR MOVE_GENERATOR_AVX
 	#elif defined(hasSSE2)
 		#define MOVE_GENERATOR MOVE_GENERATOR_SSE
+	#elif defined(HAS_CPU_64) // aarch64
+		#define MOVE_GENERATOR MOVE_GENERATOR_BITSCAN
 	#else
 		#define MOVE_GENERATOR MOVE_GENERATOR_32
 	#endif
@@ -44,7 +49,8 @@
 #ifndef LAST_FLIP_COUNTER
 	#ifdef hasSSE2
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_SSE
-		// #define AVXLASTFLIP	1	// slower on slow vzeroupper CPU
+	#elif defined(HAS_CPU_64) // aarch64
+		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_CARRY
 	#else
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_32
 	#endif

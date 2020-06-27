@@ -43,6 +43,8 @@
 	#include "flip_sse_bswap.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_AVX
 	#include "flip_avx_ppfill.c"
+#elif MOVE_GENERATOR == MOVE_GENERATOR_NEON
+	#include "flip_neon_lzcnt.c"
 #else // MOVE_GENERATOR == MOVE_GENERATOR_KINDERGARTEN
 	#include "flip_kindergarten.c"
 #endif

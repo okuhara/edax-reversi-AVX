@@ -272,7 +272,7 @@ STATIC const UINT64 FLIPPED_5_V[137] = {
 /*
  * Set all bits below the sole outflank bit if outfrank != 0
  */
-#if _MSC_VER >= 1800
+#if (_MSC_VER >= 1800) && (defined(_M_IX86) || defined (_M_X64))
 static inline unsigned long long OutflankToFlipmask(unsigned long long outflank) {
 	unsigned int flipmaskL, flipmaskH, outflankH = outflank >> 32;
 	unsigned char cy;
