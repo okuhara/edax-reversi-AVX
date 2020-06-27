@@ -288,7 +288,7 @@ ifeq ($(OS),windows)
 	EXE = wEdax-$(ARCH).exe
 	LIBS += -lws2_32
 	ifneq (,$(findstring x86,$(ARCH)))
-		LIBS += -lpthread
+		LIBS += -Bstatic -Wl,-Bstatic,-lpthread
 	endif
 endif
 ifeq ($(OS),osx)
