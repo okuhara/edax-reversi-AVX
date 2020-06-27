@@ -92,7 +92,7 @@ extern const unsigned long long A1_A8[256];
 	#define	last_flip(x,P)	count_last_flip[x](P)
 #endif
 
-#if MOVE_GENERATOR == MOVE_GENERATOR_AVX
+#if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512)
 	extern __m128i vectorcall mm_Flip(const __m128i OP, int pos);
 	#define	Flip(x,P,O)	((unsigned long long) _mm_cvtsi128_si64(mm_Flip(_mm_unpacklo_epi64(_mm_cvtsi64_si128(P), _mm_cvtsi64_si128(O)), (x))))
 	#define	board_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(mm_Flip(_mm_loadu_si128((__m128i *) (board)), (x))))

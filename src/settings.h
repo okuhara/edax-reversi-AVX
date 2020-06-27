@@ -22,6 +22,7 @@
 #define MOVE_GENERATOR_32 6		// 31.3Mnps	// best for 32bit X86
 #define MOVE_GENERATOR_SSE_BSWAP 7	// 30.6Mnps
 #define MOVE_GENERATOR_AVX 8		// 34.7Mnps	// best for modern X64
+#define MOVE_GENERATOR_AVX512	9
 #define MOVE_GENERATOR_NEON 10
 
 #define	COUNT_LAST_FLIP_CARRY 1		// 33.8Mnps
