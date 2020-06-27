@@ -810,9 +810,9 @@ static void eval_update_0(Eval *eval, const Move *move)
 
 	switch (s->n_feature) {
 	default:
-		eval->feature.us[s->feature[6].i] -= 2 * s->feature[6].x;
-	case 6:	eval->feature.us[s->feature[5].i] -= 2 * s->feature[5].x;
-	case 5:	eval->feature.us[s->feature[4].i] -= 2 * s->feature[4].x;
+		eval->feature.us[s->feature[6].i] -= 2 * s->feature[6].x;	// FALLTHRU
+	case 6:	eval->feature.us[s->feature[5].i] -= 2 * s->feature[5].x;	// FALLTHRU
+	case 5:	eval->feature.us[s->feature[4].i] -= 2 * s->feature[4].x;	// FALLTHRU
 	case 4:	eval->feature.us[s->feature[3].i] -= 2 * s->feature[3].x;
 		eval->feature.us[s->feature[2].i] -= 2 * s->feature[2].x;
 		eval->feature.us[s->feature[1].i] -= 2 * s->feature[1].x;
@@ -825,9 +825,9 @@ static void eval_update_0(Eval *eval, const Move *move)
 			s = EVAL_X2F + x + j;
 			switch (s->n_feature) {
 			default:
-				eval->feature.us[s->feature[6].i] -= s->feature[6].x;
-			case 6:	eval->feature.us[s->feature[5].i] -= s->feature[5].x;
-			case 5:	eval->feature.us[s->feature[4].i] -= s->feature[4].x;
+				eval->feature.us[s->feature[6].i] -= s->feature[6].x;	// FALLTHRU
+			case 6:	eval->feature.us[s->feature[5].i] -= s->feature[5].x;	// FALLTHRU
+			case 5:	eval->feature.us[s->feature[4].i] -= s->feature[4].x;	// FALLTHRU
 			case 4:	eval->feature.us[s->feature[3].i] -= s->feature[3].x;
 				eval->feature.us[s->feature[2].i] -= s->feature[2].x;
 				eval->feature.us[s->feature[1].i] -= s->feature[1].x;
@@ -867,9 +867,9 @@ static void eval_update_1(Eval *eval, const Move *move)
 
 	switch (s->n_feature) {
 	default:
-	       	eval->feature.us[s->feature[6].i] -= s->feature[6].x;
-	case 6:	eval->feature.us[s->feature[5].i] -= s->feature[5].x;
-	case 5:	eval->feature.us[s->feature[4].i] -= s->feature[4].x;
+	       	eval->feature.us[s->feature[6].i] -= s->feature[6].x;	// FALLTHRU
+	case 6:	eval->feature.us[s->feature[5].i] -= s->feature[5].x;	// FALLTHRU
+	case 5:	eval->feature.us[s->feature[4].i] -= s->feature[4].x;	// FALLTHRU
 	case 4:	eval->feature.us[s->feature[3].i] -= s->feature[3].x;
 	       	eval->feature.us[s->feature[2].i] -= s->feature[2].x;
 	       	eval->feature.us[s->feature[1].i] -= s->feature[1].x;
@@ -882,9 +882,9 @@ static void eval_update_1(Eval *eval, const Move *move)
 			s = EVAL_X2F + x + j;
 			switch (s->n_feature) {
 			default:
-			       	eval->feature.us[s->feature[6].i] += s->feature[6].x;
-			case 6:	eval->feature.us[s->feature[5].i] += s->feature[5].x;
-			case 5:	eval->feature.us[s->feature[4].i] += s->feature[4].x;
+			       	eval->feature.us[s->feature[6].i] += s->feature[6].x;	// FALLTHRU
+			case 6:	eval->feature.us[s->feature[5].i] += s->feature[5].x;	// FALLTHRU
+			case 5:	eval->feature.us[s->feature[4].i] += s->feature[4].x;	// FALLTHRU
 			case 4:	eval->feature.us[s->feature[3].i] += s->feature[3].x;
 			       	eval->feature.us[s->feature[2].i] += s->feature[2].x;
 			       	eval->feature.us[s->feature[1].i] += s->feature[1].x;

@@ -986,7 +986,7 @@ void play_print(Play *play, FILE *f)
 {
 	int i, j, x, discs[2], mobility[2], square;
 	char history[64];
-	const char *color = "?*O-." + 1;
+	const char color[5] = "?*O-.";
 	const char big_color[3][4] = {"|##", "|()", "|  "};
 	const char player[2][6] = {"Black", "White"};
 	const int p = play->player;
@@ -1029,7 +1029,7 @@ void play_print(Play *play, FILE *f)
 			square = 2 - (wh & 1) - 2 * (bk & 1);
 			if ((square == EMPTY) && (moves & 1))
 				square = EMPTY + 1;
-			fputc(color[square], f);
+			fputc(color[square + 1], f);
 			fputc(' ', f);
 			bk >>= 1;
 			wh >>= 1;
@@ -1042,21 +1042,21 @@ void play_print(Play *play, FILE *f)
 			fputs("  ", f); time_print(play->time[BLACK].spent, true, f); fputs("       ", f);
 			break;
 		case 1:
-			fprintf(f,"   %2d discs  %2d moves   ", discs[BLACK], mobility[BLACK]);
+			fprintf(f, "   %2d discs  %2d moves   ", discs[BLACK], mobility[BLACK]);
 			break;
 		case 3:
-			if (gameover) fprintf(f,"       Game over        ");
-			else fprintf(f,"  ply %2d (%2d empties)   ", play->i_game + 1, board_count_empties(&play->board));
+			if (gameover) fprintf(f, "       Game over        ");
+			else fprintf(f, "  ply %2d (%2d empties)   ", play->i_game + 1, board_count_empties(&play->board));
 			break;
 		case 4:
 			if (gameover) {
-				if (discs[BLACK] > discs[WHITE]) fprintf(f,"       %s won        ", player[BLACK]);
-				else if (discs[BLACK] < discs[WHITE]) fprintf(f,"       %s won        ", player[WHITE]);
-				else fprintf(f,"          draw          ");
-			} else fprintf(f,"    %s's turn (%c)    ",player[p], color[p]);
+				if (discs[BLACK] > discs[WHITE]) fprintf(f, "       %s won        ", player[BLACK]);
+				else if (discs[BLACK] < discs[WHITE]) fprintf(f, "       %s won        ", player[WHITE]);
+				else fprintf(f, "          draw          ");
+			} else fprintf(f, "    %s's turn (%c)    ", player[p], color[p + 1]);
 			break;
 		case 6:
-			fprintf(f,"   %2d discs  %2d moves   ",discs[WHITE], mobility[WHITE]);
+			fprintf(f, "   %2d discs  %2d moves   ", discs[WHITE], mobility[WHITE]);
 			break;
 		case 7:
 			fputs("  ", f); time_print(play->time[WHITE].spent, true, f); fputs("       ", f);

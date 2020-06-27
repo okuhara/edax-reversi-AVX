@@ -1151,7 +1151,7 @@ void board_print(const Board *board, const int player, FILE *f)
 {
 	int i, j, square;
 	unsigned long long bk, wh;
-	const char *color = "?*O-." + 1;
+	const char color[5] = "?*O-.";
 	unsigned long long moves = get_moves(board->player, board->opponent);
 
 	if (player == BLACK) {
@@ -1170,7 +1170,7 @@ void board_print(const Board *board, const int player, FILE *f)
 			square = 2 - (wh & 1) - 2 * (bk & 1);
 			if ((square == EMPTY) && (moves & 1))
 				square = EMPTY + 1;
-			fputc(color[square], f);
+			fputc(color[square + 1], f);
 			fputc(' ', f);
 			bk >>= 1;
 			wh >>= 1;
@@ -1178,13 +1178,13 @@ void board_print(const Board *board, const int player, FILE *f)
 		}
 		fputc(i + '1', f);
 		if (i == 1)
-			fprintf(f, " %c to move", color[player]);
+			fprintf(f, " %c to move", color[player + 1]);
 		else if (i == 3)
 			fprintf(f, " %c: discs = %2d    moves = %2d",
-				color[player], bit_count(board->player), get_mobility(board->player, board->opponent));
+				color[player + 1], bit_count(board->player), get_mobility(board->player, board->opponent));
 		else if (i == 4)
 			fprintf(f, " %c: discs = %2d    moves = %2d",
-				color[!player], bit_count(board->opponent), get_mobility(board->opponent, board->player));
+				color[2 - player], bit_count(board->opponent), get_mobility(board->opponent, board->player));
 		else if (i == 5)
 			fprintf(f, "  empties = %2d      ply = %2d",
 				64 - bit_count(board->opponent|board->player), bit_count(board->opponent|board->player) - 3);

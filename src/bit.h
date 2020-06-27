@@ -111,7 +111,7 @@ static inline unsigned char mirror_byte(unsigned int b) { return ((((b * 0x20080
 		int first_bit_32(unsigned int);
 	#endif
 	#define foreach_bit_r(i, f, b)	b = (widest_register) f;\
-		f >>= sizeof(widest_register) * CHAR_BIT;\
+		f >>= (sizeof(widest_register) % sizeof(f)) * CHAR_BIT;\
 		for (i = first_bit_32(b); b; i = first_bit_32(b &= (b - 1)))
 #endif
 
@@ -153,7 +153,7 @@ static inline unsigned char mirror_byte(unsigned int b) { return ((((b * 0x20080
 	}
 #endif
 
-#if defined(__x86_64__) || defined(_M_X64) || defined(__AVX2__)
+#if defined(__SSE2__) || defined(_M_X64)
 	#define hasSSE2	1
 #endif
 
@@ -205,7 +205,7 @@ typedef union {
 
 #if defined(_MSC_VER)	// including clang-win
 #define	vectorcall	__vectorcall
-#elif defined(__GNUC__) && defined(__i386__)
+#elif defined(__GNUC__) && !defined(__clang__) && defined(__i386__)
 #define	vectorcall	__attribute__((sseregparm))
 #elif 0 // defined(__GNUC__)	// erroreous result on pgo-build
 #define	vectorcall	__attribute__((sysv_abi))
