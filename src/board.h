@@ -103,11 +103,6 @@ extern const unsigned long long A1_A8[256];
 	#define mm_Flip(OP,x)	mm_flip[x](OP)
 	#define	board_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(mm_flip[x](_mm_loadu_si128((__m128i *) (board)))))
 
-#elif MOVE_GENERATOR == MOVE_GENERATOR_SSE_BSWAP
-	extern unsigned long long flip(int, const unsigned long long, const unsigned long long);
-	#define	Flip(x,P,O)	flip((x), (P), (O))
-	#define	board_flip(board,x)	flip((x), (board)->player, (board)->opponent)
-
 #elif MOVE_GENERATOR == MOVE_GENERATOR_32
 	extern unsigned long long (*flip[BOARD_SIZE + 2])(unsigned int, unsigned int, unsigned int, unsigned int);
 	#define Flip(x,P,O)	flip[x]((unsigned int)(P), (unsigned int)((P) >> 32), (unsigned int)(O), (unsigned int)((O) >> 32))
@@ -116,13 +111,15 @@ extern const unsigned long long A1_A8[256];
 		extern void init_flip_sse(void);
 	#endif
 
-#elif MOVE_GENERATOR == MOVE_GENERATOR_NEON
-	extern unsigned long long Flip(int , unsigned long long, unsigned long long);
-
 #else
-	extern unsigned long long (*flip[BOARD_SIZE + 2])(const unsigned long long, const unsigned long long);
-	#define	Flip(x,P,O)	flip[x]((P), (O))
-	#define	board_flip(board,x)	flip[x]((board)->player, (board)->opponent)
+	#if (MOVE_GENERATOR == MOVE_GENERATOR_SSE_BSWAP) || (MOVE_GENERATOR == MOVE_GENERATOR_NEON)
+		extern unsigned long long Flip(int, unsigned long long, unsigned long long);
+	#else
+		extern unsigned long long (*flip[BOARD_SIZE + 2])(const unsigned long long, const unsigned long long);
+		#define	Flip(x,P,O)	flip[x]((P), (O))
+	#endif
+
+	#define	board_flip(board,x)	Flip((x), (board)->player, (board)->opponent)
 #endif
 
 #endif

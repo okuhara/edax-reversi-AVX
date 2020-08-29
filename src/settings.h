@@ -23,7 +23,8 @@
 #define MOVE_GENERATOR_SSE_BSWAP 7	// 30.6Mnps
 #define MOVE_GENERATOR_AVX 8		// 34.7Mnps	// best for modern X64
 #define MOVE_GENERATOR_AVX512	9
-#define MOVE_GENERATOR_NEON 10
+#define MOVE_GENERATOR_NEON 10		// neon_lzcnt (6.51Mnps), neon_ppfill (5.55Mnps)
+#define MOVE_GENERATOR_NEON_BITSCAN 11	// neon_bitscan (6.43Mnps)
 
 #define	COUNT_LAST_FLIP_CARRY 1		// 33.8Mnps
 #define COUNT_LAST_FLIP_KINDERGARTEN 2	// 33.5Mnps
@@ -41,8 +42,8 @@
 		#define MOVE_GENERATOR MOVE_GENERATOR_AVX
 	#elif defined(hasSSE2)
 		#define MOVE_GENERATOR MOVE_GENERATOR_SSE
-	#elif defined(HAS_CPU_64) // aarch64
-		#define MOVE_GENERATOR MOVE_GENERATOR_BITSCAN
+	#elif defined(__aarch64__)
+		#define MOVE_GENERATOR MOVE_GENERATOR_NEON
 	#else
 		#define MOVE_GENERATOR MOVE_GENERATOR_32
 	#endif
@@ -50,8 +51,8 @@
 #ifndef LAST_FLIP_COUNTER
 	#ifdef hasSSE2
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_SSE
-	#elif defined(HAS_CPU_64) // aarch64
-		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_CARRY
+	#elif defined(__aarch64__)
+		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_BITSCAN
 	#else
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_32
 	#endif

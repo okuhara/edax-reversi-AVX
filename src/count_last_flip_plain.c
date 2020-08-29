@@ -159,7 +159,7 @@ const unsigned long long mask_d[2][64] = {
 #define	packV(P, x)	(((((((unsigned int)(P)) >> (x)) & 0x01010101u) + (((((unsigned int)((P) >> 32)) >> (x)) & 0x01010101u) << 4)) * 0x01020408u) >> 24)
 #define	packD(PM)	(((((unsigned int)(PM)) * 0x01010101u) + (((unsigned int)((PM) >> 32)) * 0x01010101u)) >> 24)
 
-#endif // __x86_64__
+#endif // HAS_CPU_64
 
 /**
  * Count last flipped discs when playing on the last empty.
@@ -168,10 +168,10 @@ const unsigned long long mask_d[2][64] = {
  * @param P player's disc pattern.
  * @return flipped disc count.
  */
-inline int last_flip(int pos, unsigned long long P)
+int last_flip(int pos, unsigned long long P)
 {
 	unsigned long long PM;
-	unsigned char	n_flipped;
+	int	n_flipped;
 	int	x = pos & 0x07;
 	int	y = pos >> 3;
 
