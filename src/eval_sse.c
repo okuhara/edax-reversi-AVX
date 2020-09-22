@@ -10,21 +10,21 @@
 
 #include <assert.h>
 
-#include "bit.h"
+#include "bit_intrinsics.h"
 #include "board.h"
 #include "move.h"
 #include "eval.h"
 
-#if defined(__ARM_NEON__) || defined(_M_ARM) || defined(_M_ARM64)
+#ifdef __ARM_NEON__
 #define __m128i		int16x8_t
 #define	_mm_add_epi16	vaddq_s16
 #define _mm_sub_epi16	vsubq_s16
 #define _mm_slli_epi16	vshlq_n_s16
 #endif
 
-#if defined(hasSSE2) || defined(hasNeon) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(__ARM_NEON__) || defined(USE_MSVC_X86)
 
-static void eval_update_sse_0(Eval *eval_out, const Eval *eval_in, const Move *move)
+void eval_update_sse_0(Eval *eval_out, const Eval *eval_in, const Move *move)
 {
 	int	x = move->x;
 	unsigned long long f = move->flipped;
@@ -82,7 +82,7 @@ static void eval_update_sse_0(Eval *eval_out, const Eval *eval_in, const Move *m
  * @param eval  Evaluation function.
  * @param move  Move.
  */
-static void eval_update_sse_1(Eval *eval_out, const Eval *eval_in, const Move *move)
+void eval_update_sse_1(Eval *eval_out, const Eval *eval_in, const Move *move)
 {
 	int	x = move->x;
 	unsigned long long f = move->flipped;

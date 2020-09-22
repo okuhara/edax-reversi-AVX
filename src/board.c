@@ -34,7 +34,12 @@
 #elif MOVE_GENERATOR == MOVE_GENERATOR_SSE
 	#include "flip_sse.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_BITSCAN
-	#include "flip_bitscan.c"
+	#ifdef hasNeon
+		#define	flip_neon	flip
+		#include "flip_neon_bitscan.c"
+	#else
+		#include "flip_bitscan.c"
+	#endif
 #elif MOVE_GENERATOR == MOVE_GENERATOR_ROXANE
 	#include "flip_roxane.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_32
@@ -46,7 +51,11 @@
 #elif MOVE_GENERATOR == MOVE_GENERATOR_AVX512
 	#include "flip_avx512cd.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_NEON
-	#include "flip_neon_lzcnt.c"
+	#ifdef __aarch64__
+		#include "flip_neon_rbit.c"
+	#else
+		#include "flip_neon_lzcnt.c"
+	#endif
 #else // MOVE_GENERATOR == MOVE_GENERATOR_KINDERGARTEN
 	#include "flip_kindergarten.c"
 #endif
@@ -56,45 +65,12 @@
 unsigned char edge_stability[256 * 256];
 
 /** conversion from an 8-bit line to the A1-A8 line */
-const unsigned long long A1_A8[256] = {
-	0x0000000000000000, 0x0000000000000001, 0x0000000000000100, 0x0000000000000101, 0x0000000000010000, 0x0000000000010001, 0x0000000000010100, 0x0000000000010101,
-	0x0000000001000000, 0x0000000001000001, 0x0000000001000100, 0x0000000001000101, 0x0000000001010000, 0x0000000001010001, 0x0000000001010100, 0x0000000001010101,
-	0x0000000100000000, 0x0000000100000001, 0x0000000100000100, 0x0000000100000101, 0x0000000100010000, 0x0000000100010001, 0x0000000100010100, 0x0000000100010101,
-	0x0000000101000000, 0x0000000101000001, 0x0000000101000100, 0x0000000101000101, 0x0000000101010000, 0x0000000101010001, 0x0000000101010100, 0x0000000101010101,
-	0x0000010000000000, 0x0000010000000001, 0x0000010000000100, 0x0000010000000101, 0x0000010000010000, 0x0000010000010001, 0x0000010000010100, 0x0000010000010101,
-	0x0000010001000000, 0x0000010001000001, 0x0000010001000100, 0x0000010001000101, 0x0000010001010000, 0x0000010001010001, 0x0000010001010100, 0x0000010001010101,
-	0x0000010100000000, 0x0000010100000001, 0x0000010100000100, 0x0000010100000101, 0x0000010100010000, 0x0000010100010001, 0x0000010100010100, 0x0000010100010101,
-	0x0000010101000000, 0x0000010101000001, 0x0000010101000100, 0x0000010101000101, 0x0000010101010000, 0x0000010101010001, 0x0000010101010100, 0x0000010101010101,
-	0x0001000000000000, 0x0001000000000001, 0x0001000000000100, 0x0001000000000101, 0x0001000000010000, 0x0001000000010001, 0x0001000000010100, 0x0001000000010101,
-	0x0001000001000000, 0x0001000001000001, 0x0001000001000100, 0x0001000001000101, 0x0001000001010000, 0x0001000001010001, 0x0001000001010100, 0x0001000001010101,
-	0x0001000100000000, 0x0001000100000001, 0x0001000100000100, 0x0001000100000101, 0x0001000100010000, 0x0001000100010001, 0x0001000100010100, 0x0001000100010101,
-	0x0001000101000000, 0x0001000101000001, 0x0001000101000100, 0x0001000101000101, 0x0001000101010000, 0x0001000101010001, 0x0001000101010100, 0x0001000101010101,
-	0x0001010000000000, 0x0001010000000001, 0x0001010000000100, 0x0001010000000101, 0x0001010000010000, 0x0001010000010001, 0x0001010000010100, 0x0001010000010101,
-	0x0001010001000000, 0x0001010001000001, 0x0001010001000100, 0x0001010001000101, 0x0001010001010000, 0x0001010001010001, 0x0001010001010100, 0x0001010001010101,
-	0x0001010100000000, 0x0001010100000001, 0x0001010100000100, 0x0001010100000101, 0x0001010100010000, 0x0001010100010001, 0x0001010100010100, 0x0001010100010101,
-	0x0001010101000000, 0x0001010101000001, 0x0001010101000100, 0x0001010101000101, 0x0001010101010000, 0x0001010101010001, 0x0001010101010100, 0x0001010101010101,
-	0x0100000000000000, 0x0100000000000001, 0x0100000000000100, 0x0100000000000101, 0x0100000000010000, 0x0100000000010001, 0x0100000000010100, 0x0100000000010101,
-	0x0100000001000000, 0x0100000001000001, 0x0100000001000100, 0x0100000001000101, 0x0100000001010000, 0x0100000001010001, 0x0100000001010100, 0x0100000001010101,
-	0x0100000100000000, 0x0100000100000001, 0x0100000100000100, 0x0100000100000101, 0x0100000100010000, 0x0100000100010001, 0x0100000100010100, 0x0100000100010101,
-	0x0100000101000000, 0x0100000101000001, 0x0100000101000100, 0x0100000101000101, 0x0100000101010000, 0x0100000101010001, 0x0100000101010100, 0x0100000101010101,
-	0x0100010000000000, 0x0100010000000001, 0x0100010000000100, 0x0100010000000101, 0x0100010000010000, 0x0100010000010001, 0x0100010000010100, 0x0100010000010101,
-	0x0100010001000000, 0x0100010001000001, 0x0100010001000100, 0x0100010001000101, 0x0100010001010000, 0x0100010001010001, 0x0100010001010100, 0x0100010001010101,
-	0x0100010100000000, 0x0100010100000001, 0x0100010100000100, 0x0100010100000101, 0x0100010100010000, 0x0100010100010001, 0x0100010100010100, 0x0100010100010101,
-	0x0100010101000000, 0x0100010101000001, 0x0100010101000100, 0x0100010101000101, 0x0100010101010000, 0x0100010101010001, 0x0100010101010100, 0x0100010101010101,
-	0x0101000000000000, 0x0101000000000001, 0x0101000000000100, 0x0101000000000101, 0x0101000000010000, 0x0101000000010001, 0x0101000000010100, 0x0101000000010101,
-	0x0101000001000000, 0x0101000001000001, 0x0101000001000100, 0x0101000001000101, 0x0101000001010000, 0x0101000001010001, 0x0101000001010100, 0x0101000001010101,
-	0x0101000100000000, 0x0101000100000001, 0x0101000100000100, 0x0101000100000101, 0x0101000100010000, 0x0101000100010001, 0x0101000100010100, 0x0101000100010101,
-	0x0101000101000000, 0x0101000101000001, 0x0101000101000100, 0x0101000101000101, 0x0101000101010000, 0x0101000101010001, 0x0101000101010100, 0x0101000101010101,
-	0x0101010000000000, 0x0101010000000001, 0x0101010000000100, 0x0101010000000101, 0x0101010000010000, 0x0101010000010001, 0x0101010000010100, 0x0101010000010101,
-	0x0101010001000000, 0x0101010001000001, 0x0101010001000100, 0x0101010001000101, 0x0101010001010000, 0x0101010001010001, 0x0101010001010100, 0x0101010001010101,
-	0x0101010100000000, 0x0101010100000001, 0x0101010100000100, 0x0101010100000101, 0x0101010100010000, 0x0101010100010001, 0x0101010100010100, 0x0101010100010101,
-	0x0101010101000000, 0x0101010101000001, 0x0101010101000100, 0x0101010101000101, 0x0101010101010000, 0x0101010101010001, 0x0101010101010100, 0x0101010101010101,
-};
+unsigned long long A1_A8[256];
 
 #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 #include "board_mmx.c"
 #endif
-#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(hasSSE2)
+#if !defined(ANDROID) && (defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(hasSSE2) || defined(hasNeon))
 #include "board_sse.c"
 #endif
 
@@ -280,7 +256,7 @@ bool board_equal(const Board *b1, const Board *b2)
 	return (b1->player == b2->player && b1->opponent == b2->opponent);
 }
 
-#ifndef hasSSE2	// SSE version in board_sse.c
+#if !defined(hasSSE2) && !defined(hasNeon)	// SSE version in board_sse.c
 /**
  * @brief symetric board
  *
@@ -462,7 +438,7 @@ void board_pass(Board *board)
 	board_check(board);
 }
 
-#if !(defined(hasSSE2) && ((MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)))	// SSE version in endgame_sse.c
+#if (MOVE_GENERATOR != MOVE_GENERATOR_AVX) && (MOVE_GENERATOR != MOVE_GENERATOR_SSE) && (MOVE_GENERATOR != MOVE_GENERATOR_NEON)	// SSE version in board_sse.c
 /**
  * @brief Compute a board resulting of a move played on a previous board.
  *
@@ -503,7 +479,7 @@ unsigned long long board_pass_next(const Board *board, const int x, Board *next)
 }
 #endif
 
-#if !defined(__x86_64__) && !defined(_M_X64) && !defined(__AVX2__)	// sse version in board_sse.c
+#if !defined(hasSSE2) && !defined(hasNeon)	// sse version in board_sse.c
 /**
  * @brief Get a part of the moves.
  *
@@ -587,11 +563,13 @@ unsigned long long get_moves(const unsigned long long P, const unsigned long lon
 {
 	unsigned long long moves, OM;
 
-	#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+	#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
 	if (hasSSE2)
 		return get_moves_sse(P, O);
+	#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 	else if (hasMMX)
 		return get_moves_mmx(P, O);
+	#endif
 	#endif
 
 	OM = O & 0x7e7e7e7e7e7e7e7e;
@@ -602,7 +580,7 @@ unsigned long long get_moves(const unsigned long long P, const unsigned long lon
 
 	return moves & ~(P|O);	// mask with empties
 }
-#endif
+#endif // hasSSE2/hasNeon
 
 /**
  * @brief Get legal moves on a 6x6 board.
@@ -627,7 +605,7 @@ unsigned long long get_moves_6x6(const unsigned long long P, const unsigned long
  */
 bool can_move(const unsigned long long P, const unsigned long long O)
 {
-#if defined(__x86_64__) || defined(_M_X64) || defined(hasMMX)
+#if defined(hasMMX) || defined(hasNeon)
 	return get_moves(P, O) != 0;
 
 #else
@@ -787,11 +765,12 @@ static int find_edge_stable(const int old_P, const int old_O, int stable)
 }
 
 /**
- * @brief Initialize the edge stability tables.
+ * @brief Initialize the edge stability and A1_A8 tables.
  */
 void edge_stability_init(void)
 {
 	int P, O, PO, rPO;
+	unsigned long long Q;
 	// long long t = cpu_clock();
 
 	for (PO = 0; PO < 256 * 256; ++PO) {
@@ -808,6 +787,12 @@ void edge_stability_init(void)
 		}
 	}
 	// printf("edge_stability_init: %d\n", (int)(cpu_clock() - t));
+
+	Q = 0;
+	for (P = 0; P < 256; ++P) {
+		A1_A8[P] = Q;
+		Q = ((Q | ~0x0101010101010101) + 1) & 0x0101010101010101;
+	}
 }
 
 #ifdef HAS_CPU_64
@@ -818,7 +803,25 @@ void edge_stability_init(void)
 #define	packH1H8(X)	(((((unsigned int)((X) >> 32) & 0x80808080) + (((unsigned int)(X) & 0x80808080) >> 4)) * 0x00204081) >> 24)
 #endif
 
-#if !defined(__x86_64__) && !defined(_M_X64)
+#ifndef HAS_CPU_64
+/**
+ * @brief Get stable edge.
+ *
+ * @param P bitboard with player's discs.
+ * @param O bitboard with opponent's discs.
+ * @return a bitboard with (some of) player's stable discs.
+ *
+ */
+unsigned long long get_stable_edge(const unsigned long long P, const unsigned long long O)
+{	// compute the exact stable edges (from precomputed tables)
+	return edge_stability[((unsigned int) P & 0xff) * 256 + ((unsigned int) O & 0xff)]
+	    |  (unsigned long long) edge_stability[(unsigned int) (P >> 56) * 256 + (unsigned int) (O >> 56)] << 56
+	    |  A1_A8[edge_stability[packA1A8(P) * 256 + packA1A8(O)]]
+	    |  A1_A8[edge_stability[packH1H8(P) * 256 + packH1H8(O)]] << 7;
+}
+#endif
+
+#if !defined(HAS_CPU_64) && !(defined(ANDROID) && (defined(hasNeon) || defined(hasSSE2)))
 /**
  * @brief Get full lines.
  *
@@ -919,22 +922,6 @@ static unsigned long long get_full_lines_v(unsigned long long full)
 }
 
 /**
- * @brief Get stable edge.
- *
- * @param P bitboard with player's discs.
- * @param O bitboard with opponent's discs.
- * @return a bitboard with (some of) player's stable discs.
- *
- */
-static unsigned long long get_stable_edge(const unsigned long long P, const unsigned long long O)
-{	// compute the exact stable edges (from precomputed tables)
-	return edge_stability[((unsigned int) P & 0xff) * 256 + ((unsigned int) O & 0xff)]
-	    |  (unsigned long long) edge_stability[(unsigned int) (P >> 56) * 256 + (unsigned int) (O >> 56)] << 56
-	    |  A1_A8[edge_stability[packA1A8(P) * 256 + packA1A8(O)]]
-	    |  A1_A8[edge_stability[packH1H8(P) * 256 + packH1H8(O)]] << 7;
-}
-
-/**
  * @brief Estimate the stability.
  *
  * Count the number (in fact a lower estimate) of stable discs.
@@ -948,7 +935,10 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 	unsigned long long P_central, disc, full_h, full_v, full_d7, full_d9;
 	unsigned long long stable_h, stable_v, stable_d7, stable_d9, stable, old_stable;
 
-#if (defined(USE_GAS_MMX) && !(defined(__clang__) && (__clang__major__ < 3))) || defined(USE_MSVC_X86)
+#ifdef ANDROID
+	if (hasSSE2)
+		return get_stability_sse(P, O);
+#elif (defined(USE_GAS_MMX) && !(defined(__clang__) && (__clang__major__ < 3))) || defined(USE_MSVC_X86)
 	if (hasMMX)
 		return get_stability_mmx(P, O);
 #endif
@@ -982,7 +972,7 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 
 	return bit_count(stable);
 }
-#endif // __x86_64__
+#endif // HAS_CPU_64/ANDROID
 
 /**
  * @brief Estimate the stability of edges.

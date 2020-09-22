@@ -170,7 +170,7 @@ static const CoordinateToFeature EVAL_X2F[] = {
 };
 
 #endif
-#if defined(VECTOR_EVAL_UPDATE) || defined(hasSSE2) || defined(hasNeon) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(VECTOR_EVAL_UPDATE) || defined(hasSSE2) || defined(hasNeon) || defined(ANDROID) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 
 const EVAL_FEATURE_V EVAL_FEATURE[65] = {
 	{{ // a1
@@ -735,7 +735,10 @@ void eval_close(void)
 	EVAL_WEIGHT = NULL;
 }
 
-#if defined(hasSSE2) || defined(hasNeon) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#ifdef ANDROID
+extern void eval_update_sse_0(Eval *eval_out, const Eval *eval_in, const Move *move);
+extern void eval_update_sse_1(Eval *eval_out, const Eval *eval_in, const Move *move);
+#elif defined(hasSSE2) || defined(hasNeon) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 #include "eval_sse.c"
 #endif
 
@@ -900,7 +903,7 @@ void eval_update(Eval *eval, const Move *move)
 {
 	assert(move->flipped);
 
-#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
 	if (hasSSE2) {
 		if (eval->n_empties & 1)
 			eval_update_sse_1(eval, eval, move);
@@ -917,7 +920,7 @@ void eval_update(Eval *eval, const Move *move)
 
 void eval_update_leaf(Eval *eval_out, const Eval *eval_in, const Move *move)
 {
-#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
 	if (hasSSE2) {
 		if (eval_in->n_empties & 1)
 			eval_update_sse_1(eval_out, eval_in, move);
@@ -933,7 +936,7 @@ void eval_update_leaf(Eval *eval_out, const Eval *eval_in, const Move *move)
 		eval_update_0(eval_out, move);
 }
 
-#endif // hasSSE2
+#endif // !defined(hasSSE2) && !defined(hasNeon)
 
 /**
  * @brief Update/Restore the features after a passing move.

@@ -30,11 +30,15 @@ unsigned int horizontal_mirror_32(unsigned int b);
 unsigned long long horizontal_mirror(unsigned long long);
 int get_rand_bit(unsigned long long, struct Random*);
 
-extern const unsigned long long X_TO_BIT[];
-/** Return a bitboard with bit x set. */
-#define x_to_bit(x) X_TO_BIT[x]
+extern unsigned long long X_TO_BIT[];
+extern const unsigned long long NEIGHBOUR[];
 
-//#define x_to_bit(x) (1ULL << (x)) // 1% slower on Sandy Bridge
+/** Return a bitboard with bit x set. */
+#ifdef __aarch64__ // 1% slower on Sandy Bridge
+#define x_to_bit(x) (1ULL << (x))
+#else
+#define x_to_bit(x) X_TO_BIT[x]
+#endif
 
 /** Loop over each bit set. */
 #if (defined(__GNUC__) && __GNUC__ >= 4) || __has_builtin(__builtin_ctzll)
@@ -67,7 +71,7 @@ extern const unsigned long long X_TO_BIT[];
 #endif
 
 // popcount
-#if !defined(POPCOUNT) && (defined(__ARM_NEON__) || defined(_M_ARM) || defined(_M_ARM64))
+#if !defined(POPCOUNT) && defined(hasNeon)
 	#define	POPCOUNT	1
 #endif
 
@@ -117,6 +121,10 @@ extern const unsigned long long X_TO_BIT[];
 	#endif
 #endif
 
+#if defined(ANDROID) && ((defined(__arm__) && !defined(hasNeon)) || (defined(__i386__) && !defined(hasSSE2)))
+extern bool	hasSSE2;
+#endif
+
 typedef union {
 	unsigned long long	ull[2];
 #if defined(hasSSE2) || defined(USE_MSVC_X86)
@@ -152,7 +160,7 @@ typedef union {
 #endif
 
 // X64 compatibility sims for X86
-#if !defined(__x86_64__) && !defined(_M_X64)
+#ifndef HAS_CPU_64
 #if defined(hasSSE2) || defined(USE_MSVC_X86)
 static inline __m128i _mm_cvtsi64_si128(const unsigned long long x) {
 	return _mm_unpacklo_epi32(_mm_cvtsi32_si128(x), _mm_cvtsi32_si128(x >> 32));
@@ -171,6 +179,6 @@ static inline unsigned long long _mm_cvtsi128_si64(__m128i x) {
 		| (unsigned int) _mm_cvtsi128_si32(x);
 }
 #endif
-#endif
+#endif // !HAS_CPU_64
 
 #endif // EDAX_BIT_H

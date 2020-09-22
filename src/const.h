@@ -45,9 +45,6 @@ enum {
 	OFF_SIDE
 };
 
-extern const unsigned long long X_TO_BIT[];
-extern const unsigned long long NEIGHBOUR[];
-
 /** infinite score: a huge value unreachable as a score and fitting in a char */
 #define SCORE_INF 127
 

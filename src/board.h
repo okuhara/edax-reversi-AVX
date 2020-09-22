@@ -65,6 +65,7 @@ int get_mobility(const unsigned long long, const unsigned long long);
 int get_weighted_mobility(const unsigned long long, const unsigned long long);
 int get_potential_mobility(const unsigned long long, const unsigned long long);
 void edge_stability_init(void);
+unsigned long long get_stable_edge(const unsigned long long, const unsigned long long);
 int get_stability(const unsigned long long, const unsigned long long);
 int get_edge_stability(const unsigned long long, const unsigned long long);
 int get_corner_stability(const unsigned long long);
@@ -75,7 +76,13 @@ unsigned long long get_moves_mmx(unsigned long long, unsigned long long);
 unsigned long long get_moves_sse(unsigned long long, unsigned long long);
 int get_stability_mmx(unsigned long long, unsigned long long);
 int get_potential_mobility_mmx(unsigned long long, unsigned long long);
+
+#elif defined(ANDROID) && !defined(hasNeon) && !defined(hasSSE2)
+void init_neon (void);
+unsigned long long get_moves_sse(unsigned long long, unsigned long long);
+int get_stability_sse(const unsigned long long P, const unsigned long long O);
 #endif
+
 #if defined(USE_GAS_MMX) && defined(__3dNOW__)
 unsigned long long board_get_hash_code_mmx(const unsigned char *p);
 #elif defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
@@ -83,9 +90,9 @@ unsigned long long board_get_hash_code_sse(const unsigned char *p);
 #endif
 
 extern unsigned char edge_stability[256 * 256];
-extern const unsigned long long A1_A8[256];
+extern unsigned long long A1_A8[256];
 
-#if ((LAST_FLIP_COUNTER == COUNT_LAST_FLIP_PLAIN) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BMI2))
+#if (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_PLAIN) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BMI2)
 	extern int last_flip(int pos, unsigned long long P);
 #else
 	extern int (*count_last_flip[BOARD_SIZE + 1])(const unsigned long long);
@@ -102,6 +109,11 @@ extern const unsigned long long A1_A8[256];
 	#define	Flip(x,P,O)	((unsigned long long) _mm_cvtsi128_si64(mm_flip[x](_mm_unpacklo_epi64(_mm_cvtsi64_si128(P), _mm_cvtsi64_si128(O)))))
 	#define mm_Flip(OP,x)	mm_flip[x](OP)
 	#define	board_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(mm_flip[x](_mm_loadu_si128((__m128i *) (board)))))
+
+#elif MOVE_GENERATOR == MOVE_GENERATOR_NEON
+	extern uint64x2_t mm_Flip(uint64x2_t OP, int pos);
+	#define	Flip(x,P,O)	vgetq_lane_u64(mm_Flip(vcombine_u64(vcreate_u64(P), vcreate_u64(O)), (x)), 0)
+	#define	board_flip(board,x)	vgetq_lane_u64(mm_Flip(vld1q_u64((uint64_t *) board), (x)), 0)
 
 #elif MOVE_GENERATOR == MOVE_GENERATOR_32
 	extern unsigned long long (*flip[BOARD_SIZE + 2])(unsigned int, unsigned int, unsigned int, unsigned int);
