@@ -380,7 +380,7 @@ static int search_solve_4(Search *search, const int alpha)
  */
 static int search_shallow(Search *search, const int alpha)
 {
-	Move move;
+	unsigned long long flipped;
 	int x, score, bestscore = -SCORE_INF;
 	// const int beta = alpha + 1;
 	Board board0;
@@ -396,32 +396,40 @@ static int search_shallow(Search *search, const int alpha)
 	if (search_SC_NWS(search, alpha, &score)) return score;
 
 	board0 = search->board;
-	parity0 = search->eval.parity;
-	for (paritymask = 0; paritymask <= 15; paritymask += 15) {	// 0 for odd, 15 for even
-		if (parity0 != paritymask) {	// 0: all even, 15: all odd
+	paritymask = parity0 = search->eval.parity;
+	--search->eval.n_empties;	// for next depth
+	do {	// odd first, even second
+		if (paritymask) {	// skip all even or all add
 			foreach_empty (x, search->empties) {
-				if ((parity0 ^ paritymask) & QUADRANT_ID[x]) {
-					if ((NEIGHBOUR[x] & board0.opponent) && board_get_move(&search->board, x, &move)) {
-						search_swap_parity(search, x);
+				if (paritymask & QUADRANT_ID[x]) {
+					if ((NEIGHBOUR[x] & board0.opponent) && (flipped = board_flip(&board0, x))) {
+						search->eval.parity = parity0 ^ QUADRANT_ID[x];
 						empty_remove(search->empties, x);
-						board_update(&search->board, &move);
-						--search->eval.n_empties;
+						search->board.player = board0.opponent ^ flipped;
+						search->board.opponent = board0.player ^ (flipped | x_to_bit(x));
+						board_check(&search->board);
 
-						if (search->eval.n_empties == 4) score = -search_solve_4(search, -(alpha + 1));
-						else score = -search_shallow(search, -(alpha + 1));
+						if (search->eval.n_empties == 4)
+							score = -search_solve_4(search, -(alpha + 1));
+						else	score = -search_shallow(search, -(alpha + 1));
 
-						search->eval.parity = parity0;
 						empty_restore(search->empties, x);
-						search->board = board0;
-						++search->eval.n_empties;
 
-						if (score > alpha) return score;
-						else if (score > bestscore) bestscore = score;
+						if (score > alpha) {
+							search->board = board0;
+							search->eval.parity = parity0;
+							++search->eval.n_empties;
+							return score;
+						} else if (score > bestscore)
+							bestscore = score;
 					}
 				}
 			}
 		}
-	}
+	} while ((paritymask ^= 15) != parity0);
+	search->board = board0;
+	search->eval.parity = parity0;
+	++search->eval.n_empties;
 
 	// no move
 	if (bestscore == -SCORE_INF) {

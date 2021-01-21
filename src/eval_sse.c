@@ -24,10 +24,8 @@
 
 #if defined(hasSSE2) || defined(__ARM_NEON__) || defined(USE_MSVC_X86)
 
-void eval_update_sse_0(Eval *eval_out, const Eval *eval_in, const Move *move)
+void eval_update_sse_0(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
-	int	x = move->x;
-	unsigned long long f = move->flipped;
 #ifdef __AVX2__
 	__m256i	f0 = _mm256_sub_epi16(eval_in->feature.v16[0], _mm256_slli_epi16(EVAL_FEATURE[x].v16[0], 1));
 	__m256i	f1 = _mm256_sub_epi16(eval_in->feature.v16[1], _mm256_slli_epi16(EVAL_FEATURE[x].v16[1], 1));
@@ -76,16 +74,8 @@ void eval_update_sse_0(Eval *eval_out, const Eval *eval_in, const Move *move)
 #endif
 }
 
-/**
- * @brief Update the features after a player's move.
- *
- * @param eval  Evaluation function.
- * @param move  Move.
- */
-void eval_update_sse_1(Eval *eval_out, const Eval *eval_in, const Move *move)
+void eval_update_sse_1(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
-	int	x = move->x;
-	unsigned long long f = move->flipped;
 #ifdef __AVX2__
 	__m256i	f0 = _mm256_sub_epi16(eval_in->feature.v16[0], EVAL_FEATURE[x].v16[0]);
 	__m256i	f1 = _mm256_sub_epi16(eval_in->feature.v16[1], EVAL_FEATURE[x].v16[1]);
@@ -136,12 +126,11 @@ void eval_update_sse_1(Eval *eval_out, const Eval *eval_in, const Move *move)
 
 #else	// SSE dispatch (Eval may not be aligned)
 
-static void eval_update_sse_0(Eval *eval_out, const Eval *eval_in, const Move *move)
+static void eval_update_sse_0(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
-	int	x = move->x;
 	widest_register	b;
-	unsigned int	fl = (unsigned int) move->flipped;
-	unsigned int	fh = (unsigned int) (move->flipped >> 32);
+	unsigned int	fl = (unsigned int) f;
+	unsigned int	fh = (unsigned int) (f >> 32);
 
 	__asm__ (
 		"movdqa	%2, %%xmm0\n\t"		"movdqa	%3, %%xmm1\n\t"
@@ -196,12 +185,11 @@ static void eval_update_sse_0(Eval *eval_out, const Eval *eval_in, const Move *m
 	"m" (eval_out->feature.us[24]), "m" (eval_out->feature.us[32]), "m" (eval_out->feature.us[40]));
 }
 
-static void eval_update_sse_1(Eval *eval_out, const Eval *eval_in, const Move *move)
+static void eval_update_sse_1(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
-	int	x = move->x;
 	widest_register	b;
-	unsigned int	fl = (unsigned int) move->flipped;
-	unsigned int	fh = (unsigned int) (move->flipped >> 32);
+	unsigned int	fl = (unsigned int) f;
+	unsigned int	fh = (unsigned int) (f >> 32);
 
 	__asm__ (
 		"movdqu	%0, %%xmm2\n\t"		"movdqu	%1, %%xmm3\n\t"
@@ -324,24 +312,25 @@ void eval_set(Eval *eval, const Board *board)
 /**
  * @brief Update the features after a player's move.
  *
+ * @param x     Move position.
+ * @param f     Flipped bitboard.
  * @param eval  Evaluation function.
- * @param move  Move.
  */
-void eval_update(Eval *eval, const Move *move)
+void eval_update(int x, unsigned long long f, Eval *eval)
 {
-	assert(move->flipped);
+	assert(f);
 	if (eval->n_empties & 1)
-		eval_update_sse_1(eval, eval, move);
+		eval_update_sse_1(x, f, eval, eval);
 	else
-		eval_update_sse_0(eval, eval, move);
+		eval_update_sse_0(x, f, eval, eval);
 }
 
-void eval_update_leaf(Eval *eval_out, const Eval *eval_in, const Move *move)
+void eval_update_leaf(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
 	if (eval_in->n_empties & 1)
-		eval_update_sse_1(eval_out, eval_in, move);
+		eval_update_sse_1(x, f, eval_out, eval_in);
 	else
-		eval_update_sse_0(eval_out, eval_in, move);
+		eval_update_sse_0(x, f, eval_out, eval_in);
 }
 
 #endif // hasSSE2

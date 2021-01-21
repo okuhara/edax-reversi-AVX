@@ -933,7 +933,7 @@ void search_update_midgame(Search *search, const Move *move)
 	search_swap_parity(search, move->x);
 	empty_remove(search->empties, move->x);
 	board_update(&search->board, move);
-	eval_update(&search->eval, move);
+	eval_update(move->x, move->flipped, &search->eval);
 	assert(search->eval.n_empties > 0);
 	--search->eval.n_empties;
 	search_update_midgame_tail(search);

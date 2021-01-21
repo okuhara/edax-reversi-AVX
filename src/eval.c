@@ -736,8 +736,8 @@ void eval_close(void)
 }
 
 #ifdef ANDROID
-extern void eval_update_sse_0(Eval *eval_out, const Eval *eval_in, const Move *move);
-extern void eval_update_sse_1(Eval *eval_out, const Eval *eval_in, const Move *move);
+extern void eval_update_sse_0(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in);
+extern void eval_update_sse_1(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in);
 #elif defined(hasSSE2) || defined(hasNeon) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 #include "eval_sse.c"
 #endif
@@ -788,19 +788,19 @@ void eval_set(Eval *eval, const Board *board)
 /**
  * @brief Update the features after a player's move.
  *
+ * @param x     Move position.
+ * @param f     Flipped bitboard.
  * @param eval  Evaluation function.
- * @param move  Move.
  */
-static void eval_update_0(Eval *eval, const Move *move)
+static void eval_update_0(int x, unsigned long long f, Eval *eval)
 {
-	unsigned long long f = move->flipped;
-	int	j, x;
+	int	j;
 	widest_register	b;
 #ifdef VECTOR_EVAL_UPDATE
 	int	i;
 
 	for (i = 0; i < 48; ++i)
-		eval->feature.us[i] -= EVAL_FEATURE[move->x].us[i] << 1;
+		eval->feature.us[i] -= EVAL_FEATURE[x].us[i] << 1;
 
 	for (j = 0; j < 64; j += sizeof(widest_register) * CHAR_BIT) {
 		foreach_bit_r (x, f, b)
@@ -809,7 +809,7 @@ static void eval_update_0(Eval *eval, const Move *move)
 	}
 
 #else
-	const CoordinateToFeature *s = EVAL_X2F + move->x;
+	const CoordinateToFeature *s = EVAL_X2F + x;
 
 	switch (s->n_feature) {
 	default:
@@ -845,19 +845,19 @@ static void eval_update_0(Eval *eval, const Move *move)
 /**
  * @brief Update the features after a player's move.
  *
+ * @param x     Move position.
+ * @param f     Flipped bitboard.
  * @param eval  Evaluation function.
- * @param move  Move.
  */
-static void eval_update_1(Eval *eval, const Move *move)
+static void eval_update_1(int x, unsigned long long f, Eval *eval)
 {
-	unsigned long long f = move->flipped;
-	int	j, x;
+	int	j;
 	widest_register	b;
 #ifdef VECTOR_EVAL_UPDATE
 	int	i;
 
 	for (i = 0; i < 48; ++i)
-		eval->feature.us[i] -= EVAL_FEATURE[move->x].us[i];
+		eval->feature.us[i] -= EVAL_FEATURE[x].us[i];
 
 	for (j = 0; j < 64; j += sizeof(widest_register) * CHAR_BIT) {
 		foreach_bit_r (x, f, b)
@@ -866,7 +866,7 @@ static void eval_update_1(Eval *eval, const Move *move)
 	}
 
 #else
-	const CoordinateToFeature *s = EVAL_X2F + move->x;
+	const CoordinateToFeature *s = EVAL_X2F + x;
 
 	switch (s->n_feature) {
 	default:
@@ -899,41 +899,41 @@ static void eval_update_1(Eval *eval, const Move *move)
 #endif
 }
 
-void eval_update(Eval *eval, const Move *move)
+void eval_update(int x, unsigned long long f, Eval *eval)
 {
-	assert(move->flipped);
+	assert(f);
 
 #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
 	if (hasSSE2) {
 		if (eval->n_empties & 1)
-			eval_update_sse_1(eval, eval, move);
+			eval_update_sse_1(x, f, eval, eval);
 		else
-			eval_update_sse_0(eval, eval, move);
+			eval_update_sse_0(x, f, eval, eval);
 		return;
 	}
 #endif
 	if (eval->n_empties & 1)
-		eval_update_1(eval, move);
+		eval_update_1(x, f, eval);
 	else
-		eval_update_0(eval, move);
+		eval_update_0(x, f, eval);
 }
 
-void eval_update_leaf(Eval *eval_out, const Eval *eval_in, const Move *move)
+void eval_update_leaf(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
 #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
 	if (hasSSE2) {
 		if (eval_in->n_empties & 1)
-			eval_update_sse_1(eval_out, eval_in, move);
+			eval_update_sse_1(x, f, eval_out, eval_in);
 		else
-			eval_update_sse_0(eval_out, eval_in, move);
+			eval_update_sse_0(x, f, eval_out, eval_in);
 		return;
 	}
 #endif
 	eval_out->feature = eval_in->feature;
 	if (eval_in->n_empties & 1)
-		eval_update_1(eval_out, move);
+		eval_update_1(x, f, eval_out);
 	else
-		eval_update_0(eval_out, move);
+		eval_update_0(x, f, eval_out);
 }
 
 #endif // !defined(hasSSE2) && !defined(hasNeon)
