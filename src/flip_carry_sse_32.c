@@ -44,7 +44,15 @@
 #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 #include <string.h>	// memcpy
 #endif
+
+#ifdef __TURBOC__
+// bcc32 -c -pr -O1 flip_carry_sse_32.c
+#pragma warn -ngu
+#define	UINT64	unsigned __int64
+#else
 #include "bit.h"
+#define	UINT64	unsigned long long
+#endif
 
 #ifdef USE_GAS_MMX
 #define	STATIC	__attribute__((used))
@@ -55,14 +63,6 @@
 #endif
 #else
 #define	STATIC	static
-#endif
-
-#ifdef __TURBOC__
-// bcc32 -c -pr -O1 flip_carry_sse_32.c
-#pragma warn -ngu
-#define	UINT64	unsigned __int64
-#else
-#define	UINT64	unsigned long long
 #endif
 
 #define	ULL(H,L)	(((UINT64) (H) << 32) | (L))

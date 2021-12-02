@@ -1,5 +1,5 @@
 /**
- * @file endgame_avx.c
+ * @file endgame_sse.c
  *
  *
  * SSE / AVX optimized version of endgame.c for the last four empties.
