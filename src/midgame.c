@@ -24,21 +24,10 @@
 #define RCD 0.5
 #endif
 
-/**
- * @brief evaluate a midgame position with the evaluation function.
- *
- * @param search Position to evaluate.
- */
-int search_eval_0(Search *search)
+static int accumlate_eval(const short *w, Eval *eval)
 {
-	const short *w = (*EVAL_WEIGHT)[60 - search->eval.n_empties];
-	unsigned short int *f = search->eval.feature.us;
-	int score;
-
-	SEARCH_STATS(++statistics.n_search_eval_0);
-	SEARCH_UPDATE_EVAL_NODES(search->n_nodes);
-
-	score = w[f[ 0] + 0] + w[f[ 1] + 0] + w[f[ 2] + 0] + w[f[ 3] + 0]
+	unsigned short *f = eval->feature.us;
+	return w[f[ 0] + 0] + w[f[ 1] + 0] + w[f[ 2] + 0] + w[f[ 3] + 0]
 	  + w[f[ 4] + 19683] + w[f[ 5] + 19683] + w[f[ 6] + 19683] + w[f[ 7] + 19683]
 	  + w[f[ 8] + 78732] + w[f[ 9] + 78732] + w[f[10] + 78732] + w[f[11] + 78732]
 	  + w[f[12] + 137781] + w[f[13] + 137781] + w[f[14] + 137781] + w[f[15] + 137781]
@@ -51,6 +40,21 @@ int search_eval_0(Search *search)
 	  + w[f[38] + 225990] + w[f[39] + 225990] + w[f[40] + 225990] + w[f[41] + 225990]
 	  + w[f[42] + 226233] + w[f[43] + 226233] + w[f[44] + 226233] + w[f[45] + 226233]
 	  + w[f[46] + 226314];
+}
+
+/**
+ * @brief evaluate a midgame position with the evaluation function.
+ *
+ * @param search Position to evaluate.
+ */
+int search_eval_0(Search *search)
+{
+	int score;
+
+	SEARCH_STATS(++statistics.n_search_eval_0);
+	SEARCH_UPDATE_EVAL_NODES(search->n_nodes);
+
+	score = accumlate_eval((*EVAL_WEIGHT)[60 - search->eval.n_empties],  &search->eval);
 
 	if (score > 0) score += 64;	else score -= 64;
 	score /= 128;
@@ -77,7 +81,6 @@ int search_eval_1(Search *search, const int alpha, int beta, unsigned long long 
 	int x, score, bestscore;
 	unsigned long long flipped;
 	const short *w;
-	const unsigned short *f;
 
 	SEARCH_STATS(++statistics.n_search_eval_1);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
@@ -93,21 +96,9 @@ int search_eval_1(Search *search, const int alpha, int beta, unsigned long long 
 					return SCORE_MAX;	// wipeout
 
 				eval_update_leaf(x, flipped, &Ev, &search->eval);
-				f = Ev.feature.us;
 				SEARCH_UPDATE_EVAL_NODES(search->n_nodes);
-				score = -w[f[ 0] + 0] - w[f[ 1] + 0] - w[f[ 2] + 0] - w[f[ 3] + 0]
-				  - w[f[ 4] + 19683] - w[f[ 5] + 19683] - w[f[ 6] + 19683] - w[f[ 7] + 19683]
-				  - w[f[ 8] + 78732] - w[f[ 9] + 78732] - w[f[10] + 78732] - w[f[11] + 78732]
-				  - w[f[12] + 137781] - w[f[13] + 137781] - w[f[14] + 137781] - w[f[15] + 137781]
-				  - w[f[16] + 196830] - w[f[17] + 196830] - w[f[18] + 196830] - w[f[19] + 196830]
-				  - w[f[20] + 203391] - w[f[21] + 203391] - w[f[22] + 203391] - w[f[23] + 203391]
-				  - w[f[24] + 209952] - w[f[25] + 209952] - w[f[26] + 209952] - w[f[27] + 209952]
-				  - w[f[28] + 216513] - w[f[29] + 216513]
-				  - w[f[30] + 223074] - w[f[31] + 223074] - w[f[32] + 223074] - w[f[33] + 223074]
-				  - w[f[34] + 225261] - w[f[35] + 225261] - w[f[36] + 225261] - w[f[37] + 225261]
-				  - w[f[38] + 225990] - w[f[39] + 225990] - w[f[40] + 225990] - w[f[41] + 225990]
-				  - w[f[42] + 226233] - w[f[43] + 226233] - w[f[44] + 226233] - w[f[45] + 226233]
-				  - w[f[46] + 226314];
+
+				score = -accumlate_eval(w, &Ev);
 
 				if (score > 0) score += 64; else score -= 64;
 				score /= 128;
