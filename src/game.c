@@ -911,13 +911,13 @@ void game_save_sgf(const Game *game, FILE *f, const bool multiline)
 	if (black) {
 		fputs("AB", f);
 		for (i = A1; i <= H8; i++){
-			if (black & x_to_bit(i)) fprintf(f, "[%s]", move_to_string(i, WHITE, s));
+			if (black & (1ULL << i)) fprintf(f, "[%s]", move_to_string(i, WHITE, s));
 		}
 	}
 	if (white) {
 		fputs("AW", f);
 		for (i = A1; i <= H8; i++){
-			if (white & x_to_bit(i)) fprintf(f, "[%s]", move_to_string(i, WHITE, s));
+			if (white & (1ULL << i)) fprintf(f, "[%s]", move_to_string(i, WHITE, s));
 		}
 	}
 	fprintf(f, "PL[%c]", color[(int) game->player]);

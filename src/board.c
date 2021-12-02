@@ -396,12 +396,12 @@ bool board_check_move(const Board *board, Move *move)
  * according to the 'move' description.
  *
  * @param board the board to modify
- * @param move  A Move structure describing the modification.
+ * @param move  A Move structure describing the modification (may be PASS).
  */
 void board_update(Board *board, const Move *move)
 {
 	unsigned long long O = board->opponent;
-	board->opponent = board->player ^ (move->flipped | x_to_bit(move->x));
+	board->opponent = board->player ^ (move->flipped | X_TO_BIT[move->x]);
 	board->player = O ^ move->flipped;
 	board_check(board);
 }
@@ -418,7 +418,7 @@ void board_update(Board *board, const Move *move)
 void board_restore(Board *board, const Move *move)
 {
 	unsigned long long P = board->player;
-	board->player = board->opponent ^ (move->flipped | x_to_bit(move->x));
+	board->player = board->opponent ^ (move->flipped | X_TO_BIT[move->x]);
 	board->opponent = P ^ move->flipped;
 	board_check(board);
 }
@@ -443,7 +443,7 @@ void board_pass(Board *board)
  * @brief Compute a board resulting of a move played on a previous board.
  *
  * @param board board to play the move on.
- * @param x move to play.
+ * @param x move to play (may be PASS).
  * @param next resulting board.
  * @return flipped discs.
  */
@@ -452,7 +452,7 @@ unsigned long long board_next(const Board *board, const int x, Board *next)
 	const unsigned long long flipped = board_flip(board, x);
 	const unsigned long long player = board->opponent ^ flipped;
 
-	next->opponent = board->player ^ (flipped | x_to_bit(x));
+	next->opponent = board->player ^ (flipped | X_TO_BIT[x]);
 	next->player = player;
 
 	return flipped;
