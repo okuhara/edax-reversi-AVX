@@ -11,10 +11,10 @@
  * some board properties. Most of the functions are optimized to be as fast as
  * possible, while remaining readable.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2021
  * @author Richard Delorme
  * @author Toshihiko Okuhara
- * @version 4.4
+ * @version 4.5
  */
 
 #include "board.h"
@@ -1042,29 +1042,10 @@ int get_corner_stability(const unsigned long long P)
  */
 unsigned long long board_get_hash_code(const Board *board)
 {
-	const unsigned char *const p = (const unsigned char*)board;
-	unsigned long long h1, h2;
+	unsigned long long	crc;
 
-#if defined(USE_GAS_MMX) && defined(__3dNOW__)	// Faster on AMD but not suitable for CPU with slow emms
-	if (hasMMX)
-		return board_get_hash_code_mmx(p);
-#elif defined(USE_GAS_MMX) || defined(USE_MSVC_X86) // || defined(__x86_64__)
-	if (hasSSE2)
-		return board_get_hash_code_sse(p);
-#endif
-
-	h1  = hash_rank[0][p[0]];	h2  = hash_rank[1][p[1]];
-	h1 ^= hash_rank[2][p[2]];	h2 ^= hash_rank[3][p[3]];
-	h1 ^= hash_rank[4][p[4]];	h2 ^= hash_rank[5][p[5]];
-	h1 ^= hash_rank[6][p[6]];	h2 ^= hash_rank[7][p[7]];
-	h1 ^= hash_rank[8][p[8]];	h2 ^= hash_rank[9][p[9]];
-	h1 ^= hash_rank[10][p[10]];	h2 ^= hash_rank[11][p[11]];
-	h1 ^= hash_rank[12][p[12]];	h2 ^= hash_rank[13][p[13]];
-	h1 ^= hash_rank[14][p[14]];	h2 ^= hash_rank[15][p[15]];
-
-	// assert((h1 ^ h2) == board_get_hash_code_sse(p));
-
-	return h1 ^ h2;
+	crc = crc32c_u64(0, board->player);
+	return (crc << 32) | crc32c_u64(crc, board->opponent);
 }
 
 /**

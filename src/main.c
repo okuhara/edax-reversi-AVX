@@ -3,9 +3,9 @@
  *
  * @brief Main file.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2021
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #include "board.h"
@@ -115,7 +115,6 @@ int main(int argc, char **argv)
 	// initialize
 	bit_init();
 	edge_stability_init();
-	hash_code_init();
 	hash_move_init();
 	statistics_init();
 	eval_open(options.eval_file);

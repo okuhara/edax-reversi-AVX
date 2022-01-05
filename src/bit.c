@@ -6,13 +6,19 @@
  * a macro needs to be defined to chose between different flavors of the
  * algorithm.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2021
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #include "bit.h"
 #include "util.h"
+
+/** Table for a 32-bits-at-a-time software CRC-32C calculation.
+ * This tablehas built into it the pre and post bit inversion of the CRC. */
+#ifndef crc32c_u64
+static unsigned int crc32c_table[4][256];
+#endif
 
 /** coordinate to bit table converter */
 unsigned long long X_TO_BIT[66];
@@ -56,65 +62,6 @@ const unsigned long long NEIGHBOUR[] = {
 int bit_count(unsigned long long b)
 {
 	int	c;
-	#if 0 // defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
-	static const unsigned long long M55 = 0x5555555555555555ULL;
-	static const unsigned long long M33 = 0x3333333333333333ULL;
-	static const unsigned long long M0F = 0x0F0F0F0F0F0F0F0FULL;
-	#endif
-
-// MMX does not help much here :-(
-	#if 0 // def USE_MSVC_X86
-	__m64	m;
-
-	if (hasSSE2) {
-		m = *(__m64 *) &b;
-		m = _m_psubd(m, _m_pand(_m_psrlqi(m, 1), *(__m64 *) &M55));
-		m = _m_paddd(_m_pand(m, *(__m64 *) &M33), _m_pand(_m_psrlqi(m, 2), *(__m64 *) &M33));
-		m = _m_pand(_m_paddd(m, _m_psrlqi(m, 4)), *(__m64 *) &M0F);
-		c = _m_to_int(_m_psadbw(m, _mm_setzero_si64()));
-		_mm_empty();
-
-		return c;
-	}
-
-	#elif 0 // defined(USE_GAS_MMX)
-
-	if (hasSSE2) {
-		__asm__(
-		#ifdef __x86_64__
- 			"movq  %1, %%mm1\n\t"
-		#else
-	 		"movd  %1, %%mm1\n\t"		// to utilize store to load forwarding
-			"punpckldq %5, %%mm1\n\t"
-		#endif
-			"movq  %%mm1, %%mm0\n\t"
-			"psrlq $1, %%mm1\n\t"
-			"pand  %2, %%mm1\n\t"
-			"psubd %%mm1, %%mm0\n\t"
-
-			"movq  %3, %%mm2\n\t"
-			"movq  %%mm0, %%mm1\n\t"
-			"psrlq $2, %%mm0\n\t"
-			"pand  %%mm2, %%mm1\n\t"
-			"pand  %%mm2, %%mm0\n\t"
-			"paddd %%mm1, %%mm0\n\t"
-
-			"movq  %%mm0, %%mm1\n\t"
-			"psrlq $4, %%mm0\n\t"
-			"paddd %%mm1, %%mm0\n\t"
-			"pand  %4, %%mm0\n\t"
-
-			"pxor  %%mm2, %%mm2\n\t"
-			"psadbw %%mm2, %%mm0\n\t"	// SSE2
-			"movd	%%mm0, %0\n\t"
-			"emms"
-		: "=a" (c)
-		: "rm" (b), "m" (M55), "m" (M33), "m" (M0F), "m" (((unsigned int *) &b)[1]));
-
-		return c;
-	}
-
-	#endif
 
 	b  = b - ((b >> 1) & 0x5555555555555555ULL);
 	b  = ((b >> 2) & 0x3333333333333333ULL) + (b & 0x3333333333333333ULL);
@@ -149,19 +96,41 @@ static int bit_count_32(unsigned int b)
  */
 void bit_init(void)
 {
-	unsigned int	i;
+	unsigned int	n;
 	unsigned long long	ll;
+#ifndef crc32c_u64
+	unsigned int	k, crc;
+
+	// http://stackoverflow.com/a/17646775/1821055
+	// https://github.com/baruch/crcbench
+	// Generate byte-wise table.
+	for (n = 0; n < 256; n++) {
+		crc = ~n;
+		for (k = 0; k < 8; k++)
+			crc = (crc >> 1) ^ (-(int)(crc & 1) & 0x82f63b78);
+		crc32c_table[0][n] = ~crc;
+	}
+	// Use byte-wise table to generate word-wise table.
+	for (n = 0; n < 256; n++) {
+		crc = ~crc32c_table[0][n];
+		for (k = 1; k < 4; k++) {
+			crc = crc32c_table[0][crc & 0xff] ^ (crc >> 8);
+			crc32c_table[k][n] = ~crc;
+		}
+	}
+#endif
 
 	ll = 1;
-	for (i = 0; i < 66; ++i) {	// X_TO_BIT[64] = X_TO_BIT[65] = 0 for passing move & nomove
-		X_TO_BIT[i] = ll;
+	for (n = 0; n < 66; ++n) {	// X_TO_BIT[64] = X_TO_BIT[65] = 0 for passing move & nomove
+		X_TO_BIT[n] = ll;
 		ll <<= 1;
 	}
 
 #ifndef POPCOUNT
-	for (i = 0; i < (1 << 16); ++i)
-		PopCnt16[i] = bit_count_32(i);
+	for (n = 0; n < (1 << 16); ++n)
+		PopCnt16[n] = bit_count_32(n);
 #endif
+
 #if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)) && !defined(hasSSE2)
 	init_mmx();
 #endif
@@ -302,7 +271,7 @@ int first_bit(unsigned long long b)
  * In practice, clear the first bit set and search the next one.
  *
  * @param b 64-bit integer.
-  * @return the index of the next bit set.
+ * @return the index of the next bit set.
  */
 int next_bit(unsigned long long *b)
 {
@@ -397,18 +366,6 @@ int last_bit(unsigned long long b)
 }
 #endif // last_bit
 
-#ifndef bswap_short
-/**
- * @brief Swap bytes of a short (little <-> big endian).
- * @param s An unsigned short.
- * @return The mirrored short.
- */
-unsigned short bswap_short(unsigned short s)
-{
-	return (unsigned short) ((s >> 8) & 0x00FF) | ((s & 0x00FF) <<  8);
-}
-#endif
-
 #ifndef bswap_int
 /**
  * @brief Mirror the unsigned int (little <-> big endian).
@@ -429,10 +386,7 @@ unsigned int bswap_int(unsigned int i)
  */
 unsigned long long vertical_mirror(unsigned long long b)
 {
-	b = ((b >>  8) & 0x00FF00FF00FF00FFULL) | ((b & 0x00FF00FF00FF00FFULL) <<  8);
-	b = ((b >> 16) & 0x0000FFFF0000FFFFULL) | ((b & 0x0000FFFF0000FFFFULL) << 16);
-	b = (b >> 32) | (b << 32);
-	return b;
+	return bswap_int((unsigned int)(b >> 32)) | ((unsigned long long) bswap_int((unsigned int) b) << 32);
 }
 #endif // bswap_int
 
@@ -495,6 +449,28 @@ unsigned long long transpose(unsigned long long b)
 	return b;
 }
 #endif // __AVX2__
+
+/**
+ * @brief Caliculate crc32c checksum for 8 bytes data
+ * @param crc Initial crc from previous data.
+ * @param data Data to accumulate.
+ * @return Resulting crc.
+ */
+#ifndef crc32c_u64
+unsigned int crc32c_u64(unsigned int crc, unsigned long long data)
+{
+	crc ^= (unsigned int) data;
+	crc =	crc32c_table[3][crc & 0xff] ^
+		crc32c_table[2][(crc >> 8) & 0xff] ^
+		crc32c_table[1][(crc >> 16) & 0xff] ^
+		crc32c_table[0][crc >> 24];
+	crc ^= (unsigned int) (data >> 32);
+	return	crc32c_table[3][crc & 0xff] ^
+		crc32c_table[2][(crc >> 8) & 0xff] ^
+		crc32c_table[1][(crc >> 16) & 0xff] ^
+		crc32c_table[0][crc >> 24];
+}
+#endif
 
 /**
  * @brief Get a random set bit index.

@@ -6,9 +6,9 @@
  * If both hasMMX and hasSSE2 are undefined, dynamic dispatching code
  * will be generated.  (This setting requires VC or GCC 4.4+)
  *
- * @date 2014 - 2020
+ * @date 2014 - 2021
  * @author Toshihiko Okuhara
- * @version 4.4
+ * @version 4.5
  */
 
 #include "bit.h"
@@ -815,56 +815,6 @@ int get_potential_mobility_mmx(unsigned long long P, unsigned long long O)
 	return count;
 }
 #endif
-
-/**
- * @brief MMX translation of board_get_hash_code.
- *
- * @param p pointer to 16 bytes to hash.
- * @return the hash code of the bitboard
- */
-
-#if defined(USE_GAS_MMX) && defined(__3dNOW__)
-
-unsigned long long board_get_hash_code_mmx(const unsigned char *p)
-{
-	unsigned long long h;
-
-	__asm__ volatile (
-		"movq	%0, %%mm0\n\t"		"movq	%1, %%mm1"
-	: : "m" (hash_rank[0][p[0]]), "m" (hash_rank[1][p[1]]));
-	__asm__ volatile (
-		"pxor	%0, %%mm0\n\t"		"pxor	%1, %%mm1"
-	: : "m" (hash_rank[2][p[2]]), "m" (hash_rank[3][p[3]]));
-	__asm__ volatile (
-		"pxor	%0, %%mm0\n\t"		"pxor	%1, %%mm1"
-	: : "m" (hash_rank[4][p[4]]), "m" (hash_rank[5][p[5]]));
-	__asm__ volatile (
-		"pxor	%0, %%mm0\n\t"		"pxor	%1, %%mm1"
-	: : "m" (hash_rank[6][p[6]]), "m" (hash_rank[7][p[7]]));
-	__asm__ volatile (
-		"pxor	%0, %%mm0\n\t"		"pxor	%1, %%mm1"
-	: : "m" (hash_rank[8][p[8]]), "m" (hash_rank[9][p[9]]));
-	__asm__ volatile (
-		"pxor	%0, %%mm0\n\t"		"pxor	%1, %%mm1"
-	: : "m" (hash_rank[10][p[10]]), "m" (hash_rank[11][p[11]]));
-	__asm__ volatile (
-		"pxor	%0, %%mm0\n\t"		"pxor	%1, %%mm1"
-	: : "m" (hash_rank[12][p[12]]), "m" (hash_rank[13][p[13]]));
-	__asm__ volatile (
-		"pxor	%1, %%mm0\n\t"		"pxor	%2, %%mm1\n\t"
-		"pxor	%%mm1, %%mm0\n\t"
-		"movd	%%mm0, %%eax\n\t"
-		"punpckhdq %%mm0, %%mm0\n\t"
-		"movd	%%mm0, %%edx\n\t"
-		"emms"
-	: "=A" (h)
-	: "m" (hash_rank[14][p[14]]), "m" (hash_rank[15][p[15]])
-	: "mm0", "mm1");
-
-	return h;
-}
-
-#endif // __3dNOW
 
 #if !defined(hasMMX) && defined(USE_GAS_MMX)
 	#pragma GCC pop_options

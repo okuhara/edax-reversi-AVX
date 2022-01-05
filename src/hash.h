@@ -3,9 +3,9 @@
  *
  * Hash table's header.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2021
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #ifndef EDAX_HASH_H
@@ -86,7 +86,6 @@ typedef struct HashStoreData {
 } HashStoreData;
 
 /* declaration */
-void hash_code_init(void);
 void hash_move_init(void);
 void hash_init(HashTable*, const unsigned long long);
 void hash_cleanup(HashTable*);
