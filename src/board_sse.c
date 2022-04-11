@@ -545,15 +545,14 @@ unsigned long long get_stable_edge(unsigned long long P, unsigned long long O)
 	uint16x8_t h1h8 = vshlq_u16(vreinterpretq_u16_u8(vshrq_n_u8(PO, 7)), shiftv);
 	return edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 0)]
 	    |  (unsigned long long) edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 7)] << 56
-	    |  A1_A8[edge_stability[vaddvq_u16(a1a8)]]
-	    |  A1_A8[edge_stability[vaddvq_u16(h1h8)]] << 7;
+	    |  unpackA1A8(a1a8) | unpackH1H8(h1h8);
 }
 
 #elif defined(__x86_64__) || defined(_M_X64)
 unsigned long long get_stable_edge(const unsigned long long P, const unsigned long long O)
 {
 	// compute the exact stable edges (from precomputed tables)
-	unsigned int a1a8po, h1h8po;
+	unsigned int a1a8, h1h8;
 	unsigned long long stable_edge;
 
 	__m128i	P0 = _mm_cvtsi64_si128(P);
@@ -563,14 +562,10 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
 		| ((unsigned long long) edge_stability[_mm_extract_epi16(PO, 7)] << 56);
 
 	PO = _mm_unpacklo_epi64(O0, P0);
-	a1a8po = _mm_movemask_epi8(_mm_slli_epi64(PO, 7));
-	h1h8po = _mm_movemask_epi8(PO);
-#if 0 // def __BMI2__ // pdep is slow on AMD
-	stable_edge |= _pdep_u64(edge_stability[a1a8po], 0x0101010101010101)
-		| _pdep_u64(edge_stability[h1h8po], 0x8080808080808080);
-#else
-	stable_edge |= A1_A8[edge_stability[a1a8po]] | (A1_A8[edge_stability[h1h8po]] << 7);
-#endif
+	a1a8 = edge_stability[_mm_movemask_epi8(_mm_slli_epi64(PO, 7))];
+	h1h8 = edge_stability[_mm_movemask_epi8(PO)];
+	stable_edge |= unpackA1A8(a1a8) | unpackH1H8(h1h8);
+
 	return stable_edge;
 }
 #endif // __aarch64__/__x86_64__/_M_X64
