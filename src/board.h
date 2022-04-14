@@ -3,7 +3,7 @@
  *
  * Board management header file.
  *
- * @date 1998 - 2021
+ * @date 1998 - 2022
  * @author Richard Delorme
  * @version 4.5
  */
@@ -80,11 +80,11 @@ int get_potential_mobility_mmx(unsigned long long, unsigned long long);
 #elif defined(ANDROID) && !defined(hasNeon) && !defined(hasSSE2)
 void init_neon (void);
 unsigned long long get_moves_sse(unsigned long long, unsigned long long);
-int get_stability_sse(const unsigned long long P, const unsigned long long O);
+unsigned long long get_stable_edge_sse(const unsigned long long, const unsigned long long);
+unsigned long long get_all_full_lines_sse(const unsigned long long, V4DI *);
 #endif
 
 extern unsigned char edge_stability[256 * 256];
-extern unsigned long long A1_A8[256];
 
 #if defined(__BMI2__) && !defined(bdver4) && !defined(znver1) && !defined(znver2) // pdep is slow on AMD before Zen3
 #define	unpackA1A8(x)	_pdep_u64((x), 0x0101010101010101)

@@ -3,7 +3,7 @@
  *
  * Bitwise operations header file.
  *
- * @date 1998 - 2021
+ * @date 1998 - 2022
  * @author Richard Delorme
  * @version 4.5
  */
@@ -113,17 +113,13 @@ extern const unsigned long long NEIGHBOUR[];
 	}
 #endif
 
-#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
-	#ifndef hasSSE2
+#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
+	#if !defined(hasSSE2) && !defined(hasNeon)
 		extern bool	hasSSE2;
 	#endif
 	#ifndef hasMMX
 		extern bool	hasMMX;
 	#endif
-#endif
-
-#if defined(ANDROID) && ((defined(__arm__) && !defined(hasNeon)) || (defined(__i386__) && !defined(hasSSE2)))
-extern bool	hasSSE2;
 #endif
 
 typedef union {
@@ -138,15 +134,18 @@ __attribute__ ((aligned (16)))
 #endif
 V2DI;
 
-#ifdef hasSSE2
 typedef union {
 	unsigned long long	ull[4];
-	#ifdef __AVX2__
-		__m256i	v4;
-	#endif
-	__m128i	v2[2];
-} V4DI;
+#ifdef __AVX2__
+	__m256i	v4;
 #endif
+#ifdef hasSSE2
+	__m128i	v2[2];
+#endif
+#ifdef USE_MSVC_X86
+	__m64	v1[4];
+#endif
+} V4DI;
 
 /* Define function attributes directive when available */
 

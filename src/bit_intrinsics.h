@@ -3,7 +3,7 @@
  *
  * CPU dependent bit operation intrinsics.
  *
- * @date 2020 - 2021
+ * @date 2020 - 2022
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -43,8 +43,8 @@
 	#include <x86intrin.h>
 #endif
 
-#ifndef __has_builtin
-	#define __has_builtin(x) 0  // Compatibility with non-clang compilers.
+#ifndef __has_builtin  // Compatibility with non-clang compilers.
+	#define __has_builtin(x) 0
 #endif
 
 // mirror byte
