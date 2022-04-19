@@ -3,9 +3,9 @@
  *
  * Bitwise operations header file.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2020
  * @author Richard Delorme
- * @version 4.5
+ * @version 4.4
  */
 
 #ifndef EDAX_BIT_H
@@ -35,7 +35,7 @@ extern const unsigned long long NEIGHBOUR[];
 
 /** Return a bitboard with bit x set. */
 // https://eukaryote.hateblo.jp/entry/2020/04/12/054905
-#if HAS_CPU_64 // 1% slower on Sandy Bridge
+#if 1 // 1% slower on Sandy Bridge
 #define x_to_bit(x) (1ULL << (x))
 #else
 #define x_to_bit(x) X_TO_BIT[x]
@@ -109,17 +109,21 @@ extern const unsigned long long NEIGHBOUR[];
 	extern unsigned char PopCnt16[1 << 16];
 	static inline int bit_count(unsigned long long b) {
 		union { unsigned long long bb; unsigned short u[4]; } v = { b };
-		return PopCnt16[v.u[0]] + PopCnt16[v.u[1]] + PopCnt16[v.u[2]] + PopCnt16[v.u[3]];
+		return (unsigned char)(PopCnt16[v.u[0]] + PopCnt16[v.u[1]] + PopCnt16[v.u[2]] + PopCnt16[v.u[3]]);
 	}
 #endif
 
-#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
-	#if !defined(hasSSE2) && !defined(hasNeon)
+#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+	#ifndef hasSSE2
 		extern bool	hasSSE2;
 	#endif
 	#ifndef hasMMX
 		extern bool	hasMMX;
 	#endif
+#endif
+
+#if defined(ANDROID) && ((defined(__arm__) && !defined(hasNeon)) || (defined(__i386__) && !defined(hasSSE2)))
+extern bool	hasSSE2;
 #endif
 
 typedef union {
@@ -134,18 +138,15 @@ __attribute__ ((aligned (16)))
 #endif
 V2DI;
 
+#ifdef hasSSE2
 typedef union {
 	unsigned long long	ull[4];
-#ifdef __AVX2__
-	__m256i	v4;
-#endif
-#ifdef hasSSE2
+	#ifdef __AVX2__
+		__m256i	v4;
+	#endif
 	__m128i	v2[2];
-#endif
-#ifdef USE_MSVC_X86
-	__m64	v1[4];
-#endif
 } V4DI;
+#endif
 
 /* Define function attributes directive when available */
 
