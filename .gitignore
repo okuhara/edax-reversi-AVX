@@ -10,5 +10,6 @@ generate_count_flip.*
 bcnttest.*
 *.utf8.c
 bin/
+data/
 doc/
 problem/
