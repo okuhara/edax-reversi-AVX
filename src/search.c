@@ -113,6 +113,7 @@ const unsigned char NWS_STABILITY_THRESHOLD[] = { // 99 = unused value...
 	 56, 56, 58, 58, 60, 60, 62, 62,
 	 64, 64, 64, 64, 64, 64, 64, 64,
 	 99, 99, 99, 99, 99, 99, 99, 99, // no stable square at those depths
+	 99, 99, 99, 99, 99, 99, 99, 99
 };
 
 /** threshold values to try stability cutoff during PVS search */
@@ -125,6 +126,7 @@ const unsigned char PVS_STABILITY_THRESHOLD[] = { // 99 = unused value...
 	 48, 48, 50, 50, 52, 52, 54, 54,
 	 56, 56, 58, 58, 60, 60, 62, 62,
 	 99, 99, 99, 99, 99, 99, 99, 99, // no stable square at those depths
+	 99, 99, 99, 99, 99, 99, 99, 99
 };
 
 
