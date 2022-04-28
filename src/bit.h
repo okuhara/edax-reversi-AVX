@@ -72,11 +72,14 @@ extern const unsigned long long NEIGHBOUR[];
 #endif
 
 // popcount
-#if !defined(POPCOUNT) && defined(hasNeon)
-	#define	POPCOUNT	1
-#endif
+#ifdef hasNeon
+	#ifdef HAS_CPU_64
+		#define bit_count(x)	vaddv_u8(vcnt_u8(vcreate_u8(x)))
+	#else
+		#define bit_count(x)	vget_lane_u32(vreinterpret_u32_u64(vpaddl_u32(vpaddl_u16(vpaddl_u8(vcnt_u8(vcreate_u8(x)))))), 0)
+	#endif
 
-#ifdef POPCOUNT
+#elif defined(POPCOUNT)
 	/*
 	#if defined (USE_GAS_X64)
 		static inline int bit_count (unsigned long long x) {
@@ -138,15 +141,15 @@ __attribute__ ((aligned (16)))
 #endif
 V2DI;
 
-#ifdef hasSSE2
 typedef union {
 	unsigned long long	ull[4];
 	#ifdef __AVX2__
 		__m256i	v4;
 	#endif
+	#ifdef hasSSE2
 	__m128i	v2[2];
+	#endif
 } V4DI;
-#endif
 
 /* Define function attributes directive when available */
 

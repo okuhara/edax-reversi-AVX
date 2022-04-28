@@ -794,7 +794,7 @@ void edge_stability_init(void)
 #endif
 
 #ifndef __AVX2__
-#if !(defined(__aarch64__) || defined(_M_ARM64) || defined(hasSSE2))
+#if !defined(hasNeon) && !defined(hasSSE2)
 /**
  * @brief Get stable edge.
  *
@@ -812,8 +812,7 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
 	    |  unpackA1A8(edge_stability[a1a8])
 	    |  unpackH1H8(edge_stability[h1h8]);
 }
-#endif
-#if !defined(hasNeon) && !defined(hasSSE2)
+
 /**
  * @brief Get full lines.
  *

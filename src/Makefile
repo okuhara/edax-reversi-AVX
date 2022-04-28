@@ -83,7 +83,7 @@ ifeq ($(COMP),gcc)
 	endif
 	ifeq ($(ARCH),ARMv7)
 		ifeq ($(BUILD),optimize)
-			CFLAGS += -fomit-frame-pointer -march=armv7-a -mfpu=neon
+			CFLAGS += -fomit-frame-pointer -march=armv7-a -mfloat-abi=softfp -mfpu=neon -DhasNeon
 		endif
 	endif
 
