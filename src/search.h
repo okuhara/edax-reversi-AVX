@@ -185,7 +185,7 @@ NodeType next_node_type(const NodeType parent, const bool first_move);
 
 int search_solve(const Search*);
 int search_solve_0(const Search*);
-extern int board_score_1(const Board*, const int, const int);
+extern int board_score_1(const unsigned long long, const int, const int);
 int NWS_endgame(Search*, const int);
 
 int search_eval_0(Search*);

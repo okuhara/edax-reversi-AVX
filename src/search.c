@@ -1130,11 +1130,9 @@ void result_print(Result *result, FILE *f)
  */
 bool search_SC_PVS(Search *search, volatile int *alpha, volatile int *beta, int *score)
 {
-	const Board * const board = &search->board;
-
 	if (USE_SC && *beta >= PVS_STABILITY_THRESHOLD[search->eval.n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
-		*score = SCORE_MAX - 2 * get_stability(board->opponent, board->player);
+		*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player);
 		if (*score <= *alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return true;
@@ -1154,11 +1152,9 @@ bool search_SC_PVS(Search *search, volatile int *alpha, volatile int *beta, int 
  */
 bool search_SC_NWS(Search *search, const int alpha, int *score)
 {
-	const Board * const board = &search->board;
-
 	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
-		*score = SCORE_MAX - 2 * get_stability(board->opponent, board->player);
+		*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player);
 		if (*score <= alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return true;
