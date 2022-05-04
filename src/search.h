@@ -176,6 +176,7 @@ void result_print(Result*, FILE*);
 
 bool search_SC_PVS(Search*, volatile int*, volatile int*, int*);
 bool search_SC_NWS(Search*, const int, int*);
+bool search_SC_NWS_fulls_given(Search *, const int, int *, unsigned long long, V4DI *);
 bool search_TC_PVS(HashData*, const int, const int, volatile int*, volatile int*, int*);
 bool search_TC_NWS(HashData*, const int, const int, const int, int*);
 bool search_ETC_PVS(Search*, MoveList*, unsigned long long, const int, const int, volatile int*, volatile int*, int*);

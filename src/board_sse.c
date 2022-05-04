@@ -375,7 +375,7 @@ unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
 #define	get_moves_sse	get_moves	// no dispatch
 #endif
 
-unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
+unsigned long long get_moves_sse(const unsigned long long P, const unsigned long long O)
 {
 	unsigned int	mO, movesL, movesH, flip1, pre1;
 	__m128i	OP, rOP, PP, OO, MM, flip, pre;
@@ -421,7 +421,7 @@ unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
 
 #else // non-VEX asm
 
-unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
+unsigned long long get_moves_sse(const unsigned long long P, const unsigned long long O)
 {
 	unsigned long long moves;
 	static const V2DI mask7e = {{ 0x7e7e7e7e7e7e7e7eULL, 0x7e7e7e7e7e7e7e7eULL }};
@@ -535,9 +535,6 @@ unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
 #endif // x86
 
 #if defined(hasSSE2) || defined(hasNeon)	// no dispatch
-#define get_stable_edge_sse	get_stable_edge
-#define	get_all_full_lines_sse	get_all_full_lines
-#endif
 
 /**
  * @brief SSE optimized get_stable_edge
@@ -548,7 +545,7 @@ unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
  *
  */
 #if defined(__aarch64__) || defined(_M_ARM64)	// for vaddvq
-unsigned long long get_stable_edge_sse(unsigned long long P, unsigned long long O)
+unsigned long long get_stable_edge(unsigned long long P, unsigned long long O)
 {	// compute the exact stable edges (from precomputed tables)
 	// const int16x8_t shiftv = { 0, 1, 2, 3, 4, 5, 6, 7 };	// error on MSVC
 	const uint64x2_t shiftv = { 0x0003000200010000, 0x0007000600050004 };
@@ -561,7 +558,7 @@ unsigned long long get_stable_edge_sse(unsigned long long P, unsigned long long 
 }
 
 #elif defined(__ARM_NEON__) // Neon kindergarten
-unsigned long long get_stable_edge_sse(unsigned long long P, unsigned long long O)
+unsigned long long get_stable_edge(unsigned long long P, unsigned long long O)
 {	// compute the exact stable edges (from precomputed tables)
 	const uint64x2_t kMul  = { 0x1020408001020408, 0x1020408001020408 };
 	uint64x2_t PP = vcombine_u64(vshl_n_u64(vcreate_u64(P), 7), vcreate_u64(P));
@@ -580,7 +577,7 @@ unsigned long long get_stable_edge_sse(unsigned long long P, unsigned long long 
 }
 
 #elif defined(hasSSE2) || defined(USE_MSVC_X86)
-unsigned long long get_stable_edge_sse(const unsigned long long P, const unsigned long long O)
+unsigned long long get_stable_edge(const unsigned long long P, const unsigned long long O)
 {
 	// compute the exact stable edges (from precomputed tables)
 	unsigned int a1a8, h1h8;
@@ -601,7 +598,6 @@ unsigned long long get_stable_edge_sse(const unsigned long long P, const unsigne
 }
 #endif
 
-#if defined(hasSSE2) || defined(hasNeon) || defined(ANDROID) || defined(USE_MSVC_X86)
 /**
  * @brief X64 optimized get_stability
  *
@@ -614,7 +610,6 @@ unsigned long long get_stable_edge_sse(const unsigned long long P, const unsigne
  * @return the number of stable discs.
  */
 #ifdef __AVX2__
-
 unsigned long long get_all_full_lines(const unsigned long long disc, V4DI *full)
 {
 	unsigned long long l8;
@@ -675,17 +670,19 @@ unsigned long long get_all_full_lines(const unsigned long long disc, V4DI *full)
 	return _mm_cvtsi128_si64(l81) & _mm_extract_epi64(l81, 1);
 }
 
-int get_stability(const unsigned long long P, const unsigned long long O)
+int get_stability_fulls_given(unsigned long long P, unsigned long long O, unsigned long long allfull, V4DI *full)
 {
-	V4DI	full;
-	unsigned long long P_central = (P & 0x007e7e7e7e7e7e00);
-	unsigned long long stable;
+	unsigned long long stable, P_central;
 	__m128i	v2_stable, v2_old_stable, v2_P_central;
 	__m256i	v4_stable;
 	const __m256i shift1897 = _mm256_set_epi64x(7, 9, 8, 1);
 
-	// compute the exact stable edges (from precomputed tables) and add full lines
-	stable = get_stable_edge_sse(P, O) | (get_all_full_lines(P | O, &full) & P_central);
+	// compute the exact stable edges (from precomputed tables)
+	stable = get_stable_edge(P, O);
+
+	// add full lines
+	P_central = (P & 0x007e7e7e7e7e7e00);
+	stable |= (allfull & P_central);
 
 	if (stable == 0)
 		return 0;
@@ -696,7 +693,7 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 	do {
 		v2_old_stable = v2_stable;
 		v4_stable = _mm256_broadcastq_epi64(v2_stable);
-		v4_stable = _mm256_or_si256(_mm256_or_si256(_mm256_srlv_epi64(v4_stable, shift1897), _mm256_sllv_epi64(v4_stable, shift1897)), full.v4);
+		v4_stable = _mm256_or_si256(_mm256_or_si256(_mm256_srlv_epi64(v4_stable, shift1897), _mm256_sllv_epi64(v4_stable, shift1897)), full->v4);
 		v2_stable = _mm_and_si128(_mm256_castsi256_si128(v4_stable), _mm256_extracti128_si256(v4_stable, 1));
 		v2_stable = _mm_and_si128(v2_stable, _mm_unpackhi_epi64(v2_stable, v2_stable));
 		v2_stable = _mm_or_si128(v2_old_stable, _mm_and_si128(v2_stable, v2_P_central));
@@ -705,8 +702,8 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 	return bit_count(_mm_cvtsi128_si64(v2_stable));
 }
 
-#elif defined(__ARM_NEON__)
-unsigned long long get_all_full_lines_sse(const unsigned long long disc, V4DI *full)
+#elif defined(hasNeon)
+unsigned long long get_all_full_lines(const unsigned long long disc, V4DI *full)
 {
 	unsigned long long l8;
 	uint8x8_t l01;
@@ -730,7 +727,7 @@ unsigned long long get_all_full_lines_sse(const unsigned long long disc, V4DI *f
 }
 
 #else	// 1 CPU, 3 SSE
-unsigned long long get_all_full_lines_sse(const unsigned long long disc, V4DI *full)
+unsigned long long get_all_full_lines(const unsigned long long disc, V4DI *full)
 {
 	unsigned long long l8;
 	__m128i l01, l79, r79;	// full lines
@@ -754,4 +751,4 @@ unsigned long long get_all_full_lines_sse(const unsigned long long disc, V4DI *f
 }
 
 #endif
-#endif // HAS_CPU_64/ANDROID
+#endif // hasSSE2/hasNeon

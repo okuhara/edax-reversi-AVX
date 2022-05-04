@@ -215,7 +215,7 @@ void board_restore(Board *board, const Move *move)
  */
 #ifdef USE_MSVC_X86
 
-unsigned long long get_moves_mmx(unsigned long long P_, unsigned long long O_)
+unsigned long long get_moves_mmx(const unsigned long long P_, const unsigned long long O_)
 {
 	unsigned int movesL, movesH, mO1, flip1, pre1;
 	__m64	P, O, M, mO, flip, pre;
@@ -274,7 +274,7 @@ unsigned long long get_moves_mmx(unsigned long long P_, unsigned long long O_)
 
 #else
 
-unsigned long long get_moves_mmx(unsigned long long P, unsigned long long O)
+unsigned long long get_moves_mmx(const unsigned long long P, const unsigned long long O)
 {
 	unsigned long long moves;
 	__asm__ (
@@ -419,9 +419,8 @@ unsigned long long get_moves_mmx(unsigned long long P, unsigned long long O)
  * x 1.5 faster bench stability on 32-bit x86.
  *
  */
-#ifdef USE_MSVC_X86
-
-unsigned long long get_all_full_lines_mmx(const unsigned long long disc_, V4DI *full)
+#if defined(hasMMX) && !defined(hasSSE2)
+unsigned long long get_all_full_lines(const unsigned long long disc_, V4DI *full)
 {
 	__m64	disc = *(__m64 *) &disc_;
 	__m64	full_l, full_r;
@@ -459,14 +458,10 @@ unsigned long long get_all_full_lines_mmx(const unsigned long long disc_, V4DI *
 	return full->ull[0] & full->ull[1] & full->ull[2] & full->ull[3];
 }
 
-int get_stability_mmx(unsigned long long P, unsigned long long O)
+int get_stability_fulls_given(unsigned long long P, unsigned long long O, unsigned long long allfull, V4DI *full)
 {
-	V4DI	full;
-	unsigned long long allfull;
 	__m64	P_central, stable, stable_h, stable_v, stable_d7, stable_d9, old_stable, m;
 	unsigned int	OL, OH, PL, PH, t, a1a8, h1h8, SL, SH;
-
-	allfull = get_all_full_lines_mmx(P | O, &full);
 
 	// compute the exact stable edges (from precomputed tables)
 	OL = (unsigned int) O;	OH = (unsigned int)(O >> 32);
@@ -495,16 +490,20 @@ int get_stability_mmx(unsigned long long P, unsigned long long O)
 	if (t) {
 		do {
 			old_stable = stable;
-			stable_h = _m_por(_m_por(_m_psrlqi(stable, 1), _m_psllqi(stable, 1)), full.v1[0]);
-			stable_v = _m_por(_m_por(_m_psrlqi(stable, 8), _m_psllqi(stable, 8)), full.v1[1]);
-			stable_d7 = _m_por(_m_por(_m_psrlqi(stable, 7), _m_psllqi(stable, 7)), full.v1[3]);
-			stable_d9 = _m_por(_m_por(_m_psrlqi(stable, 9), _m_psllqi(stable, 9)), full.v1[2]);
+			stable_h = _m_por(_m_por(_m_psrlqi(stable, 1), _m_psllqi(stable, 1)), full->v1[0]);
+			stable_v = _m_por(_m_por(_m_psrlqi(stable, 8), _m_psllqi(stable, 8)), full->v1[1]);
+			stable_d7 = _m_por(_m_por(_m_psrlqi(stable, 7), _m_psllqi(stable, 7)), full->v1[3]);
+			stable_d9 = _m_por(_m_por(_m_psrlqi(stable, 9), _m_psllqi(stable, 9)), full->v1[2]);
 			stable = _m_por(stable, _m_pand(_m_pand(_m_pand(_m_pand(stable_h, stable_v), stable_d7), stable_d9), P_central));
 			m = _m_pxor(stable, old_stable);
 		} while (_m_to_int(_m_packsswb(m, m)) != 0);
 
 #ifdef POPCOUNT
+	#ifdef _MSC_VER
 		t = __popcnt(_m_to_int(stable)) + __popcnt(_m_to_int(_m_psrlqi(stable, 32)));
+	#else
+		t = __builtin_popcount(_m_to_int(stable)) + __builtin_popcount(_m_to_int(_m_psrlqi(stable, 32)));
+	#endif
 #else
 		m = _m_psubd(stable, _m_pand(_m_psrlqi(stable, 1), *(__m64 *) &mask_55));
 		m = _m_paddd(_m_pand(m, *(__m64 *) &mask_33), _m_pand(_m_psrlqi(m, 2), *(__m64 *) &mask_33));
@@ -515,168 +514,7 @@ int get_stability_mmx(unsigned long long P, unsigned long long O)
 	_mm_empty();
 	return t;
 }
-
-#elif defined(USE_GAS_MMX)
-
-#define	get_full_lines_mmx(result,disc,dir,edge)	__asm__ (\
-		"movq	%1, %%mm0\n\t"		"movq	%1, %%mm1\n\t"\
-		"psrlq	%2, %%mm0\n\t"		"psllq	%2, %%mm1\n\t"\
-		"por	%5, %%mm0\n\t"		"por	%6, %%mm1\n\t"\
-		"pand	%1, %%mm0\n\t"		"pand	%1, %%mm1\n\t"\
-		"movq	%%mm0, %%mm2\n\t"	"movq	%%mm1, %%mm3\n\t"\
-		"psrlq	%3, %%mm0\n\t"		"psllq	%3, %%mm1\n\t"\
-		"por	%7, %%mm0\n\t"		"por	%8, %%mm1\n\t"\
-		"pand	%%mm2, %%mm0\n\t"	"pand	%%mm3, %%mm1\n\t"\
-		"movq	%%mm0, %%mm2\n\t"	"pand	%%mm1, %%mm0\n\t"\
-		"psrlq	%4, %%mm2\n\t"		"psllq	%4, %%mm1\n\t"\
-		"por	%9, %%mm2\n\t"		"por	%10, %%mm1\n\t"\
-		"pand	%%mm2, %%mm0\n\t"	"pand	%%mm1, %%mm0\n\t"\
-		"movq	%%mm0, %0"\
-	: "=m" (result)\
-	: "y" (disc), "i" (dir), "i" (dir * 2), "i" (dir * 4),\
-	  "m" (edge[0]), "m" (edge[1]), "m" (edge[2]), "m" (edge[3]), "m" (edge[4]), "m" (edge[5])\
-	: "mm0", "mm1", "mm2", "mm3");
-
-unsigned long long get_all_full_lines_mmx(const unsigned long long disc_, V4DI *full)
-{
-	__m64	disc;
-	unsigned int	full_v;
-	static const unsigned long long e7[] = { 0xff01010101010101, 0x80808080808080ff, 0xffff030303030303, 0xc0c0c0c0c0c0ffff, 0xffffffff0f0f0f0f, 0xf0f0f0f0ffffffff };
-	static const unsigned long long e9[] = { 0xff80808080808080, 0x01010101010101ff, 0xffffc0c0c0c0c0c0, 0x030303030303ffff, 0xfffffffff0f0f0f0, 0x0f0f0f0fffffffff };
-
-	__asm__ (
-		"movd	%1, %0\n\t"
-		"punpckldq %2, %0\n\t"
-	: "=&y" (disc) : "m" (disc_), "m" (((unsigned int *)&disc_)[1]));
-
-	get_full_lines_mmx(full->ull[3], disc, 7, e7);
-	get_full_lines_mmx(full->ull[2], disc, 9, e9);
-
-	// get_full_lines_mmx(full_h, disc, 1, e1);
-	__asm__ (
-		"pcmpeqb %%mm0, %%mm0\n\t"
-		"pcmpeqb %1, %%mm0\n\t"
-		"movq	%%mm0, %0\n\t"
-		"emms"
-	: "=m" (full->ull[0]) : "y" (disc) : "mm0");
-
-	// get_full_lines_mmx(full_v, disc, 8, e8);
-	full_v = (unsigned int) disc_ & (unsigned int)(disc_ >> 32);
-	full_v &= (full_v >> 16) | (full_v << 16);	// ror 16
-	full_v &= (full_v >> 8) | (full_v << 24);	// ror 8
-	full->ull[1] = full_v | ((unsigned long long) full_v << 32);
-
-	return full->ull[0] & full->ull[1] & full->ull[2] & full->ull[3];
-}
-
-int get_stability_mmx(unsigned long long P, unsigned long long O)
-{
-	V4DI	full;
-	unsigned long long allfull;
-	__m64	P_central, stable;
-	unsigned int	OL, OH, PL, PH, t, a1a8, h1h8, SL, SH;
-
-	allfull = get_all_full_lines_mmx(P | O, &full);
-
-	// compute the exact stable edges (from precomputed tables)
-	OL = (unsigned int) O;	OH = (unsigned int)(O >> 32);
-	PL = (unsigned int) P;	PH = (unsigned int)(P >> 32);
-	a1a8 = edge_stability[((((PL & 0x01010101u) + ((PH & 0x01010101u) << 4)) * 0x01020408u) >> 24) * 256
-		+ ((((OL & 0x01010101u) + ((OH & 0x01010101u) << 4)) * 0x01020408u) >> 24)];
-	h1h8 = edge_stability[((((PH & 0x80808080u) + ((PL & 0x80808080u) >> 4)) * 0x00204081u) >> 24) * 256
-		+ ((((OH & 0x80808080u) + ((OL & 0x80808080u) >> 4)) * 0x00204081u) >> 24)];
-	SL = edge_stability[(PL & 0xff) * 256 + (OL & 0xff)]
-		| (((a1a8 & 0x0f) * 0x00204081) & 0x01010101)
-		| (((h1h8 & 0x0f) * 0x10204080) & 0x80808080);
-	SH = (edge_stability[((PH >> 16) & 0xff00) + (OH >> 24)] << 24)
-		| (((a1a8 >> 4) * 0x00204081) & 0x01010101)
-		| (((h1h8 >> 4) * 0x10204080) & 0x80808080);
-
-	PL &= 0x7f7f7f00;
-	PH &= 0x007f7f7f;
-	SL |= (unsigned int) allfull & PL;
-	SH |= (unsigned int)(allfull >> 32) & PH;
-
-	__asm__(
-		"movd	%2, %0\n\t"		"movd	%4, %1\n\t"
-		"movd	%3, %%mm0\n\t"		"movd	%5, %%mm1\n\t"
-		"punpckldq %%mm0, %0\n\t"	"punpckldq %%mm1, %1\n\t"
-	: "=y" (P_central), "=y" (stable) : "g" (PL), "g" (PH), "g" (SL), "g" (SH) : "mm0", "mm1" );
-
-	// now compute the other stable discs (ie discs touching another stable disc in each flipping direction).
-	t = SL | SH;
-	if (t) {
-		do {
-			__asm__ (
-				"movq	%1, %%mm3\n\t"
-				"movq	%6, %1\n\t"
-				"movq	%%mm3, %%mm0\n\t"	"movq	%%mm3, %%mm1\n\t"
-				"psrlq	$1, %%mm0\n\t"		"psllq	$1, %%mm1\n\t"		"movq	%%mm3, %%mm2\n\t"
-				"por	%%mm1, %%mm0\n\t"	"movq	%%mm3, %%mm1\n\t"	"psrlq	$7, %%mm2\n\t"
-				"por	%2, %%mm0\n\t"		"psllq	$7, %%mm1\n\t"		"por	%%mm1, %%mm2\n\t"
-				"pand	%%mm0, %1\n\t"						"por	%4, %%mm2\n\t"
-				"movq	%%mm3, %%mm0\n\t"	"movq	%%mm3, %%mm1\n\t"	"pand	%%mm2, %1\n\t"
-				"psrlq	$8, %%mm0\n\t"		"psllq	$8, %%mm1\n\t"		"movq	%%mm3, %%mm2\n\t"
-				"por	%%mm1, %%mm0\n\t"	"movq	%%mm3, %%mm1\n\t"	"psrlq	$9, %%mm2\n\t"
-				"por	%3, %%mm0\n\t"		"psllq	$9, %%mm1\n\t"		"por	%%mm1, %%mm2\n\t"
-				"pand	%%mm0, %1\n\t"						"por	%5, %%mm2\n\t"
-												"pand	%%mm2, %1\n\t"
-				"por	%%mm3, %1\n\t"
-				"pxor	%1, %%mm3\n\t"
-				"packsswb %%mm3, %%mm3\n\t"
-				"movd	%%mm3, %0"
-			: "=g" (t), "+y" (stable)
-			: "m" (full.ull[0]), "m" (full.ull[1]), "m" (full.ull[3]), "m" (full.ull[2]), "y" (P_central)
-			: "mm0", "mm1", "mm2", "mm3");
-		} while (t);
-
-		// bit_count(stable)
-#ifdef POPCOUNT
-		__asm__ (
-			"movd	%1, %0\n\t"
-			"psrlq	$32, %1\n\t"
-			"movd	%1, %%edx\n\t"
-			"popcntl %0, %0\n\t"
-			"popcntl %%edx, %%edx\n\t"
-			"addl	%%edx, %0"
-		: "=&a" (t) : "y" (stable) : "edx");
-#else
-		__asm__ (
-	 		"movq	%1, %%mm0\n\t"
-			"psrlq	$1, %1\n\t"
-			"pand	%2, %1\n\t"
-			"psubd	%1, %%mm0\n\t"
-
-			"movq	%%mm0, %%mm1\n\t"
-			"psrlq	$2, %%mm0\n\t"
-			"pand	%3, %%mm1\n\t"
-			"pand	%3, %%mm0\n\t"
-			"paddd	%%mm1, %%mm0\n\t"
-
-			"movq	%%mm0, %%mm1\n\t"
-			"psrlq	$4, %%mm0\n\t"
-			"paddd	%%mm1, %%mm0\n\t"
-			"pand	%4, %%mm0\n\t"
-	#ifdef hasSSE2
-			"pxor	%%mm1, %%mm1\n\t"
-			"psadbw	%%mm1, %%mm0\n\t"
-			"movd	%%mm0, %0\n\t"
-	#else
-			"movq	%%mm0, %%mm1\n\t"
-			"psrlq	$32, %%mm0\n\t"
-			"paddb	%%mm1, %%mm0\n\t"
-
-			"movd	%%mm0, %0\n\t"
-			"imull	$0x01010101, %0, %0\n\t"
-			"shrl	$24, %0"
-	#endif
-		: "=a" (t) : "y" (stable), "m" (mask_55), "my" (mask_33), "m" (mask_0F) : "mm0", "mm1");
-#endif
-	}
-	__asm__ ( "emms" );
-	return t;
-}
-#endif // USE_MSVC_X86
+#endif // hasMMX
 
 /**
  * @brief MMX translation of get_potential_mobility

@@ -793,8 +793,6 @@ void edge_stability_init(void)
 #define	packH1H8(X)	(((((unsigned int)((X) >> 32) & 0x80808080) + (((unsigned int)(X) & 0x80808080) >> 4)) * 0x00204081) >> 24)
 #endif
 
-#ifndef __AVX2__
-#if !defined(hasNeon) && !defined(hasSSE2)
 /**
  * @brief Get stable edge.
  *
@@ -803,6 +801,7 @@ void edge_stability_init(void)
  * @return a bitboard with (some of) player's stable discs.
  *
  */
+#if !defined(__AVX2__) && !defined(hasNeon) && !defined(hasSSE2)
 unsigned long long get_stable_edge(const unsigned long long P, const unsigned long long O)
 {	// compute the exact stable edges (from precomputed tables)
 	unsigned int a1a8 = packA1A8(P) * 256 + packA1A8(O);
@@ -812,6 +811,7 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
 	    |  unpackA1A8(edge_stability[a1a8])
 	    |  unpackH1H8(edge_stability[h1h8]);
 }
+#endif
 
 /**
  * @brief Get full lines.
@@ -821,6 +821,7 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
  * @return a bitboard with f lines along the tested direction.
  */
 
+#if !defined(__AVX2__) && !defined(hasNeon) && !defined(hasSSE2) && !defined(hasMMX)
 #ifdef HAS_CPU_64
 static unsigned long long get_full_lines_h(unsigned long long full)
 {
@@ -881,8 +882,7 @@ unsigned long long get_all_full_lines(const unsigned long long disc, V4DI *full)
 
 	return full->ull[0] & full->ull[1] & l9 & l7;
 }
-
-#endif // hasSSE2/hasNeon
+#endif // hasSSE2/hasNeon/hasMMX
 
 /**
  * @brief Estimate the stability.
@@ -893,27 +893,13 @@ unsigned long long get_all_full_lines(const unsigned long long disc, V4DI *full)
  * @param O bitboard with opponent's discs.
  * @return the number of stable discs.
  */
-int get_stability(const unsigned long long P, const unsigned long long O)
+#if !defined(__AVX2__) && !(defined(hasMMX) && !defined(hasSSE2))
+int get_stability_fulls_given(unsigned long long P, unsigned long long O, unsigned long long allfull, V4DI *full)
 {
-	V4DI	full;
-	unsigned long long P_central, allfull;
-	unsigned long long stable_h, stable_v, stable_d7, stable_d9, stable, old_stable;
+	unsigned long long stable, P_central, stable_h, stable_v, stable_d7, stable_d9, old_stable;
 
 	// compute the exact stable edges (from precomputed tables)
-#if (defined(USE_MSVC_X86) || defined(ANDROID)) && !defined(hasSSE2) && !defined(hasNeon)	// no GAS_MMX dispatch
-	if (hasSSE2) {
-		stable = get_stable_edge_sse(P, O);
-		allfull = get_all_full_lines_sse(P | O, &full);
-	} else
-#endif
-	{
-#if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)) && !defined(hasSSE2) && !defined(hasNeon)
-		if (hasMMX)
-			return get_stability_mmx(P, O);
-#endif
-		stable = get_stable_edge(P, O);
-		allfull = get_all_full_lines(P | O, &full);
-	}
+	stable = get_stable_edge(P, O);
 
 	// add full lines
 	P_central = (P & 0x007e7e7e7e7e7e00);
@@ -925,16 +911,27 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 	// now compute the other stable discs (ie discs touching another stable disc in each flipping direction).
 	do {
 		old_stable = stable;
-		stable_h = ((stable >> 1) | (stable << 1) | full.ull[0]);
-		stable_v = ((stable >> 8) | (stable << 8) | full.ull[1]);
-		stable_d9 = ((stable >> 9) | (stable << 9) | full.ull[2]);
-		stable_d7 = ((stable >> 7) | (stable << 7) | full.ull[3]);
+		stable_h = ((stable >> 1) | (stable << 1) | full->ull[0]);
+		stable_v = ((stable >> 8) | (stable << 8) | full->ull[1]);
+		stable_d9 = ((stable >> 9) | (stable << 9) | full->ull[2]);
+		stable_d7 = ((stable >> 7) | (stable << 7) | full->ull[3]);
 		stable |= (stable_h & stable_v & stable_d9 & stable_d7 & P_central);
 	} while (stable != old_stable);
 
 	return bit_count(stable);
 }
-#endif // __AVX2__
+#endif
+
+int get_stability(const unsigned long long P, const unsigned long long O)
+{
+	V4DI	full;
+	unsigned long long allfull;
+
+	// compute the exact stable edges (from precomputed tables)
+	allfull = get_all_full_lines(P | O, &full);
+
+	return get_stability_fulls_given(P, O, allfull, &full);
+}
 
 /**
  * @brief Estimate the stability of edges.

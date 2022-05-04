@@ -147,7 +147,10 @@ typedef union {
 		__m256i	v4;
 	#endif
 	#ifdef hasSSE2
-	__m128i	v2[2];
+		__m128i	v2[2];
+	#endif
+	#ifdef USE_MSVC_X86
+		__m64	v1[4];
 	#endif
 } V4DI;
 
