@@ -482,8 +482,6 @@ int NWS_endgame(Search *search, const int alpha)
 
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
-	// transposition cutoff
-
 	// Improvement of Serch by Reducing Redundant Information in a Position of Othello
 	// Hidekazu Matsuo, Shuji Narazaki
 	// http://id.nii.ac.jp/1001/00156359/
@@ -509,10 +507,17 @@ int NWS_endgame(Search *search, const int alpha)
 		ofssolid = 0;
 	}
 
+	// transposition cutoff
+
 	hash_code = board_get_hash_code(&hashboard);
-	if (hash_get(hash_table, &hashboard, hash_code, &hash_data))
-		if (search_TC_NWS(&hash_data, search->eval.n_empties, NO_SELECTIVITY, alpha + ofssolid, &score))
-			return score - ofssolid;
+	if (hash_get(hash_table, &hashboard, hash_code, &hash_data)) {
+		hash_data.lower -= ofssolid;
+		hash_data.upper -= ofssolid;
+		if (search_TC_NWS(&hash_data, search->eval.n_empties, NO_SELECTIVITY, alpha, &score))
+			return score;
+	}
+	// else if (ofssolid)	// slows down
+	//	hash_get(hash_table, &search->board, board_get_hash_code(&search->board), &hash_data);
 
 	search_get_movelist(search, &movelist);
 

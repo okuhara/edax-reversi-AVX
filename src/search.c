@@ -52,9 +52,9 @@
  * -# Reinsfeld A. (1983) An Improvement Of the Scout Tree-Search Algorithm. ICCA
  *     journal, 6(4), pp. 4-14.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2022
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #include "search.h"

@@ -129,7 +129,7 @@
 #define ETC_MIN_DEPTH 5
 
 /** Dogaishi hash reduction Depth (before DEPTH_TO_SHALLOW_SEARCH) */
-#define MASK_SOLID_DEPTH 8
+#define MASK_SOLID_DEPTH 9
 
 /** bound for usefull move sorting */
 #define SORT_ALPHA_DELTA 8
