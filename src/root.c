@@ -3,9 +3,9 @@
  *
  * Search near the end of the game.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2022
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #include "search.h"
@@ -97,9 +97,8 @@ bool is_pv_ok(Search *search, int bestmove, int search_depth)
 		board_update(&board, &move);
 
 		hash_code = board_get_hash_code(&board);
-		if (hash_get(&search->pv_table, &board, hash_code, &hash_data)) {
-			x = hash_data.move[0];
-		} else if (hash_get(&search->hash_table, &board, hash_code, &hash_data)) {
+		if (hash_get(&search->pv_table, &board, hash_code, &hash_data)
+		 || hash_get(&search->hash_table, &board, hash_code, &hash_data)) {
 			x = hash_data.move[0];
 		} else break;
 		if (hash_data.wl.c.depth < search_depth || hash_data.wl.c.selectivity < search->selectivity || hash_data.lower != hash_data.upper) return false;
@@ -141,13 +140,12 @@ static int guess_move(Search *search, Board *board)
  * @brief Record best move.
  *
  * @param search Search.
- * @param init_board Initial board.
  * @param bestmove Best move.
  * @param alpha Alpha Bound.
  * @param beta Beta Bound.
  * @param depth Depth.
  */
-void record_best_move(Search *search, const Board *init_board, const Move *bestmove, const int alpha, const int beta, const int depth)
+void record_best_move(Search *search, const Move *bestmove, const int alpha, const int beta, const int depth)
 {
 	Board board;
 	Move move;
@@ -162,7 +160,7 @@ void record_best_move(Search *search, const Board *init_board, const Move *bestm
 	int expected_depth, expected_selectivity, tmp;
 	Bound expected_bound;
 
-	board = *init_board;
+	board = search->board;
 
 	spin_lock(result);
 
@@ -335,7 +333,7 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 	MoveList *const movelist = &search->movelist;
 	Move *move;
 	Node node;
-	Eval Ev0;
+	Search_Backup backup;
 	long long nodes_org = search_count_nodes(search);
 	assert(alpha < beta);
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
@@ -374,7 +372,8 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 	} else {
 
 		// first move
-		Ev0.feature = search->eval.feature;
+		backup.board = search->board;
+		backup.eval = search->eval;
 		if ((move = node_first_move(&node, movelist))) {
 			assert(board_check_move(&search->board, move));
 			search_update_midgame(search, move); search->node_type[search->height] = PV_NODE;
@@ -382,7 +381,7 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 				move->cost = search_get_pv_cost(search);
 				assert(SCORE_MIN <= move->score && move->score <= SCORE_MAX);
 				assert(search->stability_bound.lower <= move->score && move->score <= search->stability_bound.upper);
-			search_restore_midgame(search, move, &Ev0);
+			search_restore_midgame(search, move->x, &backup);
 			if (log_is_open(search_log)) show_current_move(search_log->f, search, move, alpha, beta, false);
 			node_update(&node, move);
 			if (search->options.verbosity == 4) pv_debug(search, move, stdout);
@@ -404,7 +403,7 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 						}
 						move->cost = search_get_pv_cost(search);
 					assert(SCORE_MIN <= move->score && move->score <= SCORE_MAX);
-					search_restore_midgame(search, move, &Ev0);
+					search_restore_midgame(search, move->x, &backup);
 					if (log_is_open(search_log)) show_current_move(search_log->f, search, move, alpha, beta, false);
 					node_update(&node, move);
 					assert(SCORE_MIN <= node.bestscore && node.bestscore <= SCORE_MAX);
@@ -422,7 +421,7 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 		if (depth < search->options.multipv_depth) movelist_sort(movelist);
 		else movelist_sort_cost(movelist, &hash_data);
 		movelist_sort_bestmove(movelist, node.bestmove);
-		record_best_move(search, &search->board, movelist_first(movelist), alpha, beta, depth);
+		record_best_move(search, movelist_first(movelist), alpha, beta, depth);
 
 		if (movelist->n_moves == get_mobility(search->board.player, search->board.opponent)) {
 			hash_store_data.data.wl.c.depth = depth;
@@ -561,7 +560,7 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 		if (score == old_score) break;
 	}
 
-	if (!search->stop) record_best_move(search, &search->board, movelist_first(&search->movelist), alpha, beta, depth);
+	if (!search->stop) record_best_move(search, movelist_first(&search->movelist), alpha, beta, depth);
 	search->result->time = search_time(search);
 	search->result->n_nodes = search_count_nodes(search);
 	if (options.noise <= depth && search->options.verbosity >= 2) {
@@ -592,9 +591,8 @@ static bool get_last_level(Search *search, int *depth, int *selectivity)
 
 	for (i = 0; i < 4; ++i) {
 		hash_code = board_get_hash_code(&board);
-		if (hash_get(&search->pv_table, &board, hash_code, &hash_data)) {
-			x = hash_data.move[0];
-		} else if (hash_get(&search->hash_table, &board, hash_code, &hash_data)) {
+		if (hash_get(&search->pv_table, &board, hash_code, &hash_data)
+		 || hash_get(&search->hash_table, &board, hash_code, &hash_data)) {
 			x = hash_data.move[0];
 		} else break;
 
@@ -747,12 +745,12 @@ void iterative_deepening(Search *search, int alpha, int beta)
 		}
 		movelist_sort(movelist);
 		bestmove = movelist_first(movelist); bestmove->score = score;
-		record_best_move(search, &search->board, bestmove, alpha, beta, old_depth);
+		record_best_move(search, bestmove, alpha, beta, old_depth);
 		assert(SCORE_MIN <= result->score  && result->score <= SCORE_MAX);
 	} else {
 		Move pass = MOVE_PASS;
 		bestmove = &pass; bestmove->score = score;
-		record_best_move(search, &search->board, bestmove, alpha, beta, old_depth);
+		record_best_move(search, bestmove, alpha, beta, old_depth);
 		assert(SCORE_MIN <= result->score  && result->score <= SCORE_MAX);
 	}
 	search->selectivity = tmp_selectivity;

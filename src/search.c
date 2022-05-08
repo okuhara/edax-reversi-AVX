@@ -945,20 +945,21 @@ void search_update_midgame(Search *search, const Move *move)
  * @brief Restore the search state as before a move.
  *
  * @param search  search.
- * @param move    played move.
- * @param Ev	  eval to restore.
+ * @param x       played move.
+ * @param backup  board/eval to restore.
  */
-void search_restore_midgame(Search *search, const Move *move, const Eval *eval_to_restore)
+void search_restore_midgame(Search *search, int x, const Search_Backup *backup)
 {
 //	line_print(&debug_line, 100, " ", stdout); putchar('\n');
 //	line_pop(&debug_line);
 
-	search_swap_parity(search, move->x);
-	empty_restore(search->empties, move->x);
-	board_restore(&search->board, move);
-	++search->eval.n_empties;
+	// search_swap_parity(search, move->x);
+	// ++search->eval.n_empties;
 	// eval_restore(search->eval, move);
-	search->eval.feature = eval_to_restore->feature;
+	search->eval = backup->eval;
+	// board_restore(&search->board, move);
+	search->board = backup->board;
+	empty_restore(search->empties, x);
 	assert(search->height > 0);
 	--search->height;
 }

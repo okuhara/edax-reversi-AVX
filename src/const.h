@@ -81,7 +81,7 @@ typedef enum {
 } NodeType;
 
 #define VERSION 4
-#define RELEASE 4
+#define RELEASE 5
 #define VERSION_STRING "4.5.0"
 #define EDAX_NAME "Edax 4.5.0"
 #define BOOK 0x424f4f4b

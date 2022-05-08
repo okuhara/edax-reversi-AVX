@@ -22,9 +22,9 @@
  * ICCA Journal, Vol. 12, No. 2, pp. 65-73.
  * -# Feldmann R. (1993) Game-Tree Search on Massively Parallel System - PhD Thesis, Paderborn (English version).
  *
- * @date 1998 - 2020
+ * @date 1998 - 2022
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #include "ybwc.h"
@@ -269,7 +269,7 @@ void node_update(Node* node, Move *move)
 		node->bestscore = score;
 		node->bestmove = move->x;
 		if (node->height == 0) {
-			record_best_move(search, &search->board, move, node->alpha, node->beta, node->depth);
+			record_best_move(search, move, node->alpha, node->beta, node->depth);
 			search->result->n_moves_left--;
 		}
 		if (score > node->alpha) node->alpha = score;
@@ -365,7 +365,7 @@ void task_search(Task *task)
 	Node *node = task->node;
 	Search *search = task->search;
 	Move *move = task->move;
-	Eval Ev0;
+	Search_Backup backup;
 	int i;
 
 	search_set_state(search, node->search->stop);
@@ -376,14 +376,15 @@ void task_search(Task *task)
 		const int alpha = node->alpha;
 		if (alpha >= node->beta) break;
 
-		Ev0.feature = search->eval.feature;
+		backup.board = search->board;
+		backup.eval = search->eval;
 		search_update_midgame(search, move);
 			move->score = -NWS_midgame(search, -alpha - 1, node->depth - 1, node);
 			if (alpha < move->score && move->score < node->beta) {
 				move->score = -PVS_midgame(search, -node->beta, -alpha, node->depth - 1, node);
 				assert(node->pv_node == true);
 			}
-		search_restore_midgame(search, move, &Ev0);
+		search_restore_midgame(search, move->x, &backup);
 		if (node->height == 0) {
 			move->cost = search_get_pv_cost(search);
 			move->score = search_bound(search, move->score);
@@ -395,7 +396,7 @@ void task_search(Task *task)
 			node->bestscore = move->score;
 			node->bestmove = move->x;
 			if (node->height == 0) {
-				record_best_move(search, &search->board, move, alpha, node->beta, node->depth);
+				record_best_move(search, move, alpha, node->beta, node->depth);
 				search->result->n_moves_left--;
 				if (search->options.verbosity == 4) pv_debug(search, move, stdout);
 			}

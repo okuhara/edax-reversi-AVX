@@ -13,9 +13,9 @@
  *  - With "-follow-cassio" Edax will follow more closely Cassio's search request. By default, it
  * searches with settings that make it better in tournament mode against Roxane, Cassio, etc.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2022
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #include "cassio.h"
@@ -549,7 +549,7 @@ static bool skip_search(Engine *engine, int *old_score)
 			else if (hash_data.lower > SCORE_MIN) return false;
 			bestmove = movelist_first(movelist);
 			bestmove->score = *old_score;
-			record_best_move(search, &search->board, bestmove, options.alpha, options.beta, search->depth);
+			record_best_move(search, bestmove, options.alpha, options.beta, search->depth);
 			bound =  search->result->bound + bestmove->x;
 
 			if (bound->lower != bound->upper || is_pv_ok(search, bestmove->x, search->depth)) {

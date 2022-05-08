@@ -3,10 +3,10 @@
  *
  * Evaluation function.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2022
  * @author Richard Delorme
  * @author Toshihiko Okuhara
- * @version 4.4
+ * @version 4.5
  */
 
 #include "eval.h"
@@ -758,13 +758,13 @@ void eval_set(Eval *eval, const Board *board)
 
 	eval->feature = EVAL_FEATURE_all_opponent;
 	foreach_bit(x, b)
-		for (i = 0; i < 48; ++i)
-			eval->feature.us[i] -= EVAL_FEATURE[x].us[i];
+		for (i = 0; i < 12; ++i)
+			eval->feature.ull[i] -= EVAL_FEATURE[x].ull[i];
 
 	b = ~(board->opponent | board->player);
 	foreach_bit(x, b)
-		for (i = 0; i < 48; ++i)
-			eval->feature.us[i] += EVAL_FEATURE[x].us[i];
+		for (i = 0; i < 12; ++i)
+			eval->feature.ull[i] += EVAL_FEATURE[x].ull[i];
 
 #else
 	int i, j, x;
@@ -799,13 +799,13 @@ static void eval_update_0(int x, unsigned long long f, Eval *eval)
 #ifdef VECTOR_EVAL_UPDATE
 	int	i;
 
-	for (i = 0; i < 48; ++i)
-		eval->feature.us[i] -= EVAL_FEATURE[x].us[i] << 1;
+	for (i = 0; i < 12; ++i)
+		eval->feature.ull[i] -= EVAL_FEATURE[x].ull[i] << 1;
 
 	for (j = 0; j < 64; j += sizeof(widest_register) * CHAR_BIT) {
 		foreach_bit_r (x, f, b)
-			for (i = 0; i < 48; ++i)
-				eval->feature.us[i] -= EVAL_FEATURE[x + j].us[i];
+			for (i = 0; i < 12; ++i)
+				eval->feature.ull[i] -= EVAL_FEATURE[x + j].ull[i];
 	}
 
 #else
@@ -856,13 +856,13 @@ static void eval_update_1(int x, unsigned long long f, Eval *eval)
 #ifdef VECTOR_EVAL_UPDATE
 	int	i;
 
-	for (i = 0; i < 48; ++i)
-		eval->feature.us[i] -= EVAL_FEATURE[x].us[i];
+	for (i = 0; i < 12; ++i)
+		eval->feature.ull[i] -= EVAL_FEATURE[x].ull[i];
 
 	for (j = 0; j < 64; j += sizeof(widest_register) * CHAR_BIT) {
 		foreach_bit_r (x, f, b)
-			for (i = 0; i < 48; ++i)
-				eval->feature.us[i] += EVAL_FEATURE[x + j].us[i];
+			for (i = 0; i < 12; ++i)
+				eval->feature.ull[i] += EVAL_FEATURE[x + j].ull[i];
 	}
 
 #else

@@ -3,9 +3,9 @@
  *
  * Search's header file.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2022
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #ifndef EDAX_SEARCH_H
@@ -125,6 +125,11 @@ typedef struct Search {
 
 } Search;
 
+typedef struct Search_Backup {
+	Board board;
+	Eval eval;
+} Search_Backup;
+
 struct Node;
 
 extern const unsigned char QUADRANT_ID[];
@@ -162,7 +167,7 @@ void search_get_movelist(const Search*, MoveList*);
 // void search_restore_endgame(Search*, const Move*);
 void search_pass_endgame(Search*);
 void search_update_midgame(Search*, const Move*);
-void search_restore_midgame(Search*, const Move*, const Eval*);
+void search_restore_midgame(Search*, int, const Search_Backup*);
 void search_update_pass_midgame(Search*);
 void search_restore_pass_midgame(Search*);
 long long search_clock(Search*);
@@ -198,7 +203,7 @@ int NWS_shallow(Search*, const int, int, HashTable*);
 int PVS_shallow(Search*, int, int, int);
 
 bool is_pv_ok(Search*, int, int);
-void record_best_move(Search*, const Board*, const Move*, const int, const int, const int);
+void record_best_move(Search*, const Move*, const int, const int, const int);
 int PVS_root(Search*, const int, const int, const int);
 int aspiration_search(Search*, int, int, const int, int);
 void iterative_deepening(Search*, int, int);
