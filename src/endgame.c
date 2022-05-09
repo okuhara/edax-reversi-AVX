@@ -456,14 +456,14 @@ static int search_shallow(Search *search, const int alpha)
  */
 int NWS_endgame(Search *search, const int alpha)
 {
-	int score, ofssolid;
+	int score, ofssolid, bestscore;
 	HashTable *const hash_table = &search->hash_table;
 	unsigned long long hash_code, allfull, solid_opp;
 	// const int beta = alpha + 1;
 	HashData hash_data;
 	HashStoreData hash_store_data;
 	MoveList movelist;
-	Move *move, *bestmove;
+	Move *move;
 	long long nodes_org;
 	Board board0, hashboard;
 	unsigned int parity0;
@@ -523,23 +523,22 @@ int NWS_endgame(Search *search, const int alpha)
 
 	// special cases
 	if (movelist_is_empty(&movelist)) {
-		bestmove = movelist.move->next = movelist.move + 1;
-		bestmove->next = 0;
 		if (can_move(search->board.opponent, search->board.player)) { // pass
 			search_pass_endgame(search);
-			bestmove->score = -NWS_endgame(search, -(alpha + 1));
+			bestscore = -NWS_endgame(search, -(alpha + 1));
 			search_pass_endgame(search);
-			bestmove->x = PASS;
+			hash_store_data.data.move[0] = PASS;
 		} else  { // game over
-			bestmove->score = search_solve(search);
-			bestmove->x = NOMOVE;
+			bestscore = search_solve(search);
+			hash_store_data.data.move[0] = NOMOVE;
 		}
 	} else {
-		movelist_evaluate(&movelist, search, &hash_data, alpha, 0);
+		if (movelist.n_moves > 1)
+			movelist_evaluate(&movelist, search, &hash_data, alpha, 0);
 
 		board0 = search->board;
 		parity0 = search->eval.parity;
-		bestmove = movelist.move; bestmove->score = -SCORE_INF;
+		bestscore = -SCORE_INF;
 		// loop over all moves
 		foreach_best_move(move, movelist) {
 			search_swap_parity(search, move->x);
@@ -547,16 +546,17 @@ int NWS_endgame(Search *search, const int alpha)
 			board_update(&search->board, move);
 			--search->eval.n_empties;
 
-			move->score = -NWS_endgame(search, -(alpha + 1));
+			score = -NWS_endgame(search, -(alpha + 1));
 
 			search->eval.parity = parity0;
 			empty_restore(search->empties, move->x);
 			search->board = board0;
 			++search->eval.n_empties;
 
-			if (move->score > bestmove->score) {
-				bestmove = move;
-				if (bestmove->score > alpha) break;
+			if (score > bestscore) {
+				bestscore = score;
+				hash_store_data.data.move[0] = move->x;
+				if (bestscore > alpha) break;
 			}
 		}
 	}
@@ -565,21 +565,21 @@ int NWS_endgame(Search *search, const int alpha)
 		hash_store_data.data.wl.c.depth = search->eval.n_empties;
 		hash_store_data.data.wl.c.selectivity = NO_SELECTIVITY;
 		hash_store_data.data.wl.c.cost = last_bit(search->n_nodes - nodes_org);
-		hash_store_data.data.move[0] = bestmove->x;
+		// hash_store_data.data.move[0] = bestmove;
 		hash_store_data.alpha = alpha + ofssolid;
 		hash_store_data.beta = alpha + ofssolid + 1;
-		hash_store_data.score = bestmove->score + ofssolid;
+		hash_store_data.score = bestscore + ofssolid;
 		hash_store(hash_table, &hashboard, hash_code, &hash_store_data);
 
 		if (SQUARE_STATS(1) + 0) {
 			foreach_move(move, movelist)
 				++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];
-			if (bestmove->score > alpha)
-				++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[bestmove->score]];
+			if (bestscore > alpha)
+				++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[bestscore]];
 		}
-	 	assert(SCORE_MIN <= bestmove->score && bestmove->score <= SCORE_MAX);
-	 	assert((bestmove->score & 1) == 0);
-		return bestmove->score;
+	 	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
+	 	assert((bestscore & 1) == 0);
+		return bestscore;
 	}
 
 	return alpha;

@@ -339,14 +339,17 @@ int NWS_shallow(Search *search, const int alpha, int depth, HashTable *hash_tabl
 		}
 	} else {
 		// sort the list of moves
-		movelist_evaluate(&movelist, search, &hash_data, alpha, depth);
-		movelist_sort(&movelist);
+		if (movelist.n_moves > 1) {
+			movelist_evaluate(&movelist, search, &hash_data, alpha, depth);
+			movelist_sort(&movelist);
+		}
 
 		// loop over all moves
-		bestscore = -SCORE_INF; hash_store_data.data.move[0] = NOMOVE;
+		bestscore = -SCORE_INF;
 		backup.board = search->board;
 		backup.eval = search->eval;
-		foreach_move(move, movelist) {
+		move = movelist.move[0].next;
+		do {
 			search_update_midgame(search, move);
 			score = -NWS_shallow(search, -(alpha + 1), depth - 1, hash_table);
 			search_restore_midgame(search, move->x, &backup);
@@ -355,7 +358,7 @@ int NWS_shallow(Search *search, const int alpha, int depth, HashTable *hash_tabl
 				hash_store_data.data.move[0] = move->x;
 				if (score > alpha) break;
 			}
-		}
+		} while ((move = move->next));
 	}
 
 	// save the best result in hash tables
@@ -430,15 +433,18 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 		}
 	} else {
 		// sort the list of moves
-		movelist_evaluate(&movelist, search, &hash_data, alpha, depth);
-		movelist_sort(&movelist) ;
+		if (movelist.n_moves > 1) {
+			movelist_evaluate(&movelist, search, &hash_data, alpha, depth);
+			movelist_sort(&movelist);
+		}
 
 		// loop over all moves
-		bestscore = -SCORE_INF; hash_store_data.data.move[0] = NOMOVE;
+		bestscore = -SCORE_INF;
 		lower = alpha;
 		backup.board = search->board;
 		backup.eval = search->eval;
-		foreach_move(move, movelist) {
+		move = movelist.move[0].next;
+		do {
 			search_update_midgame(search, move);
 				if (bestscore == -SCORE_INF) {
 					score = -PVS_shallow(search, -beta, -lower, depth - 1);
@@ -455,7 +461,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 				if (score >= beta) break;
 				else if (score > lower) lower = score;
 			}
-		}
+		} while ((move = move->next));
 	}
 
 	// save the best result in hash tables
@@ -542,7 +548,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		if (movelist.n_moves > 1) {
 			if (hash_data.move[0] == NOMOVE) hash_get(hash_table, &search->board, hash_code, &hash_data);
 			movelist_evaluate(&movelist, search, &hash_data, alpha, depth + options.inc_sort_depth[search->node_type[search->height]]);
-			movelist_sort(&movelist) ;
+			movelist_sort(&movelist);
 		}
 
 		// ETC
@@ -683,7 +689,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 
 			// Evaluate moves for sorting. For a better ordering, the depth is artificially increased
 			movelist_evaluate(&movelist, search, &hash_data, node.alpha, depth + options.inc_sort_depth[PV_NODE]);
-			movelist_sort(&movelist) ;
+			movelist_sort(&movelist);
 		}
 
 		// first move
