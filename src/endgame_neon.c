@@ -72,8 +72,8 @@ static int board_solve_neon(uint64x1_t P, int n_empties)
 /**
  * @brief Get the final score.
  *
- * Get the final score, when 1 empty squares remain.
- * The following code has been adapted from Zebra by Gunnar Anderson.
+ * Get the final score, when 1 empty square remain.
+ * The original code has been adapted from Zebra by Gunnar Anderson.
  *
  * @param P      Board.player to evaluate.
  * @param beta   Beta bound.
@@ -409,6 +409,7 @@ int search_solve_4(Search *search, const int alpha)
 			search_pass_endgame(search);
 			bestscore = -search_solve_4(search, -(alpha + 1));
 			search_pass_endgame(search);
+
 		} else { // gameover
 			bestscore = board_solve_neon(vget_low_u64(OP), 4);
 		}

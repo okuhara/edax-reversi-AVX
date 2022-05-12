@@ -172,55 +172,11 @@ unsigned long long board_next(const Board *board, const int x, Board *next)
 	vst1q_u64((uint64_t *) next, vextq_u64(OP, OP, 1));
 #else
 	OP = veorq_u64(OP, flipped);
-	vst1_u64(&next->player, vget_high_u64(OP));
-	vst1_u64(&next->opponent, vorr_u64(vget_low_u64(OP), vld1_u64(&X_TO_BIT[x])));
+	OP = vcombine_u64(vget_high_u64(OP), vorr_u64(vget_low_u64(OP), vld1_u64(&X_TO_BIT[x])));
+	vst1q_u64((uint64_t *) next, OP);
 #endif
 	return vgetq_lane_u64(flipped, 0);
 }
-#endif
-
-/**
- * @brief Compute a board resulting of an opponent move played on a previous board.
- *
- * Compute the board after passing and playing a move.
- *
- * @param board board to play the move on.
- * @param x opponent move to play.
- * @param next resulting board.
- * @return flipped discs.
- */
-#if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)
-
-unsigned long long board_pass_next(const Board *board, const int x, Board *next)
-{
-	__m128i	PO = _mm_shuffle_epi32(_mm_loadu_si128((__m128i *) board), 0x4e);
-	__m128i flipped = mm_Flip(PO, x);
-
-	PO = _mm_xor_si128(PO, _mm_or_si128(flipped, _mm_loadl_epi64((__m128i *) &X_TO_BIT[x])));
-	_mm_storeu_si128((__m128i *) next, _mm_shuffle_epi32(PO, 0x4e));
-
-	return _mm_cvtsi128_si64(flipped);
-}
-
-#elif MOVE_GENERATOR == MOVE_GENERATOR_NEON
-
-unsigned long long board_pass_next(const Board *board, const int x, Board *next)
-{
-	uint64x2_t OP = vld1q_u64((uint64_t *) board);
-	uint64x2_t PO = vextq_u64(OP, OP, 1);
-	uint64x2_t flipped = mm_Flip(PO, x);
-
-#ifdef HAS_CPU_64	// vld1q_lane_u64
-	PO = veorq_u64(PO, vorrq_u64(flipped, vld1q_lane_u64((uint64_t *) &X_TO_BIT[x], flipped, 0)));
-	vst1q_u64((uint64_t *) next, vextq_u64(PO, PO, 1));
-#else
-	PO = veorq_u64(OP, flipped);
-	vst1_u64(&next->player, vget_high_u64(PO));
-	vst1_u64(&next->opponent, vorr_u64(vget_low_u64(PO), vld1_u64(&X_TO_BIT[x])));
-#endif
-	return vgetq_lane_u64(flipped, 0);
-}
-
 #endif
 
 /**

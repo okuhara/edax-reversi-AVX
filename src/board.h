@@ -45,7 +45,6 @@ void board_update(Board*, const struct Move*);
 void board_restore(Board*, const struct Move*);
 void board_pass(Board*);
 unsigned long long board_next(const Board*, const int, Board*);
-unsigned long long board_pass_next(const Board*, const int, Board*);
 unsigned long long board_get_hash_code(const Board*);
 int board_get_square_color(const Board*, const int);
 bool board_is_occupied(const Board*, const int);
@@ -119,7 +118,11 @@ extern unsigned char edge_stability[256 * 256];
 #elif MOVE_GENERATOR == MOVE_GENERATOR_32
 	extern unsigned long long (*flip[BOARD_SIZE + 2])(unsigned int, unsigned int, unsigned int, unsigned int);
 	#define Flip(x,P,O)	flip[x]((unsigned int)(P), (unsigned int)((P) >> 32), (unsigned int)(O), (unsigned int)((O) >> 32))
+#ifdef __BIG_ENDIAN__
+	#define	board_flip(board,x)	flip[x]((unsigned int)((board)->player), ((unsigned int *) &(board)->player)[0], (unsigned int)((board)->opponent), ((unsigned int *) &(board)->opponent)[0])
+#else
 	#define	board_flip(board,x)	flip[x]((unsigned int)((board)->player), ((unsigned int *) &(board)->player)[1], (unsigned int)((board)->opponent), ((unsigned int *) &(board)->opponent)[1])
+#endif
 	#if defined(USE_GAS_MMX) && !defined(hasSSE2)
 		extern void init_flip_sse(void);
 	#endif
