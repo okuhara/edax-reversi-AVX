@@ -38,9 +38,9 @@ __attribute__ ((aligned (16)))
 EVAL_FEATURE_V;
 
 typedef struct Eval {
-	EVAL_FEATURE_V feature;                       /**!< discs' features */
-	int n_empties;                                /**< number of empty squares */
-	unsigned int parity;                          /**< parity */
+	EVAL_FEATURE_V feature;                       /**!< discs' features (96) */
+	int n_empties;                                /**< number of empty squares (4) */
+	unsigned int parity;                          /**< parity (4) */
 } Eval;
 
 struct Board;
