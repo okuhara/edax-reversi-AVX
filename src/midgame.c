@@ -24,22 +24,25 @@
 #define RCD 0.5
 #endif
 
-static int accumlate_eval(const short *w, Eval *eval)
+static int accumlate_eval(int ply, Eval *eval)
 {
 	unsigned short *f = eval->feature.us;
-	return w[f[ 0] + 0] + w[f[ 1] + 0] + w[f[ 2] + 0] + w[f[ 3] + 0]
-	  + w[f[ 4] + 19683] + w[f[ 5] + 19683] + w[f[ 6] + 19683] + w[f[ 7] + 19683]
-	  + w[f[ 8] + 78732] + w[f[ 9] + 78732] + w[f[10] + 78732] + w[f[11] + 78732]
-	  + w[f[12] + 137781] + w[f[13] + 137781] + w[f[14] + 137781] + w[f[15] + 137781]
-	  + w[f[16] + 196830] + w[f[17] + 196830] + w[f[18] + 196830] + w[f[19] + 196830]
-	  + w[f[20] + 203391] + w[f[21] + 203391] + w[f[22] + 203391] + w[f[23] + 203391]
-	  + w[f[24] + 209952] + w[f[25] + 209952] + w[f[26] + 209952] + w[f[27] + 209952]
-	  + w[f[28] + 216513] + w[f[29] + 216513]
-	  + w[f[30] + 223074] + w[f[31] + 223074] + w[f[32] + 223074] + w[f[33] + 223074]
-	  + w[f[34] + 225261] + w[f[35] + 225261] + w[f[36] + 225261] + w[f[37] + 225261]
-	  + w[f[38] + 225990] + w[f[39] + 225990] + w[f[40] + 225990] + w[f[41] + 225990]
-	  + w[f[42] + 226233] + w[f[43] + 226233] + w[f[44] + 226233] + w[f[45] + 226233]
-	  + w[f[46] + 226314];
+	Eval_weight *w = *EVAL_WEIGHT + ply;
+	assert(ply < EVAL_N_PLY);
+
+	return w->C9[f[ 0]] + w->C9[f[ 1]] + w->C9[f[ 2]] + w->C9[f[ 3]]
+	  + w->C10[f[ 4]] + w->C10[f[ 5]] + w->C10[f[ 6]] + w->C10[f[ 7]]
+	  + w->S10[0][f[ 8]] + w->S10[0][f[ 9]] + w->S10[0][f[10]] + w->S10[0][f[11]]
+	  + w->S10[1][f[12]] + w->S10[1][f[13]] + w->S10[1][f[14]] + w->S10[1][f[15]]
+	  + w->S8[0][f[16]] + w->S8[0][f[17]] + w->S8[0][f[18]] + w->S8[0][f[19]]
+	  + w->S8[1][f[20]] + w->S8[1][f[21]] + w->S8[1][f[22]] + w->S8[1][f[23]]
+	  + w->S8[2][f[24]] + w->S8[2][f[25]] + w->S8[2][f[26]] + w->S8[2][f[27]]
+	  + w->S8[3][f[28]] + w->S8[3][f[29]]
+	  + w->S7[f[30]] + w->S7[f[31]] + w->S7[f[32]] + w->S7[f[33]]
+	  + w->S6[f[34]] + w->S6[f[35]] + w->S6[f[36]] + w->S6[f[37]]
+	  + w->S5[f[38]] + w->S5[f[39]] + w->S5[f[40]] + w->S5[f[41]]
+	  + w->S4[f[42]] + w->S4[f[43]] + w->S4[f[44]] + w->S4[f[45]]
+	  + w->S0;
 }
 
 /**
@@ -54,13 +57,13 @@ int search_eval_0(Search *search)
 	SEARCH_STATS(++statistics.n_search_eval_0);
 	SEARCH_UPDATE_EVAL_NODES(search->n_nodes);
 
-	score = accumlate_eval((*EVAL_WEIGHT)[60 - search->eval.n_empties],  &search->eval);
+	score = accumlate_eval(60 - search->eval.n_empties,  &search->eval);
 
 	if (score > 0) score += 64;	else score -= 64;
 	score /= 128;
 
-	if (score <= SCORE_MIN) score = SCORE_MIN + 1;
-	else if (score >= SCORE_MAX) score = SCORE_MAX - 1;
+	if (score < SCORE_MIN + 1) score = SCORE_MIN + 1;
+	if (score > SCORE_MAX - 1) score = SCORE_MAX - 1;
 
 	return score;
 }
@@ -96,7 +99,7 @@ int search_eval_1(Search *search, const int alpha, int beta, unsigned long long 
 				eval_update_leaf(x, flipped, &Ev, &search->eval);
 				SEARCH_UPDATE_EVAL_NODES(search->n_nodes);
 
-				score = -accumlate_eval((*EVAL_WEIGHT)[61 - search->eval.n_empties], &Ev);
+				score = -accumlate_eval(60 - search->eval.n_empties + 1, &Ev);
 
 				if (score > 0) score += 64; else score -= 64;
 				score /= 128;
@@ -107,8 +110,8 @@ int search_eval_1(Search *search, const int alpha, int beta, unsigned long long 
 				}
 			}
 		}
-		if (bestscore <= SCORE_MIN) bestscore = SCORE_MIN + 1;
-		else if (bestscore >= SCORE_MAX) bestscore = SCORE_MAX - 1;
+		if (bestscore < SCORE_MIN + 1) bestscore = SCORE_MIN + 1;
+		if (bestscore > SCORE_MAX - 1) bestscore = SCORE_MAX - 1;
 
 	} else {
 		moves = get_moves(search->board.opponent, search->board.player);
@@ -515,9 +518,12 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 
 	search_check_timeout(search);
 	if (search->stop) return alpha;
-	else if (search->eval.n_empties == 0) return search_solve_0(search);
-	else if (depth <= 3 && depth < search->eval.n_empties) return NWS_shallow(search, alpha, depth, hash_table);
-	else if (search->eval.n_empties <= depth && depth < DEPTH_MIDGAME_TO_ENDGAME) return NWS_endgame(search, alpha);
+	else if (search->eval.n_empties == 0)
+		return search_solve_0(search);
+	else if (depth <= 3 && depth < search->eval.n_empties)
+		return NWS_shallow(search, alpha, depth, hash_table);
+	else if (search->eval.n_empties <= depth && depth < DEPTH_MIDGAME_TO_ENDGAME)
+		return NWS_endgame(search, alpha);
 
 	SEARCH_STATS(++statistics.n_NWS_midgame);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
