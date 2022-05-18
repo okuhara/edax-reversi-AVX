@@ -960,7 +960,7 @@ int get_corner_stability(const unsigned long long P)
 		0, 2, 0, 3, 0, 2, 0, 3, 2, 4, 2, 5, 3, 5, 3, 6
 	};
 
-#if 0 // defined(__BMI2__) && defined(__x86_64__) // pext is slow on AMD
+#ifdef USEPEXT // defined(__BMI2__) && defined(__x86_64__) && !defined(AMD_BEFORE_ZEN3)	// kindergarten for generic modern build
 	int cnt = n_stable_h8g8b8a8h7a7[_pext_u64(P, 0xc381000000000000)]
 		+ n_stable_h2a2h1g1b1a1[_pext_u32((unsigned int) P, 0x000081c3)];
 #else
@@ -1206,8 +1206,7 @@ char* board_to_FEN(const Board *board, const int player, char *string)
 	}
 	*s++ = ' ';
 	*s++ = color[player];
-	*s++ = ' '; *s++ = '-'; *s++ = ' '; *s++ = '-'; 
-	*s++ = ' '; *s++ = '0'; *s++ = ' '; *s++ = '1'; *s = '\0';
+	strcpy(s, " - - 0 1");
 
 	return string;
 }
