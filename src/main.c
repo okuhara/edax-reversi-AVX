@@ -115,7 +115,6 @@ int main(int argc, char **argv)
 	// initialize
 	bit_init();
 	edge_stability_init();
-	hash_move_init();
 	statistics_init();
 	eval_open(options.eval_file);
 	search_global_init();

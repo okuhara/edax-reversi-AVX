@@ -3,9 +3,9 @@
  *
  * Game management
  *
- * @date 1998 - 2020
+ * @date 1998 - 2022
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #include "bit.h"
@@ -278,7 +278,7 @@ void text_to_game(const char *line, Game *game)
 		s = parse_move(line, &board, &move);
 		if (s == line && move.x == NOMOVE) return;
 		if (move.x != PASS) {
-			game->hash ^= hash_move[move.x][i];
+			game->hash = crc32c_u8(game->hash, move.x);
 			game->move[i++] = move.x;
 		}
 		board_update(&board, &move);
@@ -323,7 +323,7 @@ void oko_to_game(const OkoGame *oko, Game *game)
 			game->move[i] = NOMOVE;
 			break;
 		}
-		game->hash ^= hash_move[(int)game->move[i]][i];
+		game->hash = crc32c_u8(game->hash, game->move[i]);
 	}
 }
 
@@ -350,7 +350,7 @@ void wthor_to_game(const WthorGame *thor, Game *game)
 			game->move[i] = NOMOVE;
 			break;
 		}
-		game->hash ^= hash_move[(int)game->move[i]][i];
+		game->hash = crc32c_u8(game->hash, game->move[i]);
 	}
 }
 
@@ -394,7 +394,7 @@ void game_append_line(Game *game, const Line *line, const int from)
 		for (i = 0, j = from; i < line->n_moves && j < 60; ++i) {
 			if (line->move[i] != PASS) {
 				if (game_update_board(&board, line->move[i])) {
-					game->hash ^= hash_move[(int)line->move[i]][j];
+					game->hash = crc32c_u8(game->hash, line->move[i]);
 					game->move[j++] = line->move[i];
 				} else {
 					break;
@@ -612,7 +612,7 @@ void game_import_ggf(Game* game, FILE* f)
 			} else if (i < 60 && (strcmp(tag, "B") == 0 || strcmp(tag, "W") == 0)) {
 				if (strncmp("pa", value, 2) == 0) continue;
 				game->move[i] = string_to_coordinate(value);
-				game->hash ^= hash_move[(int)game->move[i]][i];
+				game->hash = crc32c_u8(game->hash, game->move[i]);
 				i++;
 			}
 		}
@@ -659,14 +659,15 @@ static const char* parse_tag(const char *string, char *tag, char *value)
  *
  * @param game The output game.
  * @param string An input string.
- * @return The unprocessed remaining part of the string.
+ * @return The Last move played, -1 on error.
  */
-char* parse_ggf(Game *game, const char *string)
+int parse_ggf(Game *game, const char *string)
 {
 	const char *s = string;
 	const char *next;
 	char tag[4], value[256];
 	int i = 0;
+	int lastmove = NOMOVE;
 
 	game_init(game);
 
@@ -678,12 +679,10 @@ char* parse_ggf(Game *game, const char *string)
 			s = next;
 
 			if (strcmp(tag, "GM") == 0 && strcmp(value, "othello") != 0) {
-				s = string;
-				break;
+				return -1;
 			} else if (strcmp(tag, "BO") == 0) {
 				if (value[0] != '8') {
-					s = string;
-					break;
+					return -1;
 				}
 				game->player = board_set(&game->initial_board, value + 2);
 			} else if (strcmp(tag, "PB") == 0) {
@@ -693,15 +692,16 @@ char* parse_ggf(Game *game, const char *string)
 				memcpy(game->name[WHITE], value, 31);
 				game->name[WHITE][31] = '\0';
 			} else if (i < 60 && (strcmp(tag, "B") == 0 || strcmp(tag, "W") == 0)) {
-				if (strncmp("pa", value, 2) == 0) continue;
-				game->move[i++] = string_to_coordinate(value);
+				lastmove = string_to_coordinate(value);
+				if (lastmove != PASS)
+					game->move[i++] = lastmove;
 			}
 		}
 	}
 
-	if (!game_check(game)) s = string;
+	if (!game_check(game)) return -1;
 
-	return (char*) s;
+	return lastmove;
 }
 
 /**
@@ -858,7 +858,7 @@ void game_import_sgf(Game *game, FILE *f)
 				game->name[WHITE][31] = '\0';
 			} else if (i < 60 && (strcmp(tag,"B") == 0 || strcmp(tag, "W") == 0)) {
 				game->move[i] = string_to_coordinate(value);
-				game->hash ^= hash_move[(int)game->move[i]][i];
+				game->hash = crc32c_u8(game->hash, game->move[i]);
 				i++;
 
 			}
@@ -998,7 +998,7 @@ void game_import_pgn(Game *game, FILE *f)
 		}  else  if  (c == '{') { // skip comments
 			do {
 				c = getc(f);
-			} while(c != EOF && c != '}');			
+			} while(c != EOF && c != '}');
 		}  else  if  (c == '[') {
 			switch(state) {
 			case STATE_START:
@@ -1070,7 +1070,7 @@ void game_import_pgn(Game *game, FILE *f)
 				state = STATE_END_MOVE;
 				move[k++] = c;
 				game->move[i] = string_to_coordinate(move);
-				game->hash ^= hash_move[(int)game->move[i]][i];
+				game->hash = crc32c_u8(game->hash, game->move[i]);
 				i++;
 				break;
 			case STATE_BEGIN_INFO:
@@ -1281,116 +1281,116 @@ void game_export_eps(const Game *game, FILE *f)
 	char s_player[2][8] = {"black", "white"};
 	char s[8];
 
-	fputs("%!PS-Adobe-3.0 EPSF-3.0\n",f);
-	fputs("%%Creator: Edax-3.0\n",f);
+	fputs(	"%!PS-Adobe-3.0 EPSF-3.0\n"
+		"%%Creator: Edax-3.0\n", f);
 	fprintf(f, "%%%%CreationDate:  %d/%d/%d %d:%d:%d\n", date->tm_year + 1900, date->tm_mon + 1, date->tm_mday, date->tm_hour, date->tm_min, date->tm_sec);
-	fputs("%%BoundingBox: 0 0 200 200\n\n",f);
-	fputs("%%BeginProlog\n\n",f);
-	fputs("% othello coordinates\n",f);
-	fputs("/A1 {40 160} def /A2 {40 140} def /A3 {40 120} def /A4 {40 100} def /A5 {40 80} def /A6 {40 60} def /A7 {40 40} def /A8 {40 20} def\n",f);
-	fputs("/B1 {60 160} def /B2 {60 140} def /B3 {60 120} def /B4 {60 100} def /B5 {60 80} def /B6 {60 60} def /B7 {60 40} def /B8 {60 20} def\n",f);
-	fputs("/C1 {80 160} def /C2 {80 140} def /C3 {80 120} def /C4 {80 100} def /C5 {80 80} def /C6 {80 60} def /C7 {80 40} def /C8 {80 20} def\n",f);
-	fputs("/D1 {100 160} def /D2 {100 140} def /D3 {100 120} def /D4 {100 100} def /D5 {100 80} def /D6 {100 60} def /D7 {100 40} def /D8 {100 20} def\n",f);
-	fputs("/E1 {120 160} def /E2 {120 140} def /E3 {120 120} def /E4 {120 100} def /E5 {120 80} def /E6 {120 60} def /E7 {120 40} def /E8 {120 20} def\n",f);
-	fputs("/F1 {140 160} def /F2 {140 140} def /F3 {140 120} def /F4 {140 100} def /F5 {140 80} def /F6 {140 60} def /F7 {140 40} def /F8 {140 20} def\n",f);
-	fputs("/G1 {160 160} def /G2 {160 140} def /G3 {160 120} def /G4 {160 100} def /G5 {160 80} def /G6 {160 60} def /G7 {160 40} def /G8 {160 20} def\n",f);
-	fputs("/H1 {180 160} def /H2 {180 140} def /H3 {180 120} def /H4 {180 100} def /H5 {180 80} def /H6 {180 60} def /H7 {180 40} def /H8 {180 20} def\n\n",f);
-	fputs("% draw a black disc\n",f);
-	fputs("/disc_black{\n",f);
-	fputs("\tnewpath\n",f);
-	fputs("\t8.5 0 360 arc\n",f);
-	fputs("\tfill\n",f);
-	fputs("} def\n\n",f);
-	fputs("% draw a white disc\n",f);
-	fputs("/disc_white{\n",f);
-	fputs("\tnewpath\n",f);
-	fputs("\t0.5 setlinewidth\n",f);
-	fputs("\t8.5 0 360 arc\n",f);
-	fputs("\tstroke\n",f);
-	fputs("} def\n\n",f);
-	fputs("% draw a black move\n",f);
-	fputs("/move_black{\n",f);
-	fputs("\t/y exch def\n",f);
-	fputs("\t/x exch def\n",f);
-	fputs("\tnewpath\n",f);
-	fputs("\tx y 8.5 0 360 arc\n",f);
-	fputs("\tfill\n",f);
-	fputs("\t1 setgray\n",f);
-	fputs("\tx y moveto dup stringwidth pop 2 div neg -4.5 rmoveto\n",f);
-	fputs("\tshow\n",f);
-	fputs("\t0 setgray\n",f);
-	fputs("} def\n\n",f);
-	fputs("% draw a white move\n",f);
-	fputs("/move_white{\n",f);
-	fputs("\t/y exch def\n",f);
-	fputs("\t/x exch def\n",f);
-	fputs("\tnewpath\n",f);
-	fputs("\t0.5 setlinewidth\n",f);
-	fputs("\tx y 8.5 0 360 arc\n",f);
-	fputs("\tstroke\n",f);
-	fputs("\tx y moveto dup stringwidth pop 2 div neg -4.5 rmoveto\n",f);
-	fputs("\tshow\n",f);
-	fputs("} def\n\n",f);
-	fputs("% draw the grid\n",f);
-	fputs("/board_grid{\n",f);
-	fputs("\tnewpath\n\n",f);
-	fputs("\t%border\n",f);
-	fputs("\t1.5 setlinewidth\n",f);
-	fputs("\t  27   7 moveto\n",f);
-	fputs("\t 166   0 rlineto\n",f);
-	fputs("\t   0 166 rlineto\n",f);
-	fputs("\t-166   0 rlineto\n",f);
-	fputs("\tclosepath\n",f);
-	fputs("\tstroke\n\n",f);
-	fputs("\t%vertical lines\n",f);
-	fputs("\t0.5 setlinewidth\n",f);
-	fputs("\t30 10 moveto\n",f);
-	fputs("\t0 1 8{\n",f);
-	fputs("\t\t 0  160 rlineto\n",f);
-	fputs("\t\t20 -160 rmoveto\n",f);
-	fputs("\t}for\n\n",f);
-	fputs("\t%horizontal lines\n",f);
-	fputs("\t30 10 moveto\n",f);
-	fputs("\t0 1 8{\n",f);
-	fputs("\t\t 160  0 rlineto\n",f);
-	fputs("\t\t-160 20 rmoveto\n",f);
-	fputs("\t}for\n",f);
-	fputs("\tstroke\n\n",f);
-	fputs("\t%marks\n",f);
-	fputs("\t 70  50 2 0 360 arc fill\n",f);
-	fputs("\t150  50 2 0 360 arc fill\n",f);
-	fputs("\t 70 130 2 0 360 arc fill\n",f);
-	fputs("\t150 130 2 0 360 arc fill\n",f);
-	fputs("}def\n\n",f);
-	fputs("% draw coordinates\n",f);
-	fputs("/board_coord{\n",f);
-	fputs("\t/NewCenturySchoolbook-Roman findfont 15 scalefont setfont\n",f);
-	fputs("\tnewpath\n",f);
-	fputs("\t(a)  35 180 moveto show\n",f);
-	fputs("\t(b)  55 180 moveto show\n",f);
-	fputs("\t(c)  75 180 moveto show\n",f);
-	fputs("\t(d)  95 180 moveto show\n",f);
-	fputs("\t(e) 115 180 moveto show\n",f);
-	fputs("\t(f) 135 180 moveto show\n",f);
-	fputs("\t(g) 155 180 moveto show\n",f);
-	fputs("\t(h) 175 180 moveto show\n",f);
-	fputs("\t(1)  14 155 moveto show\n",f);
-	fputs("\t(2)  14 135 moveto show\n",f);
-	fputs("\t(3)  14 115 moveto show\n",f);
-	fputs("\t(4)  14  95 moveto show\n",f);
-	fputs("\t(5)  14  75 moveto show\n",f);
-	fputs("\t(6)  14  55 moveto show\n",f);
-	fputs("\t(7)  14  35 moveto show\n",f);
-	fputs("\t(8)  14  15 moveto show\n",f);
-	fputs("}def\n",f);
-	fputs("%%EndProlog\n\n",f);
-	
-	fputs("% do the drawing\n",f);
-	fputs("gsave\n",f);
-	fputs("\n\t% draw an empty board\n",f);
-	fputs("\tboard_coord\n",f);
-	fputs("\tboard_grid\n",f);
-	fputs("\n\t% draw the discs\n",f);
+	fputs(	"%%BoundingBox: 0 0 200 200\n\n"
+		"%%BeginProlog\n\n"
+		"% othello coordinates\n"
+		"/A1 {40 160} def /A2 {40 140} def /A3 {40 120} def /A4 {40 100} def /A5 {40 80} def /A6 {40 60} def /A7 {40 40} def /A8 {40 20} def\n"
+		"/B1 {60 160} def /B2 {60 140} def /B3 {60 120} def /B4 {60 100} def /B5 {60 80} def /B6 {60 60} def /B7 {60 40} def /B8 {60 20} def\n"
+		"/C1 {80 160} def /C2 {80 140} def /C3 {80 120} def /C4 {80 100} def /C5 {80 80} def /C6 {80 60} def /C7 {80 40} def /C8 {80 20} def\n"
+		"/D1 {100 160} def /D2 {100 140} def /D3 {100 120} def /D4 {100 100} def /D5 {100 80} def /D6 {100 60} def /D7 {100 40} def /D8 {100 20} def\n"
+		"/E1 {120 160} def /E2 {120 140} def /E3 {120 120} def /E4 {120 100} def /E5 {120 80} def /E6 {120 60} def /E7 {120 40} def /E8 {120 20} def\n"
+		"/F1 {140 160} def /F2 {140 140} def /F3 {140 120} def /F4 {140 100} def /F5 {140 80} def /F6 {140 60} def /F7 {140 40} def /F8 {140 20} def\n"
+		"/G1 {160 160} def /G2 {160 140} def /G3 {160 120} def /G4 {160 100} def /G5 {160 80} def /G6 {160 60} def /G7 {160 40} def /G8 {160 20} def\n"
+		"/H1 {180 160} def /H2 {180 140} def /H3 {180 120} def /H4 {180 100} def /H5 {180 80} def /H6 {180 60} def /H7 {180 40} def /H8 {180 20} def\n\n"
+		"% draw a black disc\n"
+		"/disc_black{\n"
+		"\tnewpath\n"
+		"\t8.5 0 360 arc\n"
+		"\tfill\n"
+		"} def\n\n"
+		"% draw a white disc\n"
+		"/disc_white{\n"
+		"\tnewpath\n"
+		"\t0.5 setlinewidth\n"
+		"\t8.5 0 360 arc\n"
+		"\tstroke\n"
+		"} def\n\n"
+		"% draw a black move\n"
+		"/move_black{\n"
+		"\t/y exch def\n"
+		"\t/x exch def\n"
+		"\tnewpath\n"
+		"\tx y 8.5 0 360 arc\n"
+		"\tfill\n"
+		"\t1 setgray\n"
+		"\tx y moveto dup stringwidth pop 2 div neg -4.5 rmoveto\n"
+		"\tshow\n"
+		"\t0 setgray\n"
+		"} def\n\n"
+		"% draw a white move\n"
+		"/move_white{\n"
+		"\t/y exch def\n"
+		"\t/x exch def\n"
+		"\tnewpath\n"
+		"\t0.5 setlinewidth\n"
+		"\tx y 8.5 0 360 arc\n"
+		"\tstroke\n"
+		"\tx y moveto dup stringwidth pop 2 div neg -4.5 rmoveto\n"
+		"\tshow\n"
+		"} def\n\n"
+		"% draw the grid\n"
+		"/board_grid{\n"
+		"\tnewpath\n\n"
+		"\t%border\n"
+		"\t1.5 setlinewidth\n"
+		"\t  27   7 moveto\n"
+		"\t 166   0 rlineto\n"
+		"\t   0 166 rlineto\n"
+		"\t-166   0 rlineto\n"
+		"\tclosepath\n"
+		"\tstroke\n\n"
+		"\t%vertical lines\n"
+		"\t0.5 setlinewidth\n"
+		"\t30 10 moveto\n"
+		"\t0 1 8{\n"
+		"\t\t 0  160 rlineto\n"
+		"\t\t20 -160 rmoveto\n"
+		"\t}for\n\n"
+		"\t%horizontal lines\n"
+		"\t30 10 moveto\n"
+		"\t0 1 8{\n"
+		"\t\t 160  0 rlineto\n"
+		"\t\t-160 20 rmoveto\n"
+		"\t}for\n"
+		"\tstroke\n\n"
+		"\t%marks\n"
+		"\t 70  50 2 0 360 arc fill\n"
+		"\t150  50 2 0 360 arc fill\n"
+		"\t 70 130 2 0 360 arc fill\n"
+		"\t150 130 2 0 360 arc fill\n"
+		"}def\n\n"
+		"% draw coordinates\n"
+		"/board_coord{\n"
+		"\t/NewCenturySchoolbook-Roman findfont 15 scalefont setfont\n"
+		"\tnewpath\n"
+		"\t(a)  35 180 moveto show\n"
+		"\t(b)  55 180 moveto show\n"
+		"\t(c)  75 180 moveto show\n"
+		"\t(d)  95 180 moveto show\n"
+		"\t(e) 115 180 moveto show\n"
+		"\t(f) 135 180 moveto show\n"
+		"\t(g) 155 180 moveto show\n"
+		"\t(h) 175 180 moveto show\n"
+		"\t(1)  14 155 moveto show\n"
+		"\t(2)  14 135 moveto show\n"
+		"\t(3)  14 115 moveto show\n"
+		"\t(4)  14  95 moveto show\n"
+		"\t(5)  14  75 moveto show\n"
+		"\t(6)  14  55 moveto show\n"
+		"\t(7)  14  35 moveto show\n"
+		"\t(8)  14  15 moveto show\n"
+		"}def\n"
+		"%%EndProlog\n\n"
+
+		"% do the drawing\n"
+		"gsave\n"
+		"\n\t% draw an empty board\n"
+		"\tboard_coord\n"
+		"\tboard_grid\n"
+		"\n\t% draw the discs\n", f);
 
 	board = game->initial_board;
 	for (i = A1; i <= H8; i++) {
@@ -1401,8 +1401,8 @@ void game_export_eps(const Game *game, FILE *f)
 		}
 	}
 
-	fputs("\n\t% draw the moves\n",f);
-	fputs("\t/Utopia-Bold findfont 12 scalefont setfont\n",f);
+	fputs(	"\n\t% draw the moves\n"
+		"\t/Utopia-Bold findfont 12 scalefont setfont\n", f);
 	player = game->player;
 	for (i = 0; i < 60 && game->move[i] != NOMOVE; ++i) {
 		if (!can_move(board.player, board.opponent)) {
@@ -1413,8 +1413,8 @@ void game_export_eps(const Game *game, FILE *f)
 			player = !player;
 		}
 	}
-	fputc('\n',f);
-	fputs("grestore\n",f);
+	fputc('\n', f);
+	fputs("grestore\n", f);
 }
 
 void game_export_svg(const Game *game, FILE *f)
@@ -1425,26 +1425,26 @@ void game_export_svg(const Game *game, FILE *f)
 	const char *style = "font-size:22px;text-align:center;text-anchor:middle;font-family:Times New Roman;font-weight:bold";
 
 	// prolog
-	fputs("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n", f);
-	fputs("<svg\n", f);
-		fputs("\txmlns=\"http://www.w3.org/2000/svg\"\n", f);
-		fputs("\tversion=\"1.1\"\n", f);
-		fputs("\twidth=\"440\"\n", f);
-		fputs("\theight=\"440\">\n", f);
-	fputs("\t<desc>Othello Game</desc>\n", f);
+	fputs(	"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+		"<svg\n"
+			"\txmlns=\"http://www.w3.org/2000/svg\"\n"
+			"\tversion=\"1.1\"\n"
+			"\twidth=\"440\"\n"
+			"\theight=\"440\">\n"
+		"\t<desc>Othello Game</desc>\n", f);
 
 	// board
-	fputs("\t<rect\n", f);
-		fputs("\t\twidth=\"332\" height=\"332\" ", f);
-		fputs("x=\"54\" y=\"54\" ", f);
-		fputs("stroke=\"black\" ", f);
-		fputs("stroke-width=\"2\" ", f);
-		fputs("fill=\"white\" />\n", f);
-	fputs("\t<rect\n", f);
-		fputs("\t\twidth=\"320\" height=\"320\" ", f);
-		fputs("x=\"60\" y=\"60\" ", f);
-		fputs("stroke=\"black\" ", f);
-		fputs("fill=\"green\" />\n", f);
+	fputs(	"\t<rect\n"
+			"\t\twidth=\"332\" height=\"332\" "
+			"x=\"54\" y=\"54\" "
+			"stroke=\"black\" "
+			"stroke-width=\"2\" "
+			"fill=\"white\" />\n"
+		"\t<rect\n"
+			"\t\twidth=\"320\" height=\"320\" "
+			"x=\"60\" y=\"60\" "
+			"stroke=\"black\" "
+			"fill=\"green\" />\n", f);
 	for (i = 1; i < 8; ++i) {
 		fputs("\t<line\n", f);
 			fprintf(f, "\t\tx1=\"60\" y1=\"%d\" ", 60 + 40 * i);
@@ -1455,10 +1455,10 @@ void game_export_svg(const Game *game, FILE *f)
 			fprintf(f, "x2=\"%d\" y2=\"380\" ", 60 + 40 * i);
 			fputs("stroke=\"black\" />\n", f);
 	}
-	fputs("\t<circle cx=\"140\" cy=\"140\" r=\"4\" fill=\"black\" />\n", f);
-	fputs("\t<circle cx=\"300\" cy=\"140\" r=\"4\" fill=\"black\" />\n", f);
-	fputs("\t<circle cx=\"140\" cy=\"300\" r=\"4\" fill=\"black\" />\n", f);
-	fputs("\t<circle cx=\"300\" cy=\"300\" r=\"4\" fill=\"black\" />\n", f);
+	fputs(	"\t<circle cx=\"140\" cy=\"140\" r=\"4\" fill=\"black\" />\n"
+		"\t<circle cx=\"300\" cy=\"140\" r=\"4\" fill=\"black\" />\n"
+		"\t<circle cx=\"140\" cy=\"300\" r=\"4\" fill=\"black\" />\n"
+		"\t<circle cx=\"300\" cy=\"300\" r=\"4\" fill=\"black\" />\n", f);
 
 	// coordinates
 	for (i = 0; i < 8; ++i) {

@@ -31,28 +31,8 @@
 #include <stdio.h>
 #include <assert.h>
 
-/** hashing global data */
-unsigned long long hash_move[64][60];
-
 /** HashData init value */
 const HashData HASH_DATA_INIT = {{{ 0, 0, 0, 0 }}, -SCORE_INF, SCORE_INF, { NOMOVE, NOMOVE }};
-
-/**
- * @brief Initialize global hash move data.
- */
-void hash_move_init(void)
-{
-	int i, j;
-	Random r;
-
-	random_seed(&r, 0x5DEECE66Dull);
-	for (i = 0; i < 64; ++i)
-	for (j = 0; j < 60; ++j) {
-		do {
-			hash_move[i][j] = random_get(&r);
-		} while (bit_count(hash_move[i][j]) < 8); 
-	}
-}
 
 /**
  * @brief Initialise the hashtable.
