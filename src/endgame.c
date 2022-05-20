@@ -431,7 +431,7 @@ static int search_solve_4(Search *search, const int alpha)
 static int search_shallow(Search *search, const int alpha)
 {
 	unsigned long long flipped;
-	int x, score, bestscore = -SCORE_INF;
+	int x, prev, score, bestscore = -SCORE_INF;
 	// const int beta = alpha + 1;
 	Board board0;
 	unsigned int parity0, paritymask;
@@ -450,11 +450,11 @@ static int search_shallow(Search *search, const int alpha)
 	--search->eval.n_empties;	// for next depth
 	do {	// odd first, even second
 		if (paritymask) {	// skip all even or all add
-			foreach_empty (x, search->empties) {
+			for (x = search->empties[prev = NOMOVE].next; x != NOMOVE; x = search->empties[prev = x].next) {	// maintain single link only
 				if (paritymask & QUADRANT_ID[x]) {
 					if ((NEIGHBOUR[x] & board0.opponent) && (flipped = board_flip(&board0, x))) {
 						search->eval.parity = parity0 ^ QUADRANT_ID[x];
-						empty_remove(search->empties, x);
+						search->empties[prev].next = search->empties[x].next;	// remove
 						search->board.player = board0.opponent ^ flipped;
 						search->board.opponent = board0.player ^ (flipped | x_to_bit(x));
 						board_check(&search->board);
@@ -463,7 +463,7 @@ static int search_shallow(Search *search, const int alpha)
 							score = -search_solve_4(search, -(alpha + 1));
 						else	score = -search_shallow(search, -(alpha + 1));
 
-						empty_restore(search->empties, x);
+						search->empties[prev].next = x;	// restore
 
 						if (score > alpha) {
 							search->board = board0;

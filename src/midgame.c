@@ -29,15 +29,19 @@
 /**
  * @brief evaluate a midgame position with the evaluation function.
  *
- * @param w	Eval_weight for this ply.
+ * @param ply	60 - n_empties
  * @param eval	Evaluation function.
  */
-static int accumlate_eval(const Eval_weight *w, Eval *eval)
+static int accumlate_eval(int ply, Eval *eval)
 {
 	unsigned short *f = eval->feature.us;
+	const Eval_weight *w;
 	int sum;
 
-	assert(w < &EVAL_WEIGHT[EVAL_N_PLY]);
+	assert(ply < EVAL_N_PLY);
+	if (ply < 2)
+		ply = 2;
+	w = &(*EVAL_WEIGHT)[ply - 2];
 
 #if defined(__AVX2__) && !defined(AMD_BEFORE_ZEN3)
 	enum {
@@ -101,7 +105,7 @@ int search_eval_0(Search *search)
 	SEARCH_STATS(++statistics.n_search_eval_0);
 	SEARCH_UPDATE_EVAL_NODES(search->n_nodes);
 
-	score = accumlate_eval(&(*EVAL_WEIGHT)[60 - search->eval.n_empties],  &search->eval);
+	score = accumlate_eval(60 - search->eval.n_empties,  &search->eval);
 
 	if (score >= 0) score = (score + 64) >> 7;
 	else score = -((-score + 64) >> 7);
@@ -127,13 +131,11 @@ int search_eval_1(Search *search, const int alpha, int beta, unsigned long long 
 	Eval Ev;
 	int x, score, bestscore;
 	unsigned long long flipped;
-	const Eval_weight *w;
 
 	SEARCH_STATS(++statistics.n_search_eval_1);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	if (moves) {
-		w = &(*EVAL_WEIGHT)[60 - search->eval.n_empties + 1];
 		bestscore = -SCORE_INF;
 		if (beta > SCORE_MAX - 1) beta = SCORE_MAX - 1;
 		foreach_empty (x, search->empties) {
@@ -145,7 +147,7 @@ int search_eval_1(Search *search, const int alpha, int beta, unsigned long long 
 				eval_update_leaf(x, flipped, &Ev, &search->eval);
 				SEARCH_UPDATE_EVAL_NODES(search->n_nodes);
 
-				score = -accumlate_eval(w, &Ev);
+				score = -accumlate_eval(60 - search->eval.n_empties + 1, &Ev);
 
 				if (score >= 0) score = (score + 64) >> 7;
 				else score = -((-score + 64) >> 7);
@@ -185,7 +187,7 @@ int search_eval_1(Search *search, const int alpha, int beta, unsigned long long 
  */
 int search_eval_2(Search *search, int alpha, const int beta, unsigned long long moves)
 {
-	int x, bestscore, score;
+	int x, prev, bestscore, score;
 	unsigned long long flipped;
 	Search_Backup backup;
 
@@ -202,13 +204,13 @@ int search_eval_2(Search *search, int alpha, const int beta, unsigned long long 
 		backup.eval.n_empties = search->eval.n_empties--;
 		backup.board = search->board;
 
-		foreach_empty(x, search->empties) {
+		for (x = search->empties[prev = NOMOVE].next; x != NOMOVE; x = search->empties[prev = x].next) {	// maintain single link only
 			if (moves & x_to_bit(x)) {
 				flipped = board_next(&backup.board, x, &search->board);
-				// empty_remove(search->empties, x);
+				search->empties[prev].next = search->empties[x].next;	// remove
 				eval_update_leaf(x, flipped, &search->eval, &backup.eval);
 				score = -search_eval_1(search, -beta, -alpha, get_moves(search->board.player, search->board.opponent));
-				// empty_restore(search->empties, x);
+				search->empties[prev].next = x;	// restore
 
 				if (score > bestscore) {
 					bestscore = score;

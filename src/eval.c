@@ -475,7 +475,7 @@ typedef struct {
 static int EVAL_LOADED = 0;
 
 /** eval weights */
-Eval_weight (*EVAL_WEIGHT)[EVAL_N_PLY];
+Eval_weight (*EVAL_WEIGHT)[EVAL_N_PLY - 2];	// for 2..59
 
 /** opponent feature */
 static unsigned short *OPPONENT_FEATURE;
@@ -631,7 +631,7 @@ void eval_open(const char* file)
 	free(T);
 
 	// allocation
-	EVAL_WEIGHT = (Eval_weight(*)[EVAL_N_PLY]) malloc(sizeof(*EVAL_WEIGHT));
+	EVAL_WEIGHT = (Eval_weight(*)[EVAL_N_PLY - 2]) malloc(sizeof(*EVAL_WEIGHT));
 	if (EVAL_WEIGHT == NULL) fatal_error("Cannot allocate evaluation weights.\n");
 
 	// data reading
@@ -660,9 +660,11 @@ void eval_open(const char* file)
 	for (ply = 0; ply < EVAL_N_PLY; ply++) {
 		r = fread(w, sizeof (short), n_w, f);
 		if (r != n_w) fatal_error("Cannot read evaluation weight from %s\n", file);
+		if (ply < 2) continue;	// skip ply 1 & 2
+
 		if (edax_header == XADE) for (i = 0; i < n_w; ++i) w[i] = bswap_short(w[i]);
 
-		pe = *EVAL_WEIGHT + ply;
+		pe = *EVAL_WEIGHT + ply - 2;
 		pp = *P + (ply & 1);
 		for (k = 0; k < 19683; k++) {
 			pe->C9[k] = w[pp->EVAL_C9[k] + EVAL_PACKED_OFS[0]];
