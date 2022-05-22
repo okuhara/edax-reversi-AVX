@@ -512,7 +512,7 @@ int NWS_endgame(Search *search, const int alpha)
 {
 	int score, ofssolid, bestscore;
 	HashTable *const hash_table = &search->hash_table;
-	unsigned long long hash_code, allfull, solid_opp;
+	unsigned long long hash_code, solid_opp;
 	// const int beta = alpha + 1;
 	HashData hash_data;
 	HashStoreData hash_store_data;
@@ -521,7 +521,7 @@ int NWS_endgame(Search *search, const int alpha)
 	long long nodes_org;
 	Board board0, hashboard;
 	unsigned int parity0;
-	V4DI full;
+	unsigned long long full[5];
 
 	if (search->stop) return alpha;
 
@@ -539,13 +539,13 @@ int NWS_endgame(Search *search, const int alpha)
 	// http://id.nii.ac.jp/1001/00156359/
 	// (1-2% improvement)
 	if (search->eval.n_empties <= MASK_SOLID_DEPTH) {
-		allfull = get_all_full_lines(search->board.player | search->board.opponent, &full);
+		get_all_full_lines(search->board.player | search->board.opponent, full);
 
 		// stability cutoff
-		if (search_SC_NWS_fulls_given(search, alpha, &score, allfull, &full))
+		if (search_SC_NWS_fulls_given(search, alpha, &score, full))
 			return score;
 
-		solid_opp = allfull & search->board.opponent;
+		solid_opp = full[4] & search->board.opponent;	// full[4] = all full
 		hashboard.player = search->board.player ^ solid_opp;	// normalize solid to player
 		hashboard.opponent = search->board.opponent ^ solid_opp;
 		ofssolid = bit_count(solid_opp) * 2;	// hash score is ofssolid grater than real

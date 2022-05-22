@@ -429,8 +429,7 @@ unsigned long long horizontal_mirror(unsigned long long b)
 #ifdef __AVX2__
 unsigned long long transpose(unsigned long long b)
 {
-	static const V4DI s3210 = {{ 3, 2, 1, 0 }};
-	__m256i	v = _mm256_sllv_epi64(_mm256_broadcastq_epi64(_mm_cvtsi64_si128(b)), s3210.v4);
+	__m256i	v = _mm256_sllv_epi64(_mm256_broadcastq_epi64(_mm_cvtsi64_si128(b)), _mm256_set_epi64x(0, 1, 2, 3));
 	return ((unsigned long long) _mm256_movemask_epi8(v) << 32)
 		| (unsigned int) _mm256_movemask_epi8(_mm256_slli_epi64(v, 4));
 }
