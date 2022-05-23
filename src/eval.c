@@ -740,22 +740,22 @@ extern void eval_update_sse_1(int x, unsigned long long f, Eval *eval_out, const
  */
 void eval_set(Eval *eval, const Board *board)
 {
-#ifdef VECTOR_EVAL_UPDATE
-	int i, x;
+	int	i, j, x;
+  #ifdef VECTOR_EVAL_UPDATE
+	widest_register	r;
 	unsigned long long b = (eval->n_empties & 1) ? board->opponent : board->player;
 
 	eval->feature = EVAL_FEATURE_all_opponent;
-	foreach_bit(x, b)
+	foreach_bit_r (x, b, j, r)
 		for (i = 0; i < 12; ++i)
 			eval->feature.ull[i] -= EVAL_FEATURE[x].ull[i];
 
 	b = ~(board->opponent | board->player);
-	foreach_bit(x, b)
+	foreach_bit_r (x, b, j, r)
 		for (i = 0; i < 12; ++i)
 			eval->feature.ull[i] += EVAL_FEATURE[x].ull[i];
 
-#else
-	int i, j, x;
+  #else
 	Board	b;
 
 	if (eval->n_empties & 1) {
@@ -770,7 +770,7 @@ void eval_set(Eval *eval, const Board *board)
 		}
 		eval->feature.us[i] = x + EVAL_OFFSET[i];
 	}
-#endif
+  #endif
 }
 
 /**
@@ -783,20 +783,18 @@ void eval_set(Eval *eval, const Board *board)
 static void eval_update_0(int x, unsigned long long f, Eval *eval)
 {
 	int	j;
-	widest_register	b;
-#ifdef VECTOR_EVAL_UPDATE
+	widest_register	r;
+  #ifdef VECTOR_EVAL_UPDATE
 	int	i;
 
 	for (i = 0; i < 12; ++i)
 		eval->feature.ull[i] -= EVAL_FEATURE[x].ull[i] << 1;
 
-	for (j = 0; j < 64; j += sizeof(widest_register) * CHAR_BIT) {
-		foreach_bit_r (x, f, b)
-			for (i = 0; i < 12; ++i)
-				eval->feature.ull[i] -= EVAL_FEATURE[x + j].ull[i];
-	}
+	foreach_bit_r (x, f, j, r)
+		for (i = 0; i < 12; ++i)
+			eval->feature.ull[i] -= EVAL_FEATURE[x].ull[i];
 
-#else
+  #else
 	const CoordinateToFeature *s = EVAL_X2F + x;
 
 	switch (s->n_feature) {
@@ -811,23 +809,21 @@ static void eval_update_0(int x, unsigned long long f, Eval *eval)
 		break;
 	}
 
-	for (j = 0; j < 64; j += sizeof(widest_register) * CHAR_BIT) {
-		foreach_bit_r (x, f, b) {
-			s = EVAL_X2F + x + j;
-			switch (s->n_feature) {
-			default:
-				eval->feature.us[s->feature[6].i] -= s->feature[6].x;	// FALLTHRU
-			case 6:	eval->feature.us[s->feature[5].i] -= s->feature[5].x;	// FALLTHRU
-			case 5:	eval->feature.us[s->feature[4].i] -= s->feature[4].x;	// FALLTHRU
-			case 4:	eval->feature.us[s->feature[3].i] -= s->feature[3].x;
-				eval->feature.us[s->feature[2].i] -= s->feature[2].x;
-				eval->feature.us[s->feature[1].i] -= s->feature[1].x;
-				eval->feature.us[s->feature[0].i] -= s->feature[0].x;
-				break;
-			}
+	foreach_bit_r (x, f, j, r) {
+		s = EVAL_X2F + x;
+		switch (s->n_feature) {
+		default:
+			eval->feature.us[s->feature[6].i] -= s->feature[6].x;	// FALLTHRU
+		case 6:	eval->feature.us[s->feature[5].i] -= s->feature[5].x;	// FALLTHRU
+		case 5:	eval->feature.us[s->feature[4].i] -= s->feature[4].x;	// FALLTHRU
+		case 4:	eval->feature.us[s->feature[3].i] -= s->feature[3].x;
+			eval->feature.us[s->feature[2].i] -= s->feature[2].x;
+			eval->feature.us[s->feature[1].i] -= s->feature[1].x;
+			eval->feature.us[s->feature[0].i] -= s->feature[0].x;
+			break;
 		}
 	}
-#endif
+  #endif
 }
 
 /**
@@ -840,20 +836,18 @@ static void eval_update_0(int x, unsigned long long f, Eval *eval)
 static void eval_update_1(int x, unsigned long long f, Eval *eval)
 {
 	int	j;
-	widest_register	b;
-#ifdef VECTOR_EVAL_UPDATE
+	widest_register	r;
+  #ifdef VECTOR_EVAL_UPDATE
 	int	i;
 
 	for (i = 0; i < 12; ++i)
 		eval->feature.ull[i] -= EVAL_FEATURE[x].ull[i];
 
-	for (j = 0; j < 64; j += sizeof(widest_register) * CHAR_BIT) {
-		foreach_bit_r (x, f, b)
-			for (i = 0; i < 12; ++i)
-				eval->feature.ull[i] += EVAL_FEATURE[x + j].ull[i];
-	}
+	foreach_bit_r (x, f, j, r)
+		for (i = 0; i < 12; ++i)
+			eval->feature.ull[i] += EVAL_FEATURE[x].ull[i];
 
-#else
+  #else
 	const CoordinateToFeature *s = EVAL_X2F + x;
 
 	switch (s->n_feature) {
@@ -868,30 +862,28 @@ static void eval_update_1(int x, unsigned long long f, Eval *eval)
 	       	break;
 	}
 
-	for (j = 0; j < 64; j += sizeof(widest_register) * CHAR_BIT) {
-		foreach_bit_r (x, f, b) {
-			s = EVAL_X2F + x + j;
-			switch (s->n_feature) {
-			default:
-			       	eval->feature.us[s->feature[6].i] += s->feature[6].x;	// FALLTHRU
-			case 6:	eval->feature.us[s->feature[5].i] += s->feature[5].x;	// FALLTHRU
-			case 5:	eval->feature.us[s->feature[4].i] += s->feature[4].x;	// FALLTHRU
-			case 4:	eval->feature.us[s->feature[3].i] += s->feature[3].x;
-			       	eval->feature.us[s->feature[2].i] += s->feature[2].x;
-			       	eval->feature.us[s->feature[1].i] += s->feature[1].x;
-			       	eval->feature.us[s->feature[0].i] += s->feature[0].x;
-			       	break;
-			}
+	foreach_bit_r (x, f, j, r) {
+		s = EVAL_X2F + x;
+		switch (s->n_feature) {
+		default:
+		       	eval->feature.us[s->feature[6].i] += s->feature[6].x;	// FALLTHRU
+		case 6:	eval->feature.us[s->feature[5].i] += s->feature[5].x;	// FALLTHRU
+		case 5:	eval->feature.us[s->feature[4].i] += s->feature[4].x;	// FALLTHRU
+		case 4:	eval->feature.us[s->feature[3].i] += s->feature[3].x;
+		       	eval->feature.us[s->feature[2].i] += s->feature[2].x;
+		       	eval->feature.us[s->feature[1].i] += s->feature[1].x;
+		       	eval->feature.us[s->feature[0].i] += s->feature[0].x;
+		       	break;
 		}
 	}
-#endif
+  #endif
 }
 
 void eval_update(int x, unsigned long long f, Eval *eval)
 {
 	assert(f);
 
-#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
+  #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
 	if (hasSSE2) {
 		if (eval->n_empties & 1)
 			eval_update_sse_1(x, f, eval, eval);
@@ -899,7 +891,7 @@ void eval_update(int x, unsigned long long f, Eval *eval)
 			eval_update_sse_0(x, f, eval, eval);
 		return;
 	}
-#endif
+  #endif
 	if (eval->n_empties & 1)
 		eval_update_1(x, f, eval);
 	else
@@ -908,7 +900,7 @@ void eval_update(int x, unsigned long long f, Eval *eval)
 
 void eval_update_leaf(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
-#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
+  #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
 	if (hasSSE2) {
 		if (eval_in->n_empties & 1)
 			eval_update_sse_1(x, f, eval_out, eval_in);
@@ -916,7 +908,7 @@ void eval_update_leaf(int x, unsigned long long f, Eval *eval_out, const Eval *e
 			eval_update_sse_0(x, f, eval_out, eval_in);
 		return;
 	}
-#endif
+  #endif
 	eval_out->feature = eval_in->feature;
 	if (eval_in->n_empties & 1)
 		eval_update_1(x, f, eval_out);
