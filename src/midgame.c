@@ -170,9 +170,9 @@ int search_eval_1(Search *search, const int alpha, int beta, unsigned long long 
 	} else {
 		moves = get_moves(search->board.opponent, search->board.player);
 		if (moves) {
-			search_update_pass_midgame(search);
+			search_update_pass_midgame(search, &Ev);
 			bestscore = -search_eval_1(search, -beta, -alpha, moves);
-			search_restore_pass_midgame(search);
+			search_restore_pass_midgame(search, &Ev);
 		} else { // game over
 			bestscore = search_solve(search);
 		}
@@ -232,9 +232,9 @@ int search_eval_2(Search *search, int alpha, const int beta, unsigned long long 
 	} else {
 		moves = get_moves(search->board.opponent, search->board.player);
 		if (moves) {
-			search_update_pass_midgame(search);
+			search_update_pass_midgame(search, &backup.eval);
 			bestscore = -search_eval_2(search, -beta, -alpha, moves);
-			search_restore_pass_midgame(search);
+			search_restore_pass_midgame(search, &backup.eval);
 		} else {
 			bestscore = search_solve(search);
 		}
@@ -386,10 +386,10 @@ int NWS_shallow(Search *search, const int alpha, int depth, HashTable *hash_tabl
 
 	if (movelist_is_empty(&movelist)) { // no moves ?
 		if (can_move(search->board.opponent, search->board.player)) { // pass ?
-			search_update_pass_midgame(search);
+			search_update_pass_midgame(search, &backup.eval);
 			bestscore = -NWS_shallow(search, -(alpha + 1), depth, hash_table);
 			hash_store_data.data.move[0] = PASS;
-			search_restore_pass_midgame(search);
+			search_restore_pass_midgame(search, &backup.eval);
 		} else { // game-over !
 			bestscore = search_solve(search);
 			hash_store_data.data.move[0] = NOMOVE;
@@ -480,10 +480,10 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 
 	if (movelist_is_empty(&movelist)) { // no moves ?
 		if (can_move(search->board.opponent, search->board.player)) { // pass ?
-			search_update_pass_midgame(search);
+			search_update_pass_midgame(search, &backup.eval);
 			bestscore = -PVS_shallow(search, -beta, -alpha, depth);
 			hash_store_data.data.move[0] = PASS;
-			search_restore_pass_midgame(search);
+			search_restore_pass_midgame(search, &backup.eval);
 		} else { // game-over !
 			bestscore = search_solve(search);
 			hash_store_data.data.move[0] = NOMOVE;
@@ -594,9 +594,9 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	if (movelist_is_empty(&movelist)) { // no moves ?
 		node_init(&node, search, alpha, beta, depth, movelist.n_moves, parent);
 		if (can_move(search->board.opponent, search->board.player)) { // pass ?
-			search_update_pass_midgame(search);
+			search_update_pass_midgame(search, &backup.eval);
 			node.bestscore = -NWS_midgame(search, -node.beta, depth, &node);
-			search_restore_pass_midgame(search);
+			search_restore_pass_midgame(search, &backup.eval);
 		} else { // game-over !
 			node.bestscore = search_solve(search);
 		}
@@ -720,9 +720,10 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 	// special cases
 	if (movelist_is_empty(&movelist)) {
 		if (can_move(search->board.opponent, search->board.player)) {
-			search_update_pass_midgame(search); search->node_type[search->height] = PV_NODE;
+			search_update_pass_midgame(search, &backup.eval);
+			search->node_type[search->height] = PV_NODE;
 			node.bestscore = -PVS_midgame(search, -beta, -alpha, depth, &node);
-			search_restore_pass_midgame(search);
+			search_restore_pass_midgame(search, &backup.eval);
 			node.bestmove = PASS;
 		} else {
 			node.alpha = -(node.beta = +SCORE_INF);

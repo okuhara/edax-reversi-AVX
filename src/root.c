@@ -361,9 +361,9 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 		move = movelist->move->next = movelist->move + 1;
 		move->flipped = 0;
 		if (can_move(search->board.opponent, search->board.player)) {
-			search_update_pass_midgame(search);
-				node.bestscore = move->score = -search_route_PVS(search, -node.beta, -node.alpha, depth, &node);
-			search_restore_pass_midgame(search);
+			search_update_pass_midgame(search, &backup.eval);
+			node.bestscore = move->score = -search_route_PVS(search, -node.beta, -node.alpha, depth, &node);
+			search_restore_pass_midgame(search, &backup.eval);
 			node.bestmove =  move->x = PASS;
 		} else  { // game over
 			node.bestscore =  move->score = search_solve(search);
