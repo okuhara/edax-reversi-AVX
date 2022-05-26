@@ -449,7 +449,7 @@ static int search_shallow(Search *search, const int alpha)
 	paritymask = parity0 = search->eval.parity;
 	--search->eval.n_empties;	// for next depth
 	do {	// odd first, even second
-		if (paritymask) {	// skip all even or all add
+		if (paritymask) {	// skip no odd or no even
 			for (x = search->empties[prev = NOMOVE].next; x != NOMOVE; x = search->empties[prev = x].next) {	// maintain single link only
 				if (paritymask & QUADRANT_ID[x]) {
 					if ((NEIGHBOUR[x] & board0.opponent) && (flipped = board_flip(&board0, x))) {
