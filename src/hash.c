@@ -14,7 +14,7 @@
  * When doing parallel search with a shared hashtable, a locked implementation
  * avoid concurrency collisions.
  *
- * @date 1998 - 2021
+ * @date 1998 - 2022
  * @author Richard Delorme
  * @version 4.5
  */
@@ -86,15 +86,16 @@ void hash_init(HashTable *hash_table, const unsigned long long size)
  */
 void hash_cleanup(HashTable *hash_table)
 {
-	unsigned int i;
+	unsigned int i, imax = hash_table->hash_mask + HASH_N_WAY;
+	Hash *pHash = hash_table->hash;
 
 	assert(hash_table != NULL && hash_table->hash != NULL);
 
 	info("< cleaning hashtable >\n");
-	for (i = 0; i <= hash_table->hash_mask + HASH_N_WAY; ++i) {
-		HASH_COLLISIONS(hash_table->hash[i].key = 0;)
-		hash_table->hash[i].board.player = hash_table->hash[i].board.opponent = 0; 
-		hash_table->hash[i].data = HASH_DATA_INIT;
+	for (i = 0; i <= imax; ++i, ++pHash) {
+		HASH_COLLISIONS(pHash->key = 0;)
+		pHash->board.player = pHash->board.opponent = 0; 
+		pHash->data = HASH_DATA_INIT;
 	}
 	hash_table->date = 0;
 }
@@ -636,12 +637,13 @@ void hash_exclude_move(HashTable *hash_table, const Board *board, const unsigned
  */
 void hash_copy(const HashTable *src, HashTable *dest)
 {
-	unsigned int i;
+	unsigned int i, imax = src->hash_mask + HASH_N_WAY;
+	Hash *pSrc = src->hash, *pDest = dest->hash;
 
 	assert(src->hash_mask == dest->hash_mask);
 	info("<hash copy>\n");
-	for (i = 0; i <= src->hash_mask + HASH_N_WAY; ++i) {
-		dest->hash[i] = src->hash[i];
+	for (i = 0; i <= imax; ++i) {
+		*pDest++ = *pSrc++;
 	}
 	dest->date = src->date;
 }
