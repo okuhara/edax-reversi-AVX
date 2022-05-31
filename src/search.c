@@ -1166,19 +1166,6 @@ bool search_SC_NWS(Search *search, const int alpha, int *score)
 	return false;
 }
 
-bool search_SC_NWS_fulls_given(Search *search, const int alpha, int *score, const unsigned long long full[5])
-{
-	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {
-		CUTOFF_STATS(++statistics.n_stability_try;)
-		*score = SCORE_MAX - 2 * get_stability_fulls_given(search->board.opponent, search->board.player, full);
-		if (*score <= alpha) {
-			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
-			return true;
-		}
-	}
-	return false;
-}
-
 #if 0	// unused
 /**
  * @brief Transposition Cutoff (TC).
