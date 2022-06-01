@@ -428,9 +428,9 @@ static int search_solve_4(Search *search, const int alpha)
  * @param alpha Alpha bound.
  * @return The final score, as a disc difference.
  */
-static int search_shallow(Search *search, const int alpha)
+static int search_shallow(Search *search, const int alpha, bool pass1)
 {
-	unsigned long long flipped;
+	unsigned long long moves;
 	int x, prev, score, bestscore = -SCORE_INF;
 	// const int beta = alpha + 1;
 	Board board0;
@@ -445,34 +445,42 @@ static int search_shallow(Search *search, const int alpha)
 	// stability cutoff
 	if (search_SC_NWS(search, alpha, &score)) return score;
 
+	moves = get_moves(search->board.player, search->board.opponent);
+	if (moves == 0) {	// pass
+		if (pass1)	// gameover
+			return board_solve(search->board.player, search->eval.n_empties);
+
+		search_pass_endgame(search);
+		bestscore = -search_shallow(search, -(alpha + 1), true);
+		search_pass_endgame(search);
+		return bestscore;
+	}
+
 	board0 = search->board;
 	paritymask = parity0 = search->eval.parity;
 	--search->eval.n_empties;	// for next depth
 	do {	// odd first, even second
 		if (paritymask) {	// skip no odd or no even
 			for (x = search->empties[prev = NOMOVE].next; x != NOMOVE; x = search->empties[prev = x].next) {	// maintain single link only
-				if (paritymask & QUADRANT_ID[x]) {
-					if ((NEIGHBOUR[x] & board0.opponent) && (flipped = board_flip(&board0, x))) {
-						search->eval.parity = parity0 ^ QUADRANT_ID[x];
-						search->empties[prev].next = search->empties[x].next;	// remove
-						search->board.player = board0.opponent ^ flipped;
-						search->board.opponent = board0.player ^ (flipped | x_to_bit(x));
-						board_check(&search->board);
+				if ((moves & x_to_bit(x)) && (paritymask & QUADRANT_ID[x])) {
+					search->eval.parity = parity0 ^ QUADRANT_ID[x];
+					search->empties[prev].next = search->empties[x].next;	// remove
+					board_next(&board0, x, &search->board);
 
-						if (search->eval.n_empties == 4)
-							score = -search_solve_4(search, -(alpha + 1));
-						else	score = -search_shallow(search, -(alpha + 1));
+					if (search->eval.n_empties == 4)
+						score = -search_solve_4(search, -(alpha + 1));
+					else	score = -search_shallow(search, -(alpha + 1), false);
 
-						search->empties[prev].next = x;	// restore
+					search->empties[prev].next = x;	// restore
 
-						if (score > alpha) {
-							search->board = board0;
-							search->eval.parity = parity0;
-							++search->eval.n_empties;
-							return score;
-						} else if (score > bestscore)
-							bestscore = score;
-					}
+					if (score > alpha) {
+						search->board = board0;
+						search->eval.parity = parity0;
+						++search->eval.n_empties;
+						return score;
+
+					} else if (score > bestscore)
+						bestscore = score;
 				}
 			}
 		}
@@ -480,17 +488,6 @@ static int search_shallow(Search *search, const int alpha)
 	search->board = board0;
 	search->eval.parity = parity0;
 	++search->eval.n_empties;
-
-	// no move
-	if (bestscore == -SCORE_INF) {
-		if (can_move(search->board.opponent, search->board.player)) { // pass
-			search_pass_endgame(search);
-			bestscore = -search_shallow(search, -(alpha + 1));
-			search_pass_endgame(search);
-		} else { // gameover
-			bestscore = search_solve(search);
-		}
-	}
 
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
 	return bestscore;
@@ -529,8 +526,6 @@ int NWS_endgame(Search *search, const int alpha)
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
 
 	SEARCH_STATS(++statistics.n_NWS_endgame);
-
-	if (search->eval.n_empties <= DEPTH_TO_SHALLOW_SEARCH) return search_shallow(search, alpha);
 
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
@@ -603,7 +598,9 @@ int NWS_endgame(Search *search, const int alpha)
 			board_update(&search->board, move);
 			--search->eval.n_empties;
 
-			score = -NWS_endgame(search, -(alpha + 1));
+			if (search->eval.n_empties <= DEPTH_TO_SHALLOW_SEARCH)
+				score = -search_shallow(search, -(alpha + 1), false);
+			else	score = -NWS_endgame(search, -(alpha + 1));
 
 			search->eval.parity = parity0;
 			empty_restore(search->empties, move->x);
