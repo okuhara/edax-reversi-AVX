@@ -79,16 +79,24 @@ Log search_log[1];
 
 /** a quadrant id for each square */
 const unsigned char QUADRANT_ID[] = {
-		1, 1, 1, 1, 2, 2, 2, 2,
-		1, 1, 1, 1, 2, 2, 2, 2,
-		1, 1, 1, 1, 2, 2, 2, 2,
-		1, 1, 1, 1, 2, 2, 2, 2,
-		4, 4, 4, 4, 8, 8, 8, 8,
-		4, 4, 4, 4, 8, 8, 8, 8,
-		4, 4, 4, 4, 8, 8, 8, 8,
-		4, 4, 4, 4, 8, 8, 8, 8,
-		0, 0
-	};
+	1, 1, 1, 1, 2, 2, 2, 2,
+	1, 1, 1, 1, 2, 2, 2, 2,
+	1, 1, 1, 1, 2, 2, 2, 2,
+	1, 1, 1, 1, 2, 2, 2, 2,
+	4, 4, 4, 4, 8, 8, 8, 8,
+	4, 4, 4, 4, 8, 8, 8, 8,
+	4, 4, 4, 4, 8, 8, 8, 8,
+	4, 4, 4, 4, 8, 8, 8, 8,
+	0, 0
+};
+
+/** quadrant id to move mask */
+const unsigned long long quadrant_mask[] = {
+	0x0000000000000000, 0x000000000F0F0F0F, 0x00000000F0F0F0F0, 0x00000000FFFFFFFF,
+	0x0F0F0F0F00000000, 0x0F0F0F0F0F0F0F0F, 0x0F0F0F0FF0F0F0F0, 0x0F0F0F0FFFFFFFFF,
+	0xF0F0F0F000000000, 0xF0F0F0F00F0F0F0F, 0xF0F0F0F0F0F0F0F0, 0xF0F0F0F0FFFFFFFF,
+	0xFFFFFFFF00000000, 0xFFFFFFFF0F0F0F0F, 0xFFFFFFFFF0F0F0F0, 0xFFFFFFFFFFFFFFFF
+};
 
 /** level with no selectivity */
 const int NO_SELECTIVITY = 5;
