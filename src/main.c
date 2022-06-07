@@ -3,7 +3,7 @@
  *
  * @brief Main file.
  *
- * @date 1998 - 2021
+ * @date 1998 - 2022
  * @author Richard Delorme
  * @version 4.5
  */
@@ -34,7 +34,7 @@ void version(void)
 #elif defined(__APPLE__)
 		" for Apple"
 #endif
-		"\ncopyright 1998 - 2018 Richard Delorme\n\n");
+		"\ncopyright 1998 - 2018 Richard Delorme, 2014 - 22 Toshihiko Okuhara\n\n");
 }
 
 

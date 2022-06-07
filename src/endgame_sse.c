@@ -18,7 +18,7 @@
 #include "search.h"
 #include <assert.h>
 
-#define	SWAP64	0x4e	// for ~alpha
+#define	SWAP64	0x4e	// for _mm_shuffle_epi32
 #define	DUPLO	0x44
 #define	DUPHI	0xee
 
@@ -260,7 +260,7 @@ static int vectorcall search_solve_3(__m128i OP, int alpha, int sort3, volatile 
 	empties = _mm_cvtepu8_epi16(empties);	// to ease shuffle
 	(void) sort3;
 #elif defined(__SSSE3__)
-	empties = _mm_unpacklo_epi8(empties, _mm_setzero_si128())
+	empties = _mm_unpacklo_epi8(empties, _mm_setzero_si128());
 	(void) sort3;
 #else
 	// parity based move sorting
@@ -359,7 +359,11 @@ static int search_solve_4(Search *search, int alpha)
 	};
 	enum { sort3 = 0 };	// sort is done on 4 empties
 	#define	SHUFFLE_EMPTIES(empties,mask)	_mm_shuffle_epi32((empties), 0x39)
+  #ifdef __AVX__
 	#define	EXTRACT_MOVE(X)	_mm_extract_epi8((X), 3)
+  #else
+	#define	EXTRACT_MOVE(X)	((unsigned int) _mm_cvtsi128_si32(X) >> 24)
+  #endif
 #else
 	int sort3;	// for move sorting on 3 empties
 	static const short sort3_shuf[] = {
