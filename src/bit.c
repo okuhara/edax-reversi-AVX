@@ -6,7 +6,7 @@
  * a macro needs to be defined to chose between different flavors of the
  * algorithm.
  *
- * @date 1998 - 2021
+ * @date 1998 - 2022
  * @author Richard Delorme
  * @version 4.5
  */
@@ -83,7 +83,7 @@ int bit_count(unsigned long long b)
 // 2% faster than SWAR bit_count for 32 & 64 non-POPCOUNT build
 unsigned char PopCnt16[1 << 16];
 
-static int bit_count_32(unsigned int b)
+static int bit_count_32_SWAR(unsigned int b)
 {
 	b = b - ((b >> 1) & 0x55555555);
 	b = ((b >> 2) & 0x333333333) + (b & 0x33333333);
@@ -129,7 +129,7 @@ void bit_init(void)
 
 #ifndef POPCOUNT
 	for (n = 0; n < (1 << 16); ++n)
-		PopCnt16[n] = bit_count_32(n);
+		PopCnt16[n] = bit_count_32_SWAR(n);
 #endif
 
 #if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)) && !defined(hasSSE2)

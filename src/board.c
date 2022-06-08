@@ -775,6 +775,7 @@ void edge_stability_init(void)
 #define	packH1H8(X)	(((((unsigned int)((X) >> 32) & 0x80808080) + (((unsigned int)(X) & 0x80808080) >> 4)) * 0x00204081) >> 24)
 #endif
 
+#if !defined(__AVX2__) && !defined(hasNeon) && !defined(hasSSE2)
 /**
  * @brief Get stable edge.
  *
@@ -783,15 +784,30 @@ void edge_stability_init(void)
  * @return a bitboard with (some of) player's stable discs.
  *
  */
-#if !defined(__AVX2__) && !defined(hasNeon) && !defined(hasSSE2)
 unsigned long long get_stable_edge(const unsigned long long P, const unsigned long long O)
 {	// compute the exact stable edges (from precomputed tables)
-	unsigned int a1a8 = packA1A8(P) * 256 + packA1A8(O);
-	unsigned int h1h8 = packH1H8(P) * 256 + packH1H8(O);
 	return edge_stability[((unsigned int) P & 0xff) * 256 + ((unsigned int) O & 0xff)]
 	    |  (unsigned long long) edge_stability[(unsigned int) (P >> 56) * 256 + (unsigned int) (O >> 56)] << 56
-	    |  unpackA1A8(edge_stability[a1a8])
-	    |  unpackH1H8(edge_stability[h1h8]);
+	    |  unpackA1A8(edge_stability[packA1A8(P) * 256 + packA1A8(O)])
+	    |  unpackH1H8(edge_stability[packH1H8(P) * 256 + packH1H8(O)]);
+}
+
+/**
+ * @brief Estimate the stability of edges.
+ *
+ * Count the number (in fact a lower estimate) of stable discs on the edges.
+ *
+ * @param P bitboard with player's discs.
+ * @param O bitboard with opponent's discs.
+ * @return the number of stable discs on the edges.
+ */
+int get_edge_stability(const unsigned long long P, const unsigned long long O)
+{
+	unsigned int packedstable = edge_stability[((unsigned char) P) * 256 + ((unsigned char) O)]
+	  | edge_stability[(unsigned int) (P >> 56) * 256 + (unsigned int) (O >> 56)] << 8
+	  | edge_stability[packA1A8(P) * 256 + packA1A8(O)] << 16
+	  | edge_stability[packH1H8(P) * 256 + packH1H8(O)] << 24;
+	return bit_count_32(packedstable & 0xffff7e7e);
 }
 #endif
 
@@ -911,20 +927,6 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 	get_all_full_lines(P | O, full);
 
 	return get_stability_fulls_given(P, O, full);
-}
-
-/**
- * @brief Estimate the stability of edges.
- *
- * Count the number (in fact a lower estimate) of stable discs on the edges.
- *
- * @param P bitboard with player's discs.
- * @param O bitboard with opponent's discs.
- * @return the number of stable discs on the edges.
- */
-int get_edge_stability(const unsigned long long P, const unsigned long long O)
-{
-	return bit_count(get_stable_edge(P, O));
 }
 
 /**
