@@ -61,7 +61,7 @@ extern const unsigned long long NEIGHBOUR[];
 	#else
 		int first_bit_32(unsigned int);
 	#endif
-	#define foreach_bit(i, b)	for (unsigned int _j = 0; _j < sizeof(b) * CHAR_BIT; _j += sizeof(int) * CHAR_BIT) \
+	#define foreach_bit(i, b)	(void) i; for (unsigned int _j = 0; _j < sizeof(b) * CHAR_BIT; _j += sizeof(int) * CHAR_BIT) \
 		for (int _r = (b >> _j), i = first_bit_32(_r) + _j; _r; i = first_bit_32(_r &= (_r - 1)) + _j)
 #endif
 
