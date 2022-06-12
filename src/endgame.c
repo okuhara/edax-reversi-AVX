@@ -389,7 +389,7 @@ static int search_solve_4(Search *search, int alpha)
  * Move ordering is constricted to the hole parity and the type of squares.
  * No hashtable are used and anticipated cut-off is limited to stability cut-off.
  *
- * @param search Search.
+ * @param search Search. (breaks board and parity)
  * @param alpha Alpha bound.
  * @return The final score, as a disc difference.
  */
@@ -415,9 +415,9 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 		if (pass1)	// gameover
 			return search_solve(search);
 
-		search_pass_endgame(search);
+		board_pass(&search->board);
 		bestscore = -search_shallow(search, ~alpha, true);
-		search_pass_endgame(search);
+		// board_pass(&search->board);
 		return bestscore;
 	}
 
@@ -443,8 +443,8 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 				search->empties[prev].next = x;	// restore
 
 				if (score > alpha) {	// (40%)
-					search->board = board0;
-					search->eval.parity = parity0;
+					// search->board = board0;
+					// search->eval.parity = parity0;
 					++search->eval.n_empties;
 					return score;
 
@@ -454,8 +454,8 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 		} while ((x = search->empties[prev = x].next) != NOMOVE);
 	} while ((prioritymoves = (moves ^= prioritymoves)));
 
-	search->board = board0;
-	search->eval.parity = parity0;
+	// search->board = board0;
+	// search->eval.parity = parity0;
 	++search->eval.n_empties;
 
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
@@ -545,9 +545,9 @@ int NWS_endgame(Search *search, const int alpha)
 	// special cases
 	if (movelist_is_empty(&movelist)) {	// (1%)
 		if (can_move(search->board.opponent, search->board.player)) { // pass
-			search_pass_endgame(search);
+			board_pass(&search->board);
 			bestscore = -NWS_endgame(search, ~alpha);
-			search_pass_endgame(search);
+			board_pass(&search->board);
 			hash_store_data.data.move[0] = PASS;
 		} else  { // game over
 			bestscore = search_solve(search);

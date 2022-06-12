@@ -136,8 +136,8 @@ extern const unsigned char QUADRANT_ID[];
 extern const unsigned long long quadrant_mask[];
 extern const Selectivity selectivity_table[];
 extern const int NO_SELECTIVITY;
-extern const unsigned char NWS_STABILITY_THRESHOLD[];
-extern const unsigned char PVS_STABILITY_THRESHOLD[];
+extern const signed char NWS_STABILITY_THRESHOLD[];
+extern const signed char PVS_STABILITY_THRESHOLD[];
 extern const unsigned char SQUARE_TYPE[];
 
 /* function definition */

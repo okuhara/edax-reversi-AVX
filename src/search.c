@@ -113,8 +113,8 @@ const Selectivity selectivity_table [] = {
 
 /** threshold values to try stability cutoff during NWS search */
 // TODO: better values may exist.
-const unsigned char NWS_STABILITY_THRESHOLD[] = { // 99 = unused value...
-	 99, 99, 99, 99,  6,  8, 10, 12,
+const signed char NWS_STABILITY_THRESHOLD[] = { // 99 = unused value...
+	 99, 99, 99, 99,  4,  8, 10, 12,
 	 14, 16, 20, 22, 24, 26, 28, 30,
 	 32, 34, 36, 38, 40, 42, 44, 46,
 	 48, 48, 50, 50, 52, 52, 54, 54,
@@ -126,7 +126,7 @@ const unsigned char NWS_STABILITY_THRESHOLD[] = { // 99 = unused value...
 
 /** threshold values to try stability cutoff during PVS search */
 // TODO: better values may exist.
-const unsigned char PVS_STABILITY_THRESHOLD[] = { // 99 = unused value...
+const signed char PVS_STABILITY_THRESHOLD[] = { // 99 = unused value...
 	 99, 99, 99, 99, -2,  0,  2,  4,
 	  6,  8, 12, 14, 16, 18, 20, 22,
 	 24, 26, 28, 30, 32, 34, 36, 38,
@@ -907,7 +907,6 @@ void search_restore_endgame(Search *search, const Move *move)
 	board_restore(&search->board, move);
 	++search->eval.n_empties;
 }
-#endif
 
 /**
  * @brief Update the search state after a passing move.
@@ -918,7 +917,7 @@ void search_pass_endgame(Search *search)
 {
 	board_pass(&search->board);
 }
-
+#endif
 
 //static Line debug_line;
 
