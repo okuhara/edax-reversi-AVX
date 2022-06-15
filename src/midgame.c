@@ -353,7 +353,7 @@ static bool search_probcut(Search *search, const int alpha, const int depth, Nod
  * @param hash_table Hash Table to use.
  * @return An evaluated score, as a disc difference.
  */
-int NWS_shallow(Search *search, const int alpha, int depth, HashTable *hash_table)
+static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *hash_table)
 {
 	int score;
 	unsigned long long hash_code;
@@ -496,29 +496,27 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 		}
 
 		// loop over all moves
-		bestscore = -SCORE_INF;
-		lower = alpha;
 		backup.board = search->board;
 		backup.eval = search->eval;
 		move = movelist.move[0].next;
-		do {
+
+		search_update_midgame(search, move);
+		bestscore = -PVS_shallow(search, -beta, -alpha, depth - 1);
+		hash_store_data.data.move[0] = move->x;
+		search_restore_midgame(search, move->x, &backup);
+		lower = (bestscore > alpha) ? bestscore : alpha;
+
+		while ((move = move->next) && (bestscore < beta)) {
 			search_update_midgame(search, move);
-				if (bestscore == -SCORE_INF) {
-					score = -PVS_shallow(search, -beta, -lower, depth - 1);
-				} else {
-					score = -NWS_shallow(search, -lower - 1, depth - 1, hash_table);
-					if (alpha < score && score < beta) {
-						score = -PVS_shallow(search, -beta, -lower, depth - 1);
-					}
-				}
+			score = -NWS_shallow(search, -lower - 1, depth - 1, hash_table);
+			if (lower < score && score < beta)
+				lower = score = -PVS_shallow(search, -beta, -lower, depth - 1);
 			search_restore_midgame(search, move->x, &backup);
 			if (score > bestscore) {
 				bestscore = score;
 				hash_store_data.data.move[0] = move->x;
-				if (score >= beta) break;
-				else if (score > lower) lower = score;
 			}
-		} while ((move = move->next));
+		}
 	}
 
 	// save the best result in hash tables
@@ -571,13 +569,18 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	assert(parent != NULL);
 
 	search_check_timeout(search);
-	if (search->stop) return alpha;
-	else if (search->eval.n_empties == 0)
+	if (search->stop)
+		return alpha;
+
+	if (search->eval.n_empties == 0)
 		return search_solve_0(search);
-	else if (depth <= 3 && depth < search->eval.n_empties)
-		return NWS_shallow(search, alpha, depth, hash_table);
-	else if (search->eval.n_empties <= depth && depth < DEPTH_MIDGAME_TO_ENDGAME)
-		return NWS_endgame(search, alpha);
+	else if (depth < search->eval.n_empties) {
+		if (depth <= 3)
+			return NWS_shallow(search, alpha, depth, hash_table);
+	} else {
+		if (depth < DEPTH_MIDGAME_TO_ENDGAME)
+			return NWS_endgame(search, alpha);
+	}
 
 	SEARCH_STATS(++statistics.n_NWS_midgame);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
@@ -733,7 +736,8 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 	} else { // normal PVS
 		if (movelist.n_moves > 1) {
 			//IID
-			if (!hash_get(pv_table, &search->board, hash_code, &hash_data)) hash_get(hash_table, &search->board, hash_code, &hash_data);
+			if (!hash_get(pv_table, &search->board, hash_code, &hash_data))
+				hash_get(hash_table, &search->board, hash_code, &hash_data);
 			if (USE_IID && hash_data.move[0] == NOMOVE) {
 				if (depth == search->eval.n_empties) reduced_depth = depth - ITERATIVE_MIN_EMPTIES;
 				else reduced_depth = depth - 2;

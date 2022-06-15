@@ -56,8 +56,8 @@ typedef struct Result {
 
 /** levels */
 extern struct Level {
-	int depth;         /** search depth */
-	int selectivity;   /** search selectivity level */
+	unsigned char depth;         /** search depth */
+	unsigned char selectivity;   /** search selectivity level */
 } LEVEL[61][61];
 
 
@@ -199,7 +199,7 @@ int search_eval_1(Search*, const int, int, bool);
 int search_eval_2(Search*, int, const int, bool);
 int NWS_midgame(Search*, const int, int, struct Node*);
 int PVS_midgame(Search*, const int, const int, int, struct Node*);
-int NWS_shallow(Search*, const int, int, HashTable*);
+// static int NWS_shallow(Search*, const int, int, HashTable*);
 int PVS_shallow(Search*, int, int, int);
 
 bool is_pv_ok(Search*, int, int);
