@@ -95,14 +95,13 @@ void hash_feed(HashTable*, const Board*, const unsigned long long, HashStoreData
 void hash_store(HashTable*, const Board*, const unsigned long long, HashStoreData *);
 void hash_force(HashTable*, const Board*, const unsigned long long, HashStoreData *);
 bool hash_get(HashTable*, const Board*, const unsigned long long, HashData *);
+bool hash_get_from_board(HashTable*, const Board*, HashData *);
 void hash_exclude_move(HashTable*, const Board*, const unsigned long long, const int);
 void hash_copy(const HashTable*, HashTable*);
 void hash_print(const HashData*, FILE*);
 extern unsigned int writeable_level(HashData *data);
 
 extern const HashData HASH_DATA_INIT;
-extern unsigned long long hash_rank[16][256];
-extern unsigned long long hash_move[64][60];
 
 #ifdef hasSSE2
 	#define	hash_prefetch(hashtable, hashcode)	_mm_prefetch((char const*)((hashtable)->hash + ((hashcode) & (hashtable)->hash_mask)), _MM_HINT_T0)

@@ -49,8 +49,7 @@ void pv_debug(Search *search, const Move *bestmove, FILE *f)
 
 	x = bestmove->x;
 	fprintf(f, "pv = %s ", move_to_string(x, player, s));
-	hash_code = board_get_hash_code(&board);
-	if (hash_get(&search->pv_table, &board, hash_code, &hash_data)) {
+	if (hash_get_from_board(&search->pv_table, &board, &hash_data)) {
 		fprintf(f, ":%02d@%d%%[%+03d,%+03d]; ", hash_data.wl.c.depth, selectivity_table[hash_data.wl.c.selectivity].percent, hash_data.lower, hash_data.upper);
 	}
 	while (x != NOMOVE) {
@@ -127,7 +126,7 @@ static int guess_move(Search *search, Board *board)
 	search->board = *board; search_setup(search);
 
 	PVS_shallow(search, SCORE_MIN, SCORE_MAX, MIN(search->eval.n_empties, 6));
-	hash_get(&search->shallow_table, board, board_get_hash_code(board), &hash_data);
+	hash_get_from_board(&search->shallow_table, board, &hash_data);
 
 	search->board = saved; search_setup(search);
 
@@ -348,14 +347,11 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 	SEARCH_STATS(++statistics.n_PVS_root);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
-	// transposition cutoff
-	hash_code = board_get_hash_code(&search->board);
-
 	node_init(&node, search, alpha, beta, depth, movelist->n_moves, NULL);
 	node.pv_node = true;
 	search->node_type[0] = PV_NODE;
 	search->time.can_update = false;
-	
+
 	// special cases: pass or game over
 	if (movelist_is_empty(movelist)) {
 		move = movelist->move->next = movelist->move + 1;
@@ -369,8 +365,8 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 			node.bestscore =  move->score = search_solve(search);
 			move->x = NOMOVE;
 		}
-	} else {
 
+	} else {
 		// first move
 		backup.board = search->board;
 		backup.eval = search->eval;
@@ -415,8 +411,8 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 		}
 	}
 
-
 	if (!search->stop) {
+		hash_code = board_get_hash_code(&search->board);
 		hash_get(&search->pv_table, &search->board, hash_code, &hash_data);
 		if (depth < search->options.multipv_depth) movelist_sort(movelist);
 		else movelist_sort_cost(movelist, &hash_data);
@@ -682,7 +678,7 @@ void iterative_deepening(Search *search, int alpha, int beta)
 	}
 
 	// reuse last search ?
-	if (hash_get(&search->pv_table, &search->board, board_get_hash_code(&search->board), &hash_data)) {
+	if (hash_get_from_board(&search->pv_table, &search->board, &hash_data)) {
 		char s[2][3];
 		if (search->options.verbosity >= 2) {
 			info("<hash: value = [%+02d, %+02d] ; bestmove = %s, %s ; level = %d@%d%% ; date = %d ; cost = %d>\n",

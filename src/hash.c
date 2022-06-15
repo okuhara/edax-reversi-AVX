@@ -595,6 +595,19 @@ bool hash_get(HashTable *hash_table, const Board *board, const unsigned long lon
 }
 
 /**
+ * @brief Find an hash table entry from the board.
+ *
+ * @param hash_table Hash table.
+ * @param board Bitboard.
+ * @param data Output hash data.
+ * @return True the board was found, false otherwise.
+ */
+bool hash_get_from_board(HashTable *hash_table, const Board *board, HashData *data)
+{
+	return hash_get(hash_table, board, board_get_hash_code(board), data);
+}
+
+/**
  * @brief Erase an hash table entry.
  *
  * @param hash_table Hash table.

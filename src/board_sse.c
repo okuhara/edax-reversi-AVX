@@ -148,7 +148,7 @@ void board_symetry(const Board *board, const int s, Board *sym)
  * @param next resulting board.
  * @return flipped discs.
  */
-#if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)
+#if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)
 
 unsigned long long board_next(const Board *board, const int x, Board *next)
 {
@@ -677,12 +677,15 @@ void get_all_full_lines(const unsigned long long disc, unsigned long long full[5
 	_mm_storel_epi64((__m128i *) &full[4], _mm_and_si128(l81, _mm_shuffle_epi32(l81, 0x4e)));
 }
 
-int get_stability_fulls_given(const unsigned long long P, const unsigned long long O, const unsigned long long full[5])
+int get_stability_fulls(const unsigned long long P, const unsigned long long O, unsigned long long full[5])
 {
 	unsigned long long stable, P_central;
 	__m128i	v2_stable, v2_old_stable, v2_P_central;
 	__m256i	v4_stable, v4_full;
 	const __m256i shift1897 = _mm256_set_epi64x(7, 9, 8, 1);
+
+	// compute the exact stable edges (from precomputed tables)
+	get_all_full_lines(P | O, full);
 
 	// compute the exact stable edges (from precomputed tables)
 	stable = get_stable_edge(P, O);

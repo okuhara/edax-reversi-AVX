@@ -302,7 +302,7 @@ static int engine_open(Search *search, const Board *board, const int player, con
 	if (player != search->player || !board_equal(&search->board, board)) {
 		search_set_board(search, board, player);
 
-		if (hash_get(&search->pv_table, board, board_get_hash_code(board), &hash_data)) {
+		if (hash_get_from_board(&search->pv_table, board, &hash_data)) {
 			if (hash_data.lower == -SCORE_INF && hash_data.upper < SCORE_INF) score = hash_data.upper;
 			else if (hash_data.upper == +SCORE_INF && hash_data.lower > -SCORE_INF) score = hash_data.lower;
 			else score = (hash_data.upper + hash_data.lower) / 2;
@@ -567,7 +567,7 @@ static bool skip_search(Engine *engine, int *old_score)
 			}
 		}
 	} else {
-		cassio_debug("Edax does not skip the search: Position %s (hash=%llx) not found\n", board_to_string(&search->board, search->player, b), board_get_hash_code(&search->board));
+		cassio_debug("Edax does not skip the search: Position %s (hash=%llx) not found\n", board_to_string(&search->board, search->player, b), hash_code);
 	}
 	
 	return false;

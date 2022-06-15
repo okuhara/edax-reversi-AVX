@@ -82,8 +82,8 @@ typedef enum {
 
 #define VERSION 4
 #define RELEASE 5
-#define VERSION_STRING "4.5.0"
-#define EDAX_NAME "Edax 4.5.0"
+#define VERSION_STRING "4.5.1"
+#define EDAX_NAME "Edax 4.5.1"
 #define BOOK 0x424f4f4b
 #define EDAX 0x45444158
 #define EVAL 0x4556414c
