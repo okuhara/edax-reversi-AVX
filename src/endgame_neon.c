@@ -62,10 +62,10 @@ static int board_solve_neon(uint64x1_t P, int n_empties)
 
 	SEARCH_STATS(++statistics.n_search_solve);
 
-	if (diff >= 0)
+	if (diff == 0)
 		score = diff;
-	if (diff > 0)
-		score += n_empties;
+	else if (diff > 0)
+		score = diff + n_empties;
 	return score;
 }
 
@@ -247,7 +247,8 @@ static int search_solve_3(uint64x2_t OP, int alpha, volatile unsigned long long 
 	SEARCH_STATS(++statistics.n_search_solve_3);
 	SEARCH_UPDATE_INTERNAL_NODES(*n_nodes);
 
-	for (pol = 1; pol >= -1; pol -= 2) {
+	pol = 1;
+	do {
 		// best move alphabeta search
 		bestscore = -SCORE_INF;
 		bb = vgetq_lane_u64(OP, 1);	// opponent
@@ -268,6 +269,7 @@ static int search_solve_3(uint64x2_t OP, int alpha, volatile unsigned long long 
 		if (/* (NEIGHBOUR[x] & bb) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
 			score = -board_solve_2(board_next_neon(OP, x, flipped), ~alpha, n_nodes, vext_u8(empties, empties, 1));
 			if (score > bestscore) bestscore = score;
+			return bestscore * pol;
 		}
 
 		if (bestscore > -SCORE_INF)
@@ -275,7 +277,7 @@ static int search_solve_3(uint64x2_t OP, int alpha, volatile unsigned long long 
 
 		OP = vextq_u64(OP, OP, 1);
 		alpha = ~alpha;	// = -(alpha + 1)
-	}
+	} while ((pol = -pol) < 0);
 
 	return board_solve_neon(vget_low_u64(OP), 3);	// gameover
 }
@@ -349,7 +351,8 @@ static int search_solve_4(Search *search, int alpha)
 		vtbl1_u8(vget_low_u8(empties_series), vget_high_u8(shuf)));
 #endif
 
-	for (pol = 1; pol >= -1; pol -= 2) {
+	pol = 1;
+	do {
 		// best move alphabeta search
 		bestscore = -SCORE_INF;
 		opp = vgetq_lane_u64(OP, 1);
@@ -380,6 +383,7 @@ static int search_solve_4(Search *search, int alpha)
 		if ((NEIGHBOUR[x4] & opp) && !TESTZ_FLIP(flipped = mm_Flip(OP, x4))) {
 			score = -search_solve_3(board_next_neon(OP, x4, flipped), ~alpha, &search->n_nodes, vget_low_u8(empties_series));
 			if (score > bestscore) bestscore = score;
+			return bestscore * pol;
 		}
 
 		if (bestscore > -SCORE_INF)
@@ -388,7 +392,7 @@ static int search_solve_4(Search *search, int alpha)
 		OP = vextq_u64(OP, OP, 1);
 		alpha = ~alpha;	// = -(alpha + 1)
 		empties_series = vextq_u8(empties_series, empties_series, 4);
-	}
+	} while ((pol = -pol) < 0);
 
 	return board_solve_neon(vget_low_u64(OP), 4);	// gameover
 }

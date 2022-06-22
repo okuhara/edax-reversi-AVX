@@ -116,7 +116,7 @@ bool is_pv_ok(Search *search, int bestmove, int search_depth)
  * 
  * @param search Search.
  * @param board Board to guess move from.
- * @return a best move guessed from a shallow search (depth = 4).
+ * @return a best move guessed from a shallow search (depth = 6).
  */
 static int guess_move(Search *search, Board *board)
 {
