@@ -337,7 +337,7 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 
 	if (depth >= min_depth) {
 		sort_depth = (depth - 15) / 3;
-		if (hash_data && hash_data->upper < alpha) sort_depth -= 2; 
+		if (hash_data->upper < alpha) sort_depth -= 2;
 		if (empties >= 27) ++sort_depth;
 		if (sort_depth < 0) sort_depth = 0;
 		else if (sort_depth > 6) sort_depth = 6;

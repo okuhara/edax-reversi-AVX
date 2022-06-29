@@ -470,8 +470,8 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 	log_print(xboard_log, "edax (search)> search [%d, %d] %d (%d)\n", alpha, beta, depth, score);
 
 	if (is_depth_solving(depth, search->eval.n_empties)) {
-		if (alpha & 1) --alpha;
-		if (beta & 1) ++beta;
+		alpha -= (alpha & 1);
+		beta += (beta & 1);
 	}
 
 	// at shallow depths always use a large window, for better move ordering
@@ -479,7 +479,6 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 		alpha = SCORE_MIN;
 		beta = SCORE_MAX;
 	}
-
 
 	high = MIN(SCORE_MAX, search->stability_bound.upper + 2);
 	low = MAX(SCORE_MIN, search->stability_bound.lower - 2);
@@ -496,10 +495,10 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 
 	width = 10 - depth; if (width < 1) width = 1;
 	if ((width & 1) && depth == search->eval.n_empties) ++width;
-	
+
 	for (i = 0; i < 10; ++i) {
 		old_score = score;
-	
+
 		// if in multipv mode or the alphabeta window is already small, search directly
 		if (depth <= search->options.multipv_depth || beta - alpha <= 2 * width) {
 			log_print(search_log, "direct root_PVS [%d, %d]:\n", low, high);
@@ -600,7 +599,7 @@ static bool get_last_level(Search *search, int *depth, int *selectivity)
 
 		board_get_move(&board, x, &move);
 		board_update(&board, &move);
-		
+
 		if (x == PASS) --i;
 	}
 
@@ -718,7 +717,7 @@ void iterative_deepening(Search *search, int alpha, int beta)
 	if (start > search->options.depth) start = search->options.depth;
 	if (start > search->eval.n_empties) start = search->eval.n_empties;
 	if (start < search->eval.n_empties) {
-		if ((start & 1) != (end & 1)) ++start;
+		start += ((start ^ end) & 1);
 		if (start <= 0) start = 2 - (end & 1);
 		if (start > end) start = end;
 	}
@@ -760,7 +759,7 @@ void iterative_deepening(Search *search, int alpha, int beta)
 
 	// special case : level 0
 	if (end == 0) {
-		return;		
+		return;
 	}
 
 	// midgame : iterative depth
@@ -783,8 +782,7 @@ void iterative_deepening(Search *search, int alpha, int beta)
 		(  (search->depth < 21 && search->selectivity >= 1)
 		|| (search->depth < 24 && search->selectivity >= 2)
 		|| (search->depth < 27 && search->selectivity >= 3)
-		|| (search->depth < 30 && search->selectivity >= 4)
-		|| (has_time && search->depth < 30 && search->selectivity >= 2)
+		|| (search->depth < 30 && search->selectivity >= (has_time ? 2 : 4))
 		|| (abs(score) >= SCORE_MAX))) { // jump to exact endgame (to solve faster) ?
 			search->selectivity = search->options.selectivity;
 		}

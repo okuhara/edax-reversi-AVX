@@ -348,11 +348,11 @@ void search_global_init(void)
 void search_resize_hashtable(Search *search) {
 	if (search->options.hash_size != options.hash_table_size) {
 		const int hash_size = 1u << options.hash_table_size;
-		const int pv_size = hash_size > 16 ? hash_size >> 4 : 1;
+		const int pv_shallow_size = hash_size > 16 ? hash_size >> 4 : 1;
 
 		hash_init(&search->hash_table, hash_size);
-		hash_init(&search->pv_table, pv_size);
-		hash_init(&search->shallow_table, hash_size);
+		hash_init(&search->pv_table, pv_shallow_size);
+		hash_init(&search->shallow_table, pv_shallow_size);
 		search->options.hash_size = options.hash_table_size;
 	}
 }
