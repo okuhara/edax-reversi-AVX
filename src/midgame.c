@@ -245,6 +245,19 @@ int search_eval_2(Search *search, int alpha, const int beta, bool pass1)
 	return bestscore;
 }
 
+/**
+ * @brief Probcut
+ *
+ * Check if a position is worth to analyze further.
+ *
+ * @param search Position to test.
+ * @param alpha Alpha lower bound.
+ * @param depth Search depth.
+ * @param parent Parent node.
+ * @param value Returned value.
+ *
+ * @return true if probable cutoff has been found, false otherwise.
+ */
 static inline void search_update_probcut(Search *search, const NodeType node_type) 
 {
 	search->node_type[search->height] = node_type;
@@ -260,19 +273,6 @@ static inline void search_restore_probcut(Search *search, const NodeType node_ty
 	LIMIT_RECURSIVE_PROBCUT(--search->probcut_level;)
 }
 
-/**
- * @brief Probcut
- *
- * Check if a position is worth to analyze further.
- *
- * @param search Position to test.
- * @param alpha Alpha lower bound.
- * @param depth Search depth.
- * @param parent Parent node.
- * @param value Returned value.
- *
- * @return true if probable cutoff has been found, false otherwise.
- */
 static bool search_probcut(Search *search, const int alpha, const int depth, Node *parent, int *value)
 {
 	// assertion 
@@ -340,7 +340,7 @@ static bool search_probcut(Search *search, const int alpha, const int depth, Nod
 }
 
 /**
- * @brief Evaluate a midgame position with a Null Window Search algorithm.
+ * @brief Evaluate a midgame position with a Null Window Search algorithm. (No probcut)
  *
  * This function is used when there are still many empty squares on the board. Move
  * ordering, hash table cutoff, enhanced transposition cutoff, etc. are used in
@@ -388,7 +388,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 
 	if (movelist.n_moves > 1) {
 		// transposition cutoff
-		if (hash_get(hash_table, &search->board, hash_code, &hash_data) && search_TC_NWS(&hash_data, depth, search->selectivity, alpha, &score))
+		if (hash_get(hash_table, &search->board, hash_code, &hash_data) && search_TC_NWS(&hash_data, depth, NO_SELECTIVITY, alpha, &score))
 			return score;
 
 		// sort the list of moves
@@ -441,7 +441,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 }
 
 /**
- * @brief Evaluate a midgame position at shallow depth.
+ * @brief Evaluate a midgame position at shallow depth. (No probcut)
  *
  * This function is used when there are still many empty squares on the board. Move
  * ordering, hash table cutoff, enhanced transposition cutoff, etc. are used in
@@ -484,7 +484,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 	if (movelist.n_moves > 1) {
 		// transposition cutoff (unused, normally first searched position)
 		// hash_code = board_get_hash_code(&search->board);
-		// if (hash_get(&search->shallow_table, &search->board, hash_code, &hash_data) && search_TC_PVS(&hash_data, depth, search->selectivity, &alpha, &beta, &score)) return score;
+		// if (hash_get(&search->shallow_table, &search->board, hash_code, &hash_data) && search_TC_PVS(&hash_data, depth, NO_SELECTIVITY, &alpha, &beta, &score)) return score;
 
 		// sort the list of moves
 		nodes_org = search->n_nodes;
@@ -511,7 +511,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 			}
 		}
 
-		// save the best result in hash tables
+		// save the best result in shallow hash
 		hash_store_data.data.wl.c.depth = depth;
 		hash_store_data.data.wl.c.selectivity = NO_SELECTIVITY;	// (4.5.1)
 		hash_store_data.data.wl.c.cost = last_bit(search->n_nodes - nodes_org);
@@ -797,7 +797,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 
 	// save the best result in hash tables
 	if (!search->stop) {
-		if (search->eval.n_empties <= depth && depth <= DEPTH_MIDGAME_TO_ENDGAME)
+		if (depth <= ((search->eval.n_empties <= depth) ? DEPTH_MIDGAME_TO_ENDGAME : 4))
 			hash_store_data.data.wl.c.selectivity = NO_SELECTIVITY;
 		else	hash_store_data.data.wl.c.selectivity = search->selectivity;
 		hash_store_data.data.wl.c.depth = depth;
