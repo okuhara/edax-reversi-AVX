@@ -302,9 +302,9 @@ void movelist_evaluate_fast(MoveList *movelist, Search *search, const HashData *
 	int	score, parity_weight;
 	unsigned long long P, O;
 
-	if (search->eval.n_empties < 21)
+	// if (search->eval.n_empties < 21)	// mostly true
 		parity_weight = (search->eval.n_empties < 12) ? w_low_parity : w_mid_parity;
-	else	parity_weight = (search->eval.n_empties < 30) ? w_high_parity : 0;
+	// else	parity_weight = (search->eval.n_empties < 30) ? w_high_parity : 0;
 
 	move = movelist->move[0].next;
 	do {

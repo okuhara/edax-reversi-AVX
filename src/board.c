@@ -230,15 +230,13 @@ void board_check(const Board *board)
  *
  * @param b1 first board
  * @param b2 second board
- * @return -1, 0, 1
+ * @return true if b1 is lesser than b2
  */
-int board_compare(const Board *b1, const Board *b2)
+bool board_lesser(const Board *b1, const Board *b2)
 {
-	if (b1->player > b2->player) return 1;
-	else if (b1->player < b2->player) return -1;
-	else if (b1->opponent > b2->opponent) return 1;
-	else if (b1->opponent < b2->opponent) return -1;
-	else return 0;
+	if (b1->player != b2->player)
+		return (b1->player < b2->player);
+	else	return (b1->opponent < b2->opponent);
 }
 
 /**
@@ -314,7 +312,7 @@ int board_unique(const Board *board, Board *unique)
 
 	for (i = 1; i < 8; ++i) {
 		// board_symetry(board, i, &sym);	// moved to before loop to minimize symetry ops
-		if (board_compare(&sym[i], unique) < 0) {
+		if (board_lesser(&sym[i], unique)) {
 			*unique = sym[i];
 			s = i;
 		}

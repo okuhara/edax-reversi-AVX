@@ -3,7 +3,7 @@
  *
  * @brief Move generator test.
  *
- * @date 1998 - 2021
+ * @date 1998 - 2022
  * @author Richard Delorme
  * @version 4.5
  */
@@ -324,10 +324,10 @@ const GameHash GAME_HASH_INIT = {{0ULL, 0ULL}, {0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 64
 typedef struct {
 	GameHash *array; /**< array of hash entries */
 	int size;          /**< size */
-    int mask;          /**< mask */
+	int mask;          /**< mask */
 	unsigned long long n_tries; /**< n_tries */
 	unsigned long long n_hits;  /**< n_tries */
-} GameHashTable;	
+} GameHashTable;
 
 /**
  * @brief Hash table initialisation
@@ -398,7 +398,6 @@ static bool gamehash_fail(GameHashTable *hash, const Board *b, const int depth, 
 	GameHash *i, *j;
 
 	if (depth > 2) {
-
 		board_unique(b, &u);
 		j = hash->array + (board_get_hash_code(&u) & hash->mask);
 		++hash->n_tries;
@@ -531,8 +530,8 @@ void quick_count_games(const Board *board, const int depth, const int size)
 	puts("------------------------------------------------------------------------------------------------------------------");
 	n = 1;
 	for (i = 1; i <= depth; ++i) {
-		t = -cpu_clock();
 		gamehash_init(&hash, options.hash_table_size);
+		t = -cpu_clock();
 		stats = GAME_STATISTICS_INIT;
 		if (size == 6) quick_count_game_6x6(&hash, board, i, &stats);
 		else quick_count_game(&hash, board, i, &stats);
@@ -561,13 +560,15 @@ typedef struct CBoard {
 #pragma pack()
 
 static void compact_board(const Board *b, CBoard *c) {
-	int i, n = 0, x;
+	int i, n, m, x;
 
-	i = 0;
+	i = n = m = 0;
 	for (x = A1; x <= H8; ++x) {
-		if (x % 5 == 0) n = 0;
 		n = 3 * n + board_get_square_color(b, x);
-		if (x % 5 == 4) c->x[i++] = n;
+		if (++m == 5) {
+			c->x[i++] = n;
+			n = m = 0;
+		}
 	}
 	c->x[i] = n;
 }
@@ -670,10 +671,10 @@ static bool boardcache_undone(BoardCache *hash, const Board *b)
 	board_unique(b, &u);
 	h = board_get_hash_code(&u);
 	i = (h & hash->mask);
-	if (board_compare(&u, hash->array + i) == 0
-	 || board_compare(&u, hash->array + i + 1) == 0
-	 || board_compare(&u, hash->array + i + 2) == 0
-	 || board_compare(&u, hash->array + i + 3) == 0) return false;
+	if (board_equal(&u, hash->array + i)
+	 || board_equal(&u, hash->array + i + 1)
+	 || board_equal(&u, hash->array + i + 2)
+	 || board_equal(&u, hash->array + i + 3)) return false;
 
 	return true;
 }
@@ -688,10 +689,10 @@ static void boardcache_append(BoardCache *hash, const Board *b)
 	board_unique(b, &u);
 	h = board_get_hash_code(&u);
 	i = (h & hash->mask);
-	if (board_compare(&u, hash->array + i) == 0
-	 || board_compare(&u, hash->array + i + 1) == 0
-	 || board_compare(&u, hash->array + i + 2) == 0
-	 || board_compare(&u, hash->array + i + 3) == 0) return;
+	if (board_equal(&u, hash->array + i)
+	 || board_equal(&u, hash->array + i + 1)
+	 || board_equal(&u, hash->array + i + 2)
+	 || board_equal(&u, hash->array + i + 3)) return;
 
 	l = board_count_empties(hash->array + i); j = i;
 	k = board_count_empties(hash->array + ++i); if (k > l) {l = k; j = i;}
