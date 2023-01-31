@@ -34,7 +34,7 @@ void version(void)
 #elif defined(__APPLE__)
 		" for Apple"
 #endif
-		"\ncopyright 1998 - 2018 Richard Delorme, 2014 - 22 Toshihiko Okuhara\n\n");
+		"\ncopyright 1998 - 2018 Richard Delorme, 2014 - 23 Toshihiko Okuhara\n\n");
 }
 
 
