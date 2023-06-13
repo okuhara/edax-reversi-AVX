@@ -2187,6 +2187,9 @@ void book_get_line(Book *book, const Board *board, const Move *move, Line *line)
  * @param move Chosen move.
  * @param randomness Randomness.
  */
+#if 0
+#include "srbook.c"
+#else
 bool book_get_random_move(Book *book, const Board *board, Move *move, const int randomness)
 {
 	Position *position = book_probe(book, board);
@@ -2197,6 +2200,7 @@ bool book_get_random_move(Book *book, const Board *board, Move *move, const int 
 
 	return false;
 }
+#endif
 
 /**
  * @brief Get game statistics from a position.
