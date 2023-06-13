@@ -3,7 +3,7 @@
  *
  * Search near the end of the game.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -38,7 +38,8 @@ static int accumlate_eval(int ply, Eval *eval)
 	const Eval_weight *w;
 	int sum;
 
-	assert(ply < EVAL_N_PLY);
+	if (ply >= EVAL_N_PLY)
+		ply = EVAL_N_PLY - 2 + (ply & 1);
 	ply -= 2;
 	if (ply < 0)
 		ply &= 1;
@@ -160,13 +161,11 @@ int search_eval_1(Search *search, const int alpha, int beta, bool pass1)
 			}
 		}
 
-		if (bestscore >= 0) {
-			bestscore = (bestscore + 64) >> 7;
-			if (bestscore > SCORE_MAX - 1) bestscore = SCORE_MAX - 1;
-		} else {
-			bestscore = -((-bestscore + 64) >> 7);
-			if (bestscore < SCORE_MIN + 1) bestscore = SCORE_MIN + 1;
-		}
+		if (bestscore > 0) bestscore += 64;	else bestscore -= 64;
+		bestscore /= 128;
+
+		if (bestscore < SCORE_MIN + 1) bestscore = SCORE_MIN + 1;
+		if (bestscore > SCORE_MAX - 1) bestscore = SCORE_MAX - 1;
 
 	} else {
 		if (pass1) { // game over

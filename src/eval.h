@@ -3,7 +3,7 @@
  *
  * Evaluation function's header.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.5
  */
@@ -59,9 +59,9 @@ typedef struct Eval_weight {
 } Eval_weight;
 
 /** number of plies */
-enum { EVAL_N_PLY = 60 };
+enum { EVAL_N_PLY = 54 };	// decreased from 60 in 4.5.1
 
-extern Eval_weight (*EVAL_WEIGHT)[EVAL_N_PLY - 2];	// for 2..59
+extern Eval_weight (*EVAL_WEIGHT)[EVAL_N_PLY - 2];	// for 2..53
 
 /* function declaration */
 void eval_open(const char*);

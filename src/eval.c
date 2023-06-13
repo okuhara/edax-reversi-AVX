@@ -3,7 +3,7 @@
  *
  * Evaluation function.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -475,7 +475,7 @@ typedef struct {
 static int EVAL_LOADED = 0;
 
 /** eval weights */
-Eval_weight (*EVAL_WEIGHT)[EVAL_N_PLY - 2];	// for 2..59
+Eval_weight (*EVAL_WEIGHT)[EVAL_N_PLY - 2];	// for 2..53
 
 /** opponent feature */
 static unsigned short *OPPONENT_FEATURE;
@@ -517,7 +517,7 @@ static unsigned short *set_opponent_feature(unsigned short *p, int o, int d)
  * @param l feature index.
  * @param k feature index for the mirror position.
  * @param n packed count so far.
- * @param d feature size, >= 3.
+ * @param d feature size, >= 4.
  * @return updated packed count.
  */
 static int set_eval_packing(short *pe, int *T, const int *kd, int l, int k, int n, int d)
