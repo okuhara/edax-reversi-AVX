@@ -393,7 +393,7 @@ static int search_solve_4(Search *search, int alpha)
  * Move ordering is constricted to the hole parity and the type of squares.
  * No hashtable are used and anticipated cut-off is limited to stability cut-off.
  *
- * @param search Search. (breaks board and parity)
+ * @param search Search. (breaks board and parity; caller take a copy)
  * @param alpha Alpha bound.
  * @return The final score, as a disc difference.
  */
