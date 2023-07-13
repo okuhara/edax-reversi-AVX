@@ -3,7 +3,7 @@
  *
  * Search near the end of the game.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -306,7 +306,7 @@ static int search_solve_4(Search *search, int alpha)
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	// stability cutoff (try 12%, cut 7%)
-	if (search_SC_NWS(search, alpha, &score)) return score;
+	if (search_SC_NWS(search, alpha, 4, &score)) return score;
 
 	x1 = search->empties[NOMOVE].next;
 	x2 = search->empties[x1].next;
@@ -412,7 +412,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	// stability cutoff (try 15%, cut 5%)
-	if (search_SC_NWS(search, alpha, &score)) return score;
+	if (search_SC_NWS(search, alpha, search->eval.n_empties, &score)) return score;
 
 	moves = get_moves(search->board.player, search->board.opponent);
 	if (moves == 0) {	// pass (2%)
@@ -429,38 +429,54 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 	board0 = search->board;
 	parity0 = search->eval.parity;
 	prioritymoves = moves & quadrant_mask[parity0];
-	if (prioritymoves == 0)
+	if (prioritymoves == 0)	// all even
 		prioritymoves = moves;
-	--search->eval.n_empties;	// for next depth
-	do {
-		x = search->empties[prev = NOMOVE].next;	// maintain single link only
+
+	if (search->eval.n_empties == 5)	// transfer to search_solve_n, no longer uses n_empties, parity
 		do {
-			if (prioritymoves & x_to_bit(x)) {	// (37%)
-				search->eval.parity = parity0 ^ QUADRANT_ID[x];
-				search->empties[prev].next = search->empties[x].next;	// remove
-				board_next(&board0, x, &search->board);
-
-				if (search->eval.n_empties == 4)	// (57%)
+			x = search->empties[prev = NOMOVE].next;	// maintain single link only
+			do {
+				if (prioritymoves & x_to_bit(x)) {
+					search->empties[prev].next = search->empties[x].next;	// remove
+					board_next(&board0, x, &search->board);
 					score = -search_solve_4(search, ~alpha);
-				else	score = -search_shallow(search, ~alpha, false);
+					search->empties[prev].next = x;	// restore
 
-				search->empties[prev].next = x;	// restore
+					if (score > alpha)
+						return score;
+					else if (score > bestscore)
+						bestscore = score;
+				}
+			} while ((x = search->empties[prev = x].next) != NOMOVE);
+		} while ((prioritymoves = (moves ^= prioritymoves)));
 
-				if (score > alpha) {	// (40%)
-					// search->board = board0;
-					// search->eval.parity = parity0;
-					++search->eval.n_empties;
-					return score;
+	else {
+		--search->eval.n_empties;	// for next depth
+		do {
+			x = search->empties[prev = NOMOVE].next;	// maintain single link only
+			do {
+				if (prioritymoves & x_to_bit(x)) {	// (37%)
+					search->eval.parity = parity0 ^ QUADRANT_ID[x];
+					search->empties[prev].next = search->empties[x].next;	// remove
+					board_next(&board0, x, &search->board);
+					score = -search_shallow(search, ~alpha, false);
+					search->empties[prev].next = x;	// restore
 
-				} else if (score > bestscore)
-					bestscore = score;
-			}
-		} while ((x = search->empties[prev = x].next) != NOMOVE);
-	} while ((prioritymoves = (moves ^= prioritymoves)));
+					if (score > alpha) {	// (40%)
+						// search->board = board0;
+						// search->eval.parity = parity0;
+						++search->eval.n_empties;
+						return score;
 
+					} else if (score > bestscore)
+						bestscore = score;
+				}
+			} while ((x = search->empties[prev = x].next) != NOMOVE);
+		} while ((prioritymoves = (moves ^= prioritymoves)));
+		++search->eval.n_empties;
+	}
 	// search->board = board0;
 	// search->eval.parity = parity0;
-	++search->eval.n_empties;
 
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
 	return bestscore;	// (33%)

@@ -109,13 +109,12 @@ int search_eval_0(Search *search)
 
 	score = accumlate_eval(60 - search->eval.n_empties,  &search->eval);
 
-	if (score >= 0) {
-		score = (score + 64) >> 7;
-		if (score > SCORE_MAX - 1) score = SCORE_MAX - 1;
-	} else {
-		score = -((-score + 64) >> 7);
-		if (score < SCORE_MIN + 1) score = SCORE_MIN + 1;
-	}
+	if (score > 0) score += 64;	else score -= 64;
+	score /= 128;
+
+	if (score < SCORE_MIN + 1) score = SCORE_MIN + 1;
+	if (score > SCORE_MAX - 1) score = SCORE_MAX - 1;
+
 	return score;
 }
 
@@ -379,7 +378,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 	hash_prefetch(hash_table, hash_code);
 
 	// stability cutoff
-	if (search_SC_NWS(search, alpha, &score)) return score;
+	if (search_SC_NWS(search, alpha, search->eval.n_empties, &score)) return score;
 
 	search_get_movelist(search, &movelist);
 	backup.board = search->board;
@@ -474,7 +473,15 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
 
 	// stability cutoff
-	if (search_SC_PVS(search, &alpha, &beta, &score)) return score;
+	if (USE_SC && beta >= PVS_STABILITY_THRESHOLD[search->eval.n_empties]) {
+		CUTOFF_STATS(++statistics.n_stability_try;)
+		score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player);
+		if (score <= alpha) {
+			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
+			return score;
+		}
+		else if (score < beta) beta = score;
+	}
 
 	search_get_movelist(search, &movelist);
 	backup.board = search->board;
@@ -594,7 +601,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	hash_prefetch(&search->hash_table, hash_code);
 
 	// stability cutoff
-	if (search_SC_NWS(search, alpha, &score)) return score;
+	if (search_SC_NWS(search, alpha, search->eval.n_empties, &score)) return score;
 
 	nodes_org = search->n_nodes + search->child_nodes;
 	search_get_movelist(search, &movelist);

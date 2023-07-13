@@ -3,7 +3,7 @@
  *
  * Search's header file.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.5
  */
@@ -136,7 +136,7 @@ extern const unsigned char QUADRANT_ID[];
 extern const unsigned long long quadrant_mask[];
 extern const Selectivity selectivity_table[];
 extern const int NO_SELECTIVITY;
-extern const signed char NWS_STABILITY_THRESHOLD[];
+// extern const signed char NWS_STABILITY_THRESHOLD[];
 extern const signed char PVS_STABILITY_THRESHOLD[];
 extern const unsigned char SQUARE_TYPE[];
 
@@ -180,8 +180,8 @@ int get_pv_extension(const int, const int);
 
 void result_print(Result*, FILE*);
 
-bool search_SC_PVS(Search*, int*, int*, int*);
-bool search_SC_NWS(Search*, const int, int*);
+// bool search_SC_PVS(Search*, int*, int*, int*);
+bool search_SC_NWS(Search*, const int, const int, int*);
 // bool search_TC_PVS(HashData*, const int, const int, int*, int*, int*);
 bool search_TC_NWS(HashData*, const int, const int, const int, int*);
 // bool search_ETC_PVS(Search*, MoveList*, unsigned long long, const int, const int, int*, int*, int*);

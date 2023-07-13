@@ -52,7 +52,7 @@
  * -# Reinsfeld A. (1983) An Improvement Of the Scout Tree-Search Algorithm. ICCA
  *     journal, 6(4), pp. 4-14.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.5
  */
@@ -113,8 +113,8 @@ const Selectivity selectivity_table [] = {
 
 /** threshold values to try stability cutoff during NWS search */
 // TODO: better values may exist.
-const signed char NWS_STABILITY_THRESHOLD[] = { // 99 = unused value...
-	 99, 99, 99, 99,  4,  8, 10, 12,
+static const signed char NWS_STABILITY_THRESHOLD[] = { // 99 = unused value...
+	 99, 99, 99, 99,  6,  8, 10, 12,
 	 14, 16, 20, 22, 24, 26, 28, 30,
 	 32, 34, 36, 38, 40, 42, 44, 46,
 	 48, 48, 50, 50, 52, 52, 54, 54,
@@ -1134,6 +1134,7 @@ void result_print(Result *result, FILE *f)
 	spin_unlock(result);
 }
 
+#if 0	// inlined in PVS_shallow
 /**
  * @brief Stability Cutoff (SC).
  *
@@ -1156,18 +1157,20 @@ bool search_SC_PVS(Search *search, int *alpha, int *beta, int *score)
 	}
 	return false;
 }
+#endif
 
 /**
  * @brief Stability Cutoff (TC).
  *
  * @param search Current position.
  * @param alpha Alpha bound.
+ * @param n_empties Search stage.
  * @param score Score to return in case of a cutoff is found.
  * @return 'true' if a cutoff is found, false otherwise.
  */
-bool search_SC_NWS(Search *search, const int alpha, int *score)
+bool search_SC_NWS(Search *search, const int alpha, const int n_empties, int *score)
 {
-	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {
+	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
 		*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player);
 		if (*score <= alpha) {
