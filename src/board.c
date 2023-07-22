@@ -11,7 +11,7 @@
  * some board properties. Most of the functions are optimized to be as fast as
  * possible, while remaining readable.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -893,7 +893,6 @@ int get_stability_fulls(const unsigned long long P, const unsigned long long O, 
 {
 	unsigned long long stable, P_central, stable_h, stable_v, stable_d7, stable_d9, old_stable;
 
-	// compute the exact stable edges (from precomputed tables)
 	get_all_full_lines(P | O, full);
 
 	// compute the exact stable edges (from precomputed tables)

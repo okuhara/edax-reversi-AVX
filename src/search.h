@@ -166,7 +166,7 @@ void search_swap_parity(Search*, const int);
 void search_get_movelist(const Search*, MoveList*);
 // void search_update_endgame(Search*, const Move*);
 // void search_restore_endgame(Search*, const Move*);
-void search_pass_endgame(Search*);
+// void search_pass_endgame(Search*);
 void search_update_midgame(Search*, const Move*);
 void search_restore_midgame(Search*, int, const Search_Backup*);
 void search_update_pass_midgame(Search*, Eval*);

@@ -3,7 +3,7 @@
  *
  * SSE/AVX translation of some board.c functions
  *
- * @date 2014 - 2022
+ * @date 2014 - 2023
  * @author Toshihiko Okuhara
  * @version 4.5
  */
@@ -94,12 +94,7 @@ void board_symetry(const Board *board, const int s, Board *sym)
 		bb = _mm_xor_si128(_mm_xor_si128(bb, tt), _mm_slli_epi64(tt, 28));
 	}
 
-#ifdef __clang__
-	sym->player = bb[0];
-	sym->opponent = bb[1];
-#else	// error on clang 3.8
 	_mm_storeu_si128((__m128i *) sym, bb);
-#endif
 
 	board_check(sym);
 }
@@ -143,16 +138,15 @@ void board_symetry(const Board *board, const int s, Board *sym)
 /**
  * @brief Compute a board resulting of a move played on a previous board.
  *
- * @param board board to play the move on.
+ * @param OP board to play the move on.
  * @param x move to play.
  * @param next resulting board.
  * @return flipped discs.
  */
 #if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)
 
-unsigned long long board_next(const Board *board, const int x, Board *next)
+unsigned long long vectorcall vboard_next(__m128i OP, const int x, Board *next)
 {
-	__m128i OP = _mm_loadu_si128((__m128i *) board);
 	__m128i flipped = mm_Flip(OP, x);
 
 	OP = _mm_xor_si128(OP, _mm_or_si128(flipped, _mm_loadl_epi64((__m128i *) &X_TO_BIT[x])));
@@ -163,9 +157,8 @@ unsigned long long board_next(const Board *board, const int x, Board *next)
 
 #elif MOVE_GENERATOR == MOVE_GENERATOR_NEON
 
-unsigned long long board_next(const Board *board, const int x, Board *next)
+unsigned long long vboard_next(uint64x2_t OP, const int x, Board *next)
 {
-	uint64x2_t OP = vld1q_u64((uint64_t *) board);
 	uint64x2_t flipped = mm_Flip(OP, x);
 #ifdef HAS_CPU_64	// vld1q_lane_u64
 	OP = veorq_u64(OP, vorrq_u64(flipped, vld1q_lane_u64((uint64_t *) &X_TO_BIT[x], flipped, 0)));
@@ -191,15 +184,20 @@ unsigned long long board_next(const Board *board, const int x, Board *next)
  */
 #ifdef __AVX2__	// 4 AVX
 
-unsigned long long get_moves(const unsigned long long P, const unsigned long long O)
+#if defined(_MSC_VER) || defined(__clang__)
+unsigned long long vectorcall get_moves_avx(__m256i PP, __m256i OO)
 {
-	__m256i	PP, mOO, MM, flip_l, flip_r, pre_l, pre_r, shift2;
+#else
+unsigned long long get_moves(unsigned long long P, unsigned long long O)
+{
+	__m256i	PP = _mm256_broadcastq_epi64(_mm_cvtsi64_si128(P));
+	__m256i OO = _mm256_broadcastq_epi64(_mm_cvtsi64_si128(O));
+#endif
+	__m256i	MM, flip_l, flip_r, pre_l, pre_r, shift2;
 	__m128i	M;
 	const __m256i shift1897 = _mm256_set_epi64x(7, 9, 8, 1);
-	const __m256i mflipH = _mm256_set_epi64x(0x7e7e7e7e7e7e7e7e, 0x7e7e7e7e7e7e7e7e, -1, 0x7e7e7e7e7e7e7e7e);
-
-	PP = _mm256_broadcastq_epi64(_mm_cvtsi64_si128(P));
-	mOO = _mm256_and_si256(_mm256_broadcastq_epi64(_mm_cvtsi64_si128(O)), mflipH);
+	__m256i	mOO = _mm256_and_si256(OO, _mm256_set_epi64x(0x7e7e7e7e7e7e7e7e, 0x7e7e7e7e7e7e7e7e, -1, 0x7e7e7e7e7e7e7e7e));
+	__m128i occupied = _mm_or_si128(_mm256_castsi256_si128(PP), _mm256_castsi256_si128(OO));
 
 	flip_l = _mm256_and_si256(mOO, _mm256_sllv_epi64(PP, shift1897));
 	flip_r = _mm256_and_si256(mOO, _mm256_srlv_epi64(PP, shift1897));
@@ -216,8 +214,7 @@ unsigned long long get_moves(const unsigned long long P, const unsigned long lon
 	MM = _mm256_or_si256(MM, _mm256_srlv_epi64(flip_r, shift1897));
 
 	M = _mm_or_si128(_mm256_castsi256_si128(MM), _mm256_extracti128_si256(MM, 1));
-	M = _mm_or_si128(M, _mm_unpackhi_epi64(M, M));
-	return _mm_cvtsi128_si64(M) & ~(P|O);	// mask with empties
+	return _mm_cvtsi128_si64(_mm_andnot_si128(occupied, _mm_or_si128(M, _mm_unpackhi_epi64(M, M))));	// mask with empties
 }
 
 #elif defined(__x86_64__) || defined(_M_X64)	// 2 SSE, 2 CPU
@@ -684,7 +681,6 @@ int get_stability_fulls(const unsigned long long P, const unsigned long long O, 
 	__m256i	v4_stable, v4_full;
 	const __m256i shift1897 = _mm256_set_epi64x(7, 9, 8, 1);
 
-	// compute the exact stable edges (from precomputed tables)
 	get_all_full_lines(P | O, full);
 
 	// compute the exact stable edges (from precomputed tables)

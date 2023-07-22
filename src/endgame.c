@@ -402,7 +402,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 	unsigned long long moves, prioritymoves;
 	int x, prev, score, bestscore;
 	// const int beta = alpha + 1;
-	Board board0;
+	vBoard board0;
 	unsigned int parity0;
 
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
@@ -414,7 +414,8 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 	// stability cutoff (try 15%, cut 5%)
 	if (search_SC_NWS(search, alpha, search->eval.n_empties, &score)) return score;
 
-	moves = get_moves(search->board.player, search->board.opponent);
+	board0 = load_vboard(search->board);
+	moves = vboard_get_moves(board0, search->board);
 	if (moves == 0) {	// pass (2%)
 		if (pass1)	// gameover
 			return search_solve(search);
@@ -426,7 +427,6 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 	}
 
 	bestscore  = -SCORE_INF;
-	board0 = search->board;
 	parity0 = search->eval.parity;
 	prioritymoves = moves & quadrant_mask[parity0];
 	if (prioritymoves == 0)	// all even
@@ -438,7 +438,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 			do {
 				if (prioritymoves & x_to_bit(x)) {
 					search->empties[prev].next = search->empties[x].next;	// remove
-					board_next(&board0, x, &search->board);
+					vboard_next(board0, x, &search->board);
 					score = -search_solve_4(search, ~alpha);
 					search->empties[prev].next = x;	// restore
 
@@ -458,12 +458,12 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 				if (prioritymoves & x_to_bit(x)) {	// (37%)
 					search->eval.parity = parity0 ^ QUADRANT_ID[x];
 					search->empties[prev].next = search->empties[x].next;	// remove
-					board_next(&board0, x, &search->board);
+					vboard_next(board0, x, &search->board);
 					score = -search_shallow(search, ~alpha, false);
 					search->empties[prev].next = x;	// restore
 
 					if (score > alpha) {	// (40%)
-						// search->board = board0;
+						// store_vboard(search->board, board0);
 						// search->eval.parity = parity0;
 						++search->eval.n_empties;
 						return score;
@@ -475,7 +475,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 		} while ((prioritymoves = (moves ^= prioritymoves)));
 		++search->eval.n_empties;
 	}
-	// search->board = board0;
+	// store_vboard(search->board, board0);
 	// search->eval.parity = parity0;
 
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
