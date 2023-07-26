@@ -507,7 +507,7 @@ unsigned long long get_stable_edge(unsigned long long P, unsigned long long O)
 	unsigned int h1h8 = edge_stability[vaddvq_u16(vshlq_u16(vreinterpretq_u16_u8(vshrq_n_u8(PO, 7)), vreinterpretq_s16_u64(shiftv)))];
 	return edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 0)]
 	    |  (unsigned long long) edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 7)] << 56
-	    |  unpackA1A8(a1a8) | unpackH1H8(h1h8);
+	    |  unpackA2A7(a1a8) | unpackH2H7(h1h8);
 }
 
 #elif defined(__ARM_NEON__) // Neon kindergarten
@@ -526,7 +526,7 @@ unsigned long long get_stable_edge(unsigned long long P, unsigned long long O)
 	uint8x16_t PO = vzipq_u8(vreinterpretq_u8_u64(OO), vreinterpretq_u8_u64(PP)).val[1];
 	return edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 0)]
 	    |  (unsigned long long) edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 7)] << 56
-	    |  unpackA1A8(a1a8) | unpackH1H8(h1h8);
+	    |  unpackA2A7(a1a8) | unpackH2H7(h1h8);
 }
 
 #elif defined(hasSSE2) || defined(USE_MSVC_X86)
@@ -545,7 +545,7 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
 	PO = _mm_unpacklo_epi64(O0, P0);
 	a1a8 = edge_stability[_mm_movemask_epi8(_mm_slli_epi64(PO, 7))];
 	h1h8 = edge_stability[_mm_movemask_epi8(PO)];
-	stable_edge |= unpackA1A8(a1a8) | unpackH1H8(h1h8);
+	stable_edge |= unpackA2A7(a1a8) | unpackH2H7(h1h8);
 
 	return stable_edge;
 }
