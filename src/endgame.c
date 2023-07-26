@@ -90,7 +90,7 @@ int search_solve_0(const Search *search)
 	return 2 * bit_count(search->board.player) - SCORE_MAX;
 }
 
-#if ((MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)) && (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE)
+#if ((MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)) && ((LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BMI2))
 	#include "endgame_sse.c"	// vectorcall version
 #elif (MOVE_GENERATOR == MOVE_GENERATOR_NEON) && (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE)
 	#include "endgame_neon.c"
@@ -426,7 +426,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 		return bestscore;
 	}
 
-	bestscore  = -SCORE_INF;
+	bestscore = -SCORE_INF;
 	parity0 = search->eval.parity;
 	prioritymoves = moves & quadrant_mask[parity0];
 	if (prioritymoves == 0)	// all even
