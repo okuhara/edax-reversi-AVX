@@ -102,6 +102,7 @@ extern unsigned char edge_stability[256 * 256];
 #endif
 
 #if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512)
+	extern const V4DI lmask_v4[66], rmask_v4[66];
 	extern __m128i vectorcall mm_Flip(const __m128i OP, int pos);
   #ifdef HAS_CPU_64
 	#define	Flip(x,P,O)	((unsigned long long) _mm_cvtsi128_si64(mm_Flip(_mm_insert_epi64(_mm_cvtsi64_si128(P), (O), 1), (x))))

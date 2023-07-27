@@ -15,7 +15,7 @@
 
 #include "bit.h"
 
-static const V4DI lmask_v4[66] = {
+const V4DI lmask_v4[66] = {
 	{{ 0x00000000000000fe, 0x0101010101010100, 0x8040201008040200, 0x0000000000000000 }},
 	{{ 0x00000000000000fc, 0x0202020202020200, 0x0080402010080400, 0x0000000000000100 }},
 	{{ 0x00000000000000f8, 0x0404040404040400, 0x0000804020100800, 0x0000000000010200 }},
@@ -84,7 +84,7 @@ static const V4DI lmask_v4[66] = {
 	{{ 0x0000000000000000, 0x0000000000000000, 0x0000000000000000, 0x0000000000000000 }}
 };
 
-static const V4DI rmask_v4[66] = {
+const V4DI rmask_v4[66] = {
 	{{ 0x0000000000000000, 0x0000000000000000, 0x0000000000000000, 0x0000000000000000 }},
 	{{ 0x0000000000000001, 0x0000000000000000, 0x0000000000000000, 0x0000000000000000 }},
 	{{ 0x0000000000000003, 0x0000000000000000, 0x0000000000000000, 0x0000000000000000 }},
@@ -206,47 +206,3 @@ __m128i vectorcall mm_Flip(const __m128i OP, int pos)
 
 	return flip2;
 }
-
-#if 0 // experimental AVX2 lastflip version in endgame_sse.c
-__m128i vectorcall mm_LastFlip(const __m256i PP, int pos)
-{
-	__m256i	flip, outflank, eraser, mask;
-	__m128i	flip2;
-
-	mask = rmask_v4[pos].v4;
-		// isolate non-opponent MS1B by clearing lower shadow bits
-	eraser = _mm256_and_si256(PP, mask);
-#if 0 // blute force parallel prefix fill
-	outflank = _mm256_add_epi64(eraser, eraser);
-	eraser = _mm256_or_si256(eraser, _mm256_srli_epi64(eraser, 1));
-	eraser = _mm256_or_si256(eraser, _mm256_srli_epi64(eraser, 2));
-	eraser = _mm256_or_si256(eraser, _mm256_srli_epi64(eraser, 4));
-	eraser = _mm256_or_si256(eraser, _mm256_srli_epi64(eraser, 8));
-	eraser = _mm256_or_si256(eraser, _mm256_srli_epi64(eraser, 16));
-	outflank = _mm256_andnot_si256(eraser, outflank);
-	outflank = _mm256_andnot_si256(_mm256_srli_epi64(eraser, 32), outflank);
-#else // clear valid bits only using variable shift
-	outflank = _mm256_sllv_epi64(eraser, _mm256_set_epi64x(7, 9, 8, 1));
-	eraser = _mm256_or_si256(eraser, _mm256_srlv_epi64(eraser, _mm256_set_epi64x(7, 9, 8, 1)));
-	outflank = _mm256_andnot_si256(eraser, outflank);
-	outflank = _mm256_andnot_si256(_mm256_srlv_epi64(eraser, _mm256_set_epi64x(14, 18, 16, 2)), outflank);
-	outflank = _mm256_andnot_si256(_mm256_srlv_epi64(eraser, _mm256_set_epi64x(28, 36, 32, 4)), outflank);
-#endif
-		// set mask bits higher than outflank
-	flip = _mm256_and_si256(mask, _mm256_sub_epi64(_mm256_setzero_si256(), outflank));
-
-	mask = lmask_v4[pos].v4;
-		// look for non-opponent LS1B
-	outflank = _mm256_and_si256(PP, mask);
-	outflank = _mm256_and_si256(outflank, _mm256_sub_epi64(_mm256_setzero_si256(), outflank));	// LS1B
-	outflank = _mm256_and_si256(outflank, PP);
-		// set all bits if outflank = 0, otherwise higher bits than outflank
-	eraser = _mm256_sub_epi64(_mm256_cmpeq_epi64(outflank, _mm256_setzero_si256()), outflank);
-	flip = _mm256_or_si256(flip, _mm256_andnot_si256(eraser, mask));
-
-	flip2 = _mm_or_si128(_mm256_castsi256_si128(flip), _mm256_extracti128_si256(flip, 1));
-	flip2 = _mm_or_si128(flip2, _mm_shuffle_epi32(flip2, 0x4e));	// SWAP64
-
-	return flip2;
-}
-#endif
