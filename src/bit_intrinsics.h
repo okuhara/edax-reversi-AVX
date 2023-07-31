@@ -148,7 +148,7 @@ static inline int _tzcnt_u64(unsigned long long x) {
 
 #elif defined(_MSC_VER)
 	static inline int lzcnt_u32(unsigned int n) {
-		unsigned int i;
+		unsigned long i;
 		if (!_BitScanReverse(&i, n))
 			i = 32 ^ 31;
 		return i ^ 31;
