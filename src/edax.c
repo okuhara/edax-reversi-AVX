@@ -483,7 +483,7 @@ void ui_loop_edax(UI *ui)
 
 				count_param = parse_word(param, count_cmd, 15);
 				count_param = parse_int(count_param, &depth); BOUND(depth, 1, 90, "max-ply");
-				if (count_param) parse_int(count_param, &size); BOUND(size, 6, 8, "board-size");
+				/* if (count_param) */ parse_int(count_param, &size); BOUND(size, 6, 8, "board-size");
 
 				if (strcmp(count_cmd, "games") == 0) { // game enumeration
 					quick_count_games(&play->board, depth, size);
