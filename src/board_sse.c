@@ -184,11 +184,11 @@ unsigned long long vboard_next(uint64x2_t OP, const int x, Board *next)
  */
 #ifdef __AVX2__	// 4 AVX
 
-#if defined(_MSC_VER) || defined(__clang__)
+#if defined(_MSC_VER) || defined(__linux__)	// vectorcall and SYSV-ABI passes __m256i in registers
 unsigned long long vectorcall get_moves_avx(__m256i PP, __m256i OO)
 {
 #else
-unsigned long long get_moves(unsigned long long P, unsigned long long O)
+unsigned long long get_moves(unsigned long long P, unsigned long long O)	// minGW
 {
 	__m256i	PP = _mm256_broadcastq_epi64(_mm_cvtsi64_si128(P));
 	__m256i OO = _mm256_broadcastq_epi64(_mm_cvtsi64_si128(O));
