@@ -933,14 +933,6 @@ void search_pass_endgame(Search *search)
  * @param search  search.
  * @param move    played move.
  */
-static void search_update_midgame_tail(Search *search)
-{
-	static const NodeType next_node_type[] = {CUT_NODE, ALL_NODE, CUT_NODE};
-
-	++search->height;
-	search->node_type[search->height] = next_node_type[search->node_type[search->height - 1]];
-}
-
 void search_update_midgame(Search *search, const Move *move)
 {
 //	line_push(&debug_line, move->x);
@@ -951,7 +943,8 @@ void search_update_midgame(Search *search, const Move *move)
 	eval_update(move->x, move->flipped, &search->eval);
 	assert(search->eval.n_empties > 0);
 	--search->eval.n_empties;
-	search_update_midgame_tail(search);
+	++search->height;
+	search->node_type[search->height] = (search->node_type[search->height - 1] == CUT_NODE) ? ALL_NODE : CUT_NODE;
 }
 
 /**
@@ -987,7 +980,8 @@ void search_update_pass_midgame(Search *search, Eval *backup)
 	search_pass(search);
 	backup->feature = search->eval.feature;
 	eval_pass(&search->eval);
-	search_update_midgame_tail(search);
+	++search->height;
+	search->node_type[search->height] = (search->node_type[search->height - 1] == CUT_NODE) ? ALL_NODE : CUT_NODE;
 }
 
 /**

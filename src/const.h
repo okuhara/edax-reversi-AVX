@@ -3,7 +3,7 @@
  *
  * Constants as macros, enums, or global consts.
  *
- * @date 1998 - 2021
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.5
  */
@@ -74,11 +74,12 @@ typedef enum Stop {
 } Stop;
 
 /** node type */
-typedef enum {
+enum {
 	PV_NODE,
 	CUT_NODE,
 	ALL_NODE
-} NodeType;
+};
+typedef	char	NodeType;
 
 #define VERSION 4
 #define RELEASE 5
