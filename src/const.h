@@ -79,7 +79,7 @@ enum {
 	CUT_NODE,
 	ALL_NODE
 };
-typedef	char	NodeType;
+typedef	unsigned char	NodeType;
 
 #define VERSION 4
 #define RELEASE 5
