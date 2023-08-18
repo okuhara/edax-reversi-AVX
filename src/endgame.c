@@ -512,7 +512,7 @@ int NWS_endgame(Search *search, const int alpha)
 	MoveList movelist;
 	Move *move;
 	long long nodes_org;
-	vBoard board0;
+	rBoard board0;
 	Board hashboard;
 	unsigned int parity0;
 	unsigned long long full[5];
@@ -570,7 +570,7 @@ int NWS_endgame(Search *search, const int alpha)
 		movelist_evaluate_fast(&movelist, search, &hash_data);
 
 		nodes_org = search->n_nodes;
-		board0 = load_vboard(search->board);
+		board0 = load_rboard(search->board);
 		parity0 = search->eval.parity;
 		--search->eval.n_empties;	// for next move
 		bestscore = -SCORE_INF;
@@ -578,7 +578,7 @@ int NWS_endgame(Search *search, const int alpha)
 		foreach_best_move(move, movelist) {
 			search_swap_parity(search, move->x);
 			empty_remove(search->empties, move->x);
-			board_update(&search->board, move);
+			rboard_update(&search->board, board0, move);
 
 			if (search->eval.n_empties <= DEPTH_TO_SHALLOW_SEARCH)	// (43%)
 				score = -search_shallow(search, ~alpha, false);
@@ -586,7 +586,7 @@ int NWS_endgame(Search *search, const int alpha)
 
 			search->eval.parity = parity0;
 			empty_restore(search->empties, move->x);
-			store_vboard(search->board, board0);
+			store_rboard(search->board, board0);
 
 			if (score > bestscore) {	// (66%)
 				bestscore = score;
@@ -610,12 +610,12 @@ int NWS_endgame(Search *search, const int alpha)
 
 	// special cases
 	} else if (movelist.n_moves == 1) {	// (3%)
-		board0 = load_vboard(search->board);
+		board0 = load_rboard(search->board);
 		parity0 = search->eval.parity;
 		move = movelist.move[0].next;
 		search_swap_parity(search, move->x);
 		empty_remove(search->empties, move->x);
-		board_update(&search->board, move);
+		rboard_update(&search->board, board0, move);
 
 		--search->eval.n_empties;	// for next move
 		if (search->eval.n_empties <= DEPTH_TO_SHALLOW_SEARCH)
@@ -625,7 +625,7 @@ int NWS_endgame(Search *search, const int alpha)
 
 		empty_restore(search->empties, move->x);
 		search->eval.parity = parity0;
-		store_vboard(search->board, board0);
+		store_rboard(search->board, board0);
 
 	} else {	// (1%)
 		if (can_move(search->board.opponent, search->board.player)) { // pass

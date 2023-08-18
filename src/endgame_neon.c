@@ -38,12 +38,14 @@ extern const uint64x2_t mask_dvhd[64][2];
  */
 static inline uint64x2_t board_flip_next(uint64x2_t OP, int x, uint64x2_t flipped)
 {
-#ifdef HAS_CPU_64	// vld1q_lane_u64
+#if !defined(_MSC_VER) && !defined(__clang__)	// MSVC-arm32 does not have vld1q_lane_u64
+	// arm64-gcc-13: 8, armv8a-clang-16: 8, msvc-arm64-19: 8, gcc-arm-13: 16, clang-armv7-11: 18
 	OP = veorq_u64(OP, vorrq_u64(flipped, vld1q_lane_u64((uint64_t *) &X_TO_BIT[x], flipped, 0)));
-#else
-	OP = veorq_u64(OP, vcombine_u64(vorr_u64(vget_low_u64(flipped), vld1_u64(&X_TO_BIT[x])), vget_high_u64(flipped)));
-#endif
 	return vextq_u64(OP, OP, 1);
+#else	// arm64-gcc-13: 8, armv8a-clang-16: 7, msvc-arm64-19: 7, gcc-arm-13: 21, clang-armv7-11: 15
+	OP = veorq_u64(OP, flipped);
+	return vcombine_u64(vget_high_u64(OP), vorr_u64(vget_low_u64(OP), vld1_u64((uint64_t *) &X_TO_BIT[x])));
+#endif
 }
 
 /**
