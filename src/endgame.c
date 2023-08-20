@@ -35,6 +35,10 @@
 	#include "count_last_flip_32.c"
 #elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BMI2
 	#include "count_last_flip_bmi2.c"
+#elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_AVX_PPFILL
+	#include "count_last_flip_avx_ppfill.c"
+#elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_AVX512
+	#include "count_last_flip_avx512cd.c"
 #else // LAST_FLIP_COUNTER == COUNT_LAST_FLIP_KINDERGARTEN
 	#include "count_last_flip_kindergarten.c"
 #endif
@@ -90,7 +94,7 @@ int search_solve_0(const Search *search)
 	return 2 * bit_count(search->board.player) - SCORE_MAX;
 }
 
-#if ((MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)) && ((LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BMI2))
+#if ((MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)) && ((LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER >= COUNT_LAST_FLIP_BMI2))
 	#include "endgame_sse.c"	// vectorcall version
 #elif (MOVE_GENERATOR == MOVE_GENERATOR_NEON) && (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE)
 	#include "endgame_neon.c"

@@ -3,7 +3,7 @@
  *
  * Various macro / constants to control algorithm usage.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.5
  */
@@ -22,7 +22,7 @@
 #define MOVE_GENERATOR_32 6		// 31.3Mnps	// best for 32bit X86
 #define MOVE_GENERATOR_SSE_BSWAP 7	// 30.6Mnps
 #define MOVE_GENERATOR_AVX 8		// 34.7Mnps	// best for modern X64
-#define MOVE_GENERATOR_AVX512	9
+#define MOVE_GENERATOR_AVX512 9
 #define MOVE_GENERATOR_NEON 10		// 6.71Mnps (neon_rbit), 6.51Mnps (neon_lzcnt), 6.17Mnps (neon_ppfill)
 
 #define	COUNT_LAST_FLIP_CARRY 1		// 33.8Mnps
@@ -32,6 +32,8 @@
 #define COUNT_LAST_FLIP_PLAIN 5		// 33.3Mnps
 #define COUNT_LAST_FLIP_32 6		// 33.1Mnps
 #define COUNT_LAST_FLIP_BMI2 7		// 34.7Mnps	// slow on AMD
+#define	COUNT_LAST_FLIP_AVX_PPFILL 8
+#define	COUNT_LAST_FLIP_AVX512 9
 
 /**move generation. */
 #ifndef MOVE_GENERATOR

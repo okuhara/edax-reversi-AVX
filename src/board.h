@@ -94,11 +94,11 @@ extern unsigned char edge_stability[256 * 256];
 #define	unpackH2H7(x)	(((unsigned long long)((((x) >> 4) * 0x10204080) & 0x80808080) << 32) | ((((x) & 0x0f) * 0x10204080) & 0x80808080))
 #endif
 
-#if (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_PLAIN) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BMI2)
-	extern int last_flip(int pos, unsigned long long P);
-#else
+#if (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_CARRY) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_KINDERGARTEN) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BITSCAN) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_32)
 	extern int (*count_last_flip[BOARD_SIZE + 1])(const unsigned long long);
 	#define	last_flip(x,P)	count_last_flip[x](P)
+#else
+	extern int last_flip(int pos, unsigned long long P);
 #endif
 
 #if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512)
