@@ -16,11 +16,13 @@
 #include "bit.h"
 #include "settings.h"
 #include "search.h"
+#include <stdint.h>
 #include <assert.h>
 
 #define	SWAP64	0x4e	// for _mm_shuffle_epi32
 #define	DUPLO	0x44
 #define	DUPHI	0xee
+#define ROTR32  0x39
 
 #if defined(__AVX__) && (defined(__x86_64__) || defined(_M_X64))
 	#define	EXTRACT_O(OP)	_mm_extract_epi64(OP, 1)
@@ -49,7 +51,7 @@
 #endif
 
 // in count_last_flip_sse.c
-extern const unsigned char COUNT_FLIP[8][256];
+extern const uint8_t COUNT_FLIP[8][256];
 extern const V4DI mask_dvhd[64];
 
 /**
@@ -83,16 +85,17 @@ extern const unsigned long long mask_x[64][4];
 
 static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 {
-	unsigned int	n_flips, th, tv;
+	uint_fast8_t	n_flips;
+	unsigned int	th, tv;
 	unsigned long long P = _mm_extract_epi64(PO, 1);
 	unsigned long long mP;
 	int	score, score2;
-	const unsigned char *COUNT_FLIP_X = COUNT_FLIP[pos & 7];
-	const unsigned char *COUNT_FLIP_Y = COUNT_FLIP[pos >> 3];
+	const uint8_t *COUNT_FLIP_X = COUNT_FLIP[pos & 7];
+	const uint8_t *COUNT_FLIP_Y = COUNT_FLIP[pos >> 3];
 
 	mP = P & mask_x[pos][3];	// mask out unrelated bits to make dummy 0 bits for outside
-	// n_flips  = COUNT_FLIP_X[_bextr_u64(mP, pos & 0x38, 8)];
-	n_flips  = COUNT_FLIP_X[th = (unsigned char) (mP >> (pos & 0x38))];
+	// n_flips  = COUNT_FLIP_X[th = _bextr_u64(mP, pos & 0x38, 8)];
+	n_flips  = COUNT_FLIP_X[th = (mP >> (pos & 0x38)) & 0xFF];
 	n_flips += COUNT_FLIP_Y[_pext_u64(mP, mask_x[pos][0])];
 	n_flips += COUNT_FLIP_Y[_pext_u64(mP, mask_x[pos][1])];
 	n_flips += COUNT_FLIP_Y[tv = _pext_u64(mP, mask_x[pos][2])];
@@ -107,10 +110,10 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 
 		if (score < beta) {	// lazy cut-off
 			mP = ~P & mask_x[pos][3];
-			n_flips  = COUNT_FLIP_X[th ^ 0xff];
+			n_flips  = COUNT_FLIP_X[th ^ 0xFF];
 			n_flips += COUNT_FLIP_Y[_pext_u64(mP, mask_x[pos][0])];
 			n_flips += COUNT_FLIP_Y[_pext_u64(mP, mask_x[pos][1])];
-			n_flips += COUNT_FLIP_Y[tv ^ 0xff];
+			n_flips += COUNT_FLIP_Y[tv ^ 0xFF];
 
 			if (n_flips != 0)
 				score = score2 + n_flips;
@@ -122,7 +125,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 
 #elif (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_AVX512) && !defined(SIMULLASTFLIP)
 // AVX512 lastflip (2.41s icc/icelake)
-extern	const V4DI lmask_v4[66], rmask_v4[66];
+extern	const V4DI lmask_v4[66], rmask_v4[66];	// in flip_avx512cd.c
 
 static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 {
@@ -186,7 +189,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 
 #elif (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_AVX512) && defined(SIMULLASTFLIP)
 // branchless AVX512 lastflip (2.42s icc/icelake)
-extern	const V4DI lmask_v4[66], rmask_v4[66];
+extern	const V4DI lmask_v4[66], rmask_v4[66];	// in flip_avx512cd.c
 
 static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 {
@@ -239,7 +242,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 
 #elif (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_AVX_PPFILL)
 // experimental AVX2 lastflip version (a little slower)
-extern	const V4DI lmask_v4[66], rmask_v4[66];
+extern	const V4DI lmask_v4[66], rmask_v4[66];	// in flip_avx_ppfill.c
 
 static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 {
@@ -311,12 +314,12 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 // https://eukaryote.hateblo.jp/entry/2020/05/10/033228
 static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 {
-	unsigned char	p_flip, o_flip;
+	uint_fast8_t	p_flip, o_flip;
 	unsigned int	tP, tO, h;
 	unsigned long long P;
 	int	score, score2;
-	const unsigned char *COUNT_FLIP_X = COUNT_FLIP[pos & 7];
-	const unsigned char *COUNT_FLIP_Y = COUNT_FLIP[pos >> 3];
+	const uint8_t *COUNT_FLIP_X = COUNT_FLIP[pos & 7];
+	const uint8_t *COUNT_FLIP_Y = COUNT_FLIP[pos >> 3];
 
 	__m256i M = mask_dvhd[pos].v4;
 	__m256i PP = _mm256_permute4x64_epi64(_mm256_castsi128_si256(PO), 0x55);
@@ -339,22 +342,24 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 #else	// COUNT_LAST_FLIP_SSE - reasonably fast on all platforms (2.36s icc/icelake)
 static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 {
-	unsigned int	n_flips, t;
+	uint_fast8_t	n_flips;
+	unsigned int	t;
 	int	score, score2;
-	const unsigned char *COUNT_FLIP_X = COUNT_FLIP[pos & 7];
-	const unsigned char *COUNT_FLIP_Y = COUNT_FLIP[pos >> 3];
+	const uint8_t *COUNT_FLIP_X = COUNT_FLIP[pos & 7];
+	const uint8_t *COUNT_FLIP_Y = COUNT_FLIP[pos >> 3];
 
 	// n_flips = last_flip(pos, P);
   #ifdef AVXLASTFLIP	// no gain
 	__m256i M = mask_dvhd[pos].v4;
 	__m256i PP = _mm256_permute4x64_epi64(_mm256_castsi128_si256(PO), 0x55);
 	unsigned long long P = _mm_cvtsi128_si64(_mm256_castsi256_si128(PP));
-	unsigned int h = (unsigned char) (P >> (pos & 0x38));
+	unsigned int h = (P >> (pos & 0x38)) & 0xFF;
 
 	t = TEST_EPI8_MASK32(PP, M);
 	n_flips  = COUNT_FLIP_X[h];
-	n_flips += COUNT_FLIP_Y[(unsigned char) t];
+	n_flips += COUNT_FLIP_Y[t & 0xFF];
 	t >>= 16;
+
   #else
 	__m128i M0 = mask_dvhd[pos].v2[0];
 	__m128i M1 = mask_dvhd[pos].v2[1];
@@ -367,7 +372,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 	t = TEST_EPI8_MASK16(PP, M1);
   #endif
 	n_flips += COUNT_FLIP_Y[t >> 8];
-	n_flips += COUNT_FLIP_Y[(unsigned char) t];
+	n_flips += COUNT_FLIP_Y[t & 0xFF];
 
 	score = SCORE_MAX - 2 - 2 * bit_count(P);	// 2 * bit_count(O) - SCORE_MAX
 	score -= n_flips;
@@ -382,7 +387,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
   #ifdef AVXLASTFLIP
 			t = TESTNOT_EPI8_MASK32(PP, M);
 			n_flips  = COUNT_FLIP_X[h ^ 0xFF];
-			n_flips += COUNT_FLIP_Y[(unsigned char) t];
+			n_flips += COUNT_FLIP_Y[t & 0xFF];
 			t >>= 16;
   #else
 			II = _mm_sad_epu8(_mm_andnot_si128(PP, M0), _mm_setzero_si128());
@@ -391,7 +396,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 			t = _mm_movemask_epi8(_mm_sub_epi8(_mm_setzero_si128(), _mm_andnot_si128(PP, M1)));
   #endif
 			n_flips += COUNT_FLIP_Y[t >> 8];
-			n_flips += COUNT_FLIP_Y[(unsigned char) t];
+			n_flips += COUNT_FLIP_Y[t & 0xFF];
 
 			if (n_flips != 0)
 				score = score2 + n_flips;
@@ -593,7 +598,7 @@ static int search_solve_4(Search *search, int alpha)
 		{{ 0x03000201, 0x02010300, 0x01020300, 0x00030201 }}	// 11: 2(x1 x4) 2(x2 x3)
 	};
 	enum { sort3 = 0 };	// sort is done on 4 empties
-	#define	SHUFFLE_EMPTIES(empties,mask)	_mm_shuffle_epi32((empties), 0x39)
+	#define	SHUFFLE_EMPTIES(empties,mask)	_mm_shuffle_epi32((empties), ROTR32)
 #else
 	int sort3;	// for move sorting on 3 empties
 	static const short sort3_shuf[] = {
