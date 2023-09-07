@@ -75,7 +75,7 @@ static inline __m128i board_flip_next(__m128i OP, int x, __m128i flipped)
  * The original code has been adapted from Zebra by Gunnar Anderson.
  *
  * @param PO     Board to evaluate. (O ignored)
- * @param beta   Beta bound.
+ * @param beta   Beta bound - 1.
  * @param pos    Last empty square to play.
  * @return       The final opponent score, as a disc difference.
  */
@@ -108,7 +108,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 		if (score >= 0)
 			score = score2;
 
-		if (score < beta) {	// lazy cut-off
+		if (score <= beta) {	// lazy cut-off
 			mP = ~P & mask_x[pos][3];
 			n_flips  = COUNT_FLIP_X[th ^ 0xFF];
 			n_flips += COUNT_FLIP_Y[_pext_u64(mP, mask_x[pos][0])];
@@ -162,7 +162,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 		if (score >= 0)
 			score = score2;
 
-		if (score < beta) {	// lazy cut-off
+		if (score <= beta) {	// lazy cut-off
 				// left: look for opponent LS1B
 			outflank = _mm256_andnot_si256(PP, lmask);
 				// set below LS1B if O is in lmask
@@ -280,7 +280,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 		if (score >= 0)
 			score = score2;
 
-		if (score < beta) {	// lazy cut-off
+		if (score <= beta) {	// lazy cut-off
 				// isolate opponent MS1B by clearing lower shadow bits
 			outflank = _mm256_andnot_si256(PP, rmask);
 			eraser = _mm256_srlv_epi64(outflank, _mm256_set_epi64x(7, 9, 8, 1));
@@ -382,7 +382,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 		if (score >= 0)
 			score = score2;
 
-		if (score < beta) {	// lazy cut-off
+		if (score <= beta) {	// lazy cut-off
 			// n_flips = last_flip(pos, ~P);
   #ifdef AVXLASTFLIP
 			t = TESTNOT_EPI8_MASK32(PP, M);
@@ -430,44 +430,48 @@ static int vectorcall board_solve_2(__m128i OP, int alpha, volatile unsigned lon
 	int score, bestscore, nodes;
 	int x1 = _mm_extract_epi16(empties, 1);
 	int x2 = _mm_extract_epi16(empties, 0);
-	unsigned long long bb;
+	unsigned long long opponent;
 	// const int beta = alpha + 1;
 
 	SEARCH_STATS(++statistics.n_board_solve_2);
 
-	bb = EXTRACT_O(OP);	// opponent
-	if ((NEIGHBOUR[x1] & bb) && !TESTZ_FLIP(flipped = mm_Flip(OP, x1))) {
-		bestscore = board_score_sse_1(_mm_xor_si128(OP, flipped), alpha + 1, x2);
+	opponent = EXTRACT_O(OP);
+	if ((NEIGHBOUR[x1] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x1))) {
+		bestscore = board_score_sse_1(_mm_xor_si128(OP, flipped), alpha, x2);
 
-		if ((bestscore <= alpha) && (NEIGHBOUR[x2] & bb) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
-			score = board_score_sse_1(_mm_xor_si128(OP, flipped), alpha + 1, x1);
-			if (score > bestscore) bestscore = score;
+		if ((bestscore <= alpha) && (NEIGHBOUR[x2] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
+			score = board_score_sse_1(_mm_xor_si128(OP, flipped), alpha, x1);
+			if (score > bestscore)
+				bestscore = score;
 			nodes = 3;
 		} else	nodes = 2;
 
-	} else if ((NEIGHBOUR[x2] & bb) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
-		bestscore = board_score_sse_1(_mm_xor_si128(OP, flipped), alpha + 1, x1);
+	} else if ((NEIGHBOUR[x2] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
+		bestscore = board_score_sse_1(_mm_xor_si128(OP, flipped), alpha, x1);
 		nodes = 2;
 
 	} else {	// pass - NEIGHBOUR test is almost 100% true
+		alpha = ~alpha;	// = -alpha - 1
 		PO = _mm_shuffle_epi32(OP, SWAP64);
 		if (!TESTZ_FLIP(flipped = mm_Flip(PO, x1))) {
-			bestscore = -board_score_sse_1(_mm_xor_si128(PO, flipped), -alpha, x2);
+			bestscore = board_score_sse_1(_mm_xor_si128(PO, flipped), alpha, x2);
 
-			if ((bestscore > alpha) && !TESTZ_FLIP(flipped = mm_Flip(PO, x2))) {
-				score = -board_score_sse_1(_mm_xor_si128(PO, flipped), -alpha, x1);
-				if (score < bestscore) bestscore = score;
+			if ((bestscore <= alpha) && !TESTZ_FLIP(flipped = mm_Flip(PO, x2))) {
+				score = board_score_sse_1(_mm_xor_si128(PO, flipped), alpha, x1);
+				if (score > bestscore)
+					bestscore = score;
 				nodes = 3;
 			} else	nodes = 2;
 
 		} else if (!TESTZ_FLIP(flipped = mm_Flip(PO, x2))) {
-			bestscore = -board_score_sse_1(_mm_xor_si128(PO, flipped), -alpha, x1);
+			bestscore = board_score_sse_1(_mm_xor_si128(PO, flipped), alpha, x1);
 			nodes = 2;
 
 		} else {	// gameover
-			bestscore = board_solve(EXTRACT_O(PO), 2);
+			bestscore = board_solve(opponent, 2);
 			nodes = 1;
 		}
+		bestscore = -bestscore;
 	}
 
 	SEARCH_UPDATE_2EMPTIES_NODES(*n_nodes += nodes;)
@@ -491,45 +495,45 @@ static int vectorcall search_solve_3(__m128i OP, int alpha, volatile unsigned lo
 {
 	__m128i flipped;
 	int score, bestscore, x, pol;
-	unsigned long long bb;
+	unsigned long long opponent;
 	// const int beta = alpha + 1;
 
 	SEARCH_STATS(++statistics.n_search_solve_3);
 	SEARCH_UPDATE_INTERNAL_NODES(*n_nodes);
 
-	pol = 1;
+	pol = -1;
 	do {
 		// best move alphabeta search
-		bestscore = -SCORE_INF;
-		bb = EXTRACT_O(OP);	// opponent
+		alpha = ~alpha;	// = -(alpha + 1)
+		bestscore = SCORE_INF;	// Negative score
+		opponent = EXTRACT_O(OP);
 		x = _mm_extract_epi16(empties, 2);
-		if ((NEIGHBOUR[x] & bb) && !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
-			bestscore = -board_solve_2(board_flip_next(OP, x, flipped), ~alpha, n_nodes, empties);
-			if (bestscore > alpha) return bestscore * pol;
+		if ((NEIGHBOUR[x] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
+			bestscore = board_solve_2(board_flip_next(OP, x, flipped), alpha, n_nodes, empties);
+			if (bestscore <= alpha) return bestscore * pol;
 		}
 
 		x = _mm_extract_epi16(empties, 1);
-		if (/* (NEIGHBOUR[x] & bb) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
-			score = -board_solve_2(board_flip_next(OP, x, flipped), ~alpha, n_nodes, _mm_shufflelo_epi16(empties, 0xd8));
-			if (score > alpha) return score * pol;
-			else if (score > bestscore) bestscore = score;
+		if (/* (NEIGHBOUR[x] & opponent) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
+			score = board_solve_2(board_flip_next(OP, x, flipped), alpha, n_nodes, _mm_shufflelo_epi16(empties, 0xd8));
+			if (score <= alpha) return score * pol;
+			else if (score < bestscore) bestscore = score;
 		}
 
 		x = _mm_extract_epi16(empties, 0);
-		if (/* (NEIGHBOUR[x] & bb) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
-			score = -board_solve_2(board_flip_next(OP, x, flipped), ~alpha, n_nodes, _mm_shufflelo_epi16(empties, 0xc9));
-			if (score > bestscore) bestscore = score;
+		if (/* (NEIGHBOUR[x] & opponent) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
+			score = board_solve_2(board_flip_next(OP, x, flipped), alpha, n_nodes, _mm_shufflelo_epi16(empties, 0xc9));
+			if (score < bestscore) bestscore = score;
 			return bestscore * pol;
 		}
 
-		if (bestscore > -SCORE_INF)
+		if (bestscore < SCORE_INF)
 			return bestscore * pol;
 
-		OP = _mm_shuffle_epi32(OP, SWAP64);
-		alpha = ~alpha;	// = -(alpha + 1)
-	} while ((pol = -pol) < 0);
+		OP = _mm_shuffle_epi32(OP, SWAP64);	// pass
+	} while ((pol = -pol) >= 0);
 
-	return board_solve(_mm_cvtsi128_si64(OP), 3);	// gameover
+	return board_solve(_mm_cvtsi128_si64(OP), 3);	// gameover	// = board_solve(opponent, 3)
 }
 
 /**
@@ -566,7 +570,7 @@ static int search_solve_4(Search *search, int alpha)
 	__m128i	empties_series;	// (AVX) B15:4th, B11:3rd, B7:2nd, B3:1st, lower 3 bytes for 3 empties
 				// (SSE) W3:1st, W2:2nd, W1:3rd, W0:4th
 	int x1, x2, x3, x4, paritysort, score, bestscore, pol;
-	unsigned long long opp;
+	unsigned long long opponent;
 	// const int beta = alpha + 1;
 	static const unsigned char parity_case[64] = {	/* x4x3x2x1 = */
 		/*0000*/  0, /*0001*/  0, /*0010*/  1, /*0011*/  9, /*0100*/  2, /*0101*/ 10, /*0110*/ 11, /*0111*/  3,
@@ -663,48 +667,48 @@ static int search_solve_4(Search *search, int alpha)
 	sort3 = sort3_shuf[paritysort];
 #endif
 
-	pol = 1;
+	pol = -1;
 	do {
 		// best move alphabeta search
-		bestscore = -SCORE_INF;
-		opp = EXTRACT_O(OP);
+		alpha = ~alpha;	// = -(alpha + 1)
+		bestscore = SCORE_INF;	// Negative score
+		opponent = EXTRACT_O(OP);
 		x1 = EXTRACT_MOVE(empties_series);
-		if ((NEIGHBOUR[x1] & opp) && !TESTZ_FLIP(flipped = mm_Flip(OP, x1))) {
-			bestscore = -search_solve_3(board_flip_next(OP, x1, flipped), ~alpha, &search->n_nodes, v3hi_empties(empties_series, sort3));
-			if (bestscore > alpha) return bestscore * pol;
+		if ((NEIGHBOUR[x1] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x1))) {
+			bestscore = search_solve_3(board_flip_next(OP, x1, flipped), alpha, &search->n_nodes, v3hi_empties(empties_series, sort3));
+			if (bestscore <= alpha) return bestscore * pol;
 		}
 
 		empties_series = SHUFFLE_EMPTIES(empties_series, 0xb4);	// (SSE) x1x2x3x4 -> x2x1x3x4
 		x2 = EXTRACT_MOVE(empties_series);
-		if ((NEIGHBOUR[x2] & opp) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
-			score = -search_solve_3(board_flip_next(OP, x2, flipped), ~alpha, &search->n_nodes, v3hi_empties(empties_series, sort3 >> 4));
-			if (score > alpha) return score * pol;
-			else if (score > bestscore) bestscore = score;
+		if ((NEIGHBOUR[x2] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
+			score = search_solve_3(board_flip_next(OP, x2, flipped), alpha, &search->n_nodes, v3hi_empties(empties_series, sort3 >> 4));
+			if (score <= alpha) return score * pol;
+			else if (score < bestscore) bestscore = score;
 		}
 
 		empties_series = SHUFFLE_EMPTIES(empties_series, 0x6c);	// (SSE) x2x1x3x4 -> x3x1x2x4
 		x3 = EXTRACT_MOVE(empties_series);
-		if ((NEIGHBOUR[x3] & opp) && !TESTZ_FLIP(flipped = mm_Flip(OP, x3))) {
-			score = -search_solve_3(board_flip_next(OP, x3, flipped), ~alpha, &search->n_nodes, v3hi_empties(empties_series, sort3 >> 8));
-			if (score > alpha) return score * pol;
-			else if (score > bestscore) bestscore = score;
+		if ((NEIGHBOUR[x3] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x3))) {
+			score = search_solve_3(board_flip_next(OP, x3, flipped), alpha, &search->n_nodes, v3hi_empties(empties_series, sort3 >> 8));
+			if (score <= alpha) return score * pol;
+			else if (score < bestscore) bestscore = score;
 		}
 
 		empties_series = SHUFFLE_EMPTIES(empties_series, 0x27);	// (SSE) x3x1x2x4 -> x4x1x2x3
 		x4 = EXTRACT_MOVE(empties_series);
-		if ((NEIGHBOUR[x4] & opp) && !TESTZ_FLIP(flipped = mm_Flip(OP, x4))) {
-			score = -search_solve_3(board_flip_next(OP, x4, flipped), ~alpha, &search->n_nodes, v3hi_empties(empties_series, sort3 >> 12));
-			if (score > bestscore) bestscore = score;
+		if ((NEIGHBOUR[x4] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x4))) {
+			score = search_solve_3(board_flip_next(OP, x4, flipped), alpha, &search->n_nodes, v3hi_empties(empties_series, sort3 >> 12));
+			if (score < bestscore) bestscore = score;
 			return bestscore * pol;
 		}
 
-		if (bestscore > -SCORE_INF)
+		if (bestscore < SCORE_INF)
 			return bestscore * pol;
 
-		OP = _mm_shuffle_epi32(OP, SWAP64);
-		alpha = ~alpha;	// = -(alpha + 1)
+		OP = _mm_shuffle_epi32(OP, SWAP64);	// pass
 		empties_series = SHUFFLE_EMPTIES(empties_series, 0x93);	// (SSE) x4x1x2x3 -> x1x2x3x4
-	} while ((pol = -pol) < 0);
+	} while ((pol = -pol) >= 0);
 
-	return board_solve(_mm_cvtsi128_si64(OP), 4);	// gameover
+	return board_solve(opponent, 4);	// gameover
 }
