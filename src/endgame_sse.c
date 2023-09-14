@@ -31,12 +31,12 @@
 #endif
 
 #ifdef __AVX__
-	static inline int TESTZ_FLIP(__m128i X) { return _mm_testz_si128(X, X); }
+	static inline int vectorcall TESTZ_FLIP(__m128i X) { return _mm_testz_si128(X, X); }
 #else
 	#if defined(__x86_64__) || defined(_M_X64)
 		#define TESTZ_FLIP(X)	(!_mm_cvtsi128_si64(X))
 	#else
-		static inline int TESTZ_FLIP(__m128i X) { return !_mm_cvtsi128_si32(_mm_packs_epi16(X, X)); }
+		static inline int vectorcall TESTZ_FLIP(__m128i X) { return !_mm_cvtsi128_si32(_mm_packs_epi16(X, X)); }
 	#endif
 #endif
 
@@ -62,7 +62,7 @@ extern const V4DI mask_dvhd[64];
  * @param flipped flipped returned from mm_Flip.
  * @return resulting board.
  */
-static inline __m128i board_flip_next(__m128i OP, int x, __m128i flipped)
+static inline __m128i vectorcall board_flip_next(__m128i OP, int x, __m128i flipped)
 {
 	OP = _mm_xor_si128(OP, _mm_or_si128(flipped, _mm_loadl_epi64((__m128i *) &X_TO_BIT[x])));
 	return _mm_shuffle_epi32(OP, SWAP64);
@@ -83,7 +83,7 @@ static inline __m128i board_flip_next(__m128i OP, int x, __m128i flipped)
 // PEXT count last flip (2.38s icc/icelake), very slow on Zen1/2
 extern const unsigned long long mask_x[64][4];
 
-static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
+static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const int pos)
 {
 	uint_fast8_t	n_flips;
 	unsigned int	th, tv;
@@ -104,7 +104,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 	score -= n_flips;
 
 	if (n_flips == 0) {
-		score2 = score + 2;	// empty for player
+		score2 = score + 2;	// empty for opponent
 		if (score >= 0)
 			score = score2;
 
@@ -127,7 +127,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 // AVX512 lastflip (2.41s icc/icelake)
 extern	const V4DI lmask_v4[66], rmask_v4[66];	// in flip_avx512cd.c
 
-static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
+static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const int pos)
 {
 	int	score, score2, nflip;
 	__m256i PP = _mm256_permute4x64_epi64(_mm256_castsi128_si256(PO), 0x55);
@@ -191,7 +191,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 // branchless AVX512 lastflip (2.42s icc/icelake)
 extern	const V4DI lmask_v4[66], rmask_v4[66];	// in flip_avx512cd.c
 
-static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
+static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const int pos)
 {
 	int	score;
 	__m256i PP = _mm256_permute4x64_epi64(_mm256_castsi128_si256(PO), 0x55);
@@ -244,7 +244,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 // experimental AVX2 lastflip version (a little slower)
 extern	const V4DI lmask_v4[66], rmask_v4[66];	// in flip_avx_ppfill.c
 
-static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
+static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const int pos)
 {
 	int	score, score2, nflip;
 	__m256i PP = _mm256_permute4x64_epi64(_mm256_castsi128_si256(PO), 0x55);
@@ -312,7 +312,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 #elif defined(AVXLASTFLIP) && defined(SIMULLASTFLIP)
 // experimental branchless AVX2 MOVMSK version (slower on icc, par on msvc)
 // https://eukaryote.hateblo.jp/entry/2020/05/10/033228
-static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
+static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const int pos)
 {
 	uint_fast8_t	p_flip, o_flip;
 	unsigned int	tP, tO, h;
@@ -340,7 +340,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 }
 
 #else	// COUNT_LAST_FLIP_SSE - reasonably fast on all platforms (2.36s icc/icelake)
-static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
+static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const int pos)
 {
 	uint_fast8_t	n_flips;
 	unsigned int	t;
@@ -555,7 +555,7 @@ static int vectorcall search_solve_3(__m128i OP, int alpha, volatile unsigned lo
 	#define	v3hi_empties(empties,sort3)	_mm_unpacklo_epi8((empties), _mm_setzero_si128())
 #else // SSE
 	#define	EXTRACT_MOVE(X)	_mm_extract_epi16((X), 3)
-	static inline __m128i v3hi_empties(__m128i empties, int sort3) {
+	static inline __m128i vectorcall v3hi_empties(__m128i empties, int sort3) {
 		// parity based move sorting
 		// if (sort3 == 3) empties = _mm_shufflelo_epi16(empties, 0xe1); // swap x2, x3
 		if (sort3 & 2)	empties = _mm_shufflelo_epi16(empties, 0xc9); // case 1(x3) 2(x1 x2): x3->x1->x2->x3

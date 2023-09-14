@@ -120,7 +120,7 @@ int board_score_1(const unsigned long long player, const int beta, const int x)
 	score -= n_flips;
 
 	if (n_flips == 0) {	// (23%)
-		score2 = score + 2;	// empty for player
+		score2 = score + 2;	// empty for opponent
 		if (score >= 0)
 			score = score2;
 		if (score <= beta) {	// lazy cut-off (40%)
