@@ -12,6 +12,8 @@
  * @version 5.0
  */
 
+enum { MAX_N_GAMES = 2500000 };
+
 #define _CRT_SECURE_NO_WARNINGS
 
  // #include "const.h"
@@ -503,8 +505,6 @@ typedef struct Gamebase {
 	Game	games[];
 } Gamebase;
 
-enum { MAX_N_GAMES = 1000000 };
-
 Gamebase* gamebase_create(int i)
 {
 	Gamebase* base = (Gamebase*) malloc(sizeof(int) + sizeof(Game) * MAX_N_GAMES);
@@ -588,18 +588,18 @@ void gamebase_import(Gamebase* base, const char* file_1, int minimax_ply)
 		j = 0; p = s;
 		while ((((*p >= 'A') && (*p <= 'H')) || ((*p >= 'a') && (*p <= 'h'))) && *(p + 1)) {
 			m = ((*p - 'A') & 7) + ((*(p + 1) - '1') & 7) * 8;
-			g->move[j++] = m;
 			assert(b.square[m] == PEMPTY);
 			if (!MPerform(&b, m)) {
-				g->move[j - 1] = m | 0x80;
 				b.player ^= (PBLACK ^ PWHITE);
 				if (!MPerform(&b, m))
 					break;
+				m |= 0x80;	// opponent pass
 			}
+			g->move[j++] = m;
 			p += 2;
 		}
 		while (j < 60)
-			g->move[j++] = PASS;
+			g->move[j++] = NOMOVE;
 		m = b.ScoreDiff;
 		if (b.player != PBLACK)
 			m = -m;
@@ -627,7 +627,9 @@ bool game_get_board(Game* g, int ply, Board* b)
 	InitBoard(b);
 	for (i = 0; i < ply; ++i) {
 		m = g->move[i];
-		if (m & 0x80)
+		if (m == NOMOVE)
+			return false;
+		if (m & 0x80)	// same player
 			b->player ^= (PBLACK ^ PWHITE);
 		if (!MPerform(b, m & 0x7f))
 			return false;
@@ -1519,19 +1521,19 @@ void eval_builder_build_features(EvalBuilder* eval, Gamebase* base, int ply) {
 }
 
 /* equalize */
-void eval_builder_equalize(EvalBuilder* eval, double* w) {
-	int i, j, m;
+void eval_builder_equalize(EvalBuilder *eval,double *w){
+	int i, j;
+	int K = eval->n_data, I = eval->n_vectors - 1;
 	double correction;
 
-	m = 0;
-	for (i = 0; i < eval->n_vectors - 1; i++) {
+	for (i = 0; i < I; i++){
 		correction = 0.0;
 		for (j = 0; j < eval->vector_size[i]; j++)
-			correction += w[m + j];
+			correction += w[j];
 		correction /= j;
 		for (j = 0; j < eval->vector_size[i]; j++)
-			w[m++] -= correction;
-		w[eval->n_data - 1] += correction * eval->vector_times[i];
+			w[j] -= correction;
+		w[K-1] += correction * eval->vector_times[i] / eval->vector_times[I];
 	}
 }
 
@@ -1625,7 +1627,7 @@ void eval_builder_set_coefficient(EvalBuilder* eval, double* w) {
 	for (k = 0; k < K; k++) a[k] = (short)(128.0 * w[k] + 0.5);
 }
 
-/* compute error */
+/* compute abs error */
 double eval_builder_get_abs_error(EvalBuilder* eval, double* w, double* e) {
 	int i, j, I = eval->n_games, J = eval->n_features;
 	double E = 0.0, score;
@@ -1642,7 +1644,7 @@ double eval_builder_get_abs_error(EvalBuilder* eval, double* w, double* e) {
 	return E;
 }
 
-/* compute error gradient */
+/* compute abs error gradient */
 void eval_builder_get_abs_error_gradient(EvalBuilder* eval, double* e, double* g, int* N, int N_min) {
 	int i, j, k;
 	const int I = eval->n_games, J = eval->n_features, K = eval->n_data;
@@ -1660,7 +1662,7 @@ void eval_builder_get_abs_error_gradient(EvalBuilder* eval, double* e, double* g
 			g[k] *= (N[k] < N_min ? 0.0 : (N[k] < 20 ? 0.05 : 1.0 / N[k])) / J;
 }
 
-/* compute error */
+/* compute squared error */
 double eval_builder_get_squared_error(EvalBuilder* eval, double* w, double* e) {
 	int i, j, I = eval->n_games, J = eval->n_features;
 	double E = 0.0, score;
@@ -1677,7 +1679,7 @@ double eval_builder_get_squared_error(EvalBuilder* eval, double* w, double* e) {
 	return E;
 }
 
-/* compute error gradient */
+/* compute squared error gradient */
 void eval_builder_get_squared_error_gradient(EvalBuilder* eval, double* e, double* g, int* N, int N_min) {
 	int i, j, k;
 	const int I = eval->n_games, J = eval->n_features, K = eval->n_data;
@@ -1730,7 +1732,7 @@ double eval_builder_minimize_dir_abs_error(EvalBuilder* eval, double* w, double*
 	return l;
 }
 
-/* minimize the absolute error along the gradient direction */
+/* minimize the squared error along the gradient direction */
 double eval_builder_minimize_dir_squared_error(EvalBuilder* eval, double* w, double* d) {
 	const int I = eval->n_games, J = eval->n_features;
 	int* x;
@@ -2662,19 +2664,19 @@ int main(int argc, char** argv) {
 	Gamebase* base;
 	EvalBuilder* eval_data, * eval_data_1, * eval_data_2;
 	EvalOption option = {
-		0,
-		1000,
-		0.0001,
-		0,
-		0,
-		0,
-		0,
-		50,
-		EVAL_STEEPEST_DESCENT,
-		EVAL_SQUARED_ERROR,
-		1.0,
-		0.1,
-		0
+		0,			// min_iter
+		1000,			// max_iter
+		0.0001,			// tol		accuracy
+		0,			// round	round_frequency
+		0,			// zero		zero_frequency
+		0,			// equalize	equalize_frequency
+		0,			// unbias	unbias_frequency
+		50,			// restart	restart_frequency
+		EVAL_STEEPEST_DESCENT,	// algo		minimization_algorithm
+		EVAL_SQUARED_ERROR,	// error	error_type
+		1.0,			// alpha
+		0.1,			// beta
+		0			// minimax	minimax_ply
 	};
 
 	int filter, eval;
