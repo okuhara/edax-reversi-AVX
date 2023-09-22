@@ -591,8 +591,11 @@ void gamebase_import(Gamebase* base, const char* file_1, int minimax_ply)
 			assert(b.square[m] == PEMPTY);
 			if (!MPerform(&b, m)) {
 				b.player ^= (PBLACK ^ PWHITE);
-				if (!MPerform(&b, m))
-					break;
+				b.ScoreDiff = -b.ScoreDiff;
+				if (!MPerform(&b, m)) {
+					fprintf(stderr, "gamebase_import : illegal move in line %d\n", i);
+					exit(EXIT_FAILURE);
+				}
 				m |= 0x80;	// opponent pass
 			}
 			g->move[j++] = m;
@@ -622,17 +625,19 @@ void gamebase_import(Gamebase* base, const char* file_1, int minimax_ply)
 
 bool game_get_board(Game* g, int ply, Board* b)
 {
-	int	i, m;
+	int	i, m, t;
 
 	InitBoard(b);
 	for (i = 0; i < ply; ++i) {
 		m = g->move[i];
 		if (m == NOMOVE)
 			return false;
-		if (m & 0x80)	// same player
+		if (m & 0x80) {	// same player
 			b->player ^= (PBLACK ^ PWHITE);
-		if (!MPerform(b, m & 0x7f))
-			return false;
+			b->ScoreDiff = -b->ScoreDiff;
+		}
+		t = MPerform(b, m & 0x7f);
+		assert(t);
 	}
 	return true;
 }
@@ -650,8 +655,8 @@ typedef struct sl_Plot {
 double sl_min(double* x, int n)
 {
 	int	i;
-	double	y = INFINITY;
-	for (i = 0; i < n; ++i)
+	double	y = x[0];
+	for (i = 1; i < n; ++i)
 		if (x[i] < y)
 			y = x[i];
 	return y;
@@ -660,8 +665,8 @@ double sl_min(double* x, int n)
 double sl_max(double* x, int n)
 {
 	int	i;
-	double	y = -INFINITY;
-	for (i = 0; i < n; ++i)
+	double	y = x[0];
+	for (i = 1; i < n; ++i)
 		if (x[i] > y)
 			y = x[i];
 	return y;
@@ -670,8 +675,8 @@ double sl_max(double* x, int n)
 double sl_mean(double* x, int n)
 {
 	int	i;
-	double	s = 0.0;
-	for (i = 0; i < n; ++i)
+	double	s = x[0];
+	for (i = 1; i < n; ++i)
 		s += x[i];
 	return s / n;
 }
@@ -1565,13 +1570,13 @@ void eval_builder_eval(EvalBuilder* eval, int ply, double* x, double* y) {
 /* count non zero coefficients */
 int eval_builder_count_features(EvalBuilder* eval, int ply) {
 	int i, j, k, n;
-	int I = eval->n_games, J = eval->n_features, K = eval->n_data;
-	int** x = eval->feature;
-	int* h = (int*)calloc(K, sizeof(int));
+	int* h = (int*)calloc(eval->n_data, sizeof(int));
 
-	for (i = 0; i < I; i++)
-		for (j = 0; j < J; j++) h[x[i][j]]++;
-	for (k = n = 0; k < K; k++) if (h[k] > 0) n++;
+	for (i = 0; i < eval->n_games; i++)
+		for (j = 0; j < eval->n_features; j++)
+			h[eval->feature[i][j]]++;
+	for (k = n = 0; k < eval->n_data; k++)
+		if (h[k] > 0) n++;
 
 	free(h);
 
@@ -2042,7 +2047,7 @@ void eval_builder_build(EvalBuilder* eval, Gamebase* base, EvalOption* option) {
 	printf("error    = %d\n", option->error_type);
 	printf("algo     = %d\n", option->minimization_algorithm);
 
-	printf("ply iter  lambda gamma  error     r2         max_delta mean_delta err_delta\n");
+	printf("ply iter lambda gamma  error     r2         max_delta mean_delta err_delta\n");
 	for (ply = 0; ply <= 60; ply++) {
 		eval_builder_build_features(eval, base, ply);
 		eval_builder_conjugate_gradient(eval, ply, option);
@@ -2368,7 +2373,7 @@ void eval_builder_stat(EvalBuilder* eval, Gamebase* base) {
 	y = (double*)malloc(base->n_games * sizeof(double));
 	e = (double*)malloc(base->n_games * sizeof(double));
 
-	printf("  feat coeffs evmean evsdev  evmin  evmax scmean  scsdev smin smax     a       b       r    erbias ersdev ermin  ermax\n");
+	printf("  feat coeffs evmean evsdev  evmin  evmax scmean scsdev smin smax    a       b       r    erbias ersdev ermin  ermax\n");
 
 	for (ply = 0; ply <= 60; ply++) {
 		eval_builder_build_features(eval, base, ply);
@@ -2584,7 +2589,7 @@ void eval_builder_show_feature_weights(EvalBuilder* eval, int type, const char* 
 /* print version */
 void print_version(void) {
 	printf(	"eval_builder %d.%d %s\n"
-		"Copyright (c) 1998-2000 Richard A. Delorme.\n"
+		"Copyright (c) 1998-2000 Richard A. Delorme, 2023 Toshihiko Okuhara\n"
 		"All Rights Reserved.\n\n", EDAX_VERSION, EDAX_RELEASE, __DATE__);
 }
 
