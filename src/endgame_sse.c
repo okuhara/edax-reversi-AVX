@@ -74,7 +74,7 @@ static inline __m128i vectorcall board_flip_next(__m128i OP, int x, __m128i flip
  * The original code has been adapted from Zebra by Gunnar Anderson.
  *
  * @param PO     Board to evaluate. (O ignored)
- * @param beta   Beta bound - 1.
+ * @param alpha  Alpha bound. (beta - 1)
  * @param pos    Last empty square to play.
  * @return       The final opponent score, as a disc difference.
  */
@@ -82,7 +82,7 @@ static inline __m128i vectorcall board_flip_next(__m128i OP, int x, __m128i flip
 // PEXT count last flip (2.38s icc/icelake), very slow on Zen1/2
 extern const unsigned long long mask_x[64][4];
 
-static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const int pos)
+static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, const int pos)
 {
 	uint_fast8_t	n_flips;
 	unsigned int	th, tv;
@@ -107,7 +107,7 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const
 		if (score >= 0)
 			score = score2;
 
-		if (score <= beta) {	// lazy cut-off
+		if (score <= alpha) {	// lazy cut-off
 			mP = ~P & mask_x[pos][3];
 			n_flips  = COUNT_FLIP_X[th ^ 0xFF];
 			n_flips += COUNT_FLIP_Y[_pext_u64(mP, mask_x[pos][0])];
@@ -126,7 +126,7 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const
 // AVX512 lastflip (2.41s icc/icelake)
 extern	const V4DI lmask_v4[66], rmask_v4[66];	// in flip_avx512cd.c
 
-static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const int pos)
+static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, const int pos)
 {
 	int	score, score2, nflip;
 	__m256i PP = _mm256_permute4x64_epi64(_mm256_castsi128_si256(PO), 0x55);
@@ -161,7 +161,7 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const
 		if (score >= 0)
 			score = score2;
 
-		if (score <= beta) {	// lazy cut-off
+		if (score <= alpha) {	// lazy cut-off
 				// left: look for opponent LS1B
 			outflank = _mm256_andnot_si256(PP, lmask);
 				// set below LS1B if O is in lmask
@@ -190,7 +190,7 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const
 // branchless AVX512 lastflip (2.42s icc/icelake)
 extern	const V4DI lmask_v4[66], rmask_v4[66];	// in flip_avx512cd.c
 
-static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const int pos)
+static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, const int pos)
 {
 	int	score;
 	__m256i PP = _mm256_permute4x64_epi64(_mm256_castsi128_si256(PO), 0x55);
@@ -235,7 +235,7 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const
 	score = SCORE_MAX - 2 - 2 * bit_count(_mm_cvtsi128_si64(p2));
 		// last square for O if P pass and not (both pass and score < 0)
 	score += (_cvtmask8_u32(p_pass) & !(_mm_movemask_epi8(_mm_cmpeq_epi64(p2, _mm256_castsi256_si128(PP))) & (score < 0))) * 2;
-	(void) beta;	// no lazy cut-off
+	(void) alpha;	// no lazy cut-off
 	return score;
 }
 
@@ -243,7 +243,7 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const
 // experimental AVX2 lastflip version (a little slower)
 extern	const V4DI lmask_v4[66], rmask_v4[66];	// in flip_avx_ppfill.c
 
-static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const int pos)
+static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, const int pos)
 {
 	int	score, score2, nflip;
 	__m256i PP = _mm256_permute4x64_epi64(_mm256_castsi128_si256(PO), 0x55);
@@ -279,7 +279,7 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const
 		if (score >= 0)
 			score = score2;
 
-		if (score <= beta) {	// lazy cut-off
+		if (score <= alpha) {	// lazy cut-off
 				// isolate opponent MS1B by clearing lower shadow bits
 			outflank = _mm256_andnot_si256(PP, rmask);
 			eraser = _mm256_srlv_epi64(outflank, _mm256_set_epi64x(7, 9, 8, 1));
@@ -311,7 +311,7 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const
 #elif defined(AVXLASTFLIP) && defined(SIMULLASTFLIP)
 // experimental branchless AVX2 MOVMSK version (slower on icc, par on msvc)
 // https://eukaryote.hateblo.jp/entry/2020/05/10/033228
-static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const int pos)
+static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, const int pos)
 {
 	uint_fast8_t	p_flip, o_flip;
 	unsigned int	tP, tO, h;
@@ -323,7 +323,7 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const
 	__m256i M = mask_dvhd[pos].v4;
 	__m256i PP = _mm256_permute4x64_epi64(_mm256_castsi128_si256(PO), 0x55);
 
-	(void) beta;	// no lazy cut-off
+	(void) alpha;	// no lazy cut-off
 	P = _mm_cvtsi128_si64(_mm256_castsi256_si128(PP));
 	h = (P >> (pos & 0x38)) & 0xFF;
 	tP = TEST_EPI8_MASK32(PP, M);			tO = TESTNOT_EPI8_MASK32(PP, M);
@@ -339,7 +339,7 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const
 }
 
 #else	// COUNT_LAST_FLIP_SSE - reasonably fast on all platforms (2.36s icc/icelake)
-static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const int pos)
+static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, const int pos)
 {
 	uint_fast8_t	n_flips;
 	unsigned int	t;
@@ -381,7 +381,7 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const
 		if (score >= 0)
 			score = score2;
 
-		if (score <= beta) {	// lazy cut-off
+		if (score <= alpha) {	// lazy cut-off
 			// n_flips = last_flip(pos, ~P);
   #ifdef AVXLASTFLIP
 			t = TESTNOT_EPI8_MASK32(PP, M);
@@ -407,21 +407,21 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int beta, const
 #endif
 
 // from bench.c
-int board_score_1(const unsigned long long player, const int beta, const int x)
+int board_score_1(const unsigned long long player, const int alpha, const int x)
 {
-	return board_score_sse_1(_mm_shuffle_epi32(_mm_cvtsi64_si128(player), SWAP64), beta, x);
+	return board_score_sse_1(_mm_shuffle_epi32(_mm_cvtsi64_si128(player), SWAP64), alpha, x);
 }
 
 /**
  * @brief Get the final score.
  *
- * Get the final score, when 2 empty squares remain.
+ * Get the final max score, when 2 empty squares remain.
  *
  * @param OP The board to evaluate.
  * @param alpha Alpha bound.
  * @param n_nodes Node counter.
  * @param empties Packed empty square coordinates.
- * @return The final score, as a disc difference.
+ * @return The final max score, as a disc difference.
  */
 static int vectorcall board_solve_2(__m128i OP, int alpha, volatile unsigned long long *n_nodes, __m128i empties)
 {
@@ -482,20 +482,19 @@ static int vectorcall board_solve_2(__m128i OP, int alpha, volatile unsigned lon
 /**
  * @brief Get the final score.
  *
- * Get the final score, when 3 empty squares remain.
+ * Get the final min score, when 3 empty squares remain.
  *
  * @param OP The board to evaluate.
  * @param alpha Alpha bound.
  * @param n_nodes Node counter.
  * @param empties Packed empty square coordinates.
- * @return The final score, as a disc difference.
+ * @return The final min score, as a disc difference.
  */
 static int vectorcall search_solve_3(__m128i OP, int alpha, volatile unsigned long long *n_nodes, __m128i empties)
 {
 	__m128i flipped;
 	int score, bestscore, x, pol;
 	unsigned long long opponent;
-	// const int beta = alpha + 1;
 
 	SEARCH_STATS(++statistics.n_search_solve_3);
 	SEARCH_UPDATE_INTERNAL_NODES(*n_nodes);
@@ -505,11 +504,10 @@ static int vectorcall search_solve_3(__m128i OP, int alpha, volatile unsigned lo
 #elif defined(__SSSE3__)
 	empties = _mm_unpacklo_epi8((empties), _mm_setzero_si128());
 #endif
-	pol = -1;
+	bestscore = SCORE_INF;	// min stage
+	pol = 1;
 	do {
 		// best move alphabeta search
-		alpha = ~alpha;	// = -(alpha + 1)
-		bestscore = SCORE_INF;	// Negative score
 		opponent = EXTRACT_O(OP);
 		x = _mm_extract_epi16(empties, 2);
 		if ((NEIGHBOUR[x] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
@@ -535,19 +533,20 @@ static int vectorcall search_solve_3(__m128i OP, int alpha, volatile unsigned lo
 			return bestscore * pol;
 
 		OP = _mm_shuffle_epi32(OP, SWAP64);	// pass
-	} while ((pol = -pol) >= 0);
+		alpha = ~alpha;	// = -(alpha + 1)
+	} while ((pol = -pol) < 0);
 
-	return board_solve(_mm_cvtsi128_si64(OP), 3);	// gameover	// = board_solve(opponent, 3)
+	return board_solve(EXTRACT_O(OP), 3);	// gameover
 }
 
 /**
  * @brief Get the final score.
  *
- * Get the final score, when 4 empty squares remain.
+ * Get the final max score, when 4 empty squares remain.
  *
  * @param search Search position.
  * @param alpha Upper score value.
- * @return The final score, as a disc difference.
+ * @return The final max score, as a disc difference.
  */
 
 // pick the move for this ply and pass the rest as packed 3 x 8 bit (AVX/SSSE3) or 3 x 16 bit (SSE), in search order.
@@ -672,48 +671,48 @@ static int search_solve_4(Search *search, int alpha)
 	sort3 = sort3_shuf[paritysort];
 #endif
 
-	pol = -1;
+	bestscore = -SCORE_INF;
+	pol = 1;
 	do {
 		// best move alphabeta search
-		alpha = ~alpha;	// = -(alpha + 1)
-		bestscore = SCORE_INF;	// Negative score
 		opponent = EXTRACT_O(OP);
 		x1 = EXTRACT_MOVE(empties_series, 0);
 		if ((NEIGHBOUR[x1] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x1))) {
 			bestscore = search_solve_3(board_flip_next(OP, x1, flipped), alpha, &search->n_nodes,
 				v3_empties_0(empties_series, sort3));
-			if (bestscore <= alpha) return bestscore * pol;
+			if (bestscore > alpha) return bestscore * pol;
 		}
 
 		x2 = EXTRACT_MOVE(empties_series, 1);
 		if ((NEIGHBOUR[x2] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
 			score = search_solve_3(board_flip_next(OP, x2, flipped), alpha, &search->n_nodes,
 				v3_empties(empties_series, 1, 0xb4, sort3 >> 4));	// (SSE) x2x1x3x4
-			if (score <= alpha) return score * pol;
-			else if (score < bestscore) bestscore = score;
+			if (score > alpha) return score * pol;
+			else if (score > bestscore) bestscore = score;
 		}
 
 		x3 = EXTRACT_MOVE(empties_series, 2);
 		if ((NEIGHBOUR[x3] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x3))) {
 			score = search_solve_3(board_flip_next(OP, x3, flipped), alpha, &search->n_nodes,
 				v3_empties(empties_series, 2, 0x78, sort3 >> 8));	// (SSE) x3x1x2x4
-			if (score <= alpha) return score * pol;
-			else if (score < bestscore) bestscore = score;
+			if (score > alpha) return score * pol;
+			else if (score > bestscore) bestscore = score;
 		}
 
 		x4 = EXTRACT_MOVE(empties_series, 3);
 		if ((NEIGHBOUR[x4] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x4))) {
 			score = search_solve_3(board_flip_next(OP, x4, flipped), alpha, &search->n_nodes,
 				v3_empties(empties_series, 3, 0x39, sort3 >> 12));	// (SSE) x4x1x2x3
-			if (score < bestscore) bestscore = score;
+			if (score > bestscore) bestscore = score;
 			return bestscore * pol;
 		}
 
-		if (bestscore < SCORE_INF)
+		if (bestscore > -SCORE_INF)
 			return bestscore * pol;
 
 		OP = _mm_shuffle_epi32(OP, SWAP64);	// pass
-	} while ((pol = -pol) >= 0);
+		alpha = ~alpha;	// = -(alpha + 1)
+	} while ((pol = -pol) < 0);
 
-	return board_solve(opponent, 4);	// gameover
+	return board_solve(opponent, 4);	// gameover (opponent is P here)
 }
