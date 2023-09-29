@@ -1163,12 +1163,26 @@ bool search_SC_PVS(Search *search, int *alpha, int *beta, int *score)
  * @param score Score to return in case of a cutoff is found.
  * @return 'true' if a cutoff is found, false otherwise.
  */
-bool search_SC_NWS(Search *search, const int alpha, const int n_empties, int *score)
+bool search_SC_NWS(Search *search, const int alpha, int *score)
 {
-	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[n_empties]) {
+	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
 		*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player);
 		if (*score <= alpha) {
+			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
+			return true;
+		}
+	}
+	return false;
+}
+
+// for 4 empties (min stage)
+bool search_SC_NWS_4(Search *search, const int alpha, int *score)
+{
+	if (USE_SC && alpha < -NWS_STABILITY_THRESHOLD[4]) {
+		CUTOFF_STATS(++statistics.n_stability_try;)
+		*score = 2 * get_stability(search->board.opponent, search->board.player) - SCORE_MAX;
+		if (*score > alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return true;
 		}

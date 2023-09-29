@@ -80,11 +80,11 @@ static int board_solve_neon(uint64x1_t P, int n_empties)
  * @param P      Board.player to evaluate.
  * @param alpha  Alpha bound. (beta - 1)
  * @param pos    Last empty square to play.
- * @return       The final opponent score, as a disc difference.
+ * @return       The final score, as a disc difference.
  */
 static int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 {
-	int	score = SCORE_MAX - 2 - 2 * vaddv_u8(vcnt_u8(vreinterpret_u8_u64(P)));	// 2 * bit_count(O) - SCORE_MAX
+	int	score = 2 * vaddv_u8(vcnt_u8(vreinterpret_u8_u64(P))) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 	int	score2;
 	unsigned int	n_flips, m;
 	const unsigned char *COUNT_FLIP_X = COUNT_FLIP[pos & 7];
@@ -128,14 +128,14 @@ static int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 	n_flips += COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(I1), 11)];
 	n_flips += COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(I1), 3)];
 #endif
-	score -= n_flips;
+	score += n_flips;
 
 	if (n_flips == 0) {
-		score2 = score + 2;	// empty for opponent
-		if (score >= 0)
+		score2 = score - 2;	// empty for opponent
+		if (score <= 0)
 			score = score2;
 
-		if (score <= alpha) {	// lazy cut-off
+		if (score > alpha) {	// lazy cut-off
 			// n_flips = last_flip(pos, O);
 			m = o_mask[pos];	// valid diagonal bits
 #ifdef HAS_CPU_64
@@ -150,7 +150,7 @@ static int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 			n_flips += COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(I1), 3) ^ 0xFF];
 #endif
 			if (n_flips != 0)
-				score = score2 + n_flips;
+				score = score2 - n_flips;
 		}
 	}
 
@@ -166,13 +166,13 @@ int board_score_1(const unsigned long long player, const int beta, const int x)
 /**
  * @brief Get the final score.
  *
- * Get the final max score, when 2 empty squares remain.
+ * Get the final min score, when 2 empty squares remain.
  *
  * @param OP The board to evaluate.
  * @param alpha Alpha bound.
  * @param n_nodes Node counter.
  * @param empties Packed empty square coordinates.
- * @return The final max score, as a disc difference.
+ * @return The final min score, as a disc difference.
  */
 static int board_solve_2(uint64x2_t OP, int alpha, volatile unsigned long long *n_nodes, uint8x8_t empties)
 {
@@ -189,9 +189,9 @@ static int board_solve_2(uint64x2_t OP, int alpha, volatile unsigned long long *
 	if ((NEIGHBOUR[x1] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x1))) {
 		bestscore = board_score_neon_1(vget_high_u64(veorq_u64(OP, flipped)), alpha, x2);
 
-		if ((bestscore <= alpha) && (NEIGHBOUR[x2] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
+		if ((bestscore > alpha) && (NEIGHBOUR[x2] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
 			score = board_score_neon_1(vget_high_u64(veorq_u64(OP, flipped)), alpha, x1);
-			if (score > bestscore)
+			if (score < bestscore)
 				bestscore = score;
 			nodes = 3;
 		} else	nodes = 2;
@@ -206,9 +206,9 @@ static int board_solve_2(uint64x2_t OP, int alpha, volatile unsigned long long *
 		if (!TESTZ_FLIP(flipped = mm_Flip(OP, x1))) {
 			bestscore = board_score_neon_1(vget_high_u64(veorq_u64(OP, flipped)), alpha, x2);
 
-			if ((bestscore <= alpha) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
+			if ((bestscore > alpha) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
 				score = board_score_neon_1(vget_high_u64(veorq_u64(OP, flipped)), alpha, x1);
-				if (score > bestscore)
+				if (score < bestscore)
 					bestscore = score;
 				nodes = 3;
 			} else	nodes = 2;
@@ -218,7 +218,7 @@ static int board_solve_2(uint64x2_t OP, int alpha, volatile unsigned long long *
 			nodes = 2;
 
 		} else {	// gameover
-			bestscore = board_solve_neon(vget_low_u64(OP), 2);
+			bestscore = board_solve_neon(vget_high_u64(OP), 2);
 			nodes = 1;
 		}
 		bestscore = -bestscore;
@@ -233,13 +233,13 @@ static int board_solve_2(uint64x2_t OP, int alpha, volatile unsigned long long *
 /**
  * @brief Get the final score.
  *
- * Get the final min score, when 3 empty squares remain.
+ * Get the final max score, when 3 empty squares remain.
  *
  * @param OP The board to evaluate.
  * @param alpha Alpha bound.
  * @param n_nodes Node counter.
  * @param empties Packed empty square coordinates.
- * @return The final min score, as a disc difference.
+ * @return The final max score, as a disc difference.
  */
 static int search_solve_3(uint64x2_t OP, int alpha, volatile unsigned long long *n_nodes, uint8x8_t empties)
 {
@@ -250,7 +250,7 @@ static int search_solve_3(uint64x2_t OP, int alpha, volatile unsigned long long 
 	SEARCH_STATS(++statistics.n_search_solve_3);
 	SEARCH_UPDATE_INTERNAL_NODES(*n_nodes);
 
-	bestscore = SCORE_INF;	// min stage
+	bestscore = -SCORE_INF;
 	pol = 1;
 	do {
 		// best move alphabeta search
@@ -258,41 +258,41 @@ static int search_solve_3(uint64x2_t OP, int alpha, volatile unsigned long long 
 		x = vget_lane_u8(empties, 2);
 		if ((NEIGHBOUR[x] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
 			bestscore = board_solve_2(board_flip_next(OP, x, flipped), alpha, n_nodes, empties);
-			if (bestscore <= alpha) return bestscore * pol;
+			if (bestscore > alpha) return bestscore * pol;
 		}
 
 		x = vget_lane_u8(empties, 1);
 		if (/* (NEIGHBOUR[x] & opponent) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
 			score = board_solve_2(board_flip_next(OP, x, flipped), alpha, n_nodes, vuzp_u8(empties, empties).val[0]);	// d2d0
-			if (score <= alpha) return score * pol;
-			else if (score < bestscore) bestscore = score;
+			if (score > alpha) return score * pol;
+			else if (score > bestscore) bestscore = score;
 		}
 
 		x = vget_lane_u8(empties, 0);
 		if (/* (NEIGHBOUR[x] & opponent) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
 			score = board_solve_2(board_flip_next(OP, x, flipped), alpha, n_nodes, vext_u8(empties, empties, 1));	// d2d1
-			if (score < bestscore) bestscore = score;
+			if (score > bestscore) bestscore = score;
 			return bestscore * pol;
 		}
 
-		if (bestscore < SCORE_INF)
+		if (bestscore > -SCORE_INF)
 			return bestscore * pol;
 
 		OP = vextq_u64(OP, OP, 1);	// pass
 		alpha = ~alpha;	// = -(alpha + 1)
 	} while ((pol = -pol) < 0);
 
-	return board_solve_neon(vget_high_u64(OP), 3);	// gameover
+	return board_solve_neon(vget_low_u64(OP), 3);	// gameover
 }
 
 /**
  * @brief Get the final score.
  *
- * Get the final max score, when 4 empty squares remain.
+ * Get the final min score, when 4 empty squares remain.
  *
  * @param search Search position.
  * @param alpha Upper score value.
- * @return The final max score, as a disc difference.
+ * @return The final min score, as a disc difference.
  */
 
 static int search_solve_4(Search *search, int alpha)
@@ -332,7 +332,7 @@ static int search_solve_4(Search *search, int alpha)
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	// stability cutoff (try 12%, cut 7%)
-	if (search_SC_NWS(search, alpha, 4, &score)) return score;
+	if (search_SC_NWS_4(search, alpha, &score)) return score;
 
 	OP = vld1q_u64((uint64_t *) &search->board);
 	x1 = search->empties[NOMOVE].next;
@@ -354,7 +354,7 @@ static int search_solve_4(Search *search, int alpha)
 		vtbl1_u8(vget_low_u8(empties_series), vget_high_u8(shuf)));
 #endif
 
-	bestscore = -SCORE_INF;
+	bestscore = SCORE_INF;	// min stage
 	pol = 1;
 	do {
 		// best move alphabeta search
@@ -363,39 +363,39 @@ static int search_solve_4(Search *search, int alpha)
 		if ((NEIGHBOUR[x1] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x1))) {
 			bestscore = search_solve_3(board_flip_next(OP, x1, flipped), alpha, &search->n_nodes,
 				vget_low_u8(empties_series));
-			if (bestscore > alpha) return bestscore * pol;
+			if (bestscore <= alpha) return bestscore * pol;
 		}
 
 		x2 = vgetq_lane_u8(empties_series, 7);
 		if ((NEIGHBOUR[x2] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
 			score = search_solve_3(board_flip_next(OP, x2, flipped), alpha, &search->n_nodes,
 				vget_low_u8(vextq_u8(empties_series, empties_series, 4)));
-			if (score > alpha) return score * pol;
-			else if (score > bestscore) bestscore = score;
+			if (score <= alpha) return score * pol;
+			else if (score < bestscore) bestscore = score;
 		}
 
 		x3 = vgetq_lane_u8(empties_series, 11);
 		if ((NEIGHBOUR[x3] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x3))) {
 			score = search_solve_3(board_flip_next(OP, x3, flipped), alpha, &search->n_nodes,
 				vget_high_u8(empties_series));
-			if (score > alpha) return score * pol;
-			else if (score > bestscore) bestscore = score;
+			if (score <= alpha) return score * pol;
+			else if (score < bestscore) bestscore = score;
 		}
 
 		x4 = vgetq_lane_u8(empties_series, 15);
 		if ((NEIGHBOUR[x4] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x4))) {
 			score = search_solve_3(board_flip_next(OP, x4, flipped), alpha, &search->n_nodes,
 				vget_low_u8(vextq_u8(empties_series, empties_series, 12)));
-			if (score > bestscore) bestscore = score;
+			if (score < bestscore) bestscore = score;
 			return bestscore * pol;
 		}
 
-		if (bestscore > -SCORE_INF)
+		if (bestscore < SCORE_INF)
 			return bestscore * pol;
 
 		OP = vextq_u64(OP, OP, 1);	// pass
 		alpha = ~alpha;	// = -(alpha + 1)
 	} while ((pol = -pol) < 0);
 
-	return board_solve_neon(vget_low_u64(OP), 4);	// gameover
+	return board_solve_neon(vget_high_u64(OP), 4);	// gameover
 }
