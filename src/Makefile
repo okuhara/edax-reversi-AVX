@@ -50,10 +50,10 @@ ifeq ($(COMP),gcc)
 	endif
 
 	ifeq ($(ARCH),x64-modern)
-		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
+		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
 	endif
 	ifeq ($(ARCH),x64-avx512)
-		CFLAGS += -m64 -march=skylake-avx512 -DUSE_GAS_X64 -DPOPCOUNT
+		CFLAGS += -m64 -march=skylake-avx512 -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
 	endif
 	ifeq ($(ARCH),x64-popcnt)
 		CFLAGS += -m64 -mpopcnt -mtune=generic -DUSE_GAS_X64 -DPOPCOUNT
@@ -123,7 +123,7 @@ ifeq ($(COMP),gcc-old)
 	endif
 
 	ifeq ($(ARCH),x64-modern)
-		CFLAGS += -m64 -march=native -DUSE_GAS_X64 -DPOPCOUNT
+		CFLAGS += -m64 -march=native -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
 	endif
 	ifeq ($(ARCH),x64)
 		CFLAGS += -m64 -mtune=generic -DUSE_GAS_X64 
@@ -177,7 +177,7 @@ ifeq ($(COMP),g++)
 	endif
 
 	ifeq ($(ARCH),x64-modern)
-		CFLAGS += -m64 -march=native -DUSE_GAS_X64 -DPOPCOUNT
+		CFLAGS += -m64 -march=native -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
 	endif
 	ifeq ($(ARCH),x64)
 		CFLAGS += -m64 -mtune=generic -DUSE_GAS_X64 
@@ -220,7 +220,7 @@ ifeq ($(COMP),icc)
 		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x64-avx512)
-		CFLAGS += -m64 -march=skylake-avx512 -DUSE_GAS_X64 -DPOPCOUNT
+		CFLAGS += -m64 -march=skylake-avx512 -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
 	endif
 	ifeq ($(ARCH),x64)
 		CFLAGS += -m64 -DUSE_GAS_X64
@@ -244,7 +244,7 @@ ifeq ($(COMP),pcc)
 	endif
 
 	ifeq ($(ARCH),x64-modern)
-		CFLAGS += -DUSE_GAS_X64 -DPOPCOUNT
+		CFLAGS += -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
 	endif
 	ifeq ($(ARCH),x64)
 		CFLAGS += -DUSE_GAS_X64
@@ -269,7 +269,7 @@ ifeq ($(COMP),clang)
 	endif
 
 	ifeq ($(ARCH),x64-modern)
-		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
+		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
 	endif
 	ifeq ($(ARCH),x64-avx512)
 		CFLAGS += -m64 -march=skylake-avx512 -DUSE_GAS_X64 -DPOPCOUNT
