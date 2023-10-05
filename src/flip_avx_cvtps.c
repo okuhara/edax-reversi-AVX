@@ -92,10 +92,9 @@ const V8DI lrmask[66] = {
  * @return flipped disc pattern.
  */
 
-__m128i vectorcall mm_Flip(const __m128i OP, int pos)
+__m256i vectorcall mm_Flip(const __m128i OP, int pos)
 {
 	__m256i	PP, OO, flip, outflank, mask;
-	__m128i	flip2;
 	const __m256 exp_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0xff800000));
 	const __m256i minusone = _mm256_set1_epi64x(-1);
 
@@ -126,9 +125,6 @@ __m128i vectorcall mm_Flip(const __m128i OP, int pos)
 	outflank = _mm256_add_epi64(outflank, _mm256_srli_epi64(outflank, 63));
 	flip = _mm256_or_si256(flip, _mm256_and_si256(outflank, mask));
 
-	flip2 = _mm_or_si128(_mm256_castsi256_si128(flip), _mm256_extracti128_si256(flip, 1));
-	flip2 = _mm_or_si128(flip2, _mm_shuffle_epi32(flip2, 0x4e));	// SWAP64
-
-	return flip2;
+	return flip;
 }
 

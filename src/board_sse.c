@@ -147,7 +147,7 @@ void board_symetry(const Board *board, const int s, Board *sym)
 
 unsigned long long vectorcall vboard_next(__m128i OP, const int x, Board *next)
 {
-	__m128i flipped = mm_Flip(OP, x);
+	__m128i flipped = reduce_vflip(mm_Flip(OP, x));
 
 	OP = _mm_xor_si128(OP, _mm_or_si128(flipped, _mm_loadl_epi64((__m128i *) &X_TO_BIT[x])));
 	_mm_storeu_si128((__m128i *) next, _mm_shuffle_epi32(OP, 0x4e));

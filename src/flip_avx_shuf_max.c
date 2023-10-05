@@ -95,7 +95,6 @@ const V8DI lrmask[66] = {
 __m128i vectorcall mm_Flip(const __m128i OP, int pos)
 {
 	__m256i	PP, OO, flip, outflank, eraser, mask;
-	__m128i	flip2;
 	const __m256i mask0F0F = _mm256_set1_epi16(0x0F0F);
 	const __m256i ms1bL = _mm256_broadcastsi128_si256(_mm_set_epi64x(0x0808080808080808, 0x0404040402020100));
 
@@ -126,9 +125,6 @@ __m128i vectorcall mm_Flip(const __m128i OP, int pos)
 	eraser = _mm256_sub_epi64(_mm256_cmpeq_epi64(outflank, _mm256_setzero_si256()), outflank);
 	flip = _mm256_or_si256(flip, _mm256_andnot_si256(eraser, mask));
 
-	flip2 = _mm_or_si128(_mm256_castsi256_si128(flip), _mm256_extracti128_si256(flip, 1));
-	flip2 = _mm_or_si128(flip2, _mm_shuffle_epi32(flip2, 0x4e));	// SWAP64
-
-	return flip2;
+	return flip;
 }
 
