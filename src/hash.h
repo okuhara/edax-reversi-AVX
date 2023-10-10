@@ -103,14 +103,18 @@ extern unsigned int writeable_level(HashData *data);
 
 extern const HashData HASH_DATA_INIT;
 
-#ifdef hasSSE2
-	#define	hash_prefetch(hashtable, hashcode)	_mm_prefetch((char const*)((hashtable)->hash + ((hashcode) & (hashtable)->hash_mask)), _MM_HINT_T0)
-#elif defined(__ARM_ACLE)
-	#define	hash_prefetch(hashtable, hashcode)	__pld((hashtable)->hash + ((hashcode) & (hashtable)->hash_mask))
-#elif defined(__GNUC__)
-	#define	hash_prefetch(hashtable, hashcode)	__builtin_prefetch((hashtable)->hash + ((hashcode) & (hashtable)->hash_mask))
-#else
-	#define	hash_prefetch(hashtable, hashcode)
-#endif
+inline void hash_prefetch(HashTable *hashtable, unsigned long long hashcode) {
+	Hash *p = hashtable->hash + (hashcode & hashtable->hash_mask);
+  #ifdef hasSSE2
+	_mm_prefetch((char const *) p, _MM_HINT_T0);
+	_mm_prefetch((char const *)(p + HASH_N_WAY - 1), _MM_HINT_T0);
+  #elif defined(__ARM_ACLE)
+	__pld(p);
+	__pld(p + HASH_N_WAY - 1);
+  #elif defined(__GNUC__)
+	__builtin_prefetch(p);
+	__builtin_prefetch(p + HASH_N_WAY - 1);
+  #endif
+}
 
 #endif
