@@ -605,12 +605,12 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	SEARCH_STATS(++statistics.n_NWS_midgame);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
+	// stability cutoff
+	if (search_SC_NWS(search, alpha, &score)) return score;
+
 	hash_code = board_get_hash_code(&search->board);
 	hash_prefetch(&search->hash_table, hash_code);
 	hash_prefetch(&search->pv_table, hash_code);
-
-	// stability cutoff
-	if (search_SC_NWS(search, alpha, &score)) return score;
 
 	nodes_org = search->n_nodes + search->child_nodes;
 	search_get_movelist(search, &movelist);
@@ -628,6 +628,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		} else { // game-over !
 			node.bestscore = search_solve(search);
 		}
+
 	} else {
 		// probcut
 		if (search_probcut(search, alpha, depth, parent, &score)) return score;
@@ -717,7 +718,6 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 	long long nodes_org;
 	int reduced_depth, depth_pv_extension, saved_selectivity, ofssolid;
 	Board hashboard;
-	unsigned long long full[5];
 
 	SEARCH_STATS(++statistics.n_PVS_midgame);
 
@@ -828,8 +828,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 
 		// store solid-normalized for endgame TC
 		if (search->eval.n_empties <= depth && depth <= MASK_SOLID_DEPTH && depth > DEPTH_TO_SHALLOW_SEARCH) {
-			get_all_full_lines(search->board.player | search->board.opponent, full);
-			solid_opp = full[4] & search->board.opponent;
+			solid_opp = get_all_full_lines(search->board.player | search->board.opponent) & search->board.opponent;
 			if (solid_opp) {
 				hashboard.player = search->board.player ^ solid_opp;	// normalize solid to player
 				hashboard.opponent = search->board.opponent ^ solid_opp;
