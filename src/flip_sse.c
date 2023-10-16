@@ -178,7 +178,7 @@ static inline __m128i MS1B_epu64(const __m128i x) {
  * https://stackoverflow.com/questions/41144668/how-to-efficiently-perform-double-int64-conversions-with-sse-avx/41148578#41148578
  */
  static inline __m128i MS1B_epu52(const __m128i x) {
-	const __m128d k1e52 = _mm_castsi128_pd(_mm_set1_epi64x((1023ULL + 52) << 52));
+	const __m128d k1e52 = _mm_set1_pd(0x0010000000000000);
 	const __m128d exp_mask = _mm_castsi128_pd(_mm_set1_epi64x(0xfff0000000000000));
 	__m128d f;
 	f = _mm_or_pd(_mm_castsi128_pd(x), k1e52);	// construct double x + 2^52

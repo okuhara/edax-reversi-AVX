@@ -27,8 +27,6 @@
 #include "bit.h"
 #include <stdint.h>
 
-#define	DUPLO	0x44
-
 /** precomputed count flip array */
 const uint8_t COUNT_FLIP[8][256] = {
 	{
@@ -196,7 +194,7 @@ int last_flip(int pos, unsigned long long P)
 	const uint8_t *COUNT_FLIP_X = COUNT_FLIP[pos & 7];
 	const uint8_t *COUNT_FLIP_Y = COUNT_FLIP[pos >> 3];
   #ifdef AVXLASTFLIP	// no gain
-	__m256i PP = _mm256_broadcastq_epi64(_mm_cvtsi64_si128(P));
+	__m256i PP = _mm256_set1_epi64x(P);
 
 	n_flips  = COUNT_FLIP_X[(P >> (pos & 0x38)) & 0xFF];
     #ifdef __AVX512VL__
@@ -208,7 +206,7 @@ int last_flip(int pos, unsigned long long P)
 	t >>= 16;
 
   #else
-	__m128i PP = _mm_shuffle_epi32(_mm_cvtsi64_si128(P), DUPLO);
+	__m128i PP = _mm_set1_epi64x(P);
 	__m128i II = _mm_sad_epu8(_mm_and_si128(PP, mask_dvhd[pos].v2[0]), _mm_setzero_si128());
 
 	n_flips  = COUNT_FLIP_X[_mm_extract_epi16(II, 4)];
