@@ -98,16 +98,18 @@ extern const unsigned long long NEIGHBOUR[];
 			#define bit_count(x)	_CountOneBits64(x)
 			#define bit_count_32(x)	_CountOneBits(x)
 		#elif defined(_M_X64)
-			#define	bit_count(x)	((int) __popcnt64(x))
-			#define	bit_count_32(x)	__popcnt(x)
+			#define bit_count(x)	((int) __popcnt64(x))
+			#define bit_count_32(x)	__popcnt(x)
 		#else
 			#define bit_count(x)	(__popcnt((unsigned int) (x)) + __popcnt((unsigned int) ((x) >> 32)))
-			#define	bit_count_32(x)	__popcnt(x)
+			#define bit_count_32(x)	__popcnt(x)
 		#endif
 	#else
 		#define bit_count(x)	__builtin_popcountll(x)
 		#define bit_count_32(x)	__builtin_popcount(x)
 	#endif
+	#define bit_count_si64(x)	bit_count(_mm_cvtsi128_si64(x))
+
 #else
 	extern unsigned char PopCnt16[1 << 16];
 	static inline int bit_count(unsigned long long b) {
@@ -118,6 +120,7 @@ extern const unsigned long long NEIGHBOUR[];
 		union { unsigned int bb; unsigned short u[2]; } v = { b };
 		return (unsigned char)(PopCnt16[v.u[0]] + PopCnt16[v.u[1]]);
 	}
+	#define bit_count_si64(x)	((unsigned char)(PopCnt16[_mm_extract_epi16((x), 0)] + PopCnt16[_mm_extract_epi16((x), 1)] + PopCnt16[_mm_extract_epi16((x), 2)] + PopCnt16[_mm_extract_epi16((x), 3)]))
 #endif
 
 #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
@@ -197,18 +200,9 @@ static inline __m128i _mm_set1_epi64x(unsigned long long x) {
     #endif
   #endif
 
-// Double casting (unsigned long long) (unsigned int) improves MSVC code
-  #ifdef __AVX2__
 static inline unsigned long long _mm_cvtsi128_si64(__m128i x) {
-	return ((unsigned long long) (unsigned int) _mm_extract_epi32(x, 1) << 32)
-		| (unsigned int) _mm_cvtsi128_si32(x);
+	return *(unsigned long long *) &x;
 }
-  #elif defined(hasSSE2) || defined(USE_MSVC_X86)
-static inline unsigned long long _mm_cvtsi128_si64(__m128i x) {
-	return ((unsigned long long) (unsigned int) _mm_cvtsi128_si32(_mm_shuffle_epi32(x, 0xb1)) << 32)
-		| (unsigned int) _mm_cvtsi128_si32(x);
-}
-  #endif
 #endif // !HAS_CPU_64
 
 #if __clang_major__ == 3	// undefined reference to `llvm.x86.avx.storeu.dq.256'
