@@ -515,19 +515,21 @@ int NWS_endgame(Search *search, const int alpha)
 	int score, ofssolid, bestscore;
 	unsigned long long hash_code, solid_opp;
 	// const int beta = alpha + 1;
-	HashData hash_data;
-	HashStoreData hash_store_data;
-	MoveList movelist;
+	HashStoreData hash_data;
 	Move *move;
 	long long nodes_org;
 	rBoard board0;
 	Board hashboard;
 	unsigned int parity0;
 	unsigned long long full[5];
+	struct size_reduced_MoveList {	// derived from MoveList in move.h
+		int n_moves;
+		Move move[DEPTH_MIDGAME_TO_ENDGAME];
+	} movelist;
 
 	if (search->stop) return alpha;
 
-	assert(search->eval.n_empties == bit_count(~(search->board.player|search->board.opponent)));
+	assert(bit_count(~(search->board.player|search->board.opponent)) < DEPTH_MIDGAME_TO_ENDGAME);
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
 
 	SEARCH_STATS(++statistics.n_NWS_endgame);
@@ -550,7 +552,7 @@ int NWS_endgame(Search *search, const int alpha)
 		// http://id.nii.ac.jp/1001/00156359/
 		if (search->eval.n_empties <= MASK_SOLID_DEPTH) {	// (99%)
 			solid_opp = full[4] & hashboard.opponent;	// full[4] = all full
-#ifndef POP_COUNT
+#ifndef POPCOUNT
 			if (solid_opp)	// (72%)
 #endif
 			{
@@ -564,20 +566,20 @@ int NWS_endgame(Search *search, const int alpha)
 	hash_code = board_get_hash_code(&hashboard);
 	hash_prefetch(&search->hash_table, hash_code);
 
-	search_get_movelist(search, &movelist);
+	search_get_movelist(search, (MoveList *) &movelist);
 
 	if (movelist.n_moves > 1) {	// (96%)
 		// transposition cutoff
-		if (hash_get(&search->hash_table, &hashboard, hash_code, &hash_data)) {	// (6%)
-			hash_data.lower -= ofssolid;
-			hash_data.upper -= ofssolid;
-			if (search_TC_NWS(&hash_data, search->eval.n_empties, NO_SELECTIVITY, alpha, &score))
+		if (hash_get(&search->hash_table, &hashboard, hash_code, &hash_data.data)) {	// (6%)
+			hash_data.data.lower -= ofssolid;
+			hash_data.data.upper -= ofssolid;
+			if (search_TC_NWS(&hash_data.data, search->eval.n_empties, NO_SELECTIVITY, alpha, &score))
 				return score;
 		}
 		// else if (ofssolid)	// slows down
-		//	hash_get_from_board(&search->hash_table, &search->board, &hash_data);
+		//	hash_get_from_board(&search->hash_table, &search->board, &hash_data.data);
 
-		movelist_evaluate_fast(&movelist, search, &hash_data);
+		movelist_evaluate_fast((MoveList *) &movelist, search, &hash_data.data);
 
 		nodes_org = search->n_nodes;
 		parity0 = search->eval.parity;
@@ -599,7 +601,7 @@ int NWS_endgame(Search *search, const int alpha)
 
 			if (score > bestscore) {	// (66%)
 				bestscore = score;
-				hash_store_data.data.move[0] = move->x;
+				hash_data.data.move[0] = move->x;
 				if (bestscore > alpha) break;	// (57%)
 			}
 		}
@@ -608,14 +610,14 @@ int NWS_endgame(Search *search, const int alpha)
 		if (search->stop)
 			return alpha;
 
-		hash_store_data.data.wl.c.depth = search->eval.n_empties;
-		hash_store_data.data.wl.c.selectivity = NO_SELECTIVITY;
-		hash_store_data.data.wl.c.cost = last_bit(search->n_nodes - nodes_org);
-		// hash_store_data.data.move[0] = bestmove;
-		hash_store_data.alpha = alpha + ofssolid;
-		hash_store_data.beta = alpha + ofssolid + 1;
-		hash_store_data.score = bestscore + ofssolid;
-		hash_store(&search->hash_table, &hashboard, hash_code, &hash_store_data);
+		hash_data.data.wl.c.depth = search->eval.n_empties;
+		hash_data.data.wl.c.selectivity = NO_SELECTIVITY;
+		hash_data.data.wl.c.cost = last_bit(search->n_nodes - nodes_org);
+		// hash_data.data.move[0] = bestmove;
+		hash_data.alpha = alpha + ofssolid;
+		hash_data.beta = alpha + ofssolid + 1;
+		hash_data.score = bestscore + ofssolid;
+		hash_store(&search->hash_table, &hashboard, hash_code, &hash_data);
 
 	// special cases
 	} else if (movelist.n_moves == 1) {	// (3%)

@@ -1278,17 +1278,17 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 		Move *move;
 		Board next;
 		HashData etc;
-		HashStoreData hash_store_data;
+		HashStoreData hash_data;
 		unsigned long long etc_hash_code;
 		HashTable *hash_table = &search->hash_table;
 		const int etc_depth = depth - 1;
 		const int beta = alpha + 1;
 
-		hash_store_data.data.wl.c.depth = depth;
-		hash_store_data.data.wl.c.selectivity = selectivity;
-		hash_store_data.data.wl.c.cost = 0;
-		hash_store_data.alpha = alpha;
-		hash_store_data.beta = beta;
+		hash_data.data.wl.c.depth = depth;
+		hash_data.data.wl.c.selectivity = selectivity;
+		hash_data.data.wl.c.cost = 0;
+		hash_data.alpha = alpha;
+		hash_data.beta = beta;
 
 		CUTOFF_STATS(++statistics.n_etc_try;)
 		foreach_move (move, *movelist) {
@@ -1299,9 +1299,9 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 			if (USE_SC && alpha <= -NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {
 				*score = 2 * get_stability(next.opponent, next.player) - SCORE_MAX;
 				if (*score > alpha) {
-					hash_store_data.score = *score;
-					hash_store_data.data.move[0] = move->x;
-					hash_store(hash_table, &search->board, hash_code, &hash_store_data);
+					hash_data.score = *score;
+					hash_data.data.move[0] = move->x;
+					hash_store(hash_table, &search->board, hash_code, &hash_data);
 					CUTOFF_STATS(++statistics.n_esc_high_cutoff;)
 					return true;
 				}
@@ -1311,9 +1311,9 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 			if (USE_TC && hash_get(hash_table, &next, etc_hash_code, &etc) && etc.wl.c.selectivity >= selectivity && etc.wl.c.depth >= etc_depth) {
 				*score = -etc.upper;
 				if (*score > alpha) {
-					hash_store_data.score = *score;
-					hash_store_data.data.move[0] = move->x;
-					hash_store(hash_table, &search->board, hash_code, &hash_store_data);
+					hash_data.score = *score;
+					hash_data.data.move[0] = move->x;
+					hash_store(hash_table, &search->board, hash_code, &hash_data);
 					CUTOFF_STATS(++statistics.n_etc_high_cutoff;)
 					return true;
 				}

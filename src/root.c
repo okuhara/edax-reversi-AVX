@@ -327,8 +327,7 @@ int search_get_pv_cost(Search *search)
 int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 {
 	unsigned long long hash_code;
-	HashData hash_data;
-	HashStoreData hash_store_data;
+	HashStoreData hash_data;
 	MoveList *const movelist = &search->movelist;
 	Move *move;
 	Node node;
@@ -413,24 +412,24 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 
 	if (!search->stop) {
 		hash_code = board_get_hash_code(&search->board);
-		hash_get(&search->pv_table, &search->board, hash_code, &hash_data);
+		hash_get(&search->pv_table, &search->board, hash_code, &hash_data.data);
 		if (depth < search->options.multipv_depth) movelist_sort(movelist);
-		else movelist_sort_cost(movelist, &hash_data);
+		else movelist_sort_cost(movelist, &hash_data.data);
 		movelist_sort_bestmove(movelist, node.bestmove);
 		record_best_move(search, movelist_first(movelist), alpha, beta, depth);
 
 		if (movelist->n_moves == get_mobility(search->board.player, search->board.opponent)) {
-			hash_store_data.data.wl.c.depth = depth;
-			hash_store_data.data.wl.c.selectivity = search->selectivity;
-			hash_store_data.data.wl.c.cost = last_bit(search_count_nodes(search) - nodes_org);
-			hash_store_data.data.move[0] = node.bestmove;
-			hash_store_data.alpha = alpha;
-			hash_store_data.beta = beta;
-			hash_store_data.score = node.bestscore;
+			hash_data.data.wl.c.depth = depth;
+			hash_data.data.wl.c.selectivity = search->selectivity;
+			hash_data.data.wl.c.cost = last_bit(search_count_nodes(search) - nodes_org);
+			hash_data.data.move[0] = node.bestmove;
+			hash_data.alpha = alpha;
+			hash_data.beta = beta;
+			hash_data.score = node.bestscore;
 
-			hash_store(&search->hash_table, &search->board, hash_code, &hash_store_data);
-			if (search->options.guess_pv) hash_force(&search->pv_table, &search->board, hash_code, &hash_store_data);
-			else hash_store(&search->pv_table, &search->board, hash_code, &hash_store_data);
+			hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
+			if (search->options.guess_pv) hash_force(&search->pv_table, &search->board, hash_code, &hash_data);
+			else hash_store(&search->pv_table, &search->board, hash_code, &hash_data);
 		}
 
 		assert(SCORE_MIN <= node.bestscore && node.bestscore <= SCORE_MAX);

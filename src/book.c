@@ -1043,7 +1043,7 @@ static void board_feed_hash(Board *board, const Book *book, Search *search, cons
 	const unsigned long long hash_code = board_get_hash_code(board);
 	MoveList movelist;
 	Move *m;
-	HashStoreData hash_store_data;
+	HashStoreData hash_data;
 
 	position = book_probe(book, board);
 	if (position) {
@@ -1051,8 +1051,8 @@ static void board_feed_hash(Board *board, const Book *book, Search *search, cons
 		const int score = position->score.value;
 		int move = NOMOVE;
 
-		hash_store_data.data.wl.c.depth = LEVEL[position->level][n_empties].depth;
-		hash_store_data.data.wl.c.selectivity = LEVEL[position->level][n_empties].selectivity;
+		hash_data.data.wl.c.depth = LEVEL[position->level][n_empties].depth;
+		hash_data.data.wl.c.selectivity = LEVEL[position->level][n_empties].selectivity;
 
 		position_get_moves(position, board, &movelist);
 		foreach_move(m, movelist) {
@@ -1062,10 +1062,10 @@ static void board_feed_hash(Board *board, const Book *book, Search *search, cons
 			board_restore(board, m);
 		}
 
-		hash_store_data.data.lower = hash_store_data.data.upper = score;
-		hash_store_data.data.move[0] = move;
-		hash_feed(&search->hash_table, board, hash_code, &hash_store_data);
-		if (is_pv) hash_feed(&search->pv_table, board, hash_code, &hash_store_data);
+		hash_data.data.lower = hash_data.data.upper = score;
+		hash_data.data.move[0] = move;
+		hash_feed(&search->hash_table, board, hash_code, &hash_data);
+		if (is_pv) hash_feed(&search->pv_table, board, hash_code, &hash_data);
 	}
 }
 
