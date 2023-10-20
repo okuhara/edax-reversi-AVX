@@ -527,10 +527,10 @@ int NWS_endgame(Search *search, const int alpha)
 		Move move[DEPTH_MIDGAME_TO_ENDGAME];
 	} movelist;
 
-	if (search->stop) return alpha;
-
 	assert(bit_count(~(search->board.player|search->board.opponent)) < DEPTH_MIDGAME_TO_ENDGAME);
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
+
+	if (search->stop) return alpha;
 
 	SEARCH_STATS(++statistics.n_NWS_endgame);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
@@ -622,7 +622,7 @@ int NWS_endgame(Search *search, const int alpha)
 	// special cases
 	} else if (movelist.n_moves == 1) {	// (3%)
 		parity0 = search->eval.parity;
-		move = movelist.move[0].next;
+		move = movelist_first(&movelist);
 		search_swap_parity(search, move->x);
 		empty_remove(search->empties, move->x);
 		rboard_update(&search->board, board0, move);

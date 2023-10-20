@@ -399,12 +399,10 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 		// sort the list of moves
 		nodes_org = search->n_nodes;
 		movelist_evaluate(&movelist, search, &hash_data.data, alpha, depth);
-		movelist_sort(&movelist);
 
 		// loop over all moves
 		bestscore = -SCORE_INF;
-		move = movelist.move[0].next;
-		do {
+		foreach_best_move(move, movelist) {
 			search_update_midgame(search, move);
 			score = -NWS_shallow(search, ~alpha, depth - 1, hash_table);
 			search_restore_midgame(search, move->x, &backup);
@@ -413,7 +411,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 				hash_data.data.move[0] = move->x;
 				if (score > alpha) break;
 			}
-		} while ((move = move->next));
+		}
 
 		// save the best result in hash tables
 		hash_data.data.wl.c.depth = depth;
@@ -426,7 +424,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 		hash_store(hash_table, &search->board, hash_code, &hash_data);
 
 	} else if (movelist.n_moves == 1) {
-		move = movelist.move[0].next;
+		move = movelist_first(&movelist);
 		search_update_midgame(search, move);
 		bestscore = -NWS_shallow(search, ~alpha, depth - 1, hash_table);
 		search_restore_midgame(search, move->x, &backup);
@@ -501,17 +499,16 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 		// sort the list of moves
 		nodes_org = search->n_nodes;
 		movelist_evaluate(&movelist, search, &HASH_DATA_INIT, alpha, depth);
-		movelist_sort(&movelist);
 
 		// loop over all moves
-		move = movelist.move[0].next;
+		move = movelist_best(&movelist);
 		search_update_midgame(search, move);
 		bestscore = -PVS_shallow(search, -beta, -alpha, depth - 1);
 		hash_data.data.move[0] = move->x;
 		search_restore_midgame(search, move->x, &backup);
 		lower = (bestscore > alpha) ? bestscore : alpha;
 
-		while ((move = move->next) && (bestscore < beta)) {
+		while ((bestscore < beta) && (move = move_next_best(move))) {
 			search_update_midgame(search, move);
 			score = -NWS_shallow(search, ~lower, depth - 1, &search->shallow_table);
 			if (lower < score && score < beta)
