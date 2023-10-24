@@ -70,9 +70,9 @@ void hash_init(HashTable *hash_table, const unsigned long long size)
 
 	hash_cleanup(hash_table);
 
-	hash_table->n_lock = 256 * MAX(get_cpu_number(), 1);
+	hash_table->n_lock = 1 << (31 - lzcnt_u32(get_cpu_number() | 1) + 8);	// round down to 2 ^ n, then * 256
 	hash_table->lock_mask = hash_table->n_lock - 1;
-	hash_table->n_lock += n_way + 1;
+	// hash_table->n_lock += n_way + 1;
 	hash_table->lock = (HashLock*) malloc(hash_table->n_lock * sizeof (HashLock));
 
 	for (i = 0; i < hash_table->n_lock; ++i) spin_init(hash_table->lock + i);
