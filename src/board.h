@@ -90,6 +90,10 @@ void init_neon (void);
 unsigned long long get_moves_sse(unsigned long long, unsigned long long);
 #endif
 
+#ifdef __AVX2__
+__m128i vectorcall get_moves_and_potential(__m256i, __m256i);
+#endif
+
 extern unsigned char edge_stability[256 * 256];
 
 // a1/a8/h1/h8 are already stable in horizontal line, so omit them in vertical line to ease kindergarten for CPU_64
