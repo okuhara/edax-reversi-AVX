@@ -82,13 +82,13 @@ static void bench_move_generator()
 		
 		c = -click();
 		for (i = 0; i < N_WARMUP; ++i) {
-			v += board_get_move(&board, x, &move);
+			v += board_get_move_flip(&board, x, &move);
 		}
 		c += click();
 
 		c = -click();
 		for (i = 0; i < N_REPEAT; ++i) {
-			v += board_get_move(&board, x, &move);
+			v += board_get_move_flip(&board, x, &move);
 		}
 		c += click();
 
@@ -98,14 +98,14 @@ static void bench_move_generator()
 		if (t < t_min) t_min = t;
 		if (t > t_max) t_max = t;
 
-		if (options.verbosity >= 2) printf("board_get_move: %s %.1f clicks;\n", move_to_string(x, WHITE, m), t);
+		if (options.verbosity >= 2) printf("board_get_move_flip: %s %.1f clicks;\n", move_to_string(x, WHITE, m), t);
 
 	}
 
 	t_mean /= x;
 	t_var = t_var / x - (t_mean * t_mean);
 
-	printf("board_get_move:  %.2f < %.2f +/- %.2f < %.2f\n", t_min, t_mean, sqrt(t_var), t_max);
+	printf("board_get_move_flip:  %.2f < %.2f +/- %.2f < %.2f\n", t_min, t_mean, sqrt(t_var), t_max);
 }
 
 /*

@@ -325,15 +325,15 @@ void board_rand(Board *board, int n_ply, Random *r)
 
 	board_init(board);
 	for (ply = 0; ply < n_ply; ply++) {
-		moves = get_moves(board->player, board->opponent);
+		moves = board_get_moves(board);
 		if (!moves) {
 			board_pass(board);
-			moves = get_moves(board->player, board->opponent);
+			moves = board_get_moves(board);
 			if (!moves) {
 				break;
 			}
 		}
-		board_get_move(board, get_rand_bit(moves, r), &move);
+		board_get_move_flip(board, get_rand_bit(moves, r), &move);
 		board_update(board, &move);
 	}
 }
@@ -349,7 +349,7 @@ void board_rand(Board *board, int n_ply, Random *r)
  * @param move  a Move structure remembering the modification.
  * @return      the flipped discs.
  */
-unsigned long long board_get_move(const Board *board, const int x, Move *move)
+unsigned long long board_get_move_flip(const Board *board, const int x, Move *move)
 {
 	move->x = x;
 	move->flipped = board_flip(board, x);
@@ -1089,7 +1089,7 @@ void board_print(const Board *board, const int player, FILE *f)
 	int i, j, square;
 	unsigned long long bk, wh;
 	const char color[5] = "?*O-.";
-	unsigned long long moves = get_moves(board->player, board->opponent);
+	unsigned long long moves = board_get_moves(board);
 
 	if (player == BLACK) {
 		bk = board->player;

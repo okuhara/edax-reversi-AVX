@@ -68,7 +68,7 @@ static void count_game(const Board *board, const int depth, GameStatistics *glob
 	Board next;
 
 	if (depth == 1) {
-		moves = get_moves(board->player, board->opponent);
+		moves = board_get_moves(board);
 		stats.n_moves = stats.max_mobility = stats.min_mobility = bit_count(moves);
 		if (moves == 0) {
 			if (can_move(board->opponent, board->player)) {
@@ -82,7 +82,7 @@ static void count_game(const Board *board, const int depth, GameStatistics *glob
 			}
 		}
 	} else {
-		moves = get_moves(board->player, board->opponent);
+		moves = board_get_moves(board);
 		if (moves) {
 			foreach_bit (x, moves) {
 				board_next(board, x, &next);
@@ -145,7 +145,7 @@ static void estimate_game(const Board *board, const int depth, Random *r, double
 	int x, i, j, k;
 	Board next;
 
-	moves = get_moves(board->player, board->opponent);
+	moves = board_get_moves(board);
 	i = bit_count(moves);
 	if (i == 0 && !can_move(board->opponent, board->player)) {
 		n[depth] = 0;
@@ -245,7 +245,7 @@ static void test_mobility(const Board *board, const int ply, Random *r, int *mov
 	e = board_count_empties(board);
 
 	if (e > *max_mobility) {
-		moves = get_moves(board->player, board->opponent);
+		moves = board_get_moves(board);
 		if (moves) {
 			i = bit_count(moves);
 			if (i > *max_mobility || (i == *max_mobility && e > *max_empties)) {
@@ -479,7 +479,7 @@ static void quick_count_game(GameHashTable *hash, const Board *board, const int 
 	Board next;
 
 	if (depth == 1) {
-		moves = get_moves(board->player, board->opponent);
+		moves = board_get_moves(board);
 		stats.n_moves = stats.max_mobility = stats.min_mobility = bit_count(moves);
 		if (moves == 0) {
 			if (can_move(board->opponent, board->player)) {
@@ -493,7 +493,7 @@ static void quick_count_game(GameHashTable *hash, const Board *board, const int 
 			}
 		}
 	} else if (gamehash_fail(hash, board, depth, &stats)) {
-		moves = get_moves(board->player, board->opponent);
+		moves = board_get_moves(board);
 		if (moves) {
 			foreach_bit (x, moves) {
 				board_next(board, x, &next);
@@ -764,7 +764,7 @@ static unsigned long long count_position(PositionHash *hash, BoardCache *cache, 
 
 	if (boardcache_undone(cache, board)) {
 		if (depth == 0) return positionhash_append(hash, board);
-		moves = get_moves(board->player, board->opponent);
+		moves = board_get_moves(board);
 
 		if (moves) {
 			foreach_bit (x, moves) {
@@ -990,7 +990,7 @@ static unsigned long long count_shape(ShapeHash *hash, BoardCache *cache, const 
 
 	if (boardcache_undone(cache, board)) {
 		if (depth == 0) return shapehash_append(hash, board);
-		moves = get_moves(board->player, board->opponent);
+		moves = board_get_moves(board);
 
 		if (moves) {
 			foreach_bit (x, moves) {
@@ -1097,7 +1097,7 @@ bool seek_position(const Board *target, const Board *board, Line *line) {
  	
  	if (board_equal(board, target)) return true;
  		
- 	moves = get_moves(board->player, board->opponent);
+ 	moves = board_get_moves(board);
 	if (moves) {
 		moves &= mask;
 		foreach_bit (x, moves) {

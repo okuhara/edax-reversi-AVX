@@ -158,7 +158,7 @@ bool game_update_board(Board *board, int x)
 	if (!can_move(board->player, board->opponent)) {
 		board_pass(board);
 	}
-	if (board_get_move(board, x, &move) == 0) return false;
+	if (board_get_move_flip(board, x, &move) == 0) return false;
 	board_update(board, &move);
 
 	return true;
@@ -178,7 +178,7 @@ static bool game_update_player(Board *board, int x)
 			board_pass(board);
 			swap = !swap;
 		}
-		if (board_get_move(board, x, &move) == 0) swap = !swap;
+		if (board_get_move_flip(board, x, &move) == 0) swap = !swap;
 	}
 	
 	return swap;
@@ -1515,16 +1515,16 @@ void game_rand(Game *game, int n_ply, Random *r)
 	game_init(game);
 	board_init(&board);
 	for (ply = 0; ply < n_ply; ply++) {
-		moves = get_moves(board.player, board.opponent);
+		moves = board_get_moves(&board);
 		if (!moves) {
 			board_pass(&board);
-			moves = get_moves(board.player, board.opponent);
+			moves = board_get_moves(&board);
 			if (!moves) {
 				break;
 			}
 		}
 		;
-		board_get_move(&board, get_rand_bit(moves, r), &move);
+		board_get_move_flip(&board, get_rand_bit(moves, r), &move);
 		game->move[ply] = move.x;
 		board_update(&board, &move);
 	}
@@ -1568,7 +1568,7 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
 			board_pass(&board);
 			player = !player;
 		} 
-		if (!board_is_occupied(&board, game->move[i]) && board_get_move(&board, game->move[i], &stack[n_move].played)) {
+		if (!board_is_occupied(&board, game->move[i]) && board_get_move_flip(&board, game->move[i], &stack[n_move].played)) {
 			stack[n_move].best = MOVE_INIT;
 			line_init(&stack[n_move].pv, player);
 			search_set_board(search, &board, player);

@@ -53,7 +53,7 @@ void pv_debug(Search *search, const Move *bestmove, FILE *f)
 		fprintf(f, ":%02d@%d%%[%+03d,%+03d]; ", hash_data.wl.c.depth, selectivity_table[hash_data.wl.c.selectivity].percent, hash_data.lower, hash_data.upper);
 	}
 	while (x != NOMOVE) {
-		board_get_move(&board, x, &move);
+		board_get_move_flip(&board, x, &move);
 		board_update(&board, &move);
 		player ^= 1;
 
@@ -92,7 +92,7 @@ bool is_pv_ok(Search *search, int bestmove, int search_depth)
 	x = bestmove;
 	while (search_depth > 0 && x != NOMOVE) {
 		if (x != PASS) --search_depth;
-		board_get_move(&board, x, &move);
+		board_get_move_flip(&board, x, &move);
 		board_update(&board, &move);
 
 		hash_code = board_get_hash_code(&board);
@@ -188,7 +188,7 @@ void record_best_move(Search *search, const Move *bestmove, const int alpha, con
 	fail_low = (bestmove->score <= alpha);
 
 	while (x != NOMOVE) {
-		board_get_move(&board, x, &move);
+		board_get_move_flip(&board, x, &move);
 		if (board_check_move(&board, &move)) {
 			board_update(&board, &move);
 			--expected_depth; 
@@ -596,7 +596,7 @@ static bool get_last_level(Search *search, int *depth, int *selectivity)
 		if (d > *depth) *depth = d;
 		if (s > *selectivity) *selectivity = s;
 
-		board_get_move(&board, x, &move);
+		board_get_move_flip(&board, x, &move);
 		board_update(&board, &move);
 
 		if (x == PASS) --i;
