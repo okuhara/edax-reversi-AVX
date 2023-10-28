@@ -620,7 +620,7 @@ static __m256i vectorcall get_full_lines(const unsigned long long disc)
 {
 	__m128i l81, l79, l8;
 	__m256i	v4_disc, lr79;
-	const __m128i kff  = _mm_set1_epi8(0xff);
+	const __m128i kff  = _mm_set1_epi8(-1);
     #if 0 // PCMPEQQ
 	static const V4DI m791 = {{ 0x0402010000804020, 0x2040800000010204, 0x0804020180402010, 0x1020408001020408 }};	// V8SI
 	static const V4DI m792 = {{ 0x0000008040201008, 0x0000000102040810, 0x1008040201000000, 0x0810204080000000 }};

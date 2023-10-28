@@ -94,7 +94,7 @@ void hash_cleanup(HashTable *hash_table)
 	info("< cleaning hashtable >\n");
 
   #if defined(hasSSE2) || defined(USE_MSVC_X86)
-	if (hasSSE2 && (sizeof(Hash) == 24) && (((uintptr_t) pHash & 0x1f) == 0) && (imax >= 7)) {
+	if (hasSSE2 && (sizeof(Hash) == 24) && (((size_t) pHash & 0x1f) == 0) && (imax >= 7)) {
 		for (; i < 4; ++i, ++pHash) {
 			HASH_COLLISIONS(pHash->key = 0;)
 			pHash->board.player = pHash->board.opponent = 0;
