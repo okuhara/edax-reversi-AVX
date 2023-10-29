@@ -98,7 +98,7 @@ __m256i vectorcall mm_Flip(const __m128i OP, int pos)
 	__m256i	PP, OO, flip, outflank, eraser, mask;
 
 	PP = _mm256_broadcastq_epi64(OP);
-	OO = _mm256_permute4x64_epi64(_mm256_castsi128_si256(OP), 0x55);
+	OO = _mm256_broadcastq_epi64(_mm_unpackhi_epi64(OP, OP));
 
 	mask = lrmask[pos].v4[1];
 		// isolate non-opponent MS1B by clearing lower shadow bits

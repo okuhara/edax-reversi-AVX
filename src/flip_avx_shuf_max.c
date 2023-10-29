@@ -99,7 +99,7 @@ __m128i vectorcall mm_Flip(const __m128i OP, int pos)
 	const __m256i ms1bL = _mm256_broadcastsi128_si256(_mm_set_epi64x(0x0808080808080808, 0x0404040402020100));
 
 	PP = _mm256_broadcastq_epi64(OP);
-	OO = _mm256_permute4x64_epi64(_mm256_castsi128_si256(OP), 0x55);
+	OO = _mm256_broadcastq_epi64(_mm_unpackhi_epi64(OP, OP));
 
 	mask = lrmask[pos].v4[1];
 		// look for non-opponent MS1B
