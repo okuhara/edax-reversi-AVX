@@ -25,7 +25,7 @@ void init_neon (void)
 		extern unsigned long long (*flip_neon[66])(const unsigned long long, const unsigned long long);
 		memcpy(flip, flip_neon, sizeof(flip_neon));
 	#endif
-		hasSSE2 = true;
+		hasSSE2 = true;	// for eval_update_sse
 	}
   #else	// android x86 w/o SSE2 - uncommon and not tested
 	int	cpuid_edx, cpuid_ecx;

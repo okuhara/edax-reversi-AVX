@@ -442,7 +442,7 @@ unsigned long long board_next(const Board *board, const int x, Board *next)
 }
 #endif
 
-#if !defined(hasSSE2) && !defined(hasNeon)	// sse version in board_sse.c
+#if !defined(hasSSE2) && !defined(hasNeon)	// SSE version in board_sse.c
 /**
  * @brief Get a part of the moves.
  *
@@ -608,11 +608,7 @@ int get_mobility(const unsigned long long P, const unsigned long long O)
 	return bit_count(get_moves(P, O));
 }
 
-int get_weighted_mobility(const unsigned long long P, const unsigned long long O)
-{
-	return bit_weighted_count(get_moves(P, O));
-}
-
+#ifndef __AVX2__
 /**
  * @brief Get some potential moves.
  *
@@ -634,7 +630,7 @@ static inline unsigned long long get_some_potential_moves(const unsigned long lo
  * @param O bitboard with opponent's discs.
  * @return all potential moves in a 64-bit unsigned integer.
  */
-static unsigned long long get_potential_moves(const unsigned long long P, const unsigned long long O)
+unsigned long long get_potential_moves(const unsigned long long P, const unsigned long long O)
 {
 	return (get_some_potential_moves(O & 0x7E7E7E7E7E7E7E7E, 1) // horizontal
 		| get_some_potential_moves(O & 0x00FFFFFFFFFFFF00, 8)   // vertical
@@ -643,6 +639,7 @@ static unsigned long long get_potential_moves(const unsigned long long P, const 
 		& ~(P|O); // mask with empties
 }
 
+  #if !(defined(hasSSE2) && !defined(POPCOUNT)) && !defined(hasNeon)
 /**
  * @brief Get potential mobility.
  *
@@ -654,12 +651,14 @@ static unsigned long long get_potential_moves(const unsigned long long P, const 
  */
 int get_potential_mobility(const unsigned long long P, const unsigned long long O)
 {
-  #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+    #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 	if (hasMMX)
 		return get_potential_mobility_mmx(P, O);
-  #endif
+    #endif
 	return bit_weighted_count(get_potential_moves(P, O));
 }
+  #endif
+#endif // AVX2
 
 /**
  * @brief search stable edge patterns.

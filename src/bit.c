@@ -149,28 +149,53 @@ void bit_init(void)
  * @param v 64-bit integer to count bits of.
  * @return the number of bit set, counting the corners twice.
  */
+#if !defined(__AVX2__) && defined(hasSSE2) && !defined(POPCOUNT)
+__m128i bit_weighted_count_sse(unsigned long long Q0, unsigned long long Q1)
+{
+	static const V2DI mask15 = {{ 0x1555555555555515, 0x1555555555555515 }};
+	static const V2DI mask01 = {{ 0x0100000000000001, 0x0100000000000001 }};
+	static const V2DI mask33 = {{ 0x3333333333333333, 0x3333333333333333 }};
+	static const V2DI mask0F = {{ 0x0F0F0F0F0F0F0F0F, 0x0F0F0F0F0F0F0F0F }};
+
+	__m128i v = _mm_set_epi64x(Q1, Q0);
+	v = _mm_add_epi64(_mm_sub_epi64(v, _mm_and_si128(_mm_srli_epi64(v, 1), mask15.v2)), _mm_and_si128(v, mask01.v2));
+	v = _mm_add_epi64(_mm_and_si128(v, mask33.v2), _mm_and_si128(_mm_srli_epi64(v, 2), mask33.v2));
+	v = _mm_and_si128(_mm_add_epi64(v, _mm_srli_epi64(v, 4)), mask0F.v2);
+	return _mm_sad_epu8(v, _mm_setzero_si128());
+}
+
+#elif defined(hasNeon)
+uint64x2_t bit_weighted_count_neon(unsigned long long Q0, unsigned long long Q1)
+{
+	uint64x2_t v = vcombine_u64(vcreate_u64(Q0), vcreate_u64(Q1));
+	return vpaddlq_u32(vpaddlq_u16(vpaddlq_u8(vaddq_u8(vcntq_u8(vreinterpretq_u8_u64(v)),
+		vcntq_u8(vreinterpretq_u8_u64(vandq_u64(v, vdupq_n_u64(0x8100000000000081))))))));
+}
+
+#else
 int bit_weighted_count(unsigned long long v)
 {
-#if defined(POPCOUNT)
+  #if defined(POPCOUNT)
   	unsigned int P2187 = (v >> 48) | (v << 16);	// ror 48
 	return bit_count(v) + bit_count_32(P2187 & 0x00818100);
 
-#else
+  #else
 	int	c;
 
 	v  = v - ((v >> 1) & 0x1555555555555515ULL) + (v & 0x0100000000000001ULL);
 	v  = ((v >> 2) & 0x3333333333333333ULL) + (v & 0x3333333333333333ULL);
-  #ifdef HAS_CPU_64
+    #ifdef HAS_CPU_64
 	v = (v + (v >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
 	c = (v * 0x0101010101010101ULL) >> 56;
-  #else
+    #else
 	c = (v >> 32) + v;
 	c = (c & 0x0F0F0F0F) + ((c >> 4) & 0x0F0F0F0F);
 	c = (c * 0x01010101) >> 24;
-  #endif
+    #endif
 	return c;
-#endif
+  #endif
 }
+#endif
 
 /**
  *
