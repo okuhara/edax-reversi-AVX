@@ -494,26 +494,29 @@ Move* movelist_sort_bestmove(MoveList *movelist, const int move)
  */
 void movelist_sort_cost(MoveList *movelist, const HashData *hash_data)
 {
-	Move *iter, *m;
-	Move *hashmove[2];
-	int	i;
+	Move *iter, *prev, *m, *hashmove0, *hashmove1;
 
-	hashmove[0] = hashmove[1] = NULL;
-	for (iter = &movelist->move[0]; (m = iter->next); iter = m) {
+	hashmove0 = hashmove1 = NULL;
+	for (prev = iter = &movelist->move[0]; (m = prev->next); prev = m) {
 		if (m->x == hash_data->move[0])
-			hashmove[0] = iter;
+			hashmove0 = prev;
 		if (m->x == hash_data->move[1])
-			hashmove[1] = iter;
+			hashmove1 = prev;
 	}
-	iter = &movelist->move[0];
-	for (i = 0; i <= 1; ++i)
-		if (hashmove[i]) {
-			m = hashmove[i]->next;
-			hashmove[i]->next = m->next;
-			m->next = iter->next;
-			iter->next = m;
-			iter = iter->next;
-		}
+	if (hashmove0) {
+		m = hashmove0->next;
+		hashmove0->next = m->next;
+		m->next = iter->next;
+		if (hashmove1 == iter)
+			hashmove1 = m;
+		iter = iter->next = m;
+	}
+	if (hashmove1) {
+		m = hashmove1->next;
+		hashmove1->next = m->next;
+		m->next = iter->next;
+		iter = iter->next = m;
+	}
 	while ((iter = move_next_most_expensive(iter)))
 		;
 }
