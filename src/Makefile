@@ -46,7 +46,7 @@ ifeq ($(COMP),gcc)
 		CFLAGS += -Ofast -fwhole-program -DNDEBUG
 		LTOFLAG = -flto
 	else
-		CFLAGS += -O0 -g -DDEBUG
+		CFLAGS += -O1 -g -DDEBUG
 	endif
 
 	ifeq ($(ARCH),x64-modern)
