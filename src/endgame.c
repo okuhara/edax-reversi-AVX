@@ -410,7 +410,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 	unsigned long long moves, prioritymoves;
 	int x, prev, score, bestscore;
 	// const int beta = alpha + 1;
-	vBoard board0;
+	V2DI board0;
 	unsigned int parity0;
 
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
@@ -422,8 +422,8 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 	// stability cutoff (try 8%, cut 7%)
 	if (search_SC_NWS(search, alpha, &score)) return score;
 
-	board0 = load_vboard(search->board);
-	moves = vboard_get_moves(board0, search->board);
+	board0.board = search->board;
+	moves = vboard_get_moves(board0);
 	if (moves == 0) {	// pass (2%)
 		if (pass1)	// gameover (1%)
 			return search_solve(search);
@@ -480,7 +480,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 				search->empties[prev].next = x;	// restore
 
 				if (score > alpha) {	// (40%)
-					// store_vboard(search->board, board0);
+					// search->board = *(Board *) &board0;
 					// search->eval.parity = parity0;
 					++search->eval.n_empties;
 					return score;
@@ -491,7 +491,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 		} while ((prioritymoves = moves));	// (23%)
 		++search->eval.n_empties;
 	}
-	// store_vboard(search->board, board0);
+	// search->board = *(Board *) &board0;
 	// search->eval.parity = parity0;
 
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
@@ -518,8 +518,7 @@ int NWS_endgame(Search *search, const int alpha)
 	HashStoreData hash_data;
 	Move *move;
 	long long nodes_org;
-	rBoard board0;
-	Board hashboard;
+	V2DI board0, hashboard;
 	unsigned int parity0;
 	unsigned long long full[5];
 	struct size_reduced_MoveList {	// derived from MoveList in move.h
@@ -536,8 +535,7 @@ int NWS_endgame(Search *search, const int alpha)
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	// stability cutoff
-	board0 = load_rboard(search->board);
-	store_rboard(hashboard, board0);
+	hashboard.board = board0.board = search->board;
 	ofssolid = 0;
 	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {	// (7%)
 		CUTOFF_STATS(++statistics.n_stability_try;)
@@ -551,33 +549,33 @@ int NWS_endgame(Search *search, const int alpha)
 		// Hidekazu Matsuo, Shuji Narazaki
 		// http://id.nii.ac.jp/1001/00156359/
 		if (search->eval.n_empties <= MASK_SOLID_DEPTH) {	// (99%)
-			solid_opp = full[4] & hashboard.opponent;	// full[4] = all full
+			solid_opp = full[4] & hashboard.board.opponent;	// full[4] = all full
 #ifndef POPCOUNT
 			if (solid_opp)	// (72%)
 #endif
 			{
-				hashboard.player ^= solid_opp;	// normalize solid to player
-				hashboard.opponent ^= solid_opp;
+				hashboard.board.player ^= solid_opp;	// normalize solid to player
+				hashboard.board.opponent ^= solid_opp;
 				ofssolid = bit_count(solid_opp) * 2;	// hash score is ofssolid grater than real
 			}
 		}
 	}
 
-	hash_code = board_get_hash_code(&hashboard);
+	hash_code = board_get_hash_code(&hashboard.board);
 	hash_prefetch(&search->hash_table, hash_code);
 
 	search_get_movelist(search, (MoveList *) &movelist);
 
 	if (movelist.n_moves > 1) {	// (96%)
 		// transposition cutoff
-		if (hash_get(&search->hash_table, &hashboard, hash_code, &hash_data.data)) {	// (6%)
+		if (vhash_get(&search->hash_table, hashboard, hash_code, &hash_data.data)) {	// (6%)
 			hash_data.data.lower -= ofssolid;
 			hash_data.data.upper -= ofssolid;
 			if (search_TC_NWS(&hash_data.data, search->eval.n_empties, NO_SELECTIVITY, alpha, &score))	// (6%)
 				return score;
 		}
 		// else if (ofssolid)	// slows down
-		//	hash_get_from_board(&search->hash_table, &search->board, &hash_data.data);
+		//	vhash_get_from_board(&search->hash_table, board0, &hash_data.data);
 
 		movelist_evaluate_fast((MoveList *) &movelist, search, &hash_data.data);
 
@@ -590,10 +588,10 @@ int NWS_endgame(Search *search, const int alpha)
 			while ((move = move_next_best(move))) {	// (72%)
 				search->eval.parity = parity0 ^ QUADRANT_ID[move->x];
 				search->empties[search->empties[move->x].previous].next = search->empties[move->x].next;	// remove - maintain single link only
-				rboard_update(&search->board, board0, move);
+				vboard_update(&search->board, board0, move);
 				score = -search_shallow(search, ~alpha, false);
 				search->empties[search->empties[move->x].previous].next = move->x;	// restore
-				store_rboard(search->board, board0);
+				search->board = board0.board;
 
 				if (score > bestscore) {	// (63%)
 					bestscore = score;
@@ -605,10 +603,10 @@ int NWS_endgame(Search *search, const int alpha)
 			while ((move = move_next_best(move))) {	// (76%)
 				search->eval.parity = parity0 ^ QUADRANT_ID[move->x];
 				empty_remove(search->empties, move->x);
-				rboard_update(&search->board, board0, move);
+				vboard_update(&search->board, board0, move);
 				score = -NWS_endgame(search, ~alpha);
 				empty_restore(search->empties, move->x);
-				store_rboard(search->board, board0);
+				search->board = board0.board;
 
 				if (score > bestscore) {	// (63%)
 					bestscore = score;
@@ -629,7 +627,7 @@ int NWS_endgame(Search *search, const int alpha)
 		hash_data.alpha = alpha + ofssolid;
 		hash_data.beta = alpha + ofssolid + 1;
 		hash_data.score = bestscore + ofssolid;
-		hash_store(&search->hash_table, &hashboard, hash_code, &hash_data);
+		hash_store(&search->hash_table, &hashboard.board, hash_code, &hash_data);
 
 	// special cases
 	} else if (movelist.n_moves == 1) {	// (3%)
@@ -637,14 +635,14 @@ int NWS_endgame(Search *search, const int alpha)
 		move = movelist_first(&movelist);
 		search_swap_parity(search, move->x);
 		empty_remove(search->empties, move->x);
-		rboard_update(&search->board, board0, move);
+		vboard_update(&search->board, board0, move);
 		if (--search->eval.n_empties <= DEPTH_TO_SHALLOW_SEARCH)	// (56%)
 			bestscore = -search_shallow(search, ~alpha, false);
 		else	bestscore = -NWS_endgame(search, ~alpha);
 		++search->eval.n_empties;
 		empty_restore(search->empties, move->x);
 		search->eval.parity = parity0;
-		store_rboard(search->board, board0);
+		search->board = board0.board;
 
 	} else {	// (1%)
 		if (can_move(search->board.opponent, search->board.player)) { // pass
