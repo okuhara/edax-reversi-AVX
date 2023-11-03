@@ -31,6 +31,32 @@
 #include <stdio.h>
 #include <assert.h>
 
+// use vectored board if vectorcall available and hboard_equal is efficient enough
+#if defined(hasSSE2) && (defined(_MSC_VER) || defined(__linux__))
+	#define	store_hboard(p,b)	_mm_storeu_si128((__m128i *) (p), (b))
+  #if defined(__SSE4__) || defined(__AVX__)
+	inline bool hboard_equal(__m128i b1, Board *b2)
+	{
+		b1 = _mm_xor_si128(b1, _mm_loadu_si128((__m128i *) b2));
+		return _mm_testz_si128(b1, b1);
+	}
+  #else
+	#define	hboard_equal(b1,b2)	(_mm_movemask_epi8(_mm_cmpeq_epi8(b1, _mm_loadu_si128((__m128i *) b2))) == 0xffff)
+  #endif
+
+#elif defined(__aarch64__) || defined(_M_ARM64)
+	#define	store_hboard(p,b)	vst1q_u64((uint64_t *) (p), (b))
+  #ifdef _M_ARM64	// https://stackoverflow.com/questions/15389539/fastest-way-to-test-a-128-bit-neon-register-for-a-value-of-0-using-intrinsics
+	#define	hboard_equal(b1,b2)	(neon_umaxvq32(veorq_u64((b1), vld1q_u64((uint64_t *) (b2)))) == 0)
+  #else
+	#define	hboard_equal(b1,b2)	(vmaxvq_u32(vreinterpretq_u32_u64(veorq_u64((b1), vld1q_u64((uint64_t *) (b2))))) == 0)
+  #endif
+
+#else
+	#define	store_hboard(p,b)	*(p) = *(b)
+	#define	hboard_equal(b1,b2)	board_equal(b1, b2)
+#endif
+
 /** HashData init value */
 const HashData HASH_DATA_INIT = {{{ 0, 0, 0, 0 }}, -SCORE_INF, SCORE_INF, { NOMOVE, NOMOVE }};
 
@@ -283,13 +309,13 @@ static void data_new(HashData *data, HashStoreData *storedata)
  * @param storedata.score Best score.
  * @param storedata.move Best move.
  */
-static void hash_new(Hash *hash, HashLock *lock, const Board* board, HashStoreData *storedata)
+static void vectorcall hash_new(Hash *hash, HashLock *lock, HBOARD board, HashStoreData *storedata)
 {
 	spin_lock(lock);
 	HASH_STATS(if (date == hash->data.date) ++statistics.n_hash_remove;)
 	HASH_STATS(++statistics.n_hash_new;)
 	HASH_COLLISIONS(hash->key = storedata->hash_code;)
-	hash->board = *board;
+	store_hboard(&hash->board, board);
 	data_new(&hash->data, storedata);
 	spin_unlock(lock);
 }
@@ -313,14 +339,14 @@ static void hash_new(Hash *hash, HashLock *lock, const Board* board, HashStoreDa
  * @param storedata.data.upper Upper score bound.
  * @param storedata.move Best move.
  */
-static void hash_set(Hash *hash, HashLock *lock, const Board *board, HashStoreData *storedata)
+static void vectorcall hash_set(Hash *hash, HashLock *lock, HBOARD board, HashStoreData *storedata)
 {
 	storedata->data.move[1] = NOMOVE;
 	spin_lock(lock);
 	HASH_STATS(if (date == hash->data.date) ++statistics.n_hash_remove;)
 	HASH_STATS(++statistics.n_hash_new;)
 	HASH_COLLISIONS(hash->key = storedata->hash_code;)
-	hash->board = *board;
+	store_hboard(&hash->board, board);
 	hash->data = storedata->data;
 	assert(hash->data.upper >= hash->data.lower);
 	spin_unlock(lock);
@@ -348,13 +374,13 @@ static void hash_set(Hash *hash, HashLock *lock, const Board *board, HashStoreDa
  * @param storedata.move Best move.
  * @return true if an entry has been updated, false otherwise.
  */
-static bool hash_update(Hash *hash, HashLock *lock, const Board *board, HashStoreData *storedata)
+static bool vectorcall hash_update(Hash *hash, HashLock *lock, HBOARD board, HashStoreData *storedata)
 {
 	bool ok = false;
 
-	if (board_equal(&hash->board, board)) {
+	if (hboard_equal(board, &hash->board)) {
 		spin_lock(lock);
-		if (board_equal(&hash->board, board)) {
+		if (hboard_equal(board, &hash->board)) {
 			if (hash->data.wl.us.selectivity_depth == storedata->data.wl.us.selectivity_depth)
 				data_update(&hash->data, storedata);
 			else	data_upgrade(&hash->data, storedata);
@@ -390,13 +416,13 @@ static bool hash_update(Hash *hash, HashLock *lock, const Board *board, HashStor
  * @param storedata.move Best move.
  * @return true if an entry has been replaced, false otherwise.
  */
-static bool hash_replace(Hash *hash, HashLock *lock, const Board *board, HashStoreData *storedata)
+static bool vectorcall hash_replace(Hash *hash, HashLock *lock, HBOARD board, HashStoreData *storedata)
 {
 	bool ok = false;
 
-	if (board_equal(&hash->board, board)) {
+	if (hboard_equal(board, &hash->board)) {
 		spin_lock(lock);
-		if (board_equal(&hash->board, board)) {
+		if (hboard_equal(board, &hash->board)) {
 			data_new(&hash->data, storedata);
 			ok = true;
 		}
@@ -418,13 +444,13 @@ static bool hash_replace(Hash *hash, HashLock *lock, const Board *board, HashSto
  * @param storedata.data.upper Upper score bound.
  * @param storedata.move Best move.
  */
-static bool hash_reset(Hash *hash, HashLock *lock, const Board *board, HashStoreData *storedata)
+static bool vectorcall hash_reset(Hash *hash, HashLock *lock, HBOARD board, HashStoreData *storedata)
 {
 	bool ok = false;
 
-	if (board_equal(&hash->board, board)) {
+	if (hboard_equal(board, &hash->board)) {
 		spin_lock(lock);
-		if (board_equal(&hash->board, board)) {
+		if (hboard_equal(board, &hash->board)) {
 			if (hash->data.wl.us.selectivity_depth == storedata->data.wl.us.selectivity_depth) {
 				if (hash->data.lower < storedata->data.lower) hash->data.lower = storedata->data.lower;
 				if (hash->data.upper > storedata->data.upper) hash->data.upper = storedata->data.upper;
@@ -459,7 +485,7 @@ static bool hash_reset(Hash *hash, HashLock *lock, const Board *board, HashStore
  * @param storedata.data.upper Beta bound.
  * @param storedata.move best move.
  */
-void hash_feed(HashTable *hash_table, const Board *board, const unsigned long long hash_code, HashStoreData *storedata)
+void vectorcall hash_feed(HashTable *hash_table, HBOARD board, const unsigned long long hash_code, HashStoreData *storedata)
 {
 	Hash *hash, *worst;
 	HashLock *lock; 
@@ -514,7 +540,7 @@ void hash_feed(HashTable *hash_table, const Board *board, const unsigned long lo
  * @param storedata.score      Best score found.
  * @param storedata.move       Best move found.
  */
-void hash_store(HashTable *hash_table, const Board *board, const unsigned long long hash_code, HashStoreData *storedata)
+void vectorcall hash_store(HashTable *hash_table, HBOARD board, const unsigned long long hash_code, HashStoreData *storedata)
 {
 	int i;
 	Hash *worst, *hash;
@@ -553,7 +579,7 @@ void hash_store(HashTable *hash_table, const Board *board, const unsigned long l
  * @param storedata.score      Best score found.
  * @param storedata.move       Best move found.
  */
-void hash_force(HashTable *hash_table, const Board *board, const unsigned long long hash_code, HashStoreData *storedata)
+void vectorcall hash_force(HashTable *hash_table, HBOARD board, const unsigned long long hash_code, HashStoreData *storedata)
 {
 	int i;
 	Hash *worst, *hash;
@@ -585,24 +611,7 @@ void hash_force(HashTable *hash_table, const Board *board, const unsigned long l
  * @param data Output hash data.
  * @return True the board was found, false otherwise.
  */
-#if defined(hasSSE2) && (defined(_MSC_VER) || defined(__linux__))
-  #ifdef __AVX2__
-inline bool vboard_equal(__m128i b1, Board *b2)
-{
-	__m128i b = _mm_xor_si128(b1, _mm_loadu_si128((__m128i *) b2));
-	return _mm_testz_si128(b, b);
-}
-  #else
-#define	vboard_equal(b1,b2)	(_mm_movemask_epi8(_mm_cmpeq_epi8(b1, _mm_loadu_si128((__m128i *) b2))) == 0xffff)
-  #endif
-
-bool vectorcall hash_get_sse(HashTable *hash_table, __m128i board, const unsigned long long hash_code, HashData *data)
-
-#else
-#define	vboard_equal(b1,b2)	board_equal(b1, b2)
-
-bool hash_get(HashTable *hash_table, const Board *board, const unsigned long long hash_code, HashData *data)
-#endif
+bool vectorcall hash_get(HashTable *hash_table, HBOARD board, const unsigned long long hash_code, HashData *data)
 {
 	int i;
 	Hash *hash;
@@ -624,10 +633,10 @@ bool hash_get(HashTable *hash_table, const Board *board, const unsigned long lon
 		HASH_COLLISIONS(	})
 		HASH_COLLISIONS(	spin_unlock(lock);)
 		HASH_COLLISIONS(})
-		if (vboard_equal(board, &hash->board)) {
+		if (hboard_equal(board, &hash->board)) {
 			lock = hash_table->lock + (hash_code & hash_table->lock_mask);
 			spin_lock(lock);
-			if (vboard_equal(board, &hash->board)) {
+			if (hboard_equal(board, &hash->board)) {
 				*data = hash->data;
 				HASH_STATS(++statistics.n_hash_found;)
 				hash->data.wl.c.date = hash_table->date;
@@ -652,7 +661,7 @@ bool hash_get(HashTable *hash_table, const Board *board, const unsigned long lon
  */
 bool hash_get_from_board(HashTable *hash_table, const Board *board, HashData *data)
 {
-	return hash_get(hash_table, board, board_get_hash_code(board), data);
+	return hash_get(hash_table, HBOARD_P(board), board_get_hash_code(board), data);
 }
 
 /**
@@ -663,7 +672,7 @@ bool hash_get_from_board(HashTable *hash_table, const Board *board, HashData *da
  * @param hash_code Hash code of an othello board.
  * @param move Move to exclude.
  */
-void hash_exclude_move(HashTable *hash_table, const Board *board, const unsigned long long hash_code, const int move)
+void vectorcall hash_exclude_move(HashTable *hash_table, HBOARD board, const unsigned long long hash_code, const int move)
 {
 	int i;
 	Hash *hash;
@@ -671,10 +680,10 @@ void hash_exclude_move(HashTable *hash_table, const Board *board, const unsigned
 
 	hash = hash_table->hash + (hash_code & hash_table->hash_mask);
 	for (i = 0; i < HASH_N_WAY; ++i) {
-		if (board_equal(&hash->board, board)) {
+		if (hboard_equal(board, &hash->board)) {
 			lock = hash_table->lock + (hash_code & hash_table->lock_mask);
 			spin_lock(lock);
-			if (board_equal(&hash->board, board)) {
+			if (hboard_equal(board, &hash->board)) {
 				if (hash->data.move[0] == move) {
 					hash->data.move[0] = hash->data.move[1];
 					hash->data.move[1] = NOMOVE;

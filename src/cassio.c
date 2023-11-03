@@ -422,8 +422,8 @@ void feed_all_hash_table(Search *search, Board *board, const int depth, const in
 	hash_data.data.move[0] = move;
 	hash_data.data.lower = lower;
 	hash_data.data.upper = upper;
-	hash_feed(&search->hash_table, board, hash_code, &hash_data);
-	hash_feed(&search->pv_table, board, hash_code, &hash_data);
+	hash_feed(&search->hash_table, HBOARD_P(board), hash_code, &hash_data);
+	hash_feed(&search->pv_table, HBOARD_P(board), hash_code, &hash_data);
 }
 
 /**
@@ -538,8 +538,8 @@ static bool skip_search(Engine *engine, int *old_score)
 	
 	*old_score = 0;
 	
-	if (hash_get(&search->pv_table, &search->board, hash_code, &hash_data)
-	|| hash_get(&search->hash_table, &search->board, hash_code, &hash_data)) {
+	if (hash_get(&search->pv_table, HBOARD_P(&search->board), hash_code, &hash_data)
+	|| hash_get(&search->hash_table, HBOARD_P(&search->board), hash_code, &hash_data)) {
 		// compute bounds
 		if (alpha < hash_data.lower) alpha = *old_score = hash_data.lower;
 		if (beta > hash_data.upper) beta = *old_score = hash_data.upper;

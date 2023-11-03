@@ -86,28 +86,35 @@ typedef struct HashStoreData {
 } HashStoreData;
 
 /* declaration */
+// use vectored board if vectorcall available
+#if defined(hasSSE2) && (defined(_MSC_VER) || defined(__linux__))
+	#define	HBOARD	__m128i
+	#define	HBOARD_P(b)	_mm_loadu_si128((__m128i *) (b))
+	#define	HBOARD_V(b)	((b).v2)
+#elif defined(__aarch64__) || defined(_M_ARM64)
+	#define	HBOARD	uint64x2_t
+	#define	HBOARD_P(b)	vld1q_u64((uint64_t *) (b))
+	#define	HBOARD_V(b)	((b).v2)
+#else
+	#define	HBOARD	const Board *
+	#define	HBOARD_P(b)	(b)
+	#define	HBOARD_V(b)	(&(b).board)
+#endif
+
 void hash_move_init(void);
 void hash_init(HashTable*, const unsigned long long);
 void hash_cleanup(HashTable*);
 void hash_clear(HashTable*);
 void hash_free(HashTable*);
-void hash_feed(HashTable*, const Board*, const unsigned long long, HashStoreData *);
-void hash_store(HashTable*, const Board*, const unsigned long long, HashStoreData *);
-void hash_force(HashTable*, const Board*, const unsigned long long, HashStoreData *);
+void vectorcall hash_feed(HashTable*, HBOARD, const unsigned long long, HashStoreData *);
+void vectorcall hash_store(HashTable*, HBOARD, const unsigned long long, HashStoreData *);
+void vectorcall hash_force(HashTable*, HBOARD, const unsigned long long, HashStoreData *);
+bool vectorcall hash_get(HashTable*, HBOARD, const unsigned long long, HashData *);
 bool hash_get_from_board(HashTable*, const Board*, HashData *);
-void hash_exclude_move(HashTable*, const Board*, const unsigned long long, const int);
+void vectorcall hash_exclude_move(HashTable*, HBOARD, const unsigned long long, const int);
 void hash_copy(const HashTable*, HashTable*);
 void hash_print(const HashData*, FILE*);
 extern unsigned int writeable_level(HashData *data);
-
-#if defined(hasSSE2) && (defined(_MSC_VER) || defined(__linux__))
-	bool vectorcall hash_get_sse(HashTable*, __m128i, const unsigned long long, HashData *);
-	#define	hash_get(hash_table,board,hash_code,data)	hash_get_sse((hash_table), _mm_loadu_si128((__m128i *) (board)), (hash_code), (data))
-	#define	vhash_get(hash_table,vboard,hash_code,data)	hash_get_sse((hash_table), (vboard).v2, (hash_code), (data))
-#else
-	bool hash_get(HashTable*, const Board*, const unsigned long long, HashData *);
-	#define	vhash_get(hash_table,vboard,hash_code,data)	hash_get((hash_table), &(vboard).board, (hash_code), (data))
-#endif
 
 extern const HashData HASH_DATA_INIT;
 
