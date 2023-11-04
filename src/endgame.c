@@ -480,7 +480,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 				search->empties[prev].next = x;	// restore
 
 				if (score > alpha) {	// (40%)
-					// search->board = *(Board *) &board0;
+					// search->board = board0.board;
 					// search->eval.parity = parity0;
 					++search->eval.n_empties;
 					return score;
@@ -491,7 +491,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 		} while ((prioritymoves = moves));	// (23%)
 		++search->eval.n_empties;
 	}
-	// search->board = *(Board *) &board0;
+	// search->board = board0.board;
 	// search->eval.parity = parity0;
 
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);

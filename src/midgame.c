@@ -130,14 +130,16 @@ int search_eval_0(Search *search)
  */
 int search_eval_1(Search *search, const int alpha, int beta, bool pass1)
 {
-	Eval Ev;
 	int x, score, bestscore, betathres;
-	unsigned long long flipped;
-	unsigned long long moves = board_get_moves(&search->board);
+	unsigned long long flipped, moves;
+	Eval Ev;
+	V2DI board0;
 
 	SEARCH_STATS(++statistics.n_search_eval_1);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
+	board0.board = search->board;
+	moves = vboard_get_moves(board0);
 	if (moves) {
 		bestscore = -SCORE_INF * 128;
 		if (beta > SCORE_MAX - 1) betathres = ((SCORE_MAX - 1) * 128) - 64;
@@ -150,7 +152,7 @@ int search_eval_1(Search *search, const int alpha, int beta, bool pass1)
 			} while (!(moves & x_to_bit(x)));
 
 			moves &= ~x_to_bit(x);
-			flipped = board_flip(&search->board, x);
+			flipped = vboard_flip(board0, x);
 			if (flipped == search->board.opponent)
 				return SCORE_MAX;	// wipeout
 
@@ -196,13 +198,9 @@ int search_eval_1(Search *search, const int alpha, int beta, bool pass1)
 int search_eval_2(Search *search, int alpha, const int beta, bool pass1)
 {
 	int x, prev, bestscore, score;
-	unsigned long long flipped;
+	unsigned long long flipped, moves;
 	Eval eval0;
 	V2DI board0;
-	unsigned long long moves;
-
-	board0.board = search->board;
-	moves = vboard_get_moves(board0);
 
 	SEARCH_STATS(++statistics.n_search_eval_2);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
@@ -211,6 +209,8 @@ int search_eval_2(Search *search, int alpha, const int beta, bool pass1)
 	assert(beta <= SCORE_MAX);
 	assert(alpha <= beta);
 
+	board0.board = search->board;
+	moves = vboard_get_moves(board0);
 	if (moves) {
 		bestscore = -SCORE_INF;
 		eval0.feature = search->eval.feature;
