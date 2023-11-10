@@ -49,7 +49,7 @@ void pv_debug(Search *search, const Move *bestmove, FILE *f)
 
 	x = bestmove->x;
 	fprintf(f, "pv = %s ", move_to_string(x, player, s));
-	if (hash_get_from_board(&search->pv_table, &board, &hash_data)) {
+	if (hash_get_from_board(&search->pv_table, HBOARD_P(&board), &hash_data)) {
 		fprintf(f, ":%02d@%d%%[%+03d,%+03d]; ", hash_data.wl.c.depth, selectivity_table[hash_data.wl.c.selectivity].percent, hash_data.lower, hash_data.upper);
 	}
 	while (x != NOMOVE) {
@@ -126,7 +126,7 @@ static int guess_move(Search *search, Board *board)
 	search->board = *board; search_setup(search);
 
 	PVS_shallow(search, SCORE_MIN, SCORE_MAX, MIN(search->eval.n_empties, 6));
-	hash_get_from_board(&search->shallow_table, board, &hash_data);
+	hash_get_from_board(&search->shallow_table, HBOARD_P(board), &hash_data);
 
 	search->board = saved; search_setup(search);
 
@@ -681,7 +681,7 @@ void iterative_deepening(Search *search, int alpha, int beta)
 	}
 
 	// reuse last search ?
-	if (hash_get_from_board(&search->pv_table, &search->board, &hash_data)) {
+	if (hash_get_from_board(&search->pv_table, HBOARD_P(&search->board), &hash_data)) {
 		char s[2][3];
 		if (search->options.verbosity >= 2) {
 			info("<hash: value = [%+02d, %+02d] ; bestmove = %s, %s ; level = %d@%d%% ; date = %d ; cost = %d>\n",

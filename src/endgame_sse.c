@@ -29,7 +29,7 @@
 	#define	EXTRACT_O(OP)	_mm_cvtsi128_si64(_mm_shuffle_epi32(OP, DUPHI))
 #endif
 
-#ifdef __AVX__
+#if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512)
 	#define	vflip	__m256i
 	static inline int vectorcall TESTZ_FLIP(__m256i X) { return _mm256_testz_si256(X, X); }
 #else

@@ -572,8 +572,8 @@ char* parse_word(const char *string, char *word, unsigned int n)
 	if (string) {
 		string = parse_skip_spaces(string);
 		while (*string && !isspace(*string) && n--) *word++ = *string++;
-		*word = '\0';
 	}
+	*word = '\0';
 	return (char*) string;
 }
 
