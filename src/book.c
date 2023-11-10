@@ -1064,8 +1064,8 @@ static void board_feed_hash(Board *board, const Book *book, Search *search, cons
 
 		hash_data.data.lower = hash_data.data.upper = score;
 		hash_data.data.move[0] = move;
-		hash_feed(&search->hash_table, HBOARD_P(board), hash_code, &hash_data);
-		if (is_pv) hash_feed(&search->pv_table, HBOARD_P(board), hash_code, &hash_data);
+		hash_feed(&search->hash_table, board, hash_code, &hash_data);
+		if (is_pv) hash_feed(&search->pv_table, board, hash_code, &hash_data);
 	}
 }
 

@@ -423,7 +423,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 	if (search_SC_NWS(search, alpha, &score)) return score;
 
 	board0.board = search->board;
-	moves = vboard_get_moves(board0);
+	moves = board_get_moves(&search->board);
 	if (moves == 0) {	// pass (2%)
 		if (pass1)	// gameover (1%)
 			return search_solve(search);
@@ -518,7 +518,8 @@ int NWS_endgame(Search *search, const int alpha)
 	HashStoreData hash_data;
 	Move *move;
 	long long nodes_org;
-	V2DI board0, hashboard;
+	V2DI board0;
+	Board hashboard;
 	unsigned int parity0;
 	unsigned long long full[5];
 	struct size_reduced_MoveList {	// derived from MoveList in move.h
@@ -535,7 +536,7 @@ int NWS_endgame(Search *search, const int alpha)
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	// stability cutoff
-	hashboard.board = board0.board = search->board;
+	hashboard = board0.board = search->board;
 	ofssolid = 0;
 	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {	// (7%)
 		CUTOFF_STATS(++statistics.n_stability_try;)
@@ -549,33 +550,33 @@ int NWS_endgame(Search *search, const int alpha)
 		// Hidekazu Matsuo, Shuji Narazaki
 		// http://id.nii.ac.jp/1001/00156359/
 		if (search->eval.n_empties <= MASK_SOLID_DEPTH) {	// (99%)
-			solid_opp = full[4] & hashboard.board.opponent;	// full[4] = all full
+			solid_opp = full[4] & hashboard.opponent;	// full[4] = all full
 #ifndef POPCOUNT
 			if (solid_opp)	// (72%)
 #endif
 			{
-				hashboard.board.player ^= solid_opp;	// normalize solid to player
-				hashboard.board.opponent ^= solid_opp;
+				hashboard.player ^= solid_opp;	// normalize solid to player
+				hashboard.opponent ^= solid_opp;
 				ofssolid = bit_count(solid_opp) * 2;	// hash score is ofssolid grater than real
 			}
 		}
 	}
 
-	hash_code = vboard_get_hash_code(HBOARD_V(hashboard));
+	hash_code = board_get_hash_code(&hashboard);
 	hash_prefetch(&search->hash_table, hash_code);
 
 	search_get_movelist(search, (MoveList *) &movelist);
 
 	if (movelist.n_moves > 1) {	// (96%)
 		// transposition cutoff
-		if (hash_get(&search->hash_table, HBOARD_V(hashboard), hash_code, &hash_data.data)) {	// (6%)
+		if (hash_get(&search->hash_table, &hashboard, hash_code, &hash_data.data)) {	// (6%)
 			hash_data.data.lower -= ofssolid;
 			hash_data.data.upper -= ofssolid;
 			if (search_TC_NWS(&hash_data.data, search->eval.n_empties, NO_SELECTIVITY, alpha, &score))	// (6%)
 				return score;
 		}
 		// else if (ofssolid)	// slows down
-		//	hash_get_from_board(&search->hash_table, board0.board, &hash_data.data);
+		//	hash_get_from_board(&search->hash_table, HBOARD_V(board0), &hash_data.data);
 
 		movelist_evaluate_fast((MoveList *) &movelist, search, &hash_data.data);
 
@@ -627,7 +628,7 @@ int NWS_endgame(Search *search, const int alpha)
 		hash_data.alpha = alpha + ofssolid;
 		hash_data.beta = alpha + ofssolid + 1;
 		hash_data.score = bestscore + ofssolid;
-		hash_store(&search->hash_table, HBOARD_V(hashboard), hash_code, &hash_data);
+		hash_store(&search->hash_table, &hashboard, hash_code, &hash_data);
 
 	// special cases
 	} else if (movelist.n_moves == 1) {	// (3%)

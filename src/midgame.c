@@ -397,7 +397,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 
 	if (movelist.n_moves > 1) {
 		// transposition cutoff
-		if (hash_get(hash_table, HBOARD_V(board0), hash_code, &hash_data.data) && search_TC_NWS(&hash_data.data, depth, NO_SELECTIVITY, alpha, &score))
+		if (hash_get(hash_table, &board0.board, hash_code, &hash_data.data) && search_TC_NWS(&hash_data.data, depth, NO_SELECTIVITY, alpha, &score))
 			return score;
 
 		// sort the list of moves
@@ -426,7 +426,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 		hash_data.alpha = alpha;
 		hash_data.beta = alpha + 1;
 		hash_data.score = bestscore;
-		hash_store(hash_table, HBOARD_P(&search->board), hash_code, &hash_data);
+		hash_store(hash_table, &search->board, hash_code, &hash_data);
 
 	} else if (movelist.n_moves == 1) {
 		move = movelist_first(&movelist);
@@ -501,7 +501,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 	if (movelist.n_moves > 1) {
 		// transposition cutoff (unused, normally first searched position)
 		// hash_code = board_get_hash_code(&search->board);
-		// if (hash_get(&search->shallow_table, HBOARD_P(&search->board), hash_code, &hash_data.data) && search_TC_PVS(&hash_data.data, depth, NO_SELECTIVITY, &alpha, &beta, &score)) return score;
+		// if (hash_get(&search->shallow_table, &search->board, hash_code, &hash_data.data) && search_TC_PVS(&hash_data.data, depth, NO_SELECTIVITY, &alpha, &beta, &score)) return score;
 
 		// sort the list of moves
 		nodes_org = search->n_nodes;
@@ -537,7 +537,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 		hash_data.alpha = alpha;
 		hash_data.beta = beta;
 		hash_data.score = bestscore;
-		hash_store(&search->shallow_table, HBOARD_P(&search->board), board_get_hash_code(&search->board), &hash_data);
+		hash_store(&search->shallow_table, &search->board, board_get_hash_code(&search->board), &hash_data);
 
 	} else if (movelist.n_moves == 1) {
 		move = movelist.move[0].next;
@@ -622,7 +622,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 
 	// transposition cutoff
 	board0.board = search->board;
-	if (hash_get(&search->hash_table, HBOARD_V(board0), hash_code, &hash_data.data) || hash_get(&search->pv_table, HBOARD_V(board0), hash_code, &hash_data.data))
+	if (hash_get(&search->hash_table, &board0.board, hash_code, &hash_data.data) || hash_get(&search->pv_table, &board0.board, hash_code, &hash_data.data))
 		if (search_TC_NWS(&hash_data.data, depth, search->selectivity, alpha, &score)) return score;
 
 	if (movelist_is_empty(&movelist)) { // no moves ?
@@ -641,7 +641,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 
 		// sort the list of moves
 		if (movelist.n_moves > 1) {
-			if (hash_data.data.move[0] == NOMOVE) hash_get(&search->hash_table, HBOARD_V(board0), hash_code, &hash_data.data);
+			if (hash_data.data.move[0] == NOMOVE) hash_get(&search->hash_table, &board0.board, hash_code, &hash_data.data);
 			movelist_evaluate(&movelist, search, &hash_data.data, alpha, depth + options.inc_sort_depth[search->node_type[search->height]]);
 			movelist_sort(&movelist);
 		}
@@ -677,8 +677,8 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		hash_data.beta = alpha + 1;
 		hash_data.score = node.bestscore;
 
-		if (search->height <= PV_HASH_HEIGHT) hash_store(&search->pv_table, HBOARD_P(&search->board), hash_code, &hash_data);
-		hash_store(&search->hash_table, HBOARD_P(&search->board), hash_code, &hash_data);
+		if (search->height <= PV_HASH_HEIGHT) hash_store(&search->pv_table, &search->board, hash_code, &hash_data);
+		hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
 
 		SQUARE_STATS(foreach_move(move, &movelist))
 		SQUARE_STATS(++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];)
@@ -720,7 +720,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 	Move *move;
 	Node node;
 	Eval eval0;
-	V2DI board0, hashboard;
+	Board board0, hashboard;
 	long long nodes_org;
 	int reduced_depth, depth_pv_extension, saved_selectivity, ofssolid;
 
@@ -749,7 +749,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 	node_init(&node, search, alpha, beta, depth, movelist.n_moves, parent);
 	node.pv_node = true;
 	hash_code = board_get_hash_code(&search->board);
-	board0.board = search->board;
+	board0 = search->board;
 
 	// special cases
 	if (movelist_is_empty(&movelist)) {
@@ -768,8 +768,8 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 	} else { // normal PVS
 		if (movelist.n_moves > 1) {
 			//IID
-			if (!hash_get(&search->pv_table, HBOARD_V(board0), hash_code, &hash_data.data))
-				hash_get(&search->hash_table, HBOARD_V(board0), hash_code, &hash_data.data);
+			if (!hash_get(&search->pv_table, &board0, hash_code, &hash_data.data))
+				hash_get(&search->hash_table, &board0, hash_code, &hash_data.data);
 
 			if (USE_IID && hash_data.data.move[0] == NOMOVE) {	// (unused)
 				if (depth == search->eval.n_empties) reduced_depth = depth - ITERATIVE_MIN_EMPTIES;
@@ -779,7 +779,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 					depth_pv_extension = search->depth_pv_extension;
 					search->depth_pv_extension = 0;
 					PVS_midgame(search, SCORE_MIN, SCORE_MAX, reduced_depth, parent);
-					hash_get(&search->pv_table, HBOARD_V(board0), hash_code, &hash_data.data);
+					hash_get(&search->pv_table, &board0, hash_code, &hash_data.data);
 					search->depth_pv_extension = depth_pv_extension;
 					search->selectivity = saved_selectivity;
 				}
@@ -796,7 +796,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 			search_update_midgame(search, move); search->node_type[search->height] = PV_NODE;
 			move->score = -PVS_midgame(search, -beta, -alpha, depth - 1, &node);
 			search_restore_midgame(search, move->x, &eval0);
-			search->board = board0.board;
+			search->board = board0;
 			node_update(&node, move);
 
 			// other moves : try to refute the first/best one
@@ -810,7 +810,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 						move->score = -PVS_midgame(search, -beta, -alpha, depth - 1, &node);
 					}
 					search_restore_midgame(search, move->x, &eval0);
-					search->board = board0.board;
+					search->board = board0;
 					node_update(&node, move);
 				}
 			}
@@ -830,20 +830,20 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 		hash_data.beta = beta;
 		hash_data.score = node.bestscore;
 
-		hash_store(&search->hash_table, HBOARD_V(board0), hash_code, &hash_data);
-		hash_store(&search->pv_table, HBOARD_V(board0), hash_code, &hash_data);
+		hash_store(&search->hash_table, &board0, hash_code, &hash_data);
+		hash_store(&search->pv_table, &board0, hash_code, &hash_data);
 
 		// store solid-normalized for endgame TC
 		if (search->eval.n_empties <= depth && depth <= MASK_SOLID_DEPTH && depth > DEPTH_TO_SHALLOW_SEARCH) {
 			solid_opp = get_all_full_lines(search->board.player | search->board.opponent) & search->board.opponent;
 			if (solid_opp) {
-				hashboard.board.player = search->board.player ^ solid_opp;	// normalize solid to player
-				hashboard.board.opponent = search->board.opponent ^ solid_opp;
+				hashboard.player = search->board.player ^ solid_opp;	// normalize solid to player
+				hashboard.opponent = search->board.opponent ^ solid_opp;
 				ofssolid = bit_count(solid_opp) * 2;	// hash score is ofssolid grater than real
 				hash_data.alpha += ofssolid;
 				hash_data.beta += ofssolid;
 				hash_data.score += ofssolid;
-				hash_store(&search->hash_table, HBOARD_V(hashboard), board_get_hash_code(&hashboard.board), &hash_data);
+				hash_store(&search->hash_table, &hashboard, board_get_hash_code(&hashboard), &hash_data);
 			}
 		}
 
