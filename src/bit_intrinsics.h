@@ -26,9 +26,9 @@
 
 #if defined(__aarch64__) || defined(_M_ARM) || defined(_M_ARM64)
 	#define hasNeon	1
-	#ifndef __ARM_NEON__
-		#define	__ARM_NEON__	1
-	#endif
+  #ifndef __ARM_NEON__
+	#define	__ARM_NEON__	1
+  #endif
 #endif
 #ifdef __ARM_NEON__
 #include "arm_neon.h"
@@ -36,9 +36,9 @@
 
 #ifdef _MSC_VER
 	#include <intrin.h>
-	#ifdef _M_IX86
-		#define	USE_MSVC_X86	1
-	#endif
+  #ifdef _M_IX86
+	#define	USE_MSVC_X86	1
+  #endif
 #elif defined(hasSSE2)
 	#include <x86intrin.h>
 #endif
@@ -77,18 +77,18 @@ static inline unsigned char mirror_byte(unsigned int b) { return ((((b * 0x20080
 	#define	bswap_int(x)	_byteswap_ulong(x)
 	#define	vertical_mirror(x)	_byteswap_uint64(x)
 #else
-	#if (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))) || __has_builtin(__builtin_bswap16)
-		#define	bswap_short(x)	__builtin_bswap16(x)
-	#else
-		#define bswap_short(x)	(((unsigned short) (x) >> 8) | ((unsigned short) (x) << 8))
-	#endif
-	#if (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3))) || __has_builtin(__builtin_bswap64)
-		#define	bswap_int(x)	__builtin_bswap32(x)
-		#define	vertical_mirror(x)	__builtin_bswap64(x)
-	#else
-		unsigned int bswap_int(unsigned int);
-		unsigned long long vertical_mirror(unsigned long long);
-	#endif
+  #if (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))) || __has_builtin(__builtin_bswap16)
+	#define	bswap_short(x)	__builtin_bswap16(x)
+  #else
+	#define bswap_short(x)	(((unsigned short) (x) >> 8) | ((unsigned short) (x) << 8))
+  #endif
+  #if (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3))) || __has_builtin(__builtin_bswap64)
+	#define	bswap_int(x)	__builtin_bswap32(x)
+	#define	vertical_mirror(x)	__builtin_bswap64(x)
+  #else
+	unsigned int bswap_int(unsigned int);
+	unsigned long long vertical_mirror(unsigned long long);
+  #endif
 #endif
 
 // lzcnt / tzcnt (0 allowed)
@@ -153,32 +153,32 @@ static inline int _tzcnt_u64(unsigned long long x) {
 			i = 32 ^ 31;
 		return i ^ 31;
 	}
-	#ifdef _M_X64
-		static inline int lzcnt_u64(unsigned long long n) {
-			unsigned long i;
-			if (!_BitScanReverse64(&i, n))
-				i = 64 ^ 63;
-			return i ^ 63;
-		}
-	#else
-		static inline int lzcnt_u64(unsigned long long n) {
-			unsigned long i;
-			if (_BitScanReverse(&i, n >> 32))
-				return i ^ 31;
-			if (!_BitScanReverse(&i, (unsigned int) n))
-				i = 64 ^ 63;
-			return i ^ 63;
-		}
-	#endif
+  #ifdef _M_X64
+	static inline int lzcnt_u64(unsigned long long n) {
+		unsigned long i;
+		if (!_BitScanReverse64(&i, n))
+			i = 64 ^ 63;
+		return i ^ 63;
+	}
+  #else
+	static inline int lzcnt_u64(unsigned long long n) {
+		unsigned long i;
+		if (_BitScanReverse(&i, n >> 32))
+			return i ^ 31;
+		if (!_BitScanReverse(&i, (unsigned int) n))
+			i = 64 ^ 63;
+		return i ^ 63;
+	}
+  #endif
 
 #elif defined(__ARM_FEATURE_CLZ)
-	#if __ARM_ACLE >= 110
-		#define	lzcnt_u32(x)	__clz(x)
-		#define	lzcnt_u64(x)	__clzll(x)
-	#else // strictly-incorrect patch
-		#define	lzcnt_u32(x)	__builtin_clz(x)
-		#define	lzcnt_u64(x)	__builtin_clzll(x)
-	#endif
+  #if __ARM_ACLE >= 110
+	#define	lzcnt_u32(x)	__clz(x)
+	#define	lzcnt_u64(x)	__clzll(x)
+  #else // strictly-incorrect patch
+	#define	lzcnt_u32(x)	__builtin_clz(x)
+	#define	lzcnt_u64(x)	__builtin_clzll(x)
+  #endif
 
 #else
 	static inline int lzcnt_u32(unsigned long x) { return (x ? __builtin_clz(x) : 32); }
@@ -190,19 +190,19 @@ static inline int _tzcnt_u64(unsigned long long x) {
 	#define	tzcnt_u64(x)	_tzcnt_u64(x)
 
 #elif defined(__ARM_FEATURE_CLZ)
-	#ifdef _M_ARM
-		#define	tzcnt_u32(x)	_arm_clz(_arm_rbit(x))
-	#elif __has_builtin(__rbit) // (__ARM_ARCH >= 6 && __ARM_ISA_THUMB >= 2) || __ARM_ARCH >= 7	// not for gcc
-		#define	tzcnt_u32(x)	__clz(__rbit(x))
-	#endif
+  #ifdef _M_ARM
+	#define	tzcnt_u32(x)	_arm_clz(_arm_rbit(x))
+  #elif __has_builtin(__rbit) // (__ARM_ARCH >= 6 && __ARM_ISA_THUMB >= 2) || __ARM_ARCH >= 7	// not for gcc
+	#define	tzcnt_u32(x)	__clz(__rbit(x))
+  #endif
 #endif
 
 #if defined(__SSE4_2__) || defined(__AVX__)
-	#ifdef HAS_CPU_64
-		#define	crc32c_u64(crc,d)	_mm_crc32_u64((crc),(d))
-	#else
-		#define	crc32c_u64(crc,d)	_mm_crc32_u32(_mm_crc32_u32((crc),(d)),((d)>>32))
-	#endif
+  #ifdef HAS_CPU_64
+	#define	crc32c_u64(crc,d)	_mm_crc32_u64((crc),(d))
+  #else
+	#define	crc32c_u64(crc,d)	_mm_crc32_u32(_mm_crc32_u32((crc),(d)),((d)>>32))
+  #endif
 	#define	crc32c_u8(crc,d)	_mm_crc32_u8((crc),(d))
 #elif defined(__ARM_FEATURE_CRC32)
 	#define	crc32c_u64(crc,d)	__crc32cd((crc),(d))

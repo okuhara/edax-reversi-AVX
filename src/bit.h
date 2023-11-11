@@ -63,58 +63,58 @@ extern const unsigned long long NEIGHBOUR[];
 #if defined(HAS_CPU_64) || !defined(__STDC_HOSTED__)	// __STDC_HOSTED__ (C99) to declare var in for statement
 	#define foreach_bit(i, b)	for (i = first_bit(b); b; i = first_bit(b &= (b - 1)))
 #else
-	#ifdef tzcnt_u32
-		#define	first_bit_32(x)	tzcnt_u32(x)
-	#else
-		int first_bit_32(unsigned int);
-	#endif
+  #ifdef tzcnt_u32
+	#define	first_bit_32(x)	tzcnt_u32(x)
+  #else
+	int first_bit_32(unsigned int);
+  #endif
 	#define foreach_bit(i, b)	(void) i; for (unsigned int _j = 0; _j < sizeof(b) * CHAR_BIT; _j += sizeof(int) * CHAR_BIT) \
 		for (int _r = (b >> _j), i = first_bit_32(_r) + _j; _r; i = first_bit_32(_r &= (_r - 1)) + _j)
 #endif
 
 // popcount
 #ifdef hasNeon
-	#ifdef HAS_CPU_64
-		#define bit_count(x)	vaddv_u8(vcnt_u8(vcreate_u8(x)))
-		#define bit_count_32(x)	vaddv_u8(vcnt_u8(vcreate_u8((unsigned int) x)))
-	#else
-		#define bit_count(x)	vget_lane_u32(vreinterpret_u32_u64(vpaddl_u32(vpaddl_u16(vpaddl_u8(vcnt_u8(vcreate_u8(x)))))), 0)
-		#define bit_count_32(x)	vget_lane_u32(vpaddl_u16(vpaddl_u8(vcnt_u8(vcreate_u8(x)))), 0)
-	#endif
+  #ifdef HAS_CPU_64
+	#define bit_count(x)	vaddv_u8(vcnt_u8(vcreate_u8(x)))
+	#define bit_count_32(x)	vaddv_u8(vcnt_u8(vcreate_u8((unsigned int) x)))
+  #else
+	#define bit_count(x)	vget_lane_u32(vreinterpret_u32_u64(vpaddl_u32(vpaddl_u16(vpaddl_u8(vcnt_u8(vcreate_u8(x)))))), 0)
+	#define bit_count_32(x)	vget_lane_u32(vpaddl_u16(vpaddl_u8(vcnt_u8(vcreate_u8(x)))), 0)
+  #endif
 
 #elif defined(POPCOUNT)
-	/*
-	#if defined (USE_GAS_X64)
-		static inline int bit_count (unsigned long long x) {
-			long long	y;
-			__asm__ ( "popcntq %1,%0" : "=r" (y) : "rm" (x));
-			return y;
-		}
-	#elif defined (USE_GAS_X86)
-		static inline int bit_count (unsigned long long x) {
-			unsigned int	y0, y1;
-			__asm__ ( "popcntl %2,%0\n\t"
-				"popcntl %3,%1"
-				: "=&r" (y0), "=&r" (y1)
-				: "rm" ((unsigned int) x), "rm" ((unsigned int) (x >> 32)));
-			return y0 + y1;
-		}
-	*/
-	#ifdef _MSC_VER
-		#if defined(_M_ARM) || defined(_M_ARM64)
-			#define bit_count(x)	_CountOneBits64(x)
-			#define bit_count_32(x)	_CountOneBits(x)
-		#elif defined(_M_X64)
-			#define bit_count(x)	((int) __popcnt64(x))
-			#define bit_count_32(x)	__popcnt(x)
-		#else
-			#define bit_count(x)	(__popcnt((unsigned int) (x)) + __popcnt((unsigned int) ((x) >> 32)))
-			#define bit_count_32(x)	__popcnt(x)
-		#endif
-	#else
-		#define bit_count(x)	__builtin_popcountll(x)
-		#define bit_count_32(x)	__builtin_popcount(x)
-	#endif
+  /*
+  #if defined (USE_GAS_X64)
+	static inline int bit_count (unsigned long long x) {
+		long long	y;
+		__asm__ ( "popcntq %1,%0" : "=r" (y) : "rm" (x));
+		return y;
+	}
+  #elif defined (USE_GAS_X86)
+	static inline int bit_count (unsigned long long x) {
+		unsigned int	y0, y1;
+		__asm__ ( "popcntl %2,%0\n\t"
+			"popcntl %3,%1"
+			: "=&r" (y0), "=&r" (y1)
+			: "rm" ((unsigned int) x), "rm" ((unsigned int) (x >> 32)));
+		return y0 + y1;
+	}
+  */
+  #ifdef _MSC_VER
+    #if defined(_M_ARM) || defined(_M_ARM64)
+	#define bit_count(x)	_CountOneBits64(x)
+	#define bit_count_32(x)	_CountOneBits(x)
+    #elif defined(_M_X64)
+	#define bit_count(x)	((int) __popcnt64(x))
+	#define bit_count_32(x)	__popcnt(x)
+    #else
+	#define bit_count(x)	(__popcnt((unsigned int) (x)) + __popcnt((unsigned int) ((x) >> 32)))
+	#define bit_count_32(x)	__popcnt(x)
+    #endif
+  #else
+	#define bit_count(x)	__builtin_popcountll(x)
+	#define bit_count_32(x)	__builtin_popcount(x)
+  #endif
 	#define bit_count_si64(x)	bit_count(_mm_cvtsi128_si64(x))
 
 #else
@@ -131,12 +131,12 @@ extern const unsigned long long NEIGHBOUR[];
 #endif
 
 #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
-	#ifndef hasSSE2
-		extern bool	hasSSE2;
-	#endif
-	#ifndef hasMMX
-		extern bool	hasMMX;
-	#endif
+  #ifndef hasSSE2
+	extern bool	hasSSE2;
+  #endif
+  #ifndef hasMMX
+	extern bool	hasMMX;
+  #endif
 #endif
 
 #if defined(ANDROID) && ((defined(__arm__) && !defined(hasNeon)) || (defined(__i386__) && !defined(hasSSE2)))
