@@ -64,7 +64,7 @@
 /** edge stability global data */
 unsigned char edge_stability[256 * 256];
 
-#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)) && !defined(hasSSE2)
 #include "board_mmx.c"
 #endif
 #if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(hasSSE2) || defined(hasNeon)) && !defined(ANDROID)
@@ -371,7 +371,6 @@ bool board_check_move(const Board *board, Move *move)
 	else return true;
 }
 
-#if !(defined(hasMMX) && (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)))	// 32bit MMX/SSE version in board_mmx.c
 /**
  * @brief Update a board.
  *
@@ -383,9 +382,24 @@ bool board_check_move(const Board *board, Move *move)
  */
 void board_update(Board *board, const Move *move)
 {
+#if defined(hasSSE2) && (defined(HAS_CPU_64) || !defined(__3dNOW__))
+	__m128i	OP = _mm_loadu_si128((__m128i *) board);
+	OP = _mm_xor_si128(OP, _mm_or_si128(_mm_set1_epi64x(move->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x])));
+	_mm_storeu_si128((__m128i *) board, _mm_shuffle_epi32(OP, 0x4e));
+
+#elif defined(hasMMX)	// 3DNow CPU has fast emms
+	__m64	F = *(__m64 *) &move->flipped;
+	__m64	P = _m_pxor(*(__m64 *) &board->player, _m_por(F, *(__m64 *) &X_TO_BIT[move->x]));
+	__m64	O = _m_pxor(*(__m64 *) &board->opponent, F);
+	*(__m64 *) &board->player = O;
+	*(__m64 *) &board->opponent = P;
+	_mm_empty();
+
+#else
 	unsigned long long O = board->opponent;
 	board->opponent = board->player ^ (move->flipped | X_TO_BIT[move->x]);
 	board->player = O ^ move->flipped;
+#endif
 	board_check(board);
 }
 
@@ -400,12 +414,26 @@ void board_update(Board *board, const Move *move)
  */
 void board_restore(Board *board, const Move *move)
 {
+#if defined(hasSSE2) && (defined(HAS_CPU_64) || !defined(__3dNOW__))
+	__m128i	OP = _mm_shuffle_epi32(_mm_loadu_si128((__m128i *) board), 0x4e);
+	OP = _mm_xor_si128(OP, _mm_or_si128(_mm_set1_epi64x(move->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x])));
+	_mm_storeu_si128((__m128i *) board, OP);
+
+#elif defined(hasMMX)
+	__m64	F = *(__m64 *) &move->flipped;
+	__m64	P = *(__m64 *) &board->opponent;
+	__m64	O = *(__m64 *) &board->player;
+	*(__m64 *) &board->player = _m_pxor(P, _m_por(F, *(__m64 *) &X_TO_BIT[move->x]));
+	*(__m64 *) &board->opponent = _m_pxor(O, F);
+	_mm_empty();
+
+#else
 	unsigned long long P = board->player;
 	board->player = board->opponent ^ (move->flipped | X_TO_BIT[move->x]);
 	board->opponent = P ^ move->flipped;
+#endif
 	board_check(board);
 }
-#endif // hasMMX
 
 /**
  * @brief Passing move
@@ -640,26 +668,6 @@ unsigned long long get_potential_moves(const unsigned long long P, const unsigne
 		| get_some_potential_moves(O & 0x007E7E7E7E7E7E00, 9))
 		& ~(P|O); // mask with empties
 }
-
-  #if !(defined(hasSSE2) && !defined(POPCOUNT)) && !defined(hasNeon)
-/**
- * @brief Get potential mobility.
- *
- * Count the list of empty squares in contact of a player square.
- *
- * @param P bitboard with player's discs.
- * @param O bitboard with opponent's discs.
- * @return a count of potential moves.
- */
-int get_potential_mobility(const unsigned long long P, const unsigned long long O)
-{
-    #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
-	if (hasMMX)
-		return get_potential_mobility_mmx(P, O);
-    #endif
-	return bit_weighted_count(get_potential_moves(P, O));
-}
-  #endif
 #endif // AVX2
 
 /**
@@ -861,14 +869,12 @@ static void get_full_lines(const unsigned long long disc, unsigned long long ful
 	l7 &= 0xff01010101010101 | (l7 >> 7);	r7 &= 0x80808080808080ff | (r7 << 7);
 	l7 &= 0xffff030303030303 | (l7 >> 14);	r7 &= 0xc0c0c0c0c0c0ffff | (r7 << 14);
 	l7 &= 0xffffffff0f0f0f0f | (l7 >> 28);	r7 &= 0xf0f0f0f0ffffffff | (r7 << 28);
-	l7 &= r7;
-	full[3] = l7;
+	full[3] = l7 & r7;
 
 	l9 = r9 = disc;
 	l9 &= 0xff80808080808080 | (l9 >> 9);	r9 &= 0x01010101010101ff | (r9 << 9);
 	l9 &= 0xffffc0c0c0c0c0c0 | (l9 >> 18);	r9 &= 0x030303030303ffff | (r9 << 18);
-	l9 = l9 & r9 & (0x0f0f0f0ff0f0f0f0 | (l9 >> 36) | (r9 << 36));
-	full[2] = l9;
+	full[2] = l9 & r9 & (0x0f0f0f0ff0f0f0f0 | (l9 >> 36) | (r9 << 36));
 }
 #endif // hasSSE2/hasNeon/hasMMX
 
@@ -881,8 +887,9 @@ static void get_full_lines(const unsigned long long disc, unsigned long long ful
  * @param O bitboard with opponent's discs.
  * @return the number of stable discs.
  */
-#if !defined(__AVX2__) && !(defined(hasMMX) && !defined(hasSSE2))
-  #if !(defined(hasSSE2) && !defined(HAS_CPU_64))
+#ifndef __AVX2__
+  #if !(defined(hasMMX) && !defined(hasSSE2))	// MMX version of get_stability in board_mmx.c
+    #if !(defined(hasSSE2) && !defined(HAS_CPU_64))	// 32bit SSE version in board_sse.c
 // compute the other stable discs (ie discs touching another stable disc in each flipping direction).
 static int get_spreaded_stability(unsigned long long stable, unsigned long long P_central, unsigned long long full[4])
 {
@@ -902,7 +909,7 @@ static int get_spreaded_stability(unsigned long long stable, unsigned long long 
 
 	return bit_count(stable);
 }
-  #endif
+    #endif
 
 // returns stability count only
 int get_stability(const unsigned long long P, const unsigned long long O)
@@ -929,9 +936,8 @@ int get_stability_fulls(const unsigned long long P, const unsigned long long O, 
 
 	return get_spreaded_stability(stable, P_central, full);	// compute the other stable discs
 }
-#endif
+  #endif
 
-#ifndef __AVX2__
 /**
  * @brief Get intersection of full lines.
  *
@@ -946,7 +952,7 @@ unsigned long long get_all_full_lines(const unsigned long long disc)
 	get_full_lines(disc, full);
 	return full[0] & full[1] & full[2] & full[3];
 }
-#endif
+#endif // __AVX2__
 
 /**
  * @brief Estimate corner stability.

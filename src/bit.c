@@ -59,26 +59,26 @@ const unsigned long long NEIGHBOUR[] = {
  * @return the number of bits set.
  */
 
-#if 0 // ndef POPCOUNT
+#ifndef POPCOUNT
+  #if 0
 int bit_count(unsigned long long b)
 {
 	int	c;
 
 	b  = b - ((b >> 1) & 0x5555555555555555ULL);
 	b  = ((b >> 2) & 0x3333333333333333ULL) + (b & 0x3333333333333333ULL);
-#ifdef HAS_CPU_64
+    #ifdef HAS_CPU_64
 	b = (b + (b >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
 	c = (b * 0x0101010101010101ULL) >> 56;
-#else
+    #else
 	c = (b >> 32) + b;
 	c = (c & 0x0F0F0F0F) + ((c >> 4) & 0x0F0F0F0F);
 	c = (c * 0x01010101) >> 24;
-#endif
+    #endif
 	return c;
 }
-#endif
 
-#ifndef POPCOUNT
+  #else
 // https://github.com/official-stockfish/Stockfish/pull/620/files
 // 2% faster than SWAR bit_count for 32 & 64 non-POPCOUNT build
 unsigned char PopCnt16[1 << 16];
@@ -90,6 +90,7 @@ static int bit_count_32_SWAR(unsigned int b)
 	b = ((b >> 4) + b) & 0x0F0F0F0F;
 	return (b * 0x01010101) >> 24;
 }
+  #endif
 #endif
 
 /**
@@ -145,6 +146,7 @@ void bit_init(void)
  *
  * This is a variation of the above algorithm to count the mobility and favour
  * the corners. This function is useful for move sorting.
+ * (SSE/Neon version caliculates 2 elements in parallel.)
  *
  * @param v 64-bit integer to count bits of.
  * @return the number of bit set, counting the corners twice.
@@ -172,27 +174,27 @@ uint64x2_t bit_weighted_count_neon(unsigned long long Q0, unsigned long long Q1)
 		vcntq_u8(vreinterpretq_u8_u64(vandq_u64(v, vdupq_n_u64(0x8100000000000081))))))));
 }
 
-#else
+#elif 0	// SWAR, for record
 int bit_weighted_count(unsigned long long v)
 {
-  #if defined(POPCOUNT)
-  	unsigned int P2187 = (v >> 48) | (v << 16);	// ror 48
-	return bit_count(v) + bit_count_32(P2187 & 0x00818100);
-
-  #else
 	int	c;
 
-	v  = v - ((v >> 1) & 0x1555555555555515ULL) + (v & 0x0100000000000001ULL);
-	v  = ((v >> 2) & 0x3333333333333333ULL) + (v & 0x3333333333333333ULL);
-    #ifdef HAS_CPU_64
-	v = (v + (v >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
-	c = (v * 0x0101010101010101ULL) >> 56;
-    #else
+	v  = v - ((v >> 1) & 0x1555555555555515) + (v & 0x0100000000000001);
+	v  = ((v >> 2) & 0x3333333333333333) + (v & 0x3333333333333333);
 	c = (v >> 32) + v;
 	c = (c & 0x0F0F0F0F) + ((c >> 4) & 0x0F0F0F0F);
 	c = (c * 0x01010101) >> 24;
-    #endif
 	return c;
+}
+
+#else
+int bit_weighted_count(unsigned long long v)
+{
+  	unsigned int AH18 = ((v >> 56) | (v << 8)) & 0x8181;	// ror 56
+  #ifdef POPCOUNT
+	return bit_count(v) + bit_count_32(AH18);
+  #else
+  	return bit_count(v) + PopCnt16[AH18];
   #endif
 }
 #endif
@@ -211,42 +213,42 @@ int bit_weighted_count(unsigned long long v)
 #if !defined(first_bit_32) && !defined(HAS_CPU_64)
 int first_bit_32(unsigned int b)
 {
-#if defined(_MSC_VER)
+  #if defined(_MSC_VER)
 	unsigned long index;
 	_BitScanForward(&index, b);
 	return (int) index;
 
-#elif defined(USE_GAS_X64) || defined(USE_GAS_X86)
+  #elif defined(USE_GAS_X64) || defined(USE_GAS_X86)
 	__asm__("rep; bsf	%1, %0" : "=r" (b) : "rm" (b));	// tzcnt on BMI CPUs, bsf otherwise
 	return (int) b;
 
-#elif defined(USE_MSVC_X86)
+  #elif defined(USE_MSVC_X86)
 	__asm {
 		bsf	eax, word ptr b
 	}
 
-#elif defined(USE_GCC_ARM)
+  #elif defined(USE_GCC_ARM)
 	return  __builtin_clz(b & -b) ^ 31;
 
-#else
+  #else
 	static const unsigned char magic[32] = {
 		0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8, 
 		31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9
 	};
 
 	return magic[((b & (-b)) * 0x077CB531U) >> 27];
-#endif
+  #endif
 }
 #endif // first_bit_32
 
 #ifndef first_bit
 int first_bit(unsigned long long b)
 {
-#if defined(USE_GAS_X64)
+  #if defined(USE_GAS_X64)
 	__asm__("rep; bsfq	%1, %0" : "=r" (b) : "rm" (b));	// tzcntq on BMI CPUs
 	return (int) b;
 
-#elif defined(USE_GAS_X86)
+  #elif defined(USE_GAS_X86)
 	int 	x;
 	__asm__ ("bsf	%2, %0\n\t"	// (ZF differs from tzcnt)
 		"jnz	1f\n\t"
@@ -255,12 +257,12 @@ int first_bit(unsigned long long b)
 	"1:" : "=&q" (x) : "g" ((int) (b >> 32)), "g" ((int) b));
 	return x;
 
-#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
+  #elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
 	unsigned long index;
 	_BitScanForward64(&index, b);
 	return (int) index;
 
-#elif defined(USE_MSVC_X86)
+  #elif defined(USE_MSVC_X86)
 	__asm {
 		bsf	eax, dword ptr b
 		jnz	l1
@@ -269,7 +271,7 @@ int first_bit(unsigned long long b)
 	l1:
 	}
 
-#elif defined(HAS_CPU_64)
+  #elif defined(HAS_CPU_64)
 	static const unsigned char magic[64] = {
 		63, 0, 58, 1, 59, 47, 53, 2,
 		60, 39, 48, 27, 54, 33, 42, 3,
@@ -283,14 +285,14 @@ int first_bit(unsigned long long b)
 
 	return magic[((b & (-b)) * 0x07EDD5E59A4E28C2ULL) >> 58];
 
-#else
+  #else
 	const unsigned int lb = (unsigned int) b;
 	if (lb) {
 		return first_bit_32(lb);
 	} else {
 		return 32 + first_bit_32(b >> 32);
 	}
-#endif
+  #endif
 }
 #endif // first_bit
 
@@ -323,16 +325,16 @@ int next_bit(unsigned long long *b)
  */
 int last_bit(unsigned long long b)
 {
-#if defined(USE_GAS_X64)
+  #if defined(USE_GAS_X64)
 	__asm__("bsrq	%1, %0" :"=r" (b) :"rm" (b));
 	return b;
 
-#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
+  #elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
 	unsigned long index;
 	_BitScanReverse64(&index, b);
 	return (int) index;
 
-#elif defined(USE_GAS_X86)
+  #elif defined(USE_GAS_X86)
 	int	x;
 	__asm__ ("bsr	%1, %0\n\t"
 		"leal	32(%0), %0\n\t"
@@ -341,7 +343,7 @@ int last_bit(unsigned long long b)
         "1:" : "=&q" (x) : "g" ((int) (b >> 32)), "g" ((int) b));
 	return x;
 
-#elif 0 // defined(USE_GCC_ARM)
+  #elif 0 // defined(USE_GCC_ARM)
 	const unsigned int hb = b >> 32;
 	if (hb) {
 		return 63 - __builtin_clz(hb);
@@ -349,7 +351,7 @@ int last_bit(unsigned long long b)
 		return 31 - __builtin_clz((int) b);
 	}
 
-#elif defined(USE_MSVC_X86)
+  #elif defined(USE_MSVC_X86)
 	__asm {
 		bsr	eax, dword ptr b+4
 		lea	eax, [eax+32]
@@ -358,7 +360,7 @@ int last_bit(unsigned long long b)
 	l1:
 	}
 
-#elif defined(HAS_CPU_64)
+  #elif defined(HAS_CPU_64)
 	// https://www.chessprogramming.org/BitScan#De_Bruijn_Multiplication_2
 	static const unsigned char magic[64] = {
 		 0, 47,  1, 56, 48, 27,  2, 60,
@@ -380,7 +382,7 @@ int last_bit(unsigned long long b)
 
 	return magic[(b * 0x03f79d71b4cb0a89) >> 58];
 
-#else
+  #else
 	static const unsigned char clz_table_4bit[16] = { 4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0 };
 	int	n = 63;
 	unsigned int	x;
@@ -392,7 +394,7 @@ int last_bit(unsigned long long b)
 	if ((x & 0xF0000000) == 0) { n -=  4; x <<=  4; }
 	n -= clz_table_4bit[x >> (32 - 4)];
 	return n;
-#endif
+  #endif
 }
 #endif // last_bit
 
