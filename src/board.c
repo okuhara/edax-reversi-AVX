@@ -34,12 +34,12 @@
 #elif MOVE_GENERATOR == MOVE_GENERATOR_SSE
 	#include "flip_sse.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_BITSCAN
-	#ifdef hasNeon
-		#define	flip_neon	flip
-		#include "flip_neon_bitscan.c"
-	#else
-		#include "flip_bitscan.c"
-	#endif
+  #ifdef __ARM_NEON
+	#define	flip_neon	flip
+	#include "flip_neon_bitscan.c"
+  #else
+	#include "flip_bitscan.c"
+  #endif
 #elif MOVE_GENERATOR == MOVE_GENERATOR_ROXANE
 	#include "flip_roxane.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_32
@@ -51,11 +51,11 @@
 #elif MOVE_GENERATOR == MOVE_GENERATOR_AVX512
 	#include "flip_avx512cd.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_NEON
-	#ifdef __aarch64__
-		#include "flip_neon_rbit.c"
-	#else
-		#include "flip_neon_lzcnt.c"
-	#endif
+  #ifdef __aarch64__
+	#include "flip_neon_rbit.c"
+  #else
+	#include "flip_neon_lzcnt.c"
+  #endif
 #else // MOVE_GENERATOR == MOVE_GENERATOR_KINDERGARTEN
 	#include "flip_kindergarten.c"
 #endif
@@ -65,10 +65,10 @@
 unsigned char edge_stability[256 * 256];
 
 #if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)) && !defined(hasSSE2)
-#include "board_mmx.c"
+	#include "board_mmx.c"
 #endif
-#if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(hasSSE2) || defined(hasNeon)) && !defined(ANDROID)
-#include "board_sse.c"
+#if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(hasSSE2) || defined(__ARM_NEON)) && !defined(ANDROID)
+	#include "board_sse.c"
 #endif
 
 
@@ -239,7 +239,7 @@ bool board_lesser(const Board *b1, const Board *b2)
 	else	return (b1->opponent < b2->opponent);
 }
 
-#if !defined(hasSSE2) && !defined(hasNeon)	// SSE version in board_sse.c
+#if !defined(hasSSE2) && !defined(__ARM_NEON)	// SSE version in board_sse.c
 /**
  * @brief symetric board
  *
@@ -382,12 +382,12 @@ bool board_check_move(const Board *board, Move *move)
  */
 void board_update(Board *board, const Move *move)
 {
-#if defined(hasSSE2) && (defined(HAS_CPU_64) || !defined(__3dNOW__))
+#if defined(hasSSE2) && (defined(HAS_CPU_64) || !defined(__3dNOW__))	// 3DNow CPU has fast emms, and possibly slow SSE
 	__m128i	OP = _mm_loadu_si128((__m128i *) board);
 	OP = _mm_xor_si128(OP, _mm_or_si128(_mm_set1_epi64x(move->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x])));
 	_mm_storeu_si128((__m128i *) board, _mm_shuffle_epi32(OP, 0x4e));
 
-#elif defined(hasMMX)	// 3DNow CPU has fast emms
+#elif defined(hasMMX)
 	__m64	F = *(__m64 *) &move->flipped;
 	__m64	P = _m_pxor(*(__m64 *) &board->player, _m_por(F, *(__m64 *) &X_TO_BIT[move->x]));
 	__m64	O = _m_pxor(*(__m64 *) &board->opponent, F);
@@ -470,7 +470,7 @@ unsigned long long board_next(const Board *board, const int x, Board *next)
 }
 #endif
 
-#if !defined(hasSSE2) && !defined(hasNeon)	// SSE version in board_sse.c
+#if !defined(hasSSE2) && !defined(__ARM_NEON)	// SSE version in board_sse.c
 /**
  * @brief Get a part of the moves.
  *
@@ -554,7 +554,7 @@ unsigned long long get_moves(const unsigned long long P, const unsigned long lon
 {
 	unsigned long long moves, OM;
 
-	#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
+	#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(DISPATCH_NEON)
 	if (hasSSE2)
 		return get_moves_sse(P, O);
 	#endif
@@ -571,7 +571,7 @@ unsigned long long get_moves(const unsigned long long P, const unsigned long lon
 
 	return moves & ~(P|O);	// mask with empties
 }
-#endif // hasSSE2/hasNeon
+#endif // hasSSE2/__ARM_NEON
 
 /**
  * @brief Get legal moves on a 6x6 board.
@@ -598,7 +598,7 @@ unsigned long long get_moves_6x6(const unsigned long long P, const unsigned long
  */
 bool can_move(const unsigned long long P, const unsigned long long O)
 {
-#if defined(hasMMX) || defined(hasNeon)
+#if defined(hasMMX) || defined(__ARM_NEON)
 	return get_moves(P, O) != 0;
 
 #else
@@ -638,7 +638,7 @@ int get_mobility(const unsigned long long P, const unsigned long long O)
 	return bit_count(get_moves(P, O));
 }
 
-#ifndef __AVX2__
+#ifndef __AVX2__	// AVX2 version in board_sse.c
 /**
  * @brief Get some potential moves.
  *
@@ -768,7 +768,7 @@ void edge_stability_init(void)
 #define	packH1H8(X)	(((((unsigned int)((X) >> 32) & 0x80808080) + (((unsigned int)(X) & 0x80808080) >> 4)) * 0x00204081) >> 24)
 #endif
 
-#if !defined(__AVX2__) && !defined(hasNeon) && !defined(hasSSE2)
+#if !defined(__AVX2__) && !defined(__ARM_NEON) && !defined(hasSSE2)
 /**
  * @brief Get stable edge.
  *
@@ -813,7 +813,7 @@ int get_edge_stability(const unsigned long long P, const unsigned long long O)
  * @param full all 1 if full line, otherwise all 0.
  */
 
-#if !defined(hasNeon) && !defined(hasSSE2) && !defined(hasMMX)
+#if !defined(__ARM_NEON) && !defined(hasSSE2) && !defined(hasMMX)
   #ifdef HAS_CPU_64
 
 static unsigned long long get_full_lines_h(unsigned long long full)
@@ -852,13 +852,12 @@ static unsigned long long get_full_lines_v(unsigned long long full)
 	unsigned int	t = (unsigned int) full & (unsigned int)(full >> 32);
 	t &= (t >> 16) | (t << 16);	// ror 16
 	t &= (t >> 8) | (t << 24);	// ror 8
-	full = t | ((unsigned long long) t << 32);
-	return full;
+	return t | ((unsigned long long) t << 32);
 }
 
   #endif
 
-static void get_full_lines(const unsigned long long disc, unsigned long long full[4])
+void get_full_lines(const unsigned long long disc, unsigned long long full[4])
 {
 	unsigned long long l7, l9, r7, r9;	// full lines
 
@@ -876,7 +875,7 @@ static void get_full_lines(const unsigned long long disc, unsigned long long ful
 	l9 &= 0xffffc0c0c0c0c0c0 | (l9 >> 18);	r9 &= 0x030303030303ffff | (r9 << 18);
 	full[2] = l9 & r9 & (0x0f0f0f0ff0f0f0f0 | (l9 >> 36) | (r9 << 36));
 }
-#endif // hasSSE2/hasNeon/hasMMX
+#endif // __ARM_NEON/hasSSE2/hasMMX
 
 /**
  * @brief Estimate the stability.
@@ -887,11 +886,11 @@ static void get_full_lines(const unsigned long long disc, unsigned long long ful
  * @param O bitboard with opponent's discs.
  * @return the number of stable discs.
  */
-#ifndef __AVX2__
+#ifndef __AVX2__	// AVX2 version in board_sse.c
   #if !(defined(hasMMX) && !defined(hasSSE2))	// MMX version of get_stability in board_mmx.c
     #if !(defined(hasSSE2) && !defined(HAS_CPU_64))	// 32bit SSE version in board_sse.c
 // compute the other stable discs (ie discs touching another stable disc in each flipping direction).
-static int get_spreaded_stability(unsigned long long stable, unsigned long long P_central, unsigned long long full[4])
+int get_spreaded_stability(unsigned long long stable, unsigned long long P_central, unsigned long long full[4])
 {
 	unsigned long long stable_h, stable_v, stable_d7, stable_d9, old_stable;
 

@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#if !defined(VECTOR_EVAL_UPDATE) && !defined(hasSSE2) && !defined(hasNeon)
+#if !defined(VECTOR_EVAL_UPDATE) && !defined(hasSSE2) && !defined(__ARM_NEON)
 
 /** coordinate to feature conversion */
 typedef struct CoordinateToFeature {
@@ -170,7 +170,7 @@ static const CoordinateToFeature EVAL_X2F[] = {
 };
 
 #endif
-#if defined(VECTOR_EVAL_UPDATE) || defined(hasSSE2) || defined(hasNeon) || defined(ANDROID) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(VECTOR_EVAL_UPDATE) || defined(hasSSE2) || defined(__ARM_NEON) || defined(DISPATCH_NEON) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 
 const EVAL_FEATURE_V EVAL_FEATURE[65] = {
 	{{ // a1
@@ -725,11 +725,11 @@ void eval_close(void)
 
 #ifdef ANDROID
 extern void eval_update_sse(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in);
-#elif defined(hasSSE2) || defined(hasNeon) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#elif defined(hasSSE2) || defined(__ARM_NEON) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 #include "eval_sse.c"
 #endif
 
-#if !defined(hasSSE2) && !defined(hasNeon)
+#if !defined(hasSSE2) && !defined(__ARM_NEON)
 
 /**
  * @brief Set up evaluation features from a board.
@@ -878,7 +878,7 @@ void eval_update(int x, unsigned long long f, Eval *eval)
 {
 	assert(f);
 
-  #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
+  #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(DISPATCH_NEON)
 	if (hasSSE2) {
 		eval_update_sse(x, f, eval, eval);
 		return;
@@ -892,7 +892,7 @@ void eval_update(int x, unsigned long long f, Eval *eval)
 
 void eval_update_leaf(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
-  #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
+  #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(DISPATCH_NEON)
 	if (hasSSE2) {
 		eval_update_sse(x, f, eval_out, eval_in);
 		return;
@@ -905,7 +905,7 @@ void eval_update_leaf(int x, unsigned long long f, Eval *eval_out, const Eval *e
 		eval_update_0(x, f, eval_out);
 }
 
-#endif // !defined(hasSSE2) && !defined(hasNeon)
+#endif // !defined(hasSSE2) && !defined(__ARM_NEON)
 
 /**
  * @brief Update/Restore the features after a passing move.

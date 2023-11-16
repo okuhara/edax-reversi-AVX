@@ -3,7 +3,7 @@
  *
  * CPU dependent bit operation intrinsics.
  *
- * @date 2020 - 2022
+ * @date 2020 - 2023
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -12,11 +12,11 @@
 #ifndef EDAX_BIT_INTRINSICS_H
 #define EDAX_BIT_INTRINSICS_H
 
-#if !defined(HAS_CPU_64) && (defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(_M_ARM64))
+#if defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(_M_ARM64)
 	#define	HAS_CPU_64	1
 #endif
 
-#if defined(__SSE2__) || defined(_M_X64)
+#if defined(__SSE2__) || defined(__AVX__) || defined(_M_X64)
 	#define hasSSE2	1
 #endif
 
@@ -24,14 +24,17 @@
 	#define	hasMMX	1
 #endif
 
-#if defined(__aarch64__) || defined(_M_ARM) || defined(_M_ARM64)
-	#define hasNeon	1
-  #ifndef __ARM_NEON__
-	#define	__ARM_NEON__	1
+#if defined(ANDROID) && defined(__arm__)
+  #if __ANDROID_API__ < 21
+	#define	DISPATCH_NEON	1
+  #else
+	#define	__ARM_NEON	1
   #endif
+#elif defined(__ARM_NEON__) || defined(__aarch64__) || defined(_M_ARM) || defined(_M_ARM64)
+	#define	__ARM_NEON	1
 #endif
-#ifdef __ARM_NEON__
-#include "arm_neon.h"
+#ifdef __ARM_NEON
+	#include "arm_neon.h"
 #endif
 
 #ifdef _MSC_VER

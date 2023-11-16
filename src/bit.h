@@ -31,7 +31,7 @@ int get_rand_bit(unsigned long long, struct Random*);
 
 #if !defined(__AVX2__) && defined(hasSSE2) && !defined(POPCOUNT)
 	__m128i bit_weighted_count_sse(unsigned long long, unsigned long long);
-#elif defined (hasNeon)
+#elif defined (__ARM_NEON)
 	uint64x2_t bit_weighted_count_neon(unsigned long long, unsigned long long);
 #else
 	int bit_weighted_count(unsigned long long);
@@ -73,7 +73,7 @@ extern const unsigned long long NEIGHBOUR[];
 #endif
 
 // popcount
-#ifdef hasNeon
+#ifdef __ARM_NEON
   #ifdef HAS_CPU_64
 	#define bit_count(x)	vaddv_u8(vcnt_u8(vcreate_u8(x)))
 	#define bit_count_32(x)	vaddv_u8(vcnt_u8(vcreate_u8((unsigned int) x)))
@@ -139,7 +139,7 @@ extern const unsigned long long NEIGHBOUR[];
   #endif
 #endif
 
-#if defined(ANDROID) && ((defined(__arm__) && !defined(hasNeon)) || (defined(__i386__) && !defined(hasSSE2)))
+#if defined(ANDROID) && ((defined(__arm__) && !defined(__ARM_NEON)) || (defined(__i386__) && !defined(hasSSE2)))
 extern bool	hasSSE2;
 #endif
 
@@ -151,7 +151,7 @@ typedef struct Board {
 typedef union {
 	unsigned long long	ull[2];
 	Board	board;	// for vboard optimization in search
-  #ifdef hasNeon
+  #ifdef __ARM_NEON
 	uint64x2_t	v2;
   #elif defined(hasSSE2) || defined(USE_MSVC_X86)
 	__m128i	v2;

@@ -221,26 +221,26 @@ int search_get_pv_cost(Search*);
 void show_current_move(FILE *f, Search*, const Move*, const int, const int, const bool);
 int search_bound(const Search*, int);
 
-#if defined(hasSSE2) || defined(hasNeon) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
-	#ifdef __AVX2__
-		#define	mm_malloc(s)	_mm_malloc((s), 32)
-		#define	mm_free(p)	_mm_free(p)
-	#elif defined(hasSSE2) && !defined(ANDROID)
-		#define	mm_malloc(s)	_mm_malloc((s), 16)
-		#define	mm_free(p)	_mm_free(p)
-	#elif defined(_MSC_VER)
-		#define	mm_malloc(s)	_aligned_malloc((s), 16)
-		#define	mm_free(p)	_aligned_free(p)
-	#else
-		static inline void *mm_malloc(size_t s) {
-			void *p = malloc(s + 16 + sizeof(void *));
-			if (!p) return p;
-			void **q = (void **)(((size_t) p + 15 + sizeof(void *)) & -16);
-			*(q - 1) = p;
-			return (void *) q;
-		}
-		#define mm_free(p)	free(*((void **)(p) - 1));
-	#endif
+#if defined(hasSSE2) || defined(__ARM_NEON) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
+  #ifdef __AVX2__
+	#define	mm_malloc(s)	_mm_malloc((s), 32)
+	#define	mm_free(p)	_mm_free(p)
+  #elif defined(hasSSE2) && !defined(ANDROID)
+	#define	mm_malloc(s)	_mm_malloc((s), 16)
+	#define	mm_free(p)	_mm_free(p)
+  #elif defined(_MSC_VER)
+	#define	mm_malloc(s)	_aligned_malloc((s), 16)
+	#define	mm_free(p)	_aligned_free(p)
+  #else
+	static inline void *mm_malloc(size_t s) {
+		void *p = malloc(s + 16 + sizeof(void *));
+		if (!p) return p;
+		void **q = (void **)(((size_t) p + 15 + sizeof(void *)) & -16);
+		*(q - 1) = p;
+		return (void *) q;
+	}
+	#define mm_free(p)	free(*((void **)(p) - 1));
+  #endif
 #else
 	#define	mm_malloc(s)	malloc(s)
 	#define	mm_free(p)	free(p)

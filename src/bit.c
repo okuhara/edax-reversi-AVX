@@ -136,7 +136,7 @@ void bit_init(void)
 #if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)) && !defined(hasSSE2)
 	init_mmx();
 #endif
-#if defined(ANDROID) && !defined(hasNeon) && !defined(hasSSE2)
+#if defined(ANDROID) && !defined(__ARM_NEON) && !defined(hasSSE2)
 	init_neon();
 #endif
 }
@@ -166,7 +166,7 @@ __m128i bit_weighted_count_sse(unsigned long long Q0, unsigned long long Q1)
 	return _mm_sad_epu8(v, _mm_setzero_si128());
 }
 
-#elif defined(hasNeon)
+#elif defined(__ARM_NEON)
 uint64x2_t bit_weighted_count_neon(unsigned long long Q0, unsigned long long Q1)
 {
 	uint64x2_t v = vcombine_u64(vcreate_u64(Q0), vcreate_u64(Q1));

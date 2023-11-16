@@ -82,13 +82,19 @@ ifeq ($(COMP),gcc)
 			CFLAGS += -fomit-frame-pointer
 		endif
 	endif
-	ifeq ($(ARCH),ARM)
+	ifeq ($(ARCH),arm)
 		ifeq ($(BUILD),optimize)
 			CFLAGS += -fomit-frame-pointer
 		endif
 	endif
-	ifeq ($(ARCH),ARMv7)
-		CFLAGS += -march=armv7-a -mfloat-abi=softfp -mfpu=neon -DhasNeon
+	ifeq ($(ARCH),armv7)
+		CFLAGS += -march=armv7-a
+		ifeq ($(BUILD),optimize)
+			CFLAGS += -fomit-frame-pointer
+		endif
+	endif
+	ifeq ($(ARCH),arm-neon)
+		CFLAGS += -march=armv7-a+simd -mfloat-abi=softfp
 		ifeq ($(BUILD),optimize)
 			CFLAGS += -fomit-frame-pointer
 		endif
@@ -134,12 +140,12 @@ ifeq ($(COMP),gcc-old)
 			CFLAGS += -fomit-frame-pointer
 		endif
 	endif
-	ifeq ($(ARCH),ARM)
+	ifeq ($(ARCH),arm)
 		ifeq ($(BUILD),optimize)
 			CFLAGS += -fomit-frame-pointer -DUSE_GCC_ARM
 		endif
 	endif
-	ifeq ($(ARCH),ARMv7)
+	ifeq ($(ARCH),armv7)
 		ifeq ($(BUILD),optimize)
 			CFLAGS += -fomit-frame-pointer -march=armv7-a -mfpu=neon -DUSE_GCC_ARM
 		endif
@@ -340,8 +346,8 @@ help:
 	@echo " x32-modern   x32 with popcount"
 	@echo " x32          x32"
 	@echo " x86          x86"
-	@echo " ARM          ARM v5 & up"
-	@echo " ARMv7        ARM v7-a"
+	@echo " arm          arm v5 & up"
+	@echo " armv7        arm v7-a"
 	@echo ""
 	@echo "Compilers:"
 	@echo "   gcc        GNU C compiler version >= 4.6"
@@ -391,7 +397,7 @@ release:
 	$(MAKE) pgo-build ARCH=x64 OS=linux COMP=gcc 
 	$(MAKE) build ARCH=x64 OS=windows COMP=gcc CC='x86_64-w64-mingw32-gcc'
 	$(MAKE) build ARCH=x86 OS=windows COMP=gcc CC='i686-w64-mingw32-gcc'
-	$(MAKE) build ARCH=ARMv7 OS=android COMP=gcc CC='arm-linux-androideabi-gcc --sysroot=$SYSROOT'
+	$(MAKE) build ARCH=armv7 OS=android COMP=gcc CC='arm-linux-androideabi-gcc --sysroot=$SYSROOT'
 	$(MAKE) clean
 	$(MAKE) build ARCH=x64 OS=osx COMP=gcc-old CC=i686-apple-darwin10-gcc
 

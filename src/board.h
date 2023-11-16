@@ -56,6 +56,12 @@ int get_mobility(const unsigned long long, const unsigned long long);
 
 void edge_stability_init(void);
 unsigned long long get_stable_edge(const unsigned long long, const unsigned long long);
+#ifndef __AVX2__	// public for android dispatch
+	void get_full_lines(const unsigned long long, unsigned long long [4]);
+  #if !(defined(hasMMX) && !defined(hasSSE2))
+	int get_spreaded_stability(unsigned long long, unsigned long long, unsigned long long [4]);
+  #endif
+#endif
 unsigned long long get_all_full_lines(const unsigned long long);
 int get_stability(const unsigned long long, const unsigned long long);
 int get_stability_fulls(const unsigned long long, const unsigned long long, unsigned long long [5]);
@@ -76,7 +82,7 @@ int board_count_empties(const Board *board);
 	unsigned long long get_moves_mmx(const unsigned long long, const unsigned long long);
 	unsigned long long get_moves_sse(const unsigned long long, const unsigned long long);
 
-#elif defined(ANDROID) && !defined(hasNeon) && !defined(hasSSE2)
+#elif defined(ANDROID) && !defined(__ARM_NEON) && !defined(hasSSE2)
 	void init_neon (void);
 	unsigned long long get_moves_sse(unsigned long long, unsigned long long);
 #endif
@@ -100,7 +106,6 @@ extern unsigned char edge_stability[256 * 256];
 #endif
 
 #if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512)
-	extern const V4DI lmask_v4[66], rmask_v4[66];
 	extern __m256i vectorcall mm_Flip(const __m128i OP, int pos);
 	inline __m128i vectorcall reduce_vflip(__m256i flip4) {
 		__m128i flip2 = _mm_or_si128(_mm256_castsi256_si128(flip4), _mm256_extracti128_si256(flip4, 1));
@@ -178,7 +183,7 @@ extern unsigned char edge_stability[256 * 256];
 // Pass vboard to get_moves if vectorcall available, otherwise board
 #if defined(__AVX2__) && (defined(_MSC_VER) || defined(__linux__))
 	unsigned long long vectorcall get_moves_avx(__m256i PP, __m256i OO);
-	#define	get_moves(P,O)	get_moves_avx(_mm256_broadcastq_epi64(_mm_cvtsi64_si128(P)), _mm256_broadcastq_epi64(_mm_cvtsi64_si128(O)))
+	#define	get_moves(P,O)	get_moves_avx(_mm256_set1_epi64x(P), _mm256_set1_epi64x(O))
 	#define	board_get_moves(board)	get_moves_avx(_mm256_broadcastq_epi64(*(__m128i *) &(board)->player), _mm256_broadcastq_epi64(*(__m128i *) &(board)->opponent))
 	#define	vboard_get_moves(vboard)	get_moves_avx(_mm256_broadcastq_epi64((vboard).v2), _mm256_broadcastq_epi64(_mm_unpackhi_epi64((vboard).v2, (vboard).v2)))
 #else

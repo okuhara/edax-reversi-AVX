@@ -23,7 +23,7 @@ enum { EVAL_N_FEATURE = 47 };
 typedef union {
 	unsigned short us[48];
 	unsigned long long ull[12];	// SWAR
-#ifdef __ARM_NEON__
+#ifdef __ARM_NEON
 	int16x8_t v8[6];
 #elif defined(hasSSE2) || defined(USE_MSVC_X86)
 	__m128i	v8[6];
@@ -69,10 +69,10 @@ void eval_restore(Eval*, const struct Move*);
 void eval_pass(Eval*);
 double eval_sigma(const int, const int, const int);
 
-#if defined(hasSSE2) || defined(__ARM_NEON__) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(__ARM_NEON) || defined(USE_MSVC_X86) || defined(ANDROID)
 void eval_update_sse(int, unsigned long long, Eval *, const Eval *);
 #endif
-#if defined(hasSSE2) || defined(hasNeon)
+#if defined(hasSSE2) || defined(__ARM_NEON)
 #define	eval_update(x, f, eval)	eval_update_sse(x, f, eval, eval)
 #define	eval_update_leaf(x, f, eval_out, eval_in)	eval_update_sse(x, f, eval_out, eval_in)
 #else
