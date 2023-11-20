@@ -178,7 +178,7 @@ typedef union {
 
 typedef union {
 	unsigned long long	ull[8];
-  #ifdef __AVX512F__
+  #ifdef __AVX512VL__
 	__m512i	v8;
   #endif
   #ifdef __AVX2__
