@@ -12,7 +12,7 @@
  * @version 5.0
  */
 
-enum { MAX_N_GAMES = 2500000 };
+enum { MAX_N_GAMES = 3200000 };
 
 #define _CRT_SECURE_NO_WARNINGS
 

@@ -87,7 +87,6 @@ typedef struct HashStoreData {
 
 /* declaration */
 
-void hash_move_init(void);
 void hash_init(HashTable*, const unsigned long long);
 void hash_cleanup(HashTable*);
 void hash_clear(HashTable*);
