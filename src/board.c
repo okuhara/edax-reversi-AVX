@@ -11,7 +11,7 @@
  * some board properties. Most of the functions are optimized to be as fast as
  * possible, while remaining readable.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.4
@@ -65,7 +65,7 @@
 unsigned char edge_stability[256 * 256];
 
 /** conversion from an 8-bit line to the A1-A8 line */
-unsigned long long A1_A8[256];
+// unsigned long long A1_A8[256];
 
 #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 #include "board_mmx.c"
@@ -770,7 +770,7 @@ static int find_edge_stable(const int old_P, const int old_O, int stable)
 void edge_stability_init(void)
 {
 	int P, O, PO, rPO;
-	unsigned long long Q;
+	// unsigned long long Q;
 	// long long t = cpu_clock();
 
 	for (PO = 0; PO < 256 * 256; ++PO) {
@@ -788,11 +788,11 @@ void edge_stability_init(void)
 	}
 	// printf("edge_stability_init: %d\n", (int)(cpu_clock() - t));
 
-	Q = 0;
+	/* Q = 0;
 	for (P = 0; P < 256; ++P) {
 		A1_A8[P] = Q;
 		Q = ((Q | ~0x0101010101010101) + 1) & 0x0101010101010101;
-	}
+	} */
 }
 
 #ifdef HAS_CPU_64
@@ -816,8 +816,8 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
 {	// compute the exact stable edges (from precomputed tables)
 	return edge_stability[((unsigned int) P & 0xff) * 256 + ((unsigned int) O & 0xff)]
 	    |  (unsigned long long) edge_stability[(unsigned int) (P >> 56) * 256 + (unsigned int) (O >> 56)] << 56
-	    |  A1_A8[edge_stability[packA1A8(P) * 256 + packA1A8(O)]]
-	    |  A1_A8[edge_stability[packH1H8(P) * 256 + packH1H8(O)]] << 7;
+	    |  unpackA1A8(edge_stability[a1a8])
+	    |  unpackH1H8(edge_stability[h1h8]);
 }
 #endif
 
@@ -1045,14 +1045,6 @@ unsigned long long board_get_hash_code(const Board *board)
 	const unsigned char *const p = (const unsigned char*)board;
 	unsigned long long h1, h2;
 
-#if defined(USE_GAS_MMX) && defined(__3dNOW__)	// Faster on AMD but not suitable for CPU with slow emms
-	if (hasMMX)
-		return board_get_hash_code_mmx(p);
-#elif defined(USE_GAS_MMX) || defined(USE_MSVC_X86) // || defined(__x86_64__)
-	if (hasSSE2)
-		return board_get_hash_code_sse(p);
-#endif
-
 	h1  = hash_rank[0][p[0]];	h2  = hash_rank[1][p[1]];
 	h1 ^= hash_rank[2][p[2]];	h2 ^= hash_rank[3][p[3]];
 	h1 ^= hash_rank[4][p[4]];	h2 ^= hash_rank[5][p[5]];
@@ -1061,8 +1053,6 @@ unsigned long long board_get_hash_code(const Board *board)
 	h1 ^= hash_rank[10][p[10]];	h2 ^= hash_rank[11][p[11]];
 	h1 ^= hash_rank[12][p[12]];	h2 ^= hash_rank[13][p[13]];
 	h1 ^= hash_rank[14][p[14]];	h2 ^= hash_rank[15][p[15]];
-
-	// assert((h1 ^ h2) == board_get_hash_code_sse(p));
 
 	return h1 ^ h2;
 }

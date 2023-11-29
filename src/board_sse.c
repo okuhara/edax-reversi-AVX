@@ -545,15 +545,14 @@ unsigned long long get_stable_edge(unsigned long long P, unsigned long long O)
 	uint16x8_t h1h8 = vshlq_u16(vreinterpretq_u16_u8(vshrq_n_u8(PO, 7)), shiftv);
 	return edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 0)]
 	    |  (unsigned long long) edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 7)] << 56
-	    |  A1_A8[edge_stability[vaddvq_u16(a1a8)]]
-	    |  A1_A8[edge_stability[vaddvq_u16(h1h8)]] << 7;
+	    |  unpackA1A8(a1a8) | unpackH1H8(h1h8);
 }
 
 #elif defined(__x86_64__) || defined(_M_X64)
 unsigned long long get_stable_edge(const unsigned long long P, const unsigned long long O)
 {
 	// compute the exact stable edges (from precomputed tables)
-	unsigned int a1a8po, h1h8po;
+	unsigned int a1a8, h1h8;
 	unsigned long long stable_edge;
 
 	__m128i	P0 = _mm_cvtsi64_si128(P);
@@ -563,14 +562,10 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
 		| ((unsigned long long) edge_stability[_mm_extract_epi16(PO, 7)] << 56);
 
 	PO = _mm_unpacklo_epi64(O0, P0);
-	a1a8po = _mm_movemask_epi8(_mm_slli_epi64(PO, 7));
-	h1h8po = _mm_movemask_epi8(PO);
-#if 0 // def __BMI2__ // pdep is slow on AMD
-	stable_edge |= _pdep_u64(edge_stability[a1a8po], 0x0101010101010101)
-		| _pdep_u64(edge_stability[h1h8po], 0x8080808080808080);
-#else
-	stable_edge |= A1_A8[edge_stability[a1a8po]] | (A1_A8[edge_stability[h1h8po]] << 7);
-#endif
+	a1a8 = edge_stability[_mm_movemask_epi8(_mm_slli_epi64(PO, 7))];
+	h1h8 = edge_stability[_mm_movemask_epi8(PO)];
+	stable_edge |= unpackA1A8(a1a8) | unpackH1H8(h1h8);
+
 	return stable_edge;
 }
 #endif // __aarch64__/__x86_64__/_M_X64
@@ -764,100 +759,3 @@ int get_stability_sse(const unsigned long long P, const unsigned long long O)
 
 #endif // __AVX2__
 #endif // HAS_CPU_64/ANDROID
-
-/**
- * @brief SSE translation of board_get_hash_code.
- *
- * Too many dependencies, effective only on 32bit build.
- * For AMD, MMX version in board_mmx.c is faster.
- *
- * @param p pointer to 16 bytes to hash.
- * @return the hash code of the bitboard
- */
-#if (defined(USE_GAS_MMX) && !defined(__3dNOW__)) || defined(USE_MSVC_X86) // || defined(__x86_64__)
-
-unsigned long long board_get_hash_code_sse(const unsigned char *p)
-{
-	unsigned long long h;
-#if defined(hasSSE2) || defined(USE_MSVC_X86)
-	__m128	h0, h1, h2, h3;
-
-	h0 = _mm_loadh_pi(_mm_castsi128_ps(_mm_loadl_epi64((__m128i *) &hash_rank[0][p[0]])), (__m64 *) &hash_rank[4][p[4]]);
-	h1 = _mm_loadh_pi(_mm_castsi128_ps(_mm_loadl_epi64((__m128i *) &hash_rank[1][p[1]])), (__m64 *) &hash_rank[5][p[5]]);
-	h2 = _mm_loadh_pi(_mm_castsi128_ps(_mm_loadl_epi64((__m128i *) &hash_rank[2][p[2]])), (__m64 *) &hash_rank[6][p[6]]);
-	h3 = _mm_loadh_pi(_mm_castsi128_ps(_mm_loadl_epi64((__m128i *) &hash_rank[3][p[3]])), (__m64 *) &hash_rank[7][p[7]]);
-	h0 = _mm_xor_ps(h0, h2);	h1 = _mm_xor_ps(h1, h3);
-	h2 = _mm_loadh_pi(_mm_castsi128_ps(_mm_loadl_epi64((__m128i *) &hash_rank[8][p[8]])), (__m64 *) &hash_rank[10][p[10]]);
-	h3 = _mm_loadh_pi(_mm_castsi128_ps(_mm_loadl_epi64((__m128i *) &hash_rank[9][p[9]])), (__m64 *) &hash_rank[11][p[11]]);
-	h0 = _mm_xor_ps(h0, h2);	h1 = _mm_xor_ps(h1, h3);
-	h2 = _mm_loadh_pi(_mm_castsi128_ps(_mm_loadl_epi64((__m128i *) &hash_rank[12][p[12]])), (__m64 *) &hash_rank[14][p[14]]);
-	h3 = _mm_loadh_pi(_mm_castsi128_ps(_mm_loadl_epi64((__m128i *) &hash_rank[13][p[13]])), (__m64 *) &hash_rank[15][p[15]]);
-	h0 = _mm_xor_ps(h0, h2);	h1 = _mm_xor_ps(h1, h3);
-	h0 = _mm_xor_ps(h0, h1);
-	h0 = _mm_xor_ps(h0, _mm_movehl_ps(h1, h0));
-	h = _mm_cvtsi128_si64(_mm_castps_si128(h0));
-
-#else
-	__asm__ volatile (
-		"movq	%0, %%xmm0\n\t"		"movq	%1, %%xmm1"
-	: : "m" (hash_rank[0][p[0]]), "m" (hash_rank[1][p[1]]));
-	__asm__ volatile (
-		"movq	%0, %%xmm2\n\t"		"movq	%1, %%xmm3"
-	: : "m" (hash_rank[2][p[2]]), "m" (hash_rank[3][p[3]]));
-	__asm__ volatile (
-		"movhps	%0, %%xmm0\n\t"		"movhps	%1, %%xmm1"
-	: : "m" (hash_rank[4][p[4]]), "m" (hash_rank[5][p[5]]));
-	__asm__ volatile (
-		"movhps	%0, %%xmm2\n\t"		"movhps	%1, %%xmm3"
-	: : "m" (hash_rank[6][p[6]]), "m" (hash_rank[7][p[7]]));
-	__asm__ volatile (
-		"xorps	%%xmm2, %%xmm0\n\t"	"xorps	%%xmm3, %%xmm1\n\t"
-		"movq	%0, %%xmm2\n\t"		"movq	%1, %%xmm3"
-	: : "m" (hash_rank[8][p[8]]), "m" (hash_rank[9][p[9]]));
-	__asm__ volatile (
-		"movhps	%0, %%xmm2\n\t"		"movhps	%1, %%xmm3"
-	: : "m" (hash_rank[10][p[10]]), "m" (hash_rank[11][p[11]]));
-	__asm__ volatile (
-		"xorps	%%xmm2, %%xmm0\n\t"	"xorps	%%xmm3, %%xmm1\n\t"
-		"movq	%0, %%xmm2\n\t"		"movq	%1, %%xmm3"
-	: : "m" (hash_rank[12][p[12]]), "m" (hash_rank[13][p[13]]));
-	__asm__ volatile (
-		"movhps	%1, %%xmm2\n\t"		"movhps	%2, %%xmm3\n\t"
-		"xorps	%%xmm2, %%xmm0\n\t"	"xorps	%%xmm3, %%xmm1\n\t"
-		"xorps	%%xmm1, %%xmm0\n\t"
-		"movhlps %%xmm0, %%xmm1\n\t"
-		"xorps	%%xmm1, %%xmm0\n\t"
-		"movd	%%xmm0, %%eax\n\t"
-		"punpckhdq %%xmm0, %%xmm0\n\t"
-		"movd	%%xmm0, %%edx"
-	: "=A" (h) : "m" (hash_rank[14][p[14]]), "m" (hash_rank[15][p[15]]));
-#endif
-
-	return h;
-}
-
-#endif // USE_GAS_MMX
-
-#if 0 // def __AVX2__	// experimental - too many instructions
-
-unsigned long long board_get_hash_code_avx2(const unsigned char *p)
-{
-	__m128i	ix0, ix8, hh;
-	__m256i	hhh;
-	static const __v16qi rank = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
-
-	ix0 = _mm_loadu_si128((__m128i *) p);
-	ix8 = _mm_unpackhi_epi8(ix0, (__m128i) rank);
-	ix0 = _mm_unpacklo_epi8(ix0, (__m128i) rank);
-
-	hhh  = _mm256_i32gather_epi64((long long *) hash_rank[0], _mm_blend_epi16(_mm_setzero_si128(), ix0, 0x55), 8);
-	hhh ^= _mm256_i32gather_epi64((long long *) hash_rank[0], _mm_blend_epi16(_mm_setzero_si128(), ix8, 0x55), 8);
-	hhh ^= _mm256_i32gather_epi64((long long *) hash_rank[0], _mm_srli_epi32(ix0, 16), 8);
-	hhh ^= _mm256_i32gather_epi64((long long *) hash_rank[0], _mm_srli_epi32(ix8, 16), 8);
-
-	hh = _mm256_castsi256_si128(hhh) ^ _mm256_extracti128_si256(hhh, 1);
-	hh ^= _mm_shuffle_epi32(hh, 0x4e);
-	return hh[0];
-}
-
-#endif

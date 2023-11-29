@@ -3,7 +3,7 @@
  *
  * Board management header file.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.4
  */
@@ -83,14 +83,16 @@ unsigned long long get_moves_sse(unsigned long long, unsigned long long);
 int get_stability_sse(const unsigned long long P, const unsigned long long O);
 #endif
 
-#if defined(USE_GAS_MMX) && defined(__3dNOW__)
-unsigned long long board_get_hash_code_mmx(const unsigned char *p);
-#elif defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
-unsigned long long board_get_hash_code_sse(const unsigned char *p);
-#endif
-
 extern unsigned char edge_stability[256 * 256];
 extern unsigned long long A1_A8[256];
+
+#if defined(__BMI2__) && !defined(bdver4) && !defined(znver1) && !defined(znver2) // pdep is slow on AMD before Zen3
+	#define	unpackA1A8(x)	_pdep_u64((x), 0x0101010101010101)
+	#define	unpackH1H8(x)	_pdep_u64((x), 0x8080808080808080)
+#else
+	#define	unpackA1A8(x)	(((unsigned long long)((((x) >> 4) * 0x00204081) & 0x01010101) << 32) | ((((x) & 0x0f) * 0x00204081) & 0x01010101))
+	#define	unpackH1H8(x)	(((unsigned long long)((((x) >> 4) * 0x10204080) & 0x80808080) << 32) | ((((x) & 0x0f) * 0x10204080) & 0x80808080))
+#endif
 
 #if (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_PLAIN) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BMI2)
 	extern int last_flip(int pos, unsigned long long P);
@@ -105,7 +107,7 @@ extern unsigned long long A1_A8[256];
 	#define	board_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(mm_Flip(_mm_loadu_si128((__m128i *) (board)), (x))))
 
 #elif MOVE_GENERATOR == MOVE_GENERATOR_SSE
-	extern __m128i (vectorcall *mm_flip[])(const __m128i);
+	extern __m128i (vectorcall *mm_flip[BOARD_SIZE + 2])(const __m128i);
 	#define	Flip(x,P,O)	((unsigned long long) _mm_cvtsi128_si64(mm_flip[x](_mm_unpacklo_epi64(_mm_cvtsi64_si128(P), _mm_cvtsi64_si128(O)))))
 	#define mm_Flip(OP,x)	mm_flip[x](OP)
 	#define	board_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(mm_flip[x](_mm_loadu_si128((__m128i *) (board)))))
@@ -124,7 +126,7 @@ extern unsigned long long A1_A8[256];
 	#endif
 
 #else
-	#if (MOVE_GENERATOR == MOVE_GENERATOR_SSE_BSWAP) || (MOVE_GENERATOR == MOVE_GENERATOR_NEON)
+	#if MOVE_GENERATOR == MOVE_GENERATOR_SSE_BSWAP
 		extern unsigned long long Flip(int, unsigned long long, unsigned long long);
 	#else
 		extern unsigned long long (*flip[BOARD_SIZE + 2])(const unsigned long long, const unsigned long long);
