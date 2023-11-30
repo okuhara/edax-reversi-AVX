@@ -3,7 +3,7 @@
  *
  * Various macro / constants to control algorithm usage.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.4
  */
@@ -41,7 +41,7 @@
 		#define MOVE_GENERATOR MOVE_GENERATOR_AVX
 	#elif defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2)
 		#define MOVE_GENERATOR MOVE_GENERATOR_SSE
-	#elif defined(__aarch64__) || defined(_M_ARM64)
+	#elif defined(__aarch64__) || defined(_M_ARM64) || defined(hasNeon)
 		#define MOVE_GENERATOR MOVE_GENERATOR_NEON
 	#elif defined(__arm__) || defined(_M_ARM)
 		#define MOVE_GENERATOR MOVE_GENERATOR_BITSCAN
@@ -50,7 +50,7 @@
 	#endif
 #endif
 #ifndef LAST_FLIP_COUNTER
-	#if defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2) || defined(__aarch64__) || defined(_M_ARM64)
+	#if defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2) || defined(__aarch64__) || defined(_M_ARM64) || defined(hasNeon)
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_SSE
 	#elif defined(__arm__) || defined(_M_ARM)
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_BITSCAN

@@ -3,7 +3,7 @@
  *
  * SSE/AVX translation of some board.c functions
  *
- * @date 2014 - 2020
+ * @date 2014 - 2023
  * @author Toshihiko Okuhara
  * @version 4.4
  */
@@ -168,13 +168,17 @@ unsigned long long board_next(const Board *board, const int x, Board *next)
 	uint64x2_t OP = vld1q_u64((uint64_t *) board);
 	uint64x2_t flipped = mm_Flip(OP, x);
 
+#ifdef HAS_CPU_64	// vld1q_lane_u64
+	OP = veorq_u64(OP, vorrq_u64(flipped, vld1q_lane_u64((uint64_t *) &X_TO_BIT[x], flipped, 0)));
+	vst1q_u64((uint64_t *) next, vextq_u64(OP, OP, 1));
+#else
 	OP = veorq_u64(OP, flipped);
-	vst1_u64((uint64_t *) &next->player, vget_high_u64(OP));
-	vst1_u64((uint64_t *) &next->opponent, vorr_u64(vget_low_u64(OP), vcreate_u64(X_TO_BIT[x])));
+	vst1_u64(&next->player, vget_high_u64(OP));
+	vst1_u64(&next->opponent, vorr_u64(vget_low_u64(OP), vld1_u64(&X_TO_BIT[x])));
+#endif
 
 	return vgetq_lane_u64(flipped, 0);
 }
-
 #endif
 
 /**
@@ -208,10 +212,14 @@ unsigned long long board_pass_next(const Board *board, const int x, Board *next)
 	uint64x2_t PO = vextq_u64(OP, OP, 1);
 	uint64x2_t flipped = mm_Flip(PO, x);
 
-	PO = veorq_u64(PO, flipped);
-	vst1_u64((uint64_t *) &next->player, vget_high_u64(PO));
-	vst1_u64((uint64_t *) &next->opponent, vorr_u64(vget_low_u64(PO), vcreate_u64(X_TO_BIT[x])));
-
+#ifdef HAS_CPU_64	// vld1q_lane_u64
+	PO = veorq_u64(PO, vorrq_u64(flipped, vld1q_lane_u64((uint64_t *) &X_TO_BIT[x], flipped, 0)));
+	vst1q_u64((uint64_t *) next, vextq_u64(PO, PO, 1));
+#else
+	PO = veorq_u64(OP, flipped);
+	vst1_u64(&next->player, vget_high_u64(PO));
+	vst1_u64(&next->opponent, vorr_u64(vget_low_u64(PO), vld1_u64(&X_TO_BIT[x])));
+#endif
 	return vgetq_lane_u64(flipped, 0);
 }
 
@@ -353,8 +361,8 @@ unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
 	flip = vorrq_u64(flip, vandq_u64(pre, vshlq_n_u64(flip, 18)));		flip1 |= pre1 & (flip1 >> 2);
 	MM = vorrq_u64(MM, vshlq_n_u64(flip, 9));				movesH |= flip1 >> 1;
 
-	movesL |= vgetq_lane_u32(MM, 0) | __rev(vgetq_lane_u32(MM, 3));
-	movesH |= vgetq_lane_u32(MM, 1) | __rev(vgetq_lane_u32(MM, 2));
+	movesL |= vgetq_lane_u32(vreinterpretq_u32_u64(MM), 0) | bswap_int(vgetq_lane_u32(vreinterpretq_u32_u64(MM), 3));
+	movesH |= vgetq_lane_u32(vreinterpretq_u32_u64(MM), 1) | bswap_int(vgetq_lane_u32(vreinterpretq_u32_u64(MM), 2));
 	return (movesL | ((unsigned long long) movesH << 32)) & ~(P|O);	// mask with empties
 }
 
@@ -539,10 +547,30 @@ unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
 #if defined(__aarch64__) || defined(_M_ARM64)
 unsigned long long get_stable_edge(unsigned long long P, unsigned long long O)
 {	// compute the exact stable edges (from precomputed tables)
-	const int16x8_t shiftv = { 0, 1, 2, 3, 4, 5, 6, 7 };
-	uint8x16_t PO = vzipq_u8(vreinterpretq_u8_u64(vdupq_n_u64(O)), vreinterpretq_u8_u64(vdupq_n_u64(P))).val[0];
-	uint16x8_t a1a8 = vshlq_u16(vreinterpretq_u16_u8(vandq_u8(PO, vdupq_n_u8(1))), shiftv);
-	uint16x8_t h1h8 = vshlq_u16(vreinterpretq_u16_u8(vshrq_n_u8(PO, 7)), shiftv);
+	// const int16x8_t shiftv = { 0, 1, 2, 3, 4, 5, 6, 7 };	// error on MSVC
+	const uint64x2_t shiftv = { 0x0003000200010000, 0x0007000600050004 };
+	uint8x16_t PO = vzip1q_u8(vreinterpretq_u8_u64(vdupq_n_u64(O)), vreinterpretq_u8_u64(vdupq_n_u64(P)));
+	unsigned int a1a8 = edge_stability[vaddvq_u16(vshlq_u16(vreinterpretq_u16_u8(vandq_u8(PO, vdupq_n_u8(1))), vreinterpretq_s16_u64(shiftv)))];
+	unsigned int h1h8 = edge_stability[vaddvq_u16(vshlq_u16(vreinterpretq_u16_u8(vshrq_n_u8(PO, 7)), vreinterpretq_s16_u64(shiftv)))];
+	return edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 0)]
+	    |  (unsigned long long) edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 7)] << 56
+	    |  unpackA1A8(a1a8) | unpackH1H8(h1h8);
+}
+
+#elif defined(__ARM_NEON__) // Neon kindergarten
+unsigned long long get_stable_edge_sse(unsigned long long P, unsigned long long O)
+{	// compute the exact stable edges (from precomputed tables)
+	const uint64x2_t kMul  = { 0x1020408001020408, 0x1020408001020408 };
+	uint64x2_t PP = vcombine_u64(vshl_n_u64(vcreate_u64(P), 7), vcreate_u64(P));
+	uint64x2_t OO = vcombine_u64(vshl_n_u64(vcreate_u64(O), 7), vcreate_u64(O));
+	uint32x4_t QP = vmulq_u32(vreinterpretq_u32_u64(kMul), vreinterpretq_u32_u8(vshrq_n_u8(vreinterpretq_u8_u64(PP), 7)));
+	uint32x4_t QO = vmulq_u32(vreinterpretq_u32_u64(kMul), vreinterpretq_u32_u8(vshrq_n_u8(vreinterpretq_u8_u64(OO), 7)));
+	uint32x2_t DP = vpadd_u32(vget_low_u32(QP), vget_high_u32(QP));	// P_h1h8 * * * P_a1a8 * * *
+	uint32x2_t DO = vpadd_u32(vget_low_u32(QO), vget_high_u32(QO));	// O_h1h8 * * * O_a1a8 * * *
+	uint8x8_t DB = vtrn_u8(vreinterpret_u8_u32(DO), vreinterpret_u8_u32(DP)).val[1];	// P_h1h8 O_h1h8 * * P_a1a8 O_a1a8 * *
+	unsigned int a1a8 = edge_stability[vget_lane_u16(vreinterpret_u16_u8(DB), 1)];
+	unsigned int h1h8 = edge_stability[vget_lane_u16(vreinterpret_u16_u8(DB), 3)];
+	uint8x16_t PO = vzipq_u8(vreinterpretq_u8_u64(OO), vreinterpretq_u8_u64(PP)).val[1];
 	return edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 0)]
 	    |  (unsigned long long) edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 7)] << 56
 	    |  unpackA1A8(a1a8) | unpackH1H8(h1h8);
@@ -570,7 +598,7 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
 }
 #endif // __aarch64__/__x86_64__/_M_X64
 
-#if defined(HAS_CPU_64) || defined(ANDROID)
+#if defined(hasSSE2) || defined(hasNeon) || defined(ANDROID) || defined(USE_MSVC_X86)
 /**
  * @brief X64 optimized get_stability
  *

@@ -6,7 +6,7 @@
  * This should be the only file with linux/windows
  * dedicated code.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.4
  */
@@ -642,8 +642,11 @@ char* parse_move(const char *string, const Board *board, Move *move)
 		int x = string_to_coordinate(word);
 		move->x = x;
 		move->flipped = Flip(x, board->player, board->opponent);
-		if ((x == PASS && board_is_pass(board)) || (move->flipped && !board_is_occupied(board, x))) return word + 2;
-		else if (board_is_pass(board)) {
+		if (move->flipped && !board_is_occupied(board, x)) {
+			return word + 2;
+		} else if (board_is_pass(board)) {
+			if (x == PASS)
+				return word + 2;
 			move->x = PASS;
 			move->flipped = 0;
 		} else {
@@ -974,7 +977,7 @@ Thread thread_self(void)
  */
 void thread_set_cpu(Thread thread, int i)
 {
-#if defined(__linux__) && !defined(ANDROID)
+#if defined(__linux__) && defined(CPU_SET)
 	cpu_set_t cpu;
 
 	CPU_ZERO(&cpu);

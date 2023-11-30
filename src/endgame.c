@@ -95,6 +95,7 @@ int search_solve_0(const Search *search)
 	return 2 * bit_count(search->board.player) - SCORE_MAX;
 }
 
+#if ((MOVE_GENERATOR != MOVE_GENERATOR_AVX) && (MOVE_GENERATOR != MOVE_GENERATOR_SSE) && (MOVE_GENERATOR != MOVE_GENERATOR_NEON)) || (LAST_FLIP_COUNTER != COUNT_LAST_FLIP_SSE)
 /**
  * @brief Get the final score.
  *
@@ -128,7 +129,6 @@ int board_score_1(const Board *board, const int beta, const int x)
 	return score;
 }
 
-#if ((MOVE_GENERATOR != MOVE_GENERATOR_AVX) && (MOVE_GENERATOR != MOVE_GENERATOR_SSE) && (MOVE_GENERATOR != MOVE_GENERATOR_NEON)) || (LAST_FLIP_COUNTER != COUNT_LAST_FLIP_SSE)
 /**
  * @brief Get the final score.
  *

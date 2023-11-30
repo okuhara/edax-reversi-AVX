@@ -803,7 +803,7 @@ void edge_stability_init(void)
 #define	packH1H8(X)	(((((unsigned int)((X) >> 32) & 0x80808080) + (((unsigned int)(X) & 0x80808080) >> 4)) * 0x00204081) >> 24)
 #endif
 
-#ifndef HAS_CPU_64
+#if !defined(hasNeon) && !defined(hasSSE2)
 /**
  * @brief Get stable edge.
  *
@@ -816,12 +816,10 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
 {	// compute the exact stable edges (from precomputed tables)
 	return edge_stability[((unsigned int) P & 0xff) * 256 + ((unsigned int) O & 0xff)]
 	    |  (unsigned long long) edge_stability[(unsigned int) (P >> 56) * 256 + (unsigned int) (O >> 56)] << 56
-	    |  unpackA1A8(edge_stability[a1a8])
-	    |  unpackH1H8(edge_stability[h1h8]);
+	    |  unpackA1A8(edge_stability[packA1A8(P) * 256 + packA1A8(O)])
+	    |  unpackH1H8(edge_stability[packH1H8(P) * 256 + packH1H8(O)]);
 }
-#endif
 
-#if !defined(HAS_CPU_64) && !(defined(ANDROID) && (defined(hasNeon) || defined(hasSSE2)))
 /**
  * @brief Get full lines.
  *

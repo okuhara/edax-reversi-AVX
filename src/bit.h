@@ -3,7 +3,7 @@
  *
  * Bitwise operations header file.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.4
  */
@@ -72,11 +72,14 @@ extern const unsigned long long NEIGHBOUR[];
 #endif
 
 // popcount
-#if !defined(POPCOUNT) && defined(hasNeon)
-	#define	POPCOUNT	1
-#endif
+#ifdef hasNeon
+	#ifdef HAS_CPU_64
+		#define bit_count(x)	vaddv_u8(vcnt_u8(vcreate_u8(x)))
+	#else
+		#define bit_count(x)	vget_lane_u32(vreinterpret_u32_u64(vpaddl_u32(vpaddl_u16(vpaddl_u8(vcnt_u8(vcreate_u8(x)))))), 0)
+	#endif
 
-#ifdef POPCOUNT
+#elif defined(POPCOUNT)
 	/*
 	#if defined (USE_GAS_X64)
 		static inline int bit_count (unsigned long long x) {
@@ -128,25 +131,29 @@ extern bool	hasSSE2;
 
 typedef union {
 	unsigned long long	ull[2];
-#if defined(hasSSE2) || defined(USE_MSVC_X86)
+  #ifdef __ARM_NEON
+	uint64x2_t	v2;
+  #elif defined(hasSSE2) || defined(USE_MSVC_X86)
 	__m128i	v2;
-	__m128d	d2;
-#endif
+  #endif
 }
 #if defined(__GNUC__) && !defined(hasSSE2)
 __attribute__ ((aligned (16)))
 #endif
 V2DI;
 
-#ifdef hasSSE2
 typedef union {
 	unsigned long long	ull[4];
-	#ifdef __AVX2__
-		__m256i	v4;
-	#endif
+  #ifdef __AVX2__
+	__m256i	v4;
+  #endif
+  #ifdef hasSSE2
 	__m128i	v2[2];
+  #endif
+  #ifdef USE_MSVC_X86
+	__m64	v1[4];
+  #endif
 } V4DI;
-#endif
 
 /* Define function attributes directive when available */
 
