@@ -1,7 +1,7 @@
 /**
  * @file bench.c
  *
- * @date 1998 - 2020
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.4
  */
@@ -217,13 +217,13 @@ static void bench_board_score_1()
 
 		c = -click();
 		for (i = 0; i < N_WARMUP; ++i) {
-			v += board_score_1(&board, SCORE_MAX, x);
+			v += board_score_1(board.player, SCORE_MAX, x);
 		}
 		c += click();
 
 		c = -click();
 		for (i = 0; i < N_REPEAT; ++i) {
-			v += board_score_1(&board, SCORE_MAX, x);
+			v += board_score_1(board.player, SCORE_MAX, x);
 		}
 		c += click();
 

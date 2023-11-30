@@ -38,24 +38,18 @@
 	#include "count_last_flip_kindergarten.c"
 #endif
 
-#if ((MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)) && (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE)
-	#include "endgame_sse.c"	// vectorcall version
-#elif (MOVE_GENERATOR == MOVE_GENERATOR_NEON) && (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE)
-	#include "endgame_neon.c"
-#endif
-
 /**
  * @brief Get the final score.
  *
  * Get the final score, when no move can be made.
  *
- * @param board Board.
+ * @param player Board.player
  * @param n_empties Number of empty squares remaining on the board.
  * @return The final score, as a disc difference.
  */
-static int board_solve(const Board *board, const int n_empties)
+static int board_solve(const unsigned long long player, const int n_empties)
 {
-	int score = bit_count(board->player) * 2 - SCORE_MAX;	// in case of opponents win
+	int score = bit_count(player) * 2 - SCORE_MAX;	// in case of opponents win
 	int diff = score + n_empties;		// = n_discs_p - (64 - n_empties - n_discs_p)
 
 	SEARCH_STATS(++statistics.n_search_solve);
@@ -77,7 +71,7 @@ static int board_solve(const Board *board, const int n_empties)
  */
 int search_solve(const Search *search)
 {
-	return board_solve(&search->board, search->eval.n_empties);
+	return board_solve(search->board.player, search->eval.n_empties);
 }
 
 /**
@@ -95,25 +89,29 @@ int search_solve_0(const Search *search)
 	return 2 * bit_count(search->board.player) - SCORE_MAX;
 }
 
-#if ((MOVE_GENERATOR != MOVE_GENERATOR_AVX) && (MOVE_GENERATOR != MOVE_GENERATOR_SSE) && (MOVE_GENERATOR != MOVE_GENERATOR_NEON)) || (LAST_FLIP_COUNTER != COUNT_LAST_FLIP_SSE)
+#if ((MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)) && (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE)
+	#include "endgame_sse.c"	// vectorcall version
+#elif (MOVE_GENERATOR == MOVE_GENERATOR_NEON) && (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE)
+	#include "endgame_neon.c"
+#else
 /**
  * @brief Get the final score.
  *
  * Get the final score, when 1 empty squares remain.
  * The following code has been adapted from Zebra by Gunnar Anderson.
  *
- * @param board  Board to evaluate.
+ * @param player Board.player to evaluate.
  * @param beta   Beta bound.
  * @param x      Last empty square to play.
  * @return       The final opponent score, as a disc difference.
  */
-int board_score_1(const Board *board, const int beta, const int x)
+int board_score_1(const unsigned long long player, const int beta, const int x)
 {
 	int score, score2, n_flips;
 
-	score = 2 * bit_count(board->opponent) - SCORE_MAX;
+	score = SCORE_MAX - 2 - 2 * bit_count(player);	// = 2 * bit_count(opponent) - SCORE_MAX
 
-	n_flips = last_flip(x, board->player);
+	n_flips = last_flip(x, player);
 	score -= n_flips;
 
 	if (n_flips == 0) {
@@ -121,7 +119,7 @@ int board_score_1(const Board *board, const int beta, const int x)
 		if (score >= 0)
 			score = score2;
 		if (score < beta) {	// lazy cut-off
-			if ((n_flips = last_flip(x, board->opponent)) != 0)
+			if ((n_flips = last_flip(x, ~player)) != 0)
 				score = score2 + n_flips;
 		}
 	}
@@ -143,43 +141,43 @@ int board_score_1(const Board *board, const int beta, const int x)
  */
 static int board_solve_2(Board *board, int alpha, const int x1, const int x2, volatile unsigned long long *n_nodes)
 {
-	Board next;
+	unsigned long long flipped;
 	int score, bestscore, nodes;
 	// const int beta = alpha + 1;
 
 	SEARCH_STATS(++statistics.n_board_solve_2);
 
-	if ((NEIGHBOUR[x1] & board->opponent) && board_next(board, x1, &next)) {
-		bestscore = board_score_1(&next, alpha + 1, x2);
+	if ((NEIGHBOUR[x1] & board->opponent) && (flipped = board_flip(board, x1))) {
+		bestscore = board_score_1(board->opponent ^ flipped, alpha + 1, x2);
 		nodes = 2;
 
-		if ((bestscore <= alpha) && (NEIGHBOUR[x2] & board->opponent) && board_next(board, x2, &next)) {
-			score = board_score_1(&next, alpha + 1, x1);
+		if ((bestscore <= alpha) && (NEIGHBOUR[x2] & board->opponent) && (flipped = board_flip(board, x2))) {
+			score = board_score_1(board->opponent ^ flipped, alpha + 1, x1);
 			if (score > bestscore) bestscore = score;
 			nodes = 3;
 		}
 
-	} else if ((NEIGHBOUR[x2] & board->opponent) && board_next(board, x2, &next)) {
-		bestscore = board_score_1(&next, alpha + 1, x1);
+	} else if ((NEIGHBOUR[x2] & board->opponent) && (flipped = board_flip(board, x2))) {
+		bestscore = board_score_1(board->opponent ^ flipped, alpha + 1, x1);
 		nodes = 2;
 
 	} else {	// pass
-		if ((NEIGHBOUR[x1] & board->player) && board_pass_next(board, x1, &next)) {
-			bestscore = -board_score_1(&next, -alpha, x2);
+		if ((NEIGHBOUR[x1] & board->player) && (flipped = Flip(x1, board->opponent, board->player))) {
+			bestscore = -board_score_1(board->player ^ flipped, -alpha, x2);
 			nodes = 2;
 
-			if ((bestscore > alpha) && (NEIGHBOUR[x2] & board->player) && board_pass_next(board, x2, &next)) {
-				score = -board_score_1(&next, -alpha, x1);
+			if ((bestscore > alpha) && (NEIGHBOUR[x2] & board->player) && (flipped = Flip(x2, board->opponent, board->player))) {
+				score = -board_score_1(board->player ^ flipped, -alpha, x1);
 				if (score < bestscore) bestscore = score;
 				nodes = 3;
 			}
 
-		} else if ((NEIGHBOUR[x2] & board->player) && board_pass_next(board, x2, &next)) {
-			bestscore = -board_score_1(&next, -alpha, x1);
+		} else if ((NEIGHBOUR[x2] & board->player) && (flipped = Flip(x2, board->opponent, board->player))) {
+			bestscore = -board_score_1(board->player ^ flipped, -alpha, x1);
 			nodes = 2;
 
 		} else {	// gameover
-			bestscore = board_solve(board, 2);
+			bestscore = board_solve(board->player, 2);
 			nodes = 1;
 		}
 	}
@@ -259,7 +257,7 @@ static int search_solve_3(Search *search, const int alpha, Board *board, unsigne
 		}
 
 		else if (bestscore == SCORE_INF)	// gameover
-			bestscore = board_solve(board, 3);
+			bestscore = board_solve(board->player, 3);
 	}
 
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
@@ -357,7 +355,7 @@ static int search_solve_4(Search *search, const int alpha)
 			bestscore = -search_solve_4(search, -(alpha + 1));
 			search_pass_endgame(search);
 		} else { // gameover
-			bestscore = board_solve(&search->board, 4);
+			bestscore = board_solve(search->board.player, 4);
 		}
 	}
 
