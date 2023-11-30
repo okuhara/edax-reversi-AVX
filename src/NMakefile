@@ -10,7 +10,7 @@
 # Microsoft Visual C++ 2008 or better for Windows (7 or Vista).
 # VC_FLAGS = /source-charset:.1252 /execution-charset:.1252\
 VC_FLAGS = /D UNICODE /utf-8 /D _CRT_SECURE_NO_DEPRECATE\
-           /I"..\include" /O2 /fp:fast /D NDEBUG /D inline=__forceinline /D __func__=__FUNCTION__\
+           /I"..\include" /O2 /fp:fast /GS- /D NDEBUG /D inline=__forceinline /D __func__=__FUNCTION__\
            /MT
 
 vc-w64-modern:
