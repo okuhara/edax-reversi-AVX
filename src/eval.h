@@ -3,7 +3,7 @@
  *
  * Evaluation function's header.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.4
  */
@@ -22,6 +22,7 @@ enum { EVAL_N_FEATURE = 47 };
  */
 typedef union {
 	unsigned short us[48];
+	unsigned long long ull[12];	// SWAR
 #ifdef __ARM_NEON__
 	int16x8_t v8[6];
 #elif defined(hasSSE2) || defined(USE_MSVC_X86)
