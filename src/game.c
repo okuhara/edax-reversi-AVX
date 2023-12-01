@@ -3,7 +3,7 @@
  *
  * Game management
  *
- * @date 1998 - 2020
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.4
  */
@@ -659,14 +659,15 @@ static const char* parse_tag(const char *string, char *tag, char *value)
  *
  * @param game The output game.
  * @param string An input string.
- * @return The unprocessed remaining part of the string.
+ * @return The Last move played, -1 on error.
  */
-char* parse_ggf(Game *game, const char *string)
+int parse_ggf(Game *game, const char *string)
 {
 	const char *s = string;
 	const char *next;
 	char tag[4], value[256];
 	int i = 0;
+	int lastmove = NOMOVE;
 
 	game_init(game);
 
@@ -678,12 +679,10 @@ char* parse_ggf(Game *game, const char *string)
 			s = next;
 
 			if (strcmp(tag, "GM") == 0 && strcmp(value, "othello") != 0) {
-				s = string;
-				break;
+				return -1;
 			} else if (strcmp(tag, "BO") == 0) {
 				if (value[0] != '8') {
-					s = string;
-					break;
+					return -1;
 				}
 				game->player = board_set(&game->initial_board, value + 2);
 			} else if (strcmp(tag, "PB") == 0) {
@@ -693,15 +692,16 @@ char* parse_ggf(Game *game, const char *string)
 				memcpy(game->name[WHITE], value, 31);
 				game->name[WHITE][31] = '\0';
 			} else if (i < 60 && (strcmp(tag, "B") == 0 || strcmp(tag, "W") == 0)) {
-				if (strncmp("pa", value, 2) == 0) continue;
-				game->move[i++] = string_to_coordinate(value);
+				lastmove = string_to_coordinate(value);
+				if (lastmove != PASS)
+					game->move[i++] = lastmove;
 			}
 		}
 	}
 
-	if (!game_check(game)) s = string;
+	if (!game_check(game)) return -1;
 
-	return (char*) s;
+	return lastmove;
 }
 
 /**

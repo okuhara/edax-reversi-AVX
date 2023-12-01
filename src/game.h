@@ -63,7 +63,7 @@ void game_import_text(Game*, FILE*);
 void game_import_wthor(Game*, FILE*);
 void game_import_ggf(Game*, FILE*);
 void game_import_sgf(Game*, FILE *);
-char *parse_ggf(Game*, const char*);
+int parse_ggf(Game*, const char*);
 void game_import_pgn(Game*, FILE *);
 void game_export_text(const Game*, FILE*);
 void game_export_ggf(const Game*, FILE*);

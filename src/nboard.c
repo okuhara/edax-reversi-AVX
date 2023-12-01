@@ -136,9 +136,12 @@ void ui_loop_nboard(UI *ui)
 			nboard_send("set myname Edax%d", options.level);
 
 		} else if (strcmp(cmd, "game") == 0) {
-			Game game[1];
-			if (parse_ggf(game, param) != param) {
-				game_get_board(game, 60, &play->initial_board);
+			Game game;
+			int lastmove = parse_ggf(&game, param);
+			if (lastmove >= 0) {
+				game_get_board(&game, 60, &play->initial_board);
+				if (lastmove == PASS)
+					board_pass(&play->initial_board);
 				play_new(play);
 			} else {
 				nboard_fail("Cannot parse game \"%s\"", param);
