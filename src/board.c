@@ -438,7 +438,6 @@ void board_pass(Board *board)
 	board_check(board);
 }
 
-#if (MOVE_GENERATOR != MOVE_GENERATOR_AVX) && (MOVE_GENERATOR != MOVE_GENERATOR_SSE) && (MOVE_GENERATOR != MOVE_GENERATOR_NEON)	// SSE version in board_sse.c
 /**
  * @brief Compute a board resulting of a move played on a previous board.
  *
@@ -457,27 +456,6 @@ unsigned long long board_next(const Board *board, const int x, Board *next)
 
 	return flipped;
 }
-
-/**
- * @brief Compute a board resulting of an opponent move played on a previous board.
- *
- * Compute the board after passing and playing a move.
- *
- * @param board board to play the move on.
- * @param x opponent move to play.
- * @param next resulting board.
- * @return flipped discs.
- */
-unsigned long long board_pass_next(const Board *board, const int x, Board *next)
-{
-	const unsigned long long flipped = Flip(x, board->opponent, board->player);
-
-	next->opponent = board->opponent ^ (flipped | x_to_bit(x));
-	next->player = board->player ^ flipped;
-
-	return flipped;
-}
-#endif
 
 #if !defined(hasSSE2) && !defined(hasNeon)	// sse version in board_sse.c
 /**

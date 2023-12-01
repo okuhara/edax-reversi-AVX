@@ -135,6 +135,7 @@ typedef union {
 	uint64x2_t	v2;
   #elif defined(hasSSE2) || defined(USE_MSVC_X86)
 	__m128i	v2;
+	__m128d	d2;	// used in flip_carry_sse_32.c
   #endif
 }
 #if defined(__GNUC__) && !defined(hasSSE2)

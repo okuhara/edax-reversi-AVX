@@ -1,14 +1,13 @@
 /**
- * @file flip_avx_lzcnt.c
+ * @file flip_avx512cd.c
  *
  * This module deals with flipping discs.
  *
  * For LSB to MSB directions, isolate LS1B can be used to determine
  * contiguous opponent discs.
- * For horizontal MSB to LSB, LZCNT is used.
- * For the other MSB to LSB directions, byteswap then LS1B.
+ * For MSB to LSB directions, LZCNT is used.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2023
  * @author Toshihiko Okuhara
  * @version 4.4
  */
@@ -197,4 +196,3 @@ __m128i vectorcall mm_Flip(const __m128i OP, int pos)
 
 	return flip2;
 }
-

@@ -3,7 +3,7 @@
  *
  * CPU dependent bit operation intrinsics.
  *
- * @date 2020
+ * @date 2020 - 2023
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.4

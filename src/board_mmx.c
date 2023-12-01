@@ -6,7 +6,7 @@
  * If both hasMMX and hasSSE2 are undefined, dynamic dispatching code
  * will be generated.  (This setting requires VC or GCC 4.4+)
  *
- * @date 2014 - 2020
+ * @date 2014 - 2023
  * @author Toshihiko Okuhara
  * @version 4.4
  */

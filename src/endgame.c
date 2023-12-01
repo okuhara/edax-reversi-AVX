@@ -5,6 +5,7 @@
  *
  * @date 1998 - 2023
  * @author Richard Delorme
+ * @author Toshihiko Okuhara
  * @version 4.4
  */
 
@@ -53,13 +54,11 @@
  * @param n_empties Number of empty squares remaining on the board.
  * @return The final score, as a disc difference.
  */
-static int board_solve(const Board *board, const int n_empties)
+static int board_solve(const unsigned long long player, const int n_empties)
 {
-	int score = bit_count(board->player) * 2 - SCORE_MAX;	// in case of opponents win
+	int score = bit_count(player) * 2 - SCORE_MAX;	// in case of opponents win
 	int diff = score + n_empties;		// = n_discs_p - (64 - n_empties - n_discs_p)
-
 	SEARCH_STATS(++statistics.n_search_solve);
-
 	if (diff >= 0)
 		score = diff;
 	if (diff > 0)
@@ -77,7 +76,7 @@ static int board_solve(const Board *board, const int n_empties)
  */
 int search_solve(const Search *search)
 {
-	return board_solve(&search->board, search->eval.n_empties);
+	return board_solve(search->board.player, search->eval.n_empties);
 }
 
 /**
@@ -97,35 +96,46 @@ int search_solve_0(const Search *search)
 
 #if ((MOVE_GENERATOR != MOVE_GENERATOR_AVX) && (MOVE_GENERATOR != MOVE_GENERATOR_SSE) && (MOVE_GENERATOR != MOVE_GENERATOR_NEON)) || (LAST_FLIP_COUNTER != COUNT_LAST_FLIP_SSE)
 /**
+ * @brief Compute a board resulting of a move played on a previous board.
+ *
+ * @param board board to play the move on.
+ * @param x move to play.
+ * @param flipped flipped returned from Flip.
+ * @param next resulting board.
+ * @return pointer to next.
+ */
+static inline void board_flip_next(Board *board, int x, unsigned long long flipped, Board *next)
+{
+	next->player = board->opponent ^ flipped;
+	next->opponent = board->player ^ (flipped | x_to_bit(x));
+}
+
+/**
  * @brief Get the final score.
  *
- * Get the final score, when 1 empty squares remain.
+ * Get the final score, when 1 empty square remain.
  * The following code has been adapted from Zebra by Gunnar Anderson.
  *
- * @param board  Board to evaluate.
+ * @param player Board.player to evaluate.
  * @param beta   Beta bound.
  * @param x      Last empty square to play.
  * @return       The final opponent score, as a disc difference.
  */
-int board_score_1(const Board *board, const int beta, const int x)
+int board_score_1(const unsigned long long player, const int beta, const int x)
 {
 	int score, score2, n_flips;
-
-	score = 2 * bit_count(board->opponent) - SCORE_MAX;
-
-	n_flips = last_flip(x, board->player);
+	score = SCORE_MAX - 2 - 2 * bit_count(player);	// = 2 * bit_count(opponent) - SCORE_MAX
+	n_flips = last_flip(x, player);
 	score -= n_flips;
-
 	if (n_flips == 0) {
 		score2 = score + 2;	// empty for player
 		if (score >= 0)
 			score = score2;
 		if (score < beta) {	// lazy cut-off
-			if ((n_flips = last_flip(x, board->opponent)) != 0)
+			if ((n_flips = last_flip(x, ~player)) != 0)
 				score = score2 + n_flips;
 		}
 	}
-
 	return score;
 }
 
@@ -134,50 +144,51 @@ int board_score_1(const Board *board, const int beta, const int x)
  *
  * Get the final score, when 2 empty squares remain.
  *
- * @param board The board to evaluate.
+ * @param player Board.player to evaluate.
+ * @param opponent Board.opponent to evaluate.
  * @param alpha Alpha bound.
  * @param x1 First empty square coordinate.
  * @param x2 Second empty square coordinate.
- * @param search Search.
+ * @param n_nodes Node counter.
  * @return The final score, as a disc difference.
  */
-static int board_solve_2(Board *board, int alpha, const int x1, const int x2, volatile unsigned long long *n_nodes)
+static int board_solve_2(unsigned long long player, unsigned long long opponent, int alpha, int x1, int x2, volatile unsigned long long *n_nodes)
 {
-	Board next;
+	unsigned long long flipped;
 	int score, bestscore, nodes;
 	// const int beta = alpha + 1;
 
 	SEARCH_STATS(++statistics.n_board_solve_2);
 
-	if ((NEIGHBOUR[x1] & board->opponent) && board_next(board, x1, &next)) {
-		bestscore = board_score_1(&next, alpha + 1, x2);
+	if ((NEIGHBOUR[x1] & opponent) && (flipped = Flip(x1, player, opponent))) {
+		bestscore = board_score_1(opponent ^ flipped, alpha + 1, x2);
 
-		if ((bestscore <= alpha) && (NEIGHBOUR[x2] & board->opponent) && board_next(board, x2, &next)) {
-			score = board_score_1(&next, alpha + 1, x1);
+		if ((bestscore <= alpha) && (NEIGHBOUR[x2] & opponent) && (flipped = Flip(x2, player, opponent))) {
+			score = board_score_1(opponent ^ flipped, alpha + 1, x1);
 			if (score > bestscore) bestscore = score;
 			nodes = 3;
 		} else	nodes = 2;
 
-	} else if ((NEIGHBOUR[x2] & board->opponent) && board_next(board, x2, &next)) {
-		bestscore = board_score_1(&next, alpha + 1, x1);
+	} else if ((NEIGHBOUR[x2] & opponent) && (flipped = Flip(x2, player, opponent))) {
+		bestscore = board_score_1(opponent ^ flipped, alpha + 1, x1);
 		nodes = 2;
 
 	} else {	// pass
-		if ((NEIGHBOUR[x1] & board->player) && board_pass_next(board, x1, &next)) {
-			bestscore = -board_score_1(&next, -alpha, x2);
+		if ((NEIGHBOUR[x1] & player) && (flipped = Flip(x1, opponent, player))) {
+			bestscore = -board_score_1(player ^ flipped, -alpha, x2);
 
-			if ((bestscore > alpha) && (NEIGHBOUR[x2] & board->player) && board_pass_next(board, x2, &next)) {
-				score = -board_score_1(&next, -alpha, x1);
+			if ((bestscore > alpha) && (NEIGHBOUR[x2] & player) && (flipped = Flip(x2, opponent, player))) {
+				score = -board_score_1(player ^ flipped, -alpha, x1);
 				if (score < bestscore) bestscore = score;
 				nodes = 3;
 			} else	nodes = 2;
 
-		} else if ((NEIGHBOUR[x2] & board->player) && board_pass_next(board, x2, &next)) {
-			bestscore = -board_score_1(&next, -alpha, x1);
+		} else if ((NEIGHBOUR[x2] & player) && (flipped = Flip(x2, opponent, player))) {
+			bestscore = -board_score_1(player ^ flipped, -alpha, x1);
 			nodes = 2;
 
 		} else {	// gameover
-			bestscore = board_solve(board, 2);
+			bestscore = board_solve(player, 2);
 			nodes = 1;
 		}
 	}
@@ -195,44 +206,56 @@ static int board_solve_2(Board *board, int alpha, const int x1, const int x2, vo
  *
  * @param search Search.
  * @param alpha Alpha bound.
+ * @param sort3 Parity flags.
+ * @param x1 First empty square coordinate.
+ * @param x2 Second empty square coordinate.
+ * @param x3 Third empty square coordinate.
+ * @param n_nodes Node counter.
  * @return The final score, as a disc difference.
  */
-static int search_solve_3(Search *search, const int alpha, Board *board, unsigned int parity)
+static int search_solve_3(Board *board, int alpha, int sort3, int x1, int x2, int x3, volatile unsigned long long *n_nodes)
 {
-	Board next;
-	int x1 = search->empties[NOMOVE].next;
-	int x2 = search->empties[x1].next;
-	int x3 = search->empties[x2].next;
-	int score, bestscore;
+	unsigned long long flipped, next_player, next_opponent;
+	int score, bestscore, tmp;
 	// const int beta = alpha + 1;
 
 	SEARCH_STATS(++statistics.n_search_solve_3);
-	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
+	SEARCH_UPDATE_INTERNAL_NODES(*n_nodes);
 
 	// parity based move sorting
-	if (!(parity & QUADRANT_ID[x1])) {
-		if (parity & QUADRANT_ID[x2]) { // case 1(x2) 2(x1 x3)
-			int tmp = x1; x1 = x2; x2 = tmp;
-		} else { // case 1(x3) 2(x1 x2)
-			int tmp = x1; x1 = x3; x3 = x2; x2 = tmp;
-		}
+	switch (sort3 & 0x03) {
+		case 1:
+			tmp = x1; x1 = x2; x2 = tmp;	// case 1(x2) 2(x1 x3)
+			break;
+		case 2:
+			tmp = x1; x1 = x3; x3 = x2; x2 = tmp;	// case 1(x3) 2(x1 x2)
+			break;
+		case 3:
+			tmp = x2; x2 = x3; x3 = tmp;
+			break;
 	}
 
 	// best move alphabeta search
 	bestscore = -SCORE_INF;
-	if ((NEIGHBOUR[x1] & board->opponent) && board_next(board, x1, &next)) {
-		bestscore = -board_solve_2(&next, -(alpha + 1), x2, x3, &search->n_nodes);
+	if ((NEIGHBOUR[x1] & board->opponent) && (flipped = board_flip(board, x1))) {
+		next_player = board->opponent ^ flipped;
+		next_opponent = board->player ^ (flipped | x_to_bit(x1));
+		bestscore = -board_solve_2(next_player, next_opponent, -(alpha + 1), x2, x3, n_nodes);
 		if (bestscore > alpha) return bestscore;
 	}
 
-	if ((NEIGHBOUR[x2] & board->opponent) && board_next(board, x2, &next)) {
-		score = -board_solve_2(&next, -(alpha + 1), x1, x3, &search->n_nodes);
+	if ((NEIGHBOUR[x2] & board->opponent) && (flipped = board_flip(board, x2))) {
+		next_player = board->opponent ^ flipped;
+		next_opponent = board->player ^ (flipped | x_to_bit(x2));
+		score = -board_solve_2(next_player, next_opponent, -(alpha + 1), x1, x3, n_nodes);
 		if (score > alpha) return score;
 		else if (score > bestscore) bestscore = score;
 	}
 
-	if ((NEIGHBOUR[x3] & board->opponent) && board_next(board, x3, &next)) {
-		score = -board_solve_2(&next, -(alpha + 1), x1, x2, &search->n_nodes);
+	if ((NEIGHBOUR[x3] & board->opponent) && (flipped = board_flip(board, x3))) {
+		next_player = board->opponent ^ flipped;
+		next_opponent = board->player ^ (flipped | x_to_bit(x3));
+		score = -board_solve_2(next_player, next_opponent, -(alpha + 1), x1, x2, n_nodes);
 		if (score > bestscore) bestscore = score;
 	}
 
@@ -240,24 +263,30 @@ static int search_solve_3(Search *search, const int alpha, Board *board, unsigne
 	else if (bestscore == -SCORE_INF) {
 		// best move alphabeta search
 		bestscore = SCORE_INF;
-		if ((NEIGHBOUR[x1] & board->player) && board_pass_next(board, x1, &next)) {
-			bestscore = board_solve_2(&next, alpha, x2, x3, &search->n_nodes);
+		if ((NEIGHBOUR[x1] & board->player) && (flipped = Flip(x1, board->opponent, board->player))) {
+			next_player = board->player ^ flipped;
+			next_opponent = board->opponent ^ (flipped | x_to_bit(x1));
+			bestscore = board_solve_2(next_player, next_opponent, alpha, x2, x3, n_nodes);
 			if (bestscore <= alpha) return bestscore;
 		}
 
-		if ((NEIGHBOUR[x2] & board->player) && board_pass_next(board, x2, &next)) {
-			score = board_solve_2(&next, alpha, x1, x3, &search->n_nodes);
+		if ((NEIGHBOUR[x2] & board->player) && (flipped = Flip(x2, board->opponent, board->player))) {
+			next_player = board->player ^ flipped;
+			next_opponent = board->opponent ^ (flipped | x_to_bit(x2));
+			score = board_solve_2(next_player, next_opponent, alpha, x1, x3,  n_nodes);
 			if (score <= alpha) return score;
 			else if (score < bestscore) bestscore = score;
 		}
 
-		if ((NEIGHBOUR[x3] & board->player) && board_pass_next(board, x3, &next)) {
-			score = board_solve_2(&next, alpha, x1, x2, &search->n_nodes);
+		if ((NEIGHBOUR[x3] & board->player) && (flipped = Flip(x3, board->opponent, board->player))) {
+			next_player = board->player ^ flipped;
+			next_opponent = board->opponent ^ (flipped | x_to_bit(x3));
+			score = board_solve_2(next_player, next_opponent, alpha, x1, x2, n_nodes);
 			if (score < bestscore) bestscore = score;
 		}
 
 		else if (bestscore == SCORE_INF)	// gameover
-			bestscore = board_solve(board, 3);
+			bestscore = board_solve(board->player, 3);
 	}
 
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
@@ -276,10 +305,34 @@ static int search_solve_3(Search *search, const int alpha, Board *board, unsigne
 static int search_solve_4(Search *search, const int alpha)
 {
 	Board next;
-	int x1, x2, x3, x4;
-	int score, bestscore;
-	unsigned int parity;
+	unsigned long long flipped;
+	int x1, x2, x3, x4, tmp, paritysort, score, bestscore;
 	// const int beta = alpha + 1;
+	static const unsigned char parity_case[64] = {	/* x4x3x2x1 = */
+		/*0000*/  0, /*0001*/  0, /*0010*/  1, /*0011*/  9, /*0100*/  2, /*0101*/ 10, /*0110*/ 11, /*0111*/  3,
+		/*0002*/  0, /*0003*/  0, /*0012*/  0, /*0013*/  0, /*0102*/  4, /*0103*/  4, /*0112*/  5, /*0113*/  5,
+		/*0020*/  1, /*0021*/  0, /*0030*/  1, /*0031*/  0, /*0120*/  6, /*0121*/  7, /*0130*/  6, /*0131*/  7,
+		/*0022*/  9, /*0023*/  0, /*0032*/  0, /*0033*/  9, /*0122*/  8, /*0123*/  0, /*0132*/  0, /*0133*/  8,
+		/*0200*/  2, /*0201*/  4, /*0210*/  6, /*0211*/  8, /*0300*/  2, /*0301*/  4, /*0310*/  6, /*0311*/  8,
+		/*0202*/ 10, /*0203*/  4, /*0212*/  7, /*0213*/  0, /*0302*/  4, /*0303*/ 10, /*0312*/  0, /*0313*/  7,
+		/*0220*/ 11, /*0221*/  5, /*0230*/  6, /*0231*/  0, /*0320*/  6, /*0321*/  0, /*0330*/ 11, /*0331*/  5,
+		/*0222*/  3, /*0223*/  5, /*0232*/  7, /*0233*/  8, /*0322*/  8, /*0323*/  7, /*0332*/  5, /*0333*/  3
+	};
+	int sort3;	// for move sorting on 3 empties
+	static const short sort3_shuf[] = {
+		0x0000,	//  0: 1(x1) 3(x2 x3 x4), 1(x1) 1(x2) 2(x3 x4), 1 1 1 1, 4		x4x1x2x3-x3x1x2x4-x2x1x3x4-x1x2x3x4
+		0x1100,	//  1: 1(x2) 3(x1 x3 x4)	x4x2x1x3-x3x2x1x4-x2x1x3x4-x1x2x3x4
+		0x2011,	//  2: 1(x3) 3(x1 x2 x4)	x4x3x1x2-x3x1x2x4-x2x3x1x4-x1x3x2x4
+		0x0222,	//  3: 1(x4) 3(x1 x2 x3)	x4x1x2x3-x3x4x1x2-x2x4x1x3-x1x4x2x3
+		0x3000,	//  4: 1(x1) 1(x3) 2(x2 x4)	x4x1x2x3-x2x1x3x4-x3x1x2x4-x1x3x2x4 <- x4x1x3x2-x2x1x3x4-x3x1x2x4-x1x3x2x4
+		0x3300,	//  5: 1(x1) 1(x4) 2(x2 x3)	x3x1x2x4-x2x1x3x4-x4x1x2x3-x1x4x2x3 <- x3x1x4x2-x2x1x4x3-x4x1x2x3-x1x4x2x3
+		0x2000,	//  6: 1(x2) 1(x3) 2(x1 x4)	x4x1x2x3-x1x2x3x4-x3x2x1x4-x2x3x1x4 <- x4x2x3x1-x1x2x3x4-x3x2x1x4-x2x3x1x4
+		0x2300,	//  7: 1(x2) 1(x4) 2(x1 x3)	x3x1x2x4-x1x2x3x4-x4x2x1x3-x2x4x1x3 <- x3x2x4x1-x1x2x4x3-x4x2x1x3-x2x4x1x3
+		0x2200,	//  8: 1(x3) 1(x4) 2(x1 x2)	x2x1x3x4-x1x2x3x4-x4x3x1x2-x3x4x1x2 <- x2x3x4x1-x1x3x4x2-x4x3x1x2-x3x4x1x2
+		0x2200,	//  9: 2(x1 x2) 2(x3 x4)	x4x3x1x2-x3x4x1x2-x2x1x3x4-x1x2x3x4
+		0x1021,	// 10: 2(x1 x3) 2(x2 x4)	x4x2x1x3-x3x1x2x4-x2x4x1x3-x1x3x2x4
+		0x0112	// 11: 2(x1 x4) 2(x2 x3)	x4x1x2x3-x3x2x1x4-x2x3x1x4-x1x4x2x3
+	};
 
 	SEARCH_STATS(++statistics.n_search_solve_4);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
@@ -296,56 +349,52 @@ static int search_solve_4(Search *search, const int alpha)
 	// The following hole sizes are possible:
 	//    4 - 1 3 - 2 2 - 1 1 2 - 1 1 1 1
 	// Only the 1 1 2 case needs move sorting.
-	parity = search->eval.parity;
-	if (!(parity & QUADRANT_ID[x1])) {
-		if (parity & QUADRANT_ID[x2]) {
-			if (parity & QUADRANT_ID[x3]) { // case 1(x2) 1(x3) 2(x1 x4)
-				int tmp = x1; x1 = x2; x2 = x3; x3 = tmp;
-			} else { // case 1(x2) 1(x4) 2(x1 x3)
-				int tmp = x1; x1 = x2; x2 = x4; x4 = x3; x3 = tmp;
-			}
-		} else if (parity & QUADRANT_ID[x3]) { // case 1(x3) 1(x4) 2(x1 x2)
-			int tmp = x1; x1 = x3; x3 = tmp; tmp = x2; x2 = x4; x4 = tmp;
-		}
-	} else {
-		if (!(parity & QUADRANT_ID[x2])) {
-			if (parity & QUADRANT_ID[x3]) { // case 1(x1) 1(x3) 2(x2 x4)
-				int tmp = x2; x2 = x3; x3 = tmp;
-			} else { // case 1(x1) 1(x4) 2(x2 x3)
-				int tmp = x2; x2 = x4; x4 = x3; x3 = tmp;
-			}
-		}
+	// Only the 1 1 2 case needs move sorting on this ply.
+	paritysort = parity_case[((x3 ^ x4) & 0x24) + ((((x2 ^ x4) & 0x24) * 2 + ((x1 ^ x4) & 0x24)) >> 2)];
+	switch (paritysort) {
+		case 4: // case 1(x1) 1(x3) 2(x2 x4)
+			tmp = x2; x2 = x3; x3 = tmp;
+			break;
+		case 5: // case 1(x1) 1(x4) 2(x2 x3)
+			tmp = x2; x2 = x4; x4 = x3; x3 = tmp;
+			break;
+		case 6:	// case 1(x2) 1(x3) 2(x1 x4)
+			tmp = x1; x1 = x2; x2 = x3; x3 = tmp;
+			break;
+		case 7: // case 1(x2) 1(x4) 2(x1 x3)
+			tmp = x1; x1 = x2; x2 = x4; x4 = x3; x3 = tmp;
+			break;
+		case 8:	// case 1(x3) 1(x4) 2(x1 x2)
+			tmp = x1; x1 = x3; x3 = tmp; tmp = x2; x2 = x4; x4 = tmp;
+			break;
 	}
+	sort3 = sort3_shuf[paritysort];
 
 	// best move alphabeta search
 	bestscore = -SCORE_INF;
-	if ((NEIGHBOUR[x1] & search->board.opponent) && board_next(&search->board, x1, &next)) {
-		empty_remove(search->empties, x1);
-		bestscore = -search_solve_3(search, -(alpha + 1), &next, parity ^ QUADRANT_ID[x1]);
-		empty_restore(search->empties, x1);
+	if ((NEIGHBOUR[x1] & search->board.opponent) && (flipped = board_flip(&search->board, x1))) {
+		board_flip_next(&search->board, x1, flipped, &next);
+		bestscore = -search_solve_3(&next, -(alpha + 1), sort3, x2, x3, x4, &search->n_nodes);
 		if (bestscore > alpha) return bestscore;
 	}
 
-	if ((NEIGHBOUR[x2] & search->board.opponent) && board_next(&search->board, x2, &next)) {
-		empty_remove(search->empties, x2);
-		score = -search_solve_3(search, -(alpha + 1), &next, parity ^ QUADRANT_ID[x2]);
-		empty_restore(search->empties, x2);
+	if ((NEIGHBOUR[x2] & search->board.opponent) && (flipped = board_flip(&search->board, x2))) {
+		board_flip_next(&search->board, x2, flipped, &next);
+		score = -search_solve_3(&next, -(alpha + 1), sort3 >> 4, x1, x3, x4, &search->n_nodes);
 		if (score > alpha) return score;
 		else if (score > bestscore) bestscore = score;
 	}
 
-	if ((NEIGHBOUR[x3] & search->board.opponent) && board_next(&search->board, x3, &next)) {
-		empty_remove(search->empties, x3);
-		score = -search_solve_3(search, -(alpha + 1), &next, parity ^ QUADRANT_ID[x3]);
-		empty_restore(search->empties, x3);
+	if ((NEIGHBOUR[x3] & search->board.opponent) && (flipped = board_flip(&search->board, x3))) {
+		board_flip_next(&search->board, x3, flipped, &next);
+		score = -search_solve_3(&next, -(alpha + 1), sort3 >> 8, x1, x2, x4, &search->n_nodes);
 		if (score > alpha) return score;
 		else if (score > bestscore) bestscore = score;
 	}
 
-	if ((NEIGHBOUR[x4] & search->board.opponent) && board_next(&search->board, x4, &next)) {
-		empty_remove(search->empties, x4);
-		score = -search_solve_3(search, -(alpha + 1), &next, parity ^ QUADRANT_ID[x4]);
-		empty_restore(search->empties, x4);
+	if ((NEIGHBOUR[x4] & search->board.opponent) && (flipped = board_flip(&search->board, x4))) {
+		board_flip_next(&search->board, x4, flipped, &next);
+		score = -search_solve_3(&next, -(alpha + 1), sort3 >> 12, x1, x2, x3, &search->n_nodes);
 		if (score > bestscore) bestscore = score;
 	}
 
@@ -355,7 +404,7 @@ static int search_solve_4(Search *search, const int alpha)
 			bestscore = -search_solve_4(search, -(alpha + 1));
 			search_pass_endgame(search);
 		} else { // gameover
-			bestscore = board_solve(&search->board, 4);
+			bestscore = board_solve(search->board.player, 4);
 		}
 	}
 
