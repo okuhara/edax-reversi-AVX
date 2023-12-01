@@ -3,7 +3,7 @@
  *
  * SSE/AVX translation of some eval.c functions
  *
- * @date 2018 - 2020
+ * @date 2018 - 2023
  * @author Toshihiko Okuhara
  * @version 4.4
  */
@@ -29,12 +29,14 @@ extern const EVAL_FEATURE_V EVAL_FEATURE_all_opponent;
 
 void eval_update_sse_0(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
-#ifdef __AVX2__
+	int	j;
+	widest_register	r;
+  #ifdef __AVX2__
 	__m256i	f0 = _mm256_sub_epi16(eval_in->feature.v16[0], _mm256_slli_epi16(EVAL_FEATURE[x].v16[0], 1));
 	__m256i	f1 = _mm256_sub_epi16(eval_in->feature.v16[1], _mm256_slli_epi16(EVAL_FEATURE[x].v16[1], 1));
 	__m256i	f2 = _mm256_sub_epi16(eval_in->feature.v16[2], _mm256_slli_epi16(EVAL_FEATURE[x].v16[2], 1));
 
-	foreach_bit(x, f) {
+	foreach_bit_r (x, f, j, r) {
 		f0 = _mm256_sub_epi16(f0, EVAL_FEATURE[x].v16[0]);
 		f1 = _mm256_sub_epi16(f1, EVAL_FEATURE[x].v16[1]);
 		f2 = _mm256_sub_epi16(f2, EVAL_FEATURE[x].v16[2]);
@@ -43,9 +45,7 @@ void eval_update_sse_0(int x, unsigned long long f, Eval *eval_out, const Eval *
 	eval_out->feature.v16[1] = f1;
 	eval_out->feature.v16[2] = f2;
 
-#else
-	int	j;
-	widest_register	b;
+  #else
 	const __m128i *ef;
 
 	ef = EVAL_FEATURE[x].v8;
@@ -56,16 +56,14 @@ void eval_update_sse_0(int x, unsigned long long f, Eval *eval_out, const Eval *
 	__m128i	f4 = _mm_sub_epi16(eval_in->feature.v8[4], _mm_slli_epi16(ef[4], 1));
 	__m128i	f5 = _mm_sub_epi16(eval_in->feature.v8[5], _mm_slli_epi16(ef[5], 1));
 
-	for (j = 0; j < 64; j += sizeof(widest_register) * CHAR_BIT) {
-		foreach_bit_r (x, f, b) {
-			ef = EVAL_FEATURE[x + j].v8;
-			f0 = _mm_sub_epi16(f0, ef[0]);
-			f1 = _mm_sub_epi16(f1, ef[1]);
-			f2 = _mm_sub_epi16(f2, ef[2]);
-			f3 = _mm_sub_epi16(f3, ef[3]);
-			f4 = _mm_sub_epi16(f4, ef[4]);
-			f5 = _mm_sub_epi16(f5, ef[5]);
-		}
+	foreach_bit_r (x, f, j, r) {
+		ef = EVAL_FEATURE[x].v8;
+		f0 = _mm_sub_epi16(f0, ef[0]);
+		f1 = _mm_sub_epi16(f1, ef[1]);
+		f2 = _mm_sub_epi16(f2, ef[2]);
+		f3 = _mm_sub_epi16(f3, ef[3]);
+		f4 = _mm_sub_epi16(f4, ef[4]);
+		f5 = _mm_sub_epi16(f5, ef[5]);
 	}
 
 	eval_out->feature.v8[0] = f0;
@@ -74,17 +72,19 @@ void eval_update_sse_0(int x, unsigned long long f, Eval *eval_out, const Eval *
 	eval_out->feature.v8[3] = f3;
 	eval_out->feature.v8[4] = f4;
 	eval_out->feature.v8[5] = f5;
-#endif
+  #endif
 }
 
 void eval_update_sse_1(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
-#ifdef __AVX2__
+	int	j;
+	widest_register	r;
+  #ifdef __AVX2__
 	__m256i	f0 = _mm256_sub_epi16(eval_in->feature.v16[0], EVAL_FEATURE[x].v16[0]);
 	__m256i	f1 = _mm256_sub_epi16(eval_in->feature.v16[1], EVAL_FEATURE[x].v16[1]);
 	__m256i	f2 = _mm256_sub_epi16(eval_in->feature.v16[2], EVAL_FEATURE[x].v16[2]);
 
-	foreach_bit(x, f) {
+	foreach_bit_r (x, f, j, r) {
 		f0 = _mm256_add_epi16(f0, EVAL_FEATURE[x].v16[0]);
 		f1 = _mm256_add_epi16(f1, EVAL_FEATURE[x].v16[1]);
 		f2 = _mm256_add_epi16(f2, EVAL_FEATURE[x].v16[2]);
@@ -93,9 +93,7 @@ void eval_update_sse_1(int x, unsigned long long f, Eval *eval_out, const Eval *
 	eval_out->feature.v16[1] = f1;
 	eval_out->feature.v16[2] = f2;
 
-#else
-	int	j;
-	widest_register	b;
+ #else
 	const __m128i *ef;
 
 	ef = EVAL_FEATURE[x].v8;
@@ -106,16 +104,14 @@ void eval_update_sse_1(int x, unsigned long long f, Eval *eval_out, const Eval *
 	__m128i	f4 = _mm_sub_epi16(eval_in->feature.v8[4], ef[4]);
 	__m128i	f5 = _mm_sub_epi16(eval_in->feature.v8[5], ef[5]);
 
-	for (j = 0; j < 64; j += sizeof(widest_register) * CHAR_BIT) {
-		foreach_bit_r (x, f, b) {
-			ef = EVAL_FEATURE[x + j].v8;
-			f0 = _mm_add_epi16(f0, ef[0]);
-			f1 = _mm_add_epi16(f1, ef[1]);
-			f2 = _mm_add_epi16(f2, ef[2]);
-			f3 = _mm_add_epi16(f3, ef[3]);
-			f4 = _mm_add_epi16(f4, ef[4]);
-			f5 = _mm_add_epi16(f5, ef[5]);
-		}
+	foreach_bit_r (x, f, j, r) {
+		ef = EVAL_FEATURE[x].v8;
+		f0 = _mm_add_epi16(f0, ef[0]);
+		f1 = _mm_add_epi16(f1, ef[1]);
+		f2 = _mm_add_epi16(f2, ef[2]);
+		f3 = _mm_add_epi16(f3, ef[3]);
+		f4 = _mm_add_epi16(f4, ef[4]);
+		f5 = _mm_add_epi16(f5, ef[5]);
 	}
 
 	eval_out->feature.v8[0] = f0;
@@ -124,16 +120,15 @@ void eval_update_sse_1(int x, unsigned long long f, Eval *eval_out, const Eval *
 	eval_out->feature.v8[3] = f3;
 	eval_out->feature.v8[4] = f4;
 	eval_out->feature.v8[5] = f5;
-#endif
+  #endif
 }
 
 #else	// SSE dispatch (Eval may not be aligned)
 
 static void eval_update_sse_0(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
-	widest_register	b;
-	unsigned int	fl = (unsigned int) f;
-	unsigned int	fh = (unsigned int) (f >> 32);
+	widest_register	r;
+	int	j;
 
 	__asm__ (
 		"movdqa	%2, %%xmm0\n\t"		"movdqa	%3, %%xmm1\n\t"
@@ -154,7 +149,7 @@ static void eval_update_sse_0(int x, unsigned long long f, Eval *eval_out, const
 		"psubw	%%xmm0, %%xmm6\n\t"	"psubw	%%xmm1, %%xmm7\n"
 	: :  "m" (eval_in->feature.us[32]), "m" (eval_in->feature.us[40]), "m" (EVAL_FEATURE[x].us[32]),  "m" (EVAL_FEATURE[x].us[40]));
 
-	foreach_bit_r(x, fl, b) {
+	foreach_bit_r (x, f, j, r) {
 		__asm__ (
 			"psubw	%0, %%xmm2\n\t"
 			"psubw	%1, %%xmm3\n\t"
@@ -164,17 +159,6 @@ static void eval_update_sse_0(int x, unsigned long long f, Eval *eval_out, const
 			"psubw	%5, %%xmm7\n"
 		: :  "m" (EVAL_FEATURE[x].us[0]), "m" (EVAL_FEATURE[x].us[8]), "m" (EVAL_FEATURE[x].us[16]),
 		"m" (EVAL_FEATURE[x].us[24]), "m" (EVAL_FEATURE[x].us[32]), "m" (EVAL_FEATURE[x].us[40]));
-	}
-	foreach_bit_r(x, fh, b) {
-		__asm__ (
-			"psubw	%0, %%xmm2\n\t"
-			"psubw	%1, %%xmm3\n\t"
-			"psubw	%2, %%xmm4\n\t"
-			"psubw	%3, %%xmm5\n\t"
-			"psubw	%4, %%xmm6\n\t"
-			"psubw	%5, %%xmm7\n"
-		: :  "m" (EVAL_FEATURE[x + 32].us[0]), "m" (EVAL_FEATURE[x + 32].us[8]), "m" (EVAL_FEATURE[x + 32].us[16]),
-		"m" (EVAL_FEATURE[x + 32].us[24]), "m" (EVAL_FEATURE[x + 32].us[32]), "m" (EVAL_FEATURE[x + 32].us[40]));
 	}
 
 	__asm__ (
@@ -190,9 +174,8 @@ static void eval_update_sse_0(int x, unsigned long long f, Eval *eval_out, const
 
 static void eval_update_sse_1(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
-	widest_register	b;
-	unsigned int	fl = (unsigned int) f;
-	unsigned int	fh = (unsigned int) (f >> 32);
+	widest_register	r;
+	int	j;
 
 	__asm__ (
 		"movdqu	%0, %%xmm2\n\t"		"movdqu	%1, %%xmm3\n\t"
@@ -207,7 +190,7 @@ static void eval_update_sse_1(int x, unsigned long long f, Eval *eval_out, const
 		"psubw	%2, %%xmm6\n\t"		"psubw	%3, %%xmm7\n"
 	: :  "m" (eval_in->feature.us[32]), "m" (eval_in->feature.us[40]), "m" (EVAL_FEATURE[x].us[32]),  "m" (EVAL_FEATURE[x].us[40]));
 
-	foreach_bit_r(x, fl, b) {
+	foreach_bit_r (x, f, j, r) {
 		__asm__ (
 			"paddw	%0, %%xmm2\n\t"
 			"paddw	%1, %%xmm3\n\t"
@@ -217,17 +200,6 @@ static void eval_update_sse_1(int x, unsigned long long f, Eval *eval_out, const
 			"paddw	%5, %%xmm7\n"
 		: :  "m" (EVAL_FEATURE[x].us[0]), "m" (EVAL_FEATURE[x].us[8]), "m" (EVAL_FEATURE[x].us[16]),
 		"m" (EVAL_FEATURE[x].us[24]), "m" (EVAL_FEATURE[x].us[32]), "m" (EVAL_FEATURE[x].us[40]));
-	}
-	foreach_bit_r(x, fh, b) {
-		__asm__ (
-			"paddw	%0, %%xmm2\n\t"
-			"paddw	%1, %%xmm3\n\t"
-			"paddw	%2, %%xmm4\n\t"
-			"paddw	%3, %%xmm5\n\t"
-			"paddw	%4, %%xmm6\n\t"
-			"paddw	%5, %%xmm7\n"
-		: :  "m" (EVAL_FEATURE[x + 32].us[0]), "m" (EVAL_FEATURE[x + 32].us[8]), "m" (EVAL_FEATURE[x + 32].us[16]),
-		"m" (EVAL_FEATURE[x + 32].us[24]), "m" (EVAL_FEATURE[x + 32].us[32]), "m" (EVAL_FEATURE[x + 32].us[40]));
 	}
 
 	__asm__ (
@@ -253,21 +225,22 @@ static void eval_update_sse_1(int x, unsigned long long f, Eval *eval_out, const
  */
 void eval_set(Eval *eval, const Board *board)
 {
-	int x;
+	int x, j;
 	unsigned long long b = (eval->n_empties & 1) ? board->opponent : board->player;
-#ifdef __AVX2__
+	widest_register	r;
+  #ifdef __AVX2__
 	__m256i	f0 = EVAL_FEATURE_all_opponent.v16[0];
 	__m256i	f1 = EVAL_FEATURE_all_opponent.v16[1];
 	__m256i	f2 = EVAL_FEATURE_all_opponent.v16[2];
 
-	foreach_bit(x, b) {
+	foreach_bit_r (x, b, j, r) {
 		f0 = _mm256_sub_epi16(f0, EVAL_FEATURE[x].v16[0]);
 		f1 = _mm256_sub_epi16(f1, EVAL_FEATURE[x].v16[1]);
 		f2 = _mm256_sub_epi16(f2, EVAL_FEATURE[x].v16[2]);
 	}
 
 	b = ~(board->opponent | board->player);
-	foreach_bit(x, b) {
+	foreach_bit_r (x, b, j, r) {
 		f0 = _mm256_add_epi16(f0, EVAL_FEATURE[x].v16[0]);
 		f1 = _mm256_add_epi16(f1, EVAL_FEATURE[x].v16[1]);
 		f2 = _mm256_add_epi16(f2, EVAL_FEATURE[x].v16[2]);
@@ -276,7 +249,7 @@ void eval_set(Eval *eval, const Board *board)
 	eval->feature.v16[1] = f1;
 	eval->feature.v16[2] = f2;
 
-#else
+  #else
 	__m128i	f0 = EVAL_FEATURE_all_opponent.v8[0];
 	__m128i	f1 = EVAL_FEATURE_all_opponent.v8[1];
 	__m128i	f2 = EVAL_FEATURE_all_opponent.v8[2];
@@ -284,7 +257,7 @@ void eval_set(Eval *eval, const Board *board)
 	__m128i	f4 = EVAL_FEATURE_all_opponent.v8[4];
 	__m128i	f5 = EVAL_FEATURE_all_opponent.v8[5];
 
-	foreach_bit(x, b) {
+	foreach_bit_r (x, b, j, r) {
 		f0 = _mm_sub_epi16(f0, EVAL_FEATURE[x].v8[0]);
 		f1 = _mm_sub_epi16(f1, EVAL_FEATURE[x].v8[1]);
 		f2 = _mm_sub_epi16(f2, EVAL_FEATURE[x].v8[2]);
@@ -294,7 +267,7 @@ void eval_set(Eval *eval, const Board *board)
 	}
 
 	b = ~(board->opponent | board->player);
-	foreach_bit(x, b) {
+	foreach_bit_r (x, b, j, r) {
 		f0 = _mm_add_epi16(f0, EVAL_FEATURE[x].v8[0]);
 		f1 = _mm_add_epi16(f1, EVAL_FEATURE[x].v8[1]);
 		f2 = _mm_add_epi16(f2, EVAL_FEATURE[x].v8[2]);
@@ -309,7 +282,7 @@ void eval_set(Eval *eval, const Board *board)
 	eval->feature.v8[3] = f3;
 	eval->feature.v8[4] = f4;
 	eval->feature.v8[5] = f5;
-#endif
+  #endif
 }
 
 /**

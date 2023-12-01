@@ -56,65 +56,6 @@ const unsigned long long NEIGHBOUR[] = {
 int bit_count(unsigned long long b)
 {
 	int	c;
-	#if 0 // defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
-	static const unsigned long long M55 = 0x5555555555555555ULL;
-	static const unsigned long long M33 = 0x3333333333333333ULL;
-	static const unsigned long long M0F = 0x0F0F0F0F0F0F0F0FULL;
-	#endif
-
-// MMX does not help much here :-(
-	#if 0 // def USE_MSVC_X86
-	__m64	m;
-
-	if (hasSSE2) {
-		m = *(__m64 *) &b;
-		m = _m_psubd(m, _m_pand(_m_psrlqi(m, 1), *(__m64 *) &M55));
-		m = _m_paddd(_m_pand(m, *(__m64 *) &M33), _m_pand(_m_psrlqi(m, 2), *(__m64 *) &M33));
-		m = _m_pand(_m_paddd(m, _m_psrlqi(m, 4)), *(__m64 *) &M0F);
-		c = _m_to_int(_m_psadbw(m, _mm_setzero_si64()));
-		_mm_empty();
-
-		return c;
-	}
-
-	#elif 0 // defined(USE_GAS_MMX)
-
-	if (hasSSE2) {
-		__asm__(
-		#ifdef __x86_64__
- 			"movq  %1, %%mm1\n\t"
-		#else
-	 		"movd  %1, %%mm1\n\t"		// to utilize store to load forwarding
-			"punpckldq %5, %%mm1\n\t"
-		#endif
-			"movq  %%mm1, %%mm0\n\t"
-			"psrlq $1, %%mm1\n\t"
-			"pand  %2, %%mm1\n\t"
-			"psubd %%mm1, %%mm0\n\t"
-
-			"movq  %3, %%mm2\n\t"
-			"movq  %%mm0, %%mm1\n\t"
-			"psrlq $2, %%mm0\n\t"
-			"pand  %%mm2, %%mm1\n\t"
-			"pand  %%mm2, %%mm0\n\t"
-			"paddd %%mm1, %%mm0\n\t"
-
-			"movq  %%mm0, %%mm1\n\t"
-			"psrlq $4, %%mm0\n\t"
-			"paddd %%mm1, %%mm0\n\t"
-			"pand  %4, %%mm0\n\t"
-
-			"pxor  %%mm2, %%mm2\n\t"
-			"psadbw %%mm2, %%mm0\n\t"	// SSE2
-			"movd	%%mm0, %0\n\t"
-			"emms"
-		: "=a" (c)
-		: "rm" (b), "m" (M55), "m" (M33), "m" (M0F), "m" (((unsigned int *) &b)[1]));
-
-		return c;
-	}
-
-	#endif
 
 	b  = b - ((b >> 1) & 0x5555555555555555ULL);
 	b  = ((b >> 2) & 0x3333333333333333ULL) + (b & 0x3333333333333333ULL);
@@ -211,7 +152,7 @@ int bit_weighted_count(unsigned long long v)
  * magic numbers is provided.
  *
  * @param b 64-bit integer.
- * @return the index of the first bit set.
+ * @return the index of the first bit set. (undefined if b = 0)
  */
 #if !defined(first_bit_32) && !defined(HAS_CPU_64)
 int first_bit_32(unsigned int b)
@@ -221,12 +162,16 @@ int first_bit_32(unsigned int b)
 	_BitScanForward(&index, b);
 	return (int) index;
 
+#elif defined(USE_GAS_X64) || defined(USE_GAS_X86)
+	__asm__("rep; bsf	%1, %0" : "=r" (b) : "rm" (b));	// tzcnt on BMI CPUs, bsf otherwise
+	return (int) b;
+
 #elif defined(USE_MSVC_X86)
 	__asm {
 		bsf	eax, word ptr b
 	}
 
-#elif 0 // defined(USE_GCC_ARM)
+#elif defined(USE_GCC_ARM)
 	return  __builtin_clz(b & -b) ^ 31;
 
 #else
@@ -244,12 +189,12 @@ int first_bit_32(unsigned int b)
 int first_bit(unsigned long long b)
 {
 #if defined(USE_GAS_X64)
-	__asm__("bsfq	%1, %0" : "=r" (b) : "rm" (b));
+	__asm__("rep; bsfq	%1, %0" : "=r" (b) : "rm" (b));	// tzcntq on BMI CPUs
 	return (int) b;
 
 #elif defined(USE_GAS_X86)
 	int 	x;
-	__asm__ ("bsf	%2, %0\n\t"
+	__asm__ ("bsf	%2, %0\n\t"	// (ZF differs from tzcnt)
 		"jnz	1f\n\t"
 		"bsf	%1, %0\n\t"
 		"addl	$32, %0\n"
