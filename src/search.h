@@ -63,7 +63,11 @@ extern struct Level {
 
 /** search stare */
 typedef struct Search {
-	Board board;                                  /**< othello board */
+	Board board;                                  /**< othello board (16) */
+
+	volatile unsigned long long n_nodes;          /**< node counter (8) */
+	volatile unsigned long long child_nodes;      /**< node counter (8) */
+
 	Eval eval;                                    /**< eval */
 
 	SquareList empties[BOARD_SIZE + 2];           /**< list of empty squares */
@@ -119,15 +123,11 @@ typedef struct Search {
 	Result *result;                               /**< shared result */
 
 	void (*observer)(Result*);                    /**< call back function to print search result */
-
-	volatile unsigned long long n_nodes;          /**< node counter */
-	volatile unsigned long long child_nodes;      /**< node counter */
-
 } Search;
 
 typedef struct Search_Backup {
-	Board board;
 	Eval eval;
+	Board board;
 } Search_Backup;
 
 struct Node;
