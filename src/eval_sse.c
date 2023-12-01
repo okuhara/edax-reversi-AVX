@@ -15,6 +15,9 @@
 #include "move.h"
 #include "eval.h"
 
+extern const EVAL_FEATURE_V EVAL_FEATURE[65];
+extern const EVAL_FEATURE_V EVAL_FEATURE_all_opponent;
+
 #ifdef __ARM_NEON__
 #define __m128i		int16x8_t
 #define	_mm_add_epi16	vaddq_s16
