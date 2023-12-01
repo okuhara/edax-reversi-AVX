@@ -107,12 +107,13 @@ int search_eval_0(Search *search)
 
 	score = accumlate_eval(60 - search->eval.n_empties,  &search->eval);
 
-	if (score >= 0) score = (score + 64) >> 7;
-	else score = -((-score + 64) >> 7);
-
-	if (score < SCORE_MIN + 1) score = SCORE_MIN + 1;
-	if (score > SCORE_MAX - 1) score = SCORE_MAX - 1;
-
+	if (score >= 0) {
+		score = (score + 64) >> 7;
+		if (score > SCORE_MAX - 1) score = SCORE_MAX - 1;
+	} else {
+		score = -((-score + 64) >> 7);
+		if (score < SCORE_MIN + 1) score = SCORE_MIN + 1;
+	}
 	return score;
 }
 
@@ -129,15 +130,17 @@ int search_eval_0(Search *search)
 int search_eval_1(Search *search, const int alpha, int beta, unsigned long long moves)
 {
 	Eval Ev;
-	int x, score, bestscore;
+	int x, score, bestscore, betathres;
 	unsigned long long flipped;
 
 	SEARCH_STATS(++statistics.n_search_eval_1);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	if (moves) {
-		bestscore = -SCORE_INF;
-		if (beta > SCORE_MAX - 1) beta = SCORE_MAX - 1;
+		bestscore = -SCORE_INF * 128;
+		if (beta > SCORE_MAX - 1) betathres = ((SCORE_MAX - 1) * 128) - 64;
+		else betathres = (beta * 128) - ((beta > 0) ? 64 : 63);	// lowest score rounded to beta
+
 		foreach_empty (x, search->empties) {
 			if (moves & x_to_bit(x)) {
 				flipped = board_flip(&search->board, x);
@@ -149,17 +152,20 @@ int search_eval_1(Search *search, const int alpha, int beta, unsigned long long 
 
 				score = -accumlate_eval(60 - search->eval.n_empties + 1, &Ev);
 
-				if (score >= 0) score = (score + 64) >> 7;
-				else score = -((-score + 64) >> 7);
-
 				if (score > bestscore) {
 					bestscore = score;
-					if (bestscore >= beta) break;
+					if (bestscore >= betathres) break;
 				}
 			}
 		}
-		if (bestscore < SCORE_MIN + 1) bestscore = SCORE_MIN + 1;
-		if (bestscore > SCORE_MAX - 1) bestscore = SCORE_MAX - 1;
+
+		if (bestscore >= 0) {
+			bestscore = (bestscore + 64) >> 7;
+			if (bestscore > SCORE_MAX - 1) bestscore = SCORE_MAX - 1;
+		} else {
+			bestscore = -((-bestscore + 64) >> 7);
+			if (bestscore < SCORE_MIN + 1) bestscore = SCORE_MIN + 1;
+		}
 
 	} else {
 		moves = get_moves(search->board.opponent, search->board.player);
