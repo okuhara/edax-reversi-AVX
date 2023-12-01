@@ -61,7 +61,7 @@ typedef struct Eval_weight {
 /** number of plies */
 enum { EVAL_N_PLY = 60 };
 
-extern Eval_weight (*EVAL_WEIGHT)[EVAL_N_PLY];
+extern Eval_weight (*EVAL_WEIGHT)[EVAL_N_PLY - 2];	// for 2..59
 
 /* function declaration */
 void eval_open(const char*);
