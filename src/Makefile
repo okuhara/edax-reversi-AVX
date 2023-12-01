@@ -1,7 +1,7 @@
 #
 # makefile to Compile Edax
 #
-# Copyright 1998 - 2018
+# Copyright 1998 - 2023
 # Richard Delorme
 # Version 4.4
 #
@@ -50,7 +50,7 @@ ifeq ($(COMP),gcc)
 	endif
 
 	ifeq ($(ARCH),x64-modern)
-		CFLAGS += -m64 -march=core-avx2 -mno-bmi2 -DUSE_GAS_X64 -DPOPCOUNT
+		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x64-popcnt)
 		CFLAGS += -m64 -mpopcnt -mtune=generic -DUSE_GAS_X64 -DPOPCOUNT
@@ -259,7 +259,7 @@ ifeq ($(COMP),clang)
 	endif
 
 	ifeq ($(ARCH),x64-modern)
-		CFLAGS += -m64 -march=core-avx2 -mno-bmi2 -DUSE_GAS_X64 -DPOPCOUNT
+		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x64)
 		CFLAGS += -m64 -DUSE_GAS_X64 

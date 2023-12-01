@@ -977,7 +977,7 @@ int get_edge_stability(const unsigned long long P, const unsigned long long O)
  */
 int get_corner_stability(const unsigned long long P)
 {
-#if 0
+#ifdef USEPEXT // defined(__BMI2__) && defined(__x86_64__) && !defined(AMD_BEFORE_ZEN3)	// kindergarten for generic modern build
 
 	const unsigned long long stable = ((((0x0100000000000001 & P) << 1) | ((0x8000000000000080 & P) >> 1) | ((0x0000000000000081 & P) << 8) | ((0x8100000000000000 & P) >> 8) | 0x8100000000000081) & P);
 	return bit_count(stable);
@@ -1252,8 +1252,7 @@ char* board_to_FEN(const Board *board, const int player, char *string)
 	}
 	*s++ = ' ';
 	*s++ = color[player];
-	*s++ = ' '; *s++ = '-'; *s++ = ' '; *s++ = '-'; 
-	*s++ = ' '; *s++ = '0'; *s++ = ' '; *s++ = '1'; *s = '\0';
+	strcpy(s, " - - 0 1");
 
 	return string;
 }
