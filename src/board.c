@@ -628,6 +628,7 @@ int get_weighted_mobility(const unsigned long long P, const unsigned long long O
 	return bit_weighted_count(get_moves(P, O));
 }
 
+#ifndef __AVX2__
 /**
  * @brief Get some potential moves.
  *
@@ -657,6 +658,7 @@ static unsigned long long get_potential_moves(const unsigned long long P, const 
 		| get_some_potential_moves(O & 0x007E7E7E7E7E7E00, 9))
 		& ~(P|O); // mask with empties
 }
+#endif // AVX2
 
 /**
  * @brief Get potential mobility.
@@ -669,10 +671,10 @@ static unsigned long long get_potential_moves(const unsigned long long P, const 
  */
 int get_potential_mobility(const unsigned long long P, const unsigned long long O)
 {
-#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+  #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 	if (hasMMX)
 		return get_potential_mobility_mmx(P, O);
-#endif
+  #endif
 	return bit_weighted_count(get_potential_moves(P, O));
 }
 

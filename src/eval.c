@@ -740,22 +740,22 @@ extern void eval_update_sse_1(int x, unsigned long long f, Eval *eval_out, const
  */
 void eval_set(Eval *eval, const Board *board)
 {
-	int	i, j, x;
+	int	i, x;
   #ifdef VECTOR_EVAL_UPDATE
-	widest_register	r;
 	unsigned long long b = (eval->n_empties & 1) ? board->opponent : board->player;
 
 	eval->feature = EVAL_FEATURE_all_opponent;
-	foreach_bit_r (x, b, j, r)
+	foreach_bit (x, b)
 		for (i = 0; i < 12; ++i)
 			eval->feature.ull[i] -= EVAL_FEATURE[x].ull[i];
 
 	b = ~(board->opponent | board->player);
-	foreach_bit_r (x, b, j, r)
+	foreach_bit (x, b)
 		for (i = 0; i < 12; ++i)
 			eval->feature.ull[i] += EVAL_FEATURE[x].ull[i];
 
   #else
+	int	j;
 	Board	b;
 
 	if (eval->n_empties & 1) {
@@ -782,15 +782,13 @@ void eval_set(Eval *eval, const Board *board)
  */
 static void eval_update_0(int x, unsigned long long f, Eval *eval)
 {
-	int	j;
-	widest_register	r;
   #ifdef VECTOR_EVAL_UPDATE
 	int	i;
 
 	for (i = 0; i < 12; ++i)
 		eval->feature.ull[i] -= EVAL_FEATURE[x].ull[i] << 1;
 
-	foreach_bit_r (x, f, j, r)
+	foreach_bit (x, f)
 		for (i = 0; i < 12; ++i)
 			eval->feature.ull[i] -= EVAL_FEATURE[x].ull[i];
 
@@ -809,7 +807,7 @@ static void eval_update_0(int x, unsigned long long f, Eval *eval)
 		break;
 	}
 
-	foreach_bit_r (x, f, j, r) {
+	foreach_bit (x, f)
 		s = EVAL_X2F + x;
 		switch (s->n_feature) {
 		default:
@@ -835,15 +833,13 @@ static void eval_update_0(int x, unsigned long long f, Eval *eval)
  */
 static void eval_update_1(int x, unsigned long long f, Eval *eval)
 {
-	int	j;
-	widest_register	r;
   #ifdef VECTOR_EVAL_UPDATE
 	int	i;
 
 	for (i = 0; i < 12; ++i)
 		eval->feature.ull[i] -= EVAL_FEATURE[x].ull[i];
 
-	foreach_bit_r (x, f, j, r)
+	foreach_bit (x, f)
 		for (i = 0; i < 12; ++i)
 			eval->feature.ull[i] += EVAL_FEATURE[x].ull[i];
 	}
@@ -863,7 +859,7 @@ static void eval_update_1(int x, unsigned long long f, Eval *eval)
 	       	break;
 	}
 
-	foreach_bit_r (x, f, j, r) {
+	foreach_bit (x, f)
 		s = EVAL_X2F + x;
 		switch (s->n_feature) {
 		default:

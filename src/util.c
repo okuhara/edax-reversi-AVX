@@ -641,7 +641,7 @@ char* parse_move(const char *string, const Board *board, Move *move)
 		char *word = parse_skip_spaces(string);
 		int x = string_to_coordinate(word);
 		move->x = x;
-		move->flipped = Flip(x, board->player, board->opponent);
+		move->flipped = board_flip(board, x);
 		if (move->flipped && !board_is_occupied(board, x)) {
 			return word + 2;
 		} else if (board_is_pass(board)) {
