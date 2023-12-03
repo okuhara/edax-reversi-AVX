@@ -969,9 +969,10 @@ void search_restore_midgame(Search *search, int x, const Search_Backup *backup)
  *
  * @param search  search.
  */
-void search_update_pass_midgame(Search *search)
+void search_update_pass_midgame(Search *search, Eval *backup)
 {
 	board_pass(&search->board);
+	backup->feature = search->eval.feature;
 	eval_pass(&search->eval);
 	search_update_midgame_tail(search);
 }
@@ -981,10 +982,11 @@ void search_update_pass_midgame(Search *search)
  *
  * @param search  search.
  */
-void search_restore_pass_midgame(Search *search)
+void search_restore_pass_midgame(Search *search, const Eval *backup)
 {
 	board_pass(&search->board);
-	eval_pass(&search->eval);
+	// eval_pass(&search->eval);
+	search->eval.feature = backup->feature;
 	assert(search->height > 0);
 	--search->height;
 }
