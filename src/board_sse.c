@@ -559,7 +559,7 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
 
 #if defined(hasSSE2) || defined(hasNeon) || defined(ANDROID) || defined(USE_MSVC_X86)
 /**
- * @brief X64 optimized get_stability
+ * @brief AVX2/SSE optimized get_stability
  *
  * SSE pcmpeqb for horizontal get_full_lines.
  * CPU rotate for vertical get_full_lines.
@@ -570,16 +570,13 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
  * @return the number of stable discs.
  */
 #ifdef __AVX2__
-  #ifndef HAS_CPU_64
-#define _mm_insert_epi64(s2,s,ndx)	_mm_insert_epi32(_mm_insert_epi32((s2), (s), (ndx) * 2), (s) >> 32, (ndx) * 2 + 1)
-  #endif
 
 int get_stability(const unsigned long long P, const unsigned long long O)
 {
 	unsigned long long disc = (P | O);
 	unsigned long long P_central = (P & 0x007e7e7e7e7e7e00);
-	unsigned long long l8, stable;
-	__m128i	l81, l79, v2_stable, v2_old_stable, v2_P_central;
+	unsigned long long stable;
+	__m128i	l81, l79, l8, v2_stable, v2_old_stable, v2_P_central;
 	__m256i	lr79, v4_disc, v4_stable, v4_full;
 	const __m128i kff = _mm_set1_epi64x(0xffffffffffffffff);;
 	const __m256i shift1897 = _mm256_set_epi64x(7, 9, 8, 1);
@@ -590,13 +587,13 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 	static const V4DI m794 = {{ 0x0080402010080402, 0x0001020408102040, 0x4020100804020100, 0x0204081020408000 }};
 	static const V2DI m795 = {{ 0x8040201008040201, 0x0102040810204080 }};
 
-	l81 = _mm_cvtsi64_si128(disc);		v4_disc = _mm256_broadcastq_epi64(l81);
-	l81 = _mm_cmpeq_epi8(kff, l81);		lr79 = _mm256_and_si256(_mm256_cmpeq_epi32(_mm256_and_si256(v4_disc, m791.v4), m791.v4), m791.v4);
-						lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi64(_mm256_and_si256(v4_disc, m792.v4), m792.v4), m792.v4));
-	l8 = disc;				lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi64(_mm256_and_si256(v4_disc, m793.v4), m793.v4), m793.v4));
-	l8 &= (l8 >> 8) | (l8 << 56);		lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi64(_mm256_and_si256(v4_disc, m794.v4), m794.v4), m794.v4));
-	l8 &= (l8 >> 16) | (l8 << 48);		l79 = _mm_and_si128(_mm_cmpeq_epi64(_mm_and_si128(_mm256_castsi256_si128(v4_disc), m795.v2), m795.v2), m795.v2);
-	l8 &= (l8 >> 32) | (l8 << 32);		l79 = _mm_or_si128(l79, _mm_or_si128(_mm256_extracti128_si256(lr79, 1), _mm256_castsi256_si128(lr79)));
+	l81 = _mm_cvtsi64_si128(disc);				v4_disc = _mm256_broadcastq_epi64(l81);
+	l81 = _mm_cmpeq_epi8(kff, l81);				lr79 = _mm256_and_si256(_mm256_cmpeq_epi32(_mm256_and_si256(v4_disc, m791.v4), m791.v4), m791.v4);
+								lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi64(_mm256_and_si256(v4_disc, m792.v4), m792.v4), m792.v4));
+	l8 = _mm256_castsi256_si128(v4_disc);			lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi64(_mm256_and_si256(v4_disc, m793.v4), m793.v4), m793.v4));
+	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 1));	lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi64(_mm256_and_si256(v4_disc, m794.v4), m794.v4), m794.v4));
+	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 2));	l79 = _mm_and_si128(_mm_cmpeq_epi64(_mm_and_si128(_mm256_castsi256_si128(v4_disc), m795.v2), m795.v2), m795.v2);
+	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 4));	l79 = _mm_or_si128(l79, _mm_or_si128(_mm256_extracti128_si256(lr79, 1), _mm256_castsi256_si128(lr79)));
 
 #elif 0 // PCMPEQD
 	__m256i lm79;
@@ -605,14 +602,14 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 	static const V4DI m792 = {{ 0x2010884440201088, 0x0408112202040811, 0x2211080411080402, 0x4488102088102040 }};	// V8SI
 	static const V4DI m793 = {{ 0x8844221110884422, 0x1122448808112244, 0x0000000044221108, 0x0000000022448810 }};	// V8SI
 
-	l81 = _mm_cvtsi64_si128(disc);		v4_disc = _mm256_broadcastq_epi64(l81);
-	l81 = _mm_cmpeq_epi8(kff, l81);		lm79 = _mm256_and_si256(v4_disc, m790.v4);
-						lm79 = _mm256_or_si256(lm79, _mm256_shuffle_epi32(lm79, 0xb1));
-	l8 = disc;				lr79 = _mm256_and_si256(_mm256_cmpeq_epi32(_mm256_and_si256(lm79, m792.v4), m792.v4), m792.v4);
-	l8 &= (l8 >> 8) | (l8 << 56);		lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi32(_mm256_and_si256(lm79, m793.v4), m793.v4), m793.v4));
-	l8 &= (l8 >> 16) | (l8 << 48);		lr79 = _mm256_and_si256(_mm256_or_si256(lr79, _mm256_shuffle_epi32(lr79, 0xb1)), m790.v4);
-	l8 &= (l8 >> 32) | (l8 << 32);		lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi32(_mm256_and_si256(v4_disc, m791.v4), m791.v4), m791.v4));
-						l79 = _mm_or_si128(_mm256_extracti128_si256(lr79, 1), _mm256_castsi256_si128(lr79));
+	l81 = _mm_cvtsi64_si128(disc);				v4_disc = _mm256_broadcastq_epi64(l81);
+	l81 = _mm_cmpeq_epi8(kff, l81);				lm79 = _mm256_and_si256(v4_disc, m790.v4);
+								lm79 = _mm256_or_si256(lm79, _mm256_shuffle_epi32(lm79, 0xb1));
+	l8 = _mm256_castsi256_si128(v4_disc);			lr79 = _mm256_and_si256(_mm256_cmpeq_epi32(_mm256_and_si256(lm79, m792.v4), m792.v4), m792.v4);
+	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 1));	lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi32(_mm256_and_si256(lm79, m793.v4), m793.v4), m793.v4));
+	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 2));	lr79 = _mm256_and_si256(_mm256_or_si256(lr79, _mm256_shuffle_epi32(lr79, 0xb1)), m790.v4);
+	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 4));	lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi32(_mm256_and_si256(v4_disc, m791.v4), m791.v4), m791.v4));
+								l79 = _mm_or_si128(_mm256_extracti128_si256(lr79, 1), _mm256_castsi256_si128(lr79));
 
 #else // Kogge-Stone
 	const __m128i mcpyswap = _mm_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 7, 6, 5, 4, 3, 2, 1, 0);
@@ -622,16 +619,16 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 	static const V4DI e791 = {{ 0xffffc0c0c0c0c0c0, 0xffff030303030303, 0xffff030303030303, 0xffffc0c0c0c0c0c0 }};
 	static const V4DI e792 = {{ 0xfffffffff0f0f0f0, 0xffffffff0f0f0f0f, 0xffffffff0f0f0f0f, 0xfffffffff0f0f0f0 }};
 
-	l81 = _mm_cvtsi64_si128(disc);		v4_disc = _mm256_castsi128_si256(_mm_shuffle_epi8(l81, mcpyswap));
-	l81 = _mm_cmpeq_epi8(kff, l81);		lr79 = _mm256_permute4x64_epi64(v4_disc, 0x50);	// disc, disc, rdisc, rdisc
-						lr79 = _mm256_and_si256(lr79, _mm256_or_si256(e790.v4, _mm256_srlv_epi64(lr79, shiftlr[0].v4)));
-	l8 = disc;				lr79 = _mm256_and_si256(lr79, _mm256_or_si256(e791.v4, _mm256_srlv_epi64(lr79, shiftlr[1].v4)));
-	l8 &= (l8 >> 8) | (l8 << 56);		lr79 = _mm256_and_si256(lr79, _mm256_or_si256(e792.v4, _mm256_srlv_epi64(lr79, shiftlr[2].v4)));
-	l8 &= (l8 >> 16) | (l8 << 48);		l79 = _mm_shuffle_epi8(_mm256_extracti128_si256(lr79, 1), mbswapll);
-	l8 &= (l8 >> 32) | (l8 << 32);		l79 = _mm_and_si128(l79, _mm256_castsi256_si128(lr79));
+	l81 = _mm_cvtsi64_si128(disc);				v4_disc = _mm256_castsi128_si256(_mm_shuffle_epi8(l81, mcpyswap));
+	l81 = _mm_cmpeq_epi8(kff, l81);				v4_disc = _mm256_permute4x64_epi64(v4_disc, 0x50);	// disc, disc, rdisc, rdisc
+								lr79 = _mm256_and_si256(v4_disc, _mm256_or_si256(e790.v4, _mm256_srlv_epi64(v4_disc, shiftlr[0].v4)));
+	l8 = _mm256_castsi256_si128(v4_disc);			lr79 = _mm256_and_si256(lr79, _mm256_or_si256(e791.v4, _mm256_srlv_epi64(lr79, shiftlr[1].v4)));
+	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 1));	lr79 = _mm256_and_si256(lr79, _mm256_or_si256(e792.v4, _mm256_srlv_epi64(lr79, shiftlr[2].v4)));
+	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 2));	l79 = _mm_shuffle_epi8(_mm256_extracti128_si256(lr79, 1), mbswapll);
+	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 4));	l79 = _mm_and_si128(l79, _mm256_castsi256_si128(lr79));
 
 #endif
-	l81 = _mm_insert_epi64(l81, l8, 1);
+	l81 = _mm_unpacklo_epi64(l81, l8);
 
 	// compute the exact stable edges (from precomputed tables)
 	stable = get_stable_edge(P, O);

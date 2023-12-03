@@ -153,10 +153,9 @@ int search_eval_1(Search *search, const int alpha, int beta, unsigned long long 
 
 				score = -accumlate_eval(60 - search->eval.n_empties + 1, &Ev);
 
-				if (score > bestscore) {
+				if (score > bestscore)
 					bestscore = score;
-					if (bestscore >= betathres) break;
-				}
+				if (bestscore >= betathres) break;
 			}
 		}
 
