@@ -429,45 +429,53 @@ static int search_shallow(Search *search, const int alpha)
 
 	if (search->eval.n_empties == 5) {	// transfer to search_solve_n, no longer uses n_empties, parity
 		do {
-			x = search->empties[prev = NOMOVE].next;	// maintain single link only
+			moves ^= prioritymoves;
+			x = NOMOVE;
 			do {
-				if (prioritymoves & x_to_bit(x)) {	// (37%)
-					search->empties[prev].next = search->empties[x].next;	// remove
-					vboard_next(board0, x, &search->board);
-					score = -search_solve_4(search, ~alpha);
-					search->empties[prev].next = x;	// restore
+				do {
+					x = search->empties[prev = x].next;
+				} while (!(prioritymoves & x_to_bit(x)));
 
-					if (score > alpha)
-						return score;
-					else if (score > bestscore)
-						bestscore = score;
-				}
-			} while ((x = search->empties[prev = x].next) != NOMOVE);
-		} while ((prioritymoves = (moves ^= prioritymoves)));
+				prioritymoves &= ~x_to_bit(x);
+				search->empties[prev].next = search->empties[x].next;	// remove - maintain single link only
+				vboard_next(board0, x, &search->board);
+				score = -search_solve_4(search, ~alpha);
+				search->empties[prev].next = x;	// restore
+
+				if (score > alpha)
+					return score;
+				else if (score > bestscore)
+					bestscore = score;
+			} while (prioritymoves);
+		} while ((prioritymoves = moves));
 
 	} else {
 		--search->eval.n_empties;	// for next depth
 		do {
-			x = search->empties[prev = NOMOVE].next;	// maintain single link only
+			moves ^= prioritymoves;
+			x = NOMOVE;
 			do {
-				if (prioritymoves & x_to_bit(x)) {	// (37%)
-					search->eval.parity = parity0 ^ QUADRANT_ID[x];
-					search->empties[prev].next = search->empties[x].next;	// remove
-					vboard_next(board0, x, &search->board);
-					score = -search_shallow(search, ~alpha);
-					search->empties[prev].next = x;	// restore
+				do {
+					x = search->empties[prev = x].next;
+				} while (!(prioritymoves & x_to_bit(x)));
 
-					if (score > alpha) {	// (40%)
-						store_vboard(search->board, board0);
-						search->eval.parity = parity0;
-						++search->eval.n_empties;
-						return score;
+				prioritymoves &= ~x_to_bit(x);
+				search->eval.parity = parity0 ^ QUADRANT_ID[x];
+				search->empties[prev].next = search->empties[x].next;	// remove - maintain single link only
+				vboard_next(board0, x, &search->board);
+				score = -search_shallow(search, ~alpha);
+				search->empties[prev].next = x;	// restore
 
-					} else if (score > bestscore)
-						bestscore = score;
-				}
-			} while ((x = search->empties[prev = x].next) != NOMOVE);
-		} while ((prioritymoves = (moves ^= prioritymoves)));
+				if (score > alpha) {	// (40%)
+					// store_vboard(search->board, board0);
+					// search->eval.parity = parity0;
+					++search->eval.n_empties;
+					return score;
+
+				} else if (score > bestscore)
+					bestscore = score;
+			} while (prioritymoves);
+		} while ((prioritymoves = moves));
 		++search->eval.n_empties;
 	}
 
