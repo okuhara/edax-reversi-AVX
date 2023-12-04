@@ -593,8 +593,8 @@ char* parse_field(const char *string, char *word, unsigned int n, char separator
 		string = parse_skip_spaces(string);
 		while (*string && *string != separator && n--) *word++ = *string++;
 		if (*string == separator) ++string;
-		*word = '\0';
 	}
+	*word = '\0';
 	return (char*) string;
 }
 
@@ -776,7 +776,7 @@ char* parse_int(const char *string, int *result)
 		char *end = s;
 		long long n = 0;
 
-		if (s) n = strtol(s, &end, 10);
+		if (*s) n = strtol(s, &end, 10);
 
 		if (end == s) {
 			errno = EINVAL;

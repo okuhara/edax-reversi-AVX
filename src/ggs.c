@@ -1266,7 +1266,7 @@ static void ui_ggs_play(UI *ui, int turn) {
  * @param ui User Interface.
  */
 static void ui_ggs_join(UI *ui) {
-	char buffer[256];
+	char buffer[258];
 	char s_move[4];
 	Play *play;
 	int edax_turn, i;
@@ -1324,7 +1324,7 @@ static void ui_ggs_join(UI *ui) {
  * @param ui User Interface.
  */
 static void ui_ggs_update(UI *ui) {
-	char buffer[256], s_move[4];
+	char buffer[258], s_move[4];
 	Play *play;
 	int edax_turn, turn;
 	Board board;

@@ -52,6 +52,9 @@ ifeq ($(COMP),gcc)
 	ifeq ($(ARCH),x64-modern)
 		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
+	ifeq ($(ARCH),x64-avx512)
+		CFLAGS += -m64 -march=skylake-avx512 -DUSE_GAS_X64 -DPOPCOUNT
+	endif
 	ifeq ($(ARCH),x64-popcnt)
 		CFLAGS += -m64 -mpopcnt -mtune=generic -DUSE_GAS_X64 -DPOPCOUNT
 	endif
@@ -199,7 +202,7 @@ endif
 
 #icc
 ifeq ($(COMP),icc)
-	CFLAGS = -std=c99 -Wall -Wcheck -wd2259 -wd913 -D_GNU_SOURCE=1 -DUNICODE
+	CFLAGS = -std=c99 -Wall -Wcheck -wd2259 -D_GNU_SOURCE=1 -DUNICODE -Qoption,cpp,--unicode_source_kind,"UTF-8"
 	PGO_GEN = -prof_gen
 	PGO_USE = -prof_use -wd11505
 
@@ -210,13 +213,16 @@ ifeq ($(COMP),icc)
 	endif
 
 	ifeq ($(ARCH),x64-modern)
-		CFLAGS += -m64 -xHOST -DUSE_GAS_X64 -DPOPCOUNT
+		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
+	endif
+	ifeq ($(ARCH),x64-avx512)
+		CFLAGS += -m64 -march=skylake-avx512 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x64)
-		CFLAGS += -m64 -xHost -DUSE_GAS_X64 
+		CFLAGS += -m64 -DUSE_GAS_X64 
 	endif
 	ifeq ($(ARCH),x32-modern)
-		CFLAGS += -m64 -xHost -ipo -auto-ilp32 -DUSE_GAS_X64 -DPOPCOUNT
+		CFLAGS += -m64 -ipo -auto-ilp32 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x86)
 		CFLAGS += -m32 -DUSE_GAS_X86
@@ -246,7 +252,7 @@ endif
 
 #clang
 ifeq ($(COMP),clang)
-	CFLAGS = -std=c99 -pedantic -W -Wall -D_GNU_SOURCE=1 -DUNICODE -Wno-invalid-source-encoding
+	CFLAGS = -std=c99 -pedantic -W -Wall -D_GNU_SOURCE=1 -DUNICODE
 	PGO_GEN = -fprofile-instr-generate
 	PGO_USE = -fprofile-instr-use=edax.profdata
 	PGO = llvm-profdata merge -output=edax.profdata $(BIN)/*.profraw
@@ -260,6 +266,9 @@ ifeq ($(COMP),clang)
 
 	ifeq ($(ARCH),x64-modern)
 		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
+	endif
+	ifeq ($(ARCH),x64-avx512)
+		CFLAGS += -m64 -march=skylake-avx512 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x64)
 		CFLAGS += -m64 -DUSE_GAS_X64 
