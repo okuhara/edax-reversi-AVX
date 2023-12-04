@@ -44,7 +44,7 @@ static int accumlate_eval(int ply, Eval *eval)
 		ply &= 1;
 	w = &(*EVAL_WEIGHT)[ply];
 
-#if defined(__AVX2__) && !defined(AMD_BEFORE_ZEN3)
+#if defined(__AVX2__) && !defined(__bdver4__) && !defined(__znver1__) && !defined(__znver2__)
 	enum {
 		W_C9 = offsetof(Eval_weight, C9) / sizeof(short) - 1,	// -1 to load the data into hi-word
 		W_C10 = offsetof(Eval_weight, C10) / sizeof(short) - 1,

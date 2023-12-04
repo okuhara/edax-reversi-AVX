@@ -76,7 +76,7 @@ int bit_count(unsigned long long b)
 // 2% faster than SWAR bit_count for 32 & 64 non-POPCOUNT build
 unsigned char PopCnt16[1 << 16];
 
-static int bit_count_32(unsigned int b)
+static int bit_count_32_SWAR(unsigned int b)
 {
 	b = b - ((b >> 1) & 0x55555555);
 	b = ((b >> 2) & 0x333333333) + (b & 0x33333333);
@@ -101,7 +101,7 @@ void bit_init(void)
 
 #ifndef POPCOUNT
 	for (i = 0; i < (1 << 16); ++i)
-		PopCnt16[i] = bit_count_32(i);
+		PopCnt16[i] = bit_count_32_SWAR(i);
 #endif
 #if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)) && !defined(hasSSE2)
 	init_mmx();

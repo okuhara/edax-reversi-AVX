@@ -61,7 +61,7 @@ extern const unsigned long long NEIGHBOUR[];
 	#else
 		int first_bit_32(unsigned int);
 	#endif
-	#define foreach_bit(i, b)	for (unsigned int _j = 0; _j < sizeof(b) * CHAR_BIT; _j += sizeof(int) * CHAR_BIT) \
+	#define foreach_bit(i, b)	(void) i; for (unsigned int _j = 0; _j < sizeof(b) * CHAR_BIT; _j += sizeof(int) * CHAR_BIT) \
 		for (int _r = (b >> _j), i = first_bit_32(_r) + _j; _r; i = first_bit_32(_r &= (_r - 1)) + _j)
 #endif
 
@@ -69,8 +69,10 @@ extern const unsigned long long NEIGHBOUR[];
 #ifdef hasNeon
 	#ifdef HAS_CPU_64
 		#define bit_count(x)	vaddv_u8(vcnt_u8(vcreate_u8(x)))
+		#define bit_count_32(x)	vaddv_u8(vcnt_u8(vcreate_u8((unsigned int) x)))
 	#else
 		#define bit_count(x)	vget_lane_u32(vreinterpret_u32_u64(vpaddl_u32(vpaddl_u16(vpaddl_u8(vcnt_u8(vcreate_u8(x)))))), 0)
+		#define bit_count_32(x)	vget_lane_u32(vpaddl_u16(vpaddl_u8(vcnt_u8(vcreate_u8(x)))), 0)
 	#endif
 
 #elif defined(POPCOUNT)
@@ -94,19 +96,27 @@ extern const unsigned long long NEIGHBOUR[];
 	#ifdef _MSC_VER
 		#if defined(_M_ARM) || defined(_M_ARM64)
 			#define bit_count(x)	_CountOneBits64(x)
+			#define bit_count_32(x)	_CountOneBits(x)
 		#elif defined(_M_X64)
 			#define	bit_count(x)	((int) __popcnt64(x))
+			#define	bit_count_32(x)	__popcnt(x)
 		#else
 			#define bit_count(x)	(__popcnt((unsigned int) (x)) + __popcnt((unsigned int) ((x) >> 32)))
+			#define	bit_count_32(x)	__popcnt(x)
 		#endif
 	#else
 		#define bit_count(x)	__builtin_popcountll(x)
+		#define bit_count_32(x)	__builtin_popcount(x)
 	#endif
 #else
 	extern unsigned char PopCnt16[1 << 16];
 	static inline int bit_count(unsigned long long b) {
 		union { unsigned long long bb; unsigned short u[4]; } v = { b };
 		return PopCnt16[v.u[0]] + PopCnt16[v.u[1]] + PopCnt16[v.u[2]] + PopCnt16[v.u[3]];
+	}
+	static inline int bit_count_32(unsigned int b) {
+		union { unsigned int bb; unsigned short u[2]; } v = { b };
+		return (unsigned char)(PopCnt16[v.u[0]] + PopCnt16[v.u[1]]);
 	}
 #endif
 

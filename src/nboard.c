@@ -140,7 +140,7 @@ void ui_loop_nboard(UI *ui)
 			int lastmove = parse_ggf(&game, param);
 			if (lastmove >= 0) {
 				game_get_board(&game, 60, &play->initial_board);
-				if (lastmove == PASS)
+				if (lastmove == PASS)	// https://github.com/okuhara/edax-reversi-AVX/issues/1
 					board_pass(&play->initial_board);
 				play_new(play);
 			} else {
