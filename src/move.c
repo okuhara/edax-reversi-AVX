@@ -216,6 +216,9 @@ void movelist_print(const MoveList *movelist, const int player, FILE *f)
  * @param previous_best Last best move.
  * @return the following best move in the list.
  */
+#if defined(__INTEL_COMPILER) && defined(__linux__)	// ICC linux emits bogus code in NWS_endgame if inlined
+__attribute__((noinline))
+#endif
 Move* move_next_best(Move *previous_best)
 {
 	if (previous_best->next) {
