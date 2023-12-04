@@ -133,6 +133,7 @@ typedef struct Search_Backup {
 struct Node;
 
 extern const unsigned char QUADRANT_ID[];
+extern const unsigned long long quadrant_mask[];
 extern const Selectivity selectivity_table[];
 extern const int NO_SELECTIVITY;
 extern const signed char NWS_STABILITY_THRESHOLD[];
@@ -165,7 +166,7 @@ void search_swap_parity(Search*, const int);
 void search_get_movelist(const Search*, MoveList*);
 // void search_update_endgame(Search*, const Move*);
 // void search_restore_endgame(Search*, const Move*);
-void search_pass_endgame(Search*);
+// void search_pass_endgame(Search*);
 void search_update_midgame(Search*, const Move*);
 void search_restore_midgame(Search*, int, const Search_Backup*);
 void search_update_pass_midgame(Search*, Eval*);
@@ -181,6 +182,7 @@ void result_print(Result*, FILE*);
 
 bool search_SC_PVS(Search*, volatile int*, volatile int*, int*);
 bool search_SC_NWS(Search*, const int, int*);
+bool search_SC_NWS_4(Search*, const int, int*);
 bool search_TC_PVS(HashData*, const int, const int, volatile int*, volatile int*, int*);
 bool search_TC_NWS(HashData*, const int, const int, const int, int*);
 bool search_ETC_PVS(Search*, MoveList*, unsigned long long, const int, const int, volatile int*, volatile int*, int*);

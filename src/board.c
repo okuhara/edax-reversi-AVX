@@ -436,6 +436,7 @@ void board_pass(Board *board)
 	board_check(board);
 }
 
+#if (MOVE_GENERATOR != MOVE_GENERATOR_AVX) && (MOVE_GENERATOR != MOVE_GENERATOR_AVX512) && (MOVE_GENERATOR != MOVE_GENERATOR_SSE) && (MOVE_GENERATOR != MOVE_GENERATOR_NEON)	// SSE version in board_sse.c
 /**
  * @brief Compute a board resulting of a move played on a previous board.
  *
@@ -454,6 +455,7 @@ unsigned long long board_next(const Board *board, const int x, Board *next)
 
 	return flipped;
 }
+#endif
 
 #if !defined(hasSSE2) && !defined(hasNeon)	// sse version in board_sse.c
 /**

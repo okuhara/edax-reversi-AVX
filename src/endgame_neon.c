@@ -36,7 +36,7 @@ extern const uint64x2_t mask_dvhd[64][2];
  * @param flipped flipped returned from mm_Flip.
  * @return resulting board.
  */
-static inline uint64x2_t board_next_neon(uint64x2_t OP, int x, uint64x2_t flipped)
+static inline uint64x2_t board_flip_next(uint64x2_t OP, int x, uint64x2_t flipped)
 {
 #ifdef HAS_CPU_64	// vld1q_lane_u64
 	OP = veorq_u64(OP, vorrq_u64(flipped, vld1q_lane_u64((uint64_t *) &X_TO_BIT[x], flipped, 0)));
@@ -254,20 +254,20 @@ static int search_solve_3(uint64x2_t OP, int alpha, volatile unsigned long long 
 		bb = vgetq_lane_u64(OP, 1);	// opponent
 		x = vget_lane_u8(empties, 2);
 		if ((NEIGHBOUR[x] & bb) && !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
-			bestscore = -board_solve_2(board_next_neon(OP, x, flipped), ~alpha, n_nodes, empties);
+			bestscore = -board_solve_2(board_flip_next(OP, x, flipped), ~alpha, n_nodes, empties);
 			if (bestscore > alpha) return bestscore * pol;
 		}
 
 		x = vget_lane_u8(empties, 1);
 		if (/* (NEIGHBOUR[x] & bb) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
-			score = -board_solve_2(board_next_neon(OP, x, flipped), ~alpha, n_nodes, vuzp_u8(empties, empties).val[0]);
+			score = -board_solve_2(board_flip_next(OP, x, flipped), ~alpha, n_nodes, vuzp_u8(empties, empties).val[0]);
 			if (score > alpha) return score * pol;
 			else if (score > bestscore) bestscore = score;
 		}
 
 		x = vget_lane_u8(empties, 0);
 		if (/* (NEIGHBOUR[x] & bb) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
-			score = -board_solve_2(board_next_neon(OP, x, flipped), ~alpha, n_nodes, vext_u8(empties, empties, 1));
+			score = -board_solve_2(board_flip_next(OP, x, flipped), ~alpha, n_nodes, vext_u8(empties, empties, 1));
 			if (score > bestscore) bestscore = score;
 		}
 
@@ -328,7 +328,7 @@ static int search_solve_4(Search *search, int alpha)
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	// stability cutoff (try 12%, cut 7%)
-	if (search_SC_NWS(search, alpha, &score)) return score;
+	if (search_SC_NWS_4(search, alpha, &score)) return score;
 
 	OP = vld1q_u64((uint64_t *) &search->board);
 	x1 = search->empties[NOMOVE].next;
@@ -355,14 +355,14 @@ static int search_solve_4(Search *search, int alpha)
 	opp = vgetq_lane_u64(OP, 1);
 	x1 = vgetq_lane_u8(empties_series, 3);
 	if ((NEIGHBOUR[x1] & opp) && !TESTZ_FLIP(flipped = mm_Flip(OP, x1))) {
-		bestscore = -search_solve_3(board_next_neon(OP, x1, flipped), -(alpha + 1), &search->n_nodes, vget_low_u8(empties_series));
+		bestscore = -search_solve_3(board_flip_next(OP, x1, flipped), -(alpha + 1), &search->n_nodes, vget_low_u8(empties_series));
 		if (bestscore > alpha) return bestscore;
 	}
 
 	empties_series = vextq_u8(empties_series, empties_series, 4);
 	x2 = vgetq_lane_u8(empties_series, 3);
 	if ((NEIGHBOUR[x2] & opp) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
-		score = -search_solve_3(board_next_neon(OP, x2, flipped), -(alpha + 1), &search->n_nodes, vget_low_u8(empties_series));
+		score = -search_solve_3(board_flip_next(OP, x2, flipped), -(alpha + 1), &search->n_nodes, vget_low_u8(empties_series));
 		if (score > alpha) return score;
 		else if (score > bestscore) bestscore = score;
 	}
@@ -370,7 +370,7 @@ static int search_solve_4(Search *search, int alpha)
 	empties_series = vextq_u8(empties_series, empties_series, 4);
 	x3 = vgetq_lane_u8(empties_series, 3);
 	if ((NEIGHBOUR[x3] & opp) && !TESTZ_FLIP(flipped = mm_Flip(OP, x3))) {
-		score = -search_solve_3(board_next_neon(OP, x3, flipped), -(alpha + 1), &search->n_nodes, vget_low_u8(empties_series));
+		score = -search_solve_3(board_flip_next(OP, x3, flipped), -(alpha + 1), &search->n_nodes, vget_low_u8(empties_series));
 		if (score > alpha) return score;
 		else if (score > bestscore) bestscore = score;
 	}
@@ -378,7 +378,7 @@ static int search_solve_4(Search *search, int alpha)
 	empties_series = vextq_u8(empties_series, empties_series, 4);
 	x4 = vgetq_lane_u8(empties_series, 3);
 	if ((NEIGHBOUR[x4] & opp) && !TESTZ_FLIP(flipped = mm_Flip(OP, x4))) {
-		score = -search_solve_3(board_next_neon(OP, x4, flipped), -(alpha + 1), &search->n_nodes, vget_low_u8(empties_series));
+		score = -search_solve_3(board_flip_next(OP, x4, flipped), -(alpha + 1), &search->n_nodes, vget_low_u8(empties_series));
 		if (score > bestscore) bestscore = score;
 	}
 

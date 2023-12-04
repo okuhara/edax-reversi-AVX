@@ -108,13 +108,12 @@ int search_eval_0(Search *search)
 
 	score = accumlate_eval(60 - search->eval.n_empties,  &search->eval);
 
-	if (score >= 0) {
-		score = (score + 64) >> 7;
-		if (score > SCORE_MAX - 1) score = SCORE_MAX - 1;
-	} else {
-		score = -((-score + 64) >> 7);
-		if (score < SCORE_MIN + 1) score = SCORE_MIN + 1;
-	}
+	if (score > 0) score += 64;	else score -= 64;
+	score /= 128;
+
+	if (score < SCORE_MIN + 1) score = SCORE_MIN + 1;
+	if (score > SCORE_MAX - 1) score = SCORE_MAX - 1;
+
 	return score;
 }
 
@@ -195,8 +194,9 @@ int search_eval_2(Search *search, int alpha, const int beta, bool pass1)
 {
 	int x, prev, bestscore, score;
 	unsigned long long flipped;
-	Search_Backup backup;
-	unsigned long long moves = get_moves(search->board.player, search->board.opponent);
+	Eval eval0;
+	vBoard board0 = load_vboard(search->board);
+	unsigned long long moves = vboard_get_moves(board0, search->board);
 
 	SEARCH_STATS(++statistics.n_search_eval_2);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
@@ -207,15 +207,14 @@ int search_eval_2(Search *search, int alpha, const int beta, bool pass1)
 
 	if (moves) {
 		bestscore = -SCORE_INF;
-		backup.eval.feature = search->eval.feature;
-		backup.eval.n_empties = search->eval.n_empties--;
-		backup.board = search->board;
+		eval0.feature = search->eval.feature;
+		eval0.n_empties = search->eval.n_empties--;
 
 		for (x = search->empties[prev = NOMOVE].next; x != NOMOVE; x = search->empties[prev = x].next) {	// maintain single link only
 			if (moves & x_to_bit(x)) {
-				flipped = board_next(&backup.board, x, &search->board);
+				flipped = vboard_next(board0, x, &search->board);
 				search->empties[prev].next = search->empties[x].next;	// remove
-				eval_update_leaf(x, flipped, &search->eval, &backup.eval);
+				eval_update_leaf(x, flipped, &search->eval, &eval0);
 				score = -search_eval_1(search, -beta, -alpha, false);
 				search->empties[prev].next = x;	// restore
 
@@ -226,17 +225,17 @@ int search_eval_2(Search *search, int alpha, const int beta, bool pass1)
 				}
 			}
 		}
-		search->eval.feature = backup.eval.feature;
-		search->eval.n_empties = backup.eval.n_empties;
-		search->board = backup.board;
+		search->eval.feature = eval0.feature;
+		search->eval.n_empties = eval0.n_empties;
+		store_vboard(search->board, board0);
 
 	} else {
 		if (pass1) { // game over
 			bestscore = search_solve(search);
 		} else {
-			search_update_pass_midgame(search, &backup.eval);
+			search_update_pass_midgame(search, &eval0);
 			bestscore = -search_eval_2(search, -beta, -alpha, true);
-			search_restore_pass_midgame(search, &backup.eval);
+			search_restore_pass_midgame(search, &eval0);
 		}
 	}
 
