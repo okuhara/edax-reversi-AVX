@@ -31,7 +31,7 @@ void board_init(Board*);
 int board_set(Board*, const char*);
 int board_from_FEN(Board*, const char*);
 int board_compare(const Board*, const Board*);
-bool board_equal(const Board*, const Board*);
+bool board_lesser(const Board*, const Board*);
 void board_symetry(const Board*, const int, Board*);
 int board_unique(const Board*, Board*);
 void board_check(const Board*);
