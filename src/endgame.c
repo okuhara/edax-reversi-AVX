@@ -39,12 +39,6 @@
 	#include "count_last_flip_kindergarten.c"
 #endif
 
-#if ((MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)) && (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE)
-	#include "endgame_sse.c"	// vectorcall version
-#elif (MOVE_GENERATOR == MOVE_GENERATOR_NEON) && (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE)
-	#include "endgame_neon.c"
-#endif
-
 /**
  * @brief Get the final score.
  *
@@ -54,7 +48,7 @@
  * @param n_empties Number of empty squares remaining on the board.
  * @return The final score, as a disc difference.
  */
-static int board_solve(const unsigned long long player, const int n_empties)
+int board_solve(const unsigned long long player, const int n_empties)
 {
 	int score = bit_count(player) * 2 - SCORE_MAX;	// in case of opponents win
 	int diff = score + n_empties;		// = n_discs_p - (64 - n_empties - n_discs_p)
@@ -94,7 +88,11 @@ int search_solve_0(const Search *search)
 	return 2 * bit_count(search->board.player) - SCORE_MAX;
 }
 
-#if ((MOVE_GENERATOR != MOVE_GENERATOR_AVX) && (MOVE_GENERATOR != MOVE_GENERATOR_SSE) && (MOVE_GENERATOR != MOVE_GENERATOR_NEON)) || (LAST_FLIP_COUNTER != COUNT_LAST_FLIP_SSE)
+#if ((MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)) && (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE)
+	#include "endgame_sse.c"	// vectorcall version
+#elif (MOVE_GENERATOR == MOVE_GENERATOR_NEON) && (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE)
+	#include "endgame_neon.c"
+#else
 /**
  * @brief Get the final score.
  *
