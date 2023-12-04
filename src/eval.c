@@ -806,7 +806,7 @@ static void eval_update_0(int x, unsigned long long f, Eval *eval)
 		break;
 	}
 
-	foreach_bit (x, f)
+	foreach_bit (x, f) {
 		s = EVAL_X2F + x;
 		switch (s->n_feature) {
 		default:
@@ -858,7 +858,7 @@ static void eval_update_1(int x, unsigned long long f, Eval *eval)
 	       	break;
 	}
 
-	foreach_bit (x, f)
+	foreach_bit (x, f) {
 		s = EVAL_X2F + x;
 		switch (s->n_feature) {
 		default:

@@ -521,7 +521,7 @@ int NWS_endgame(Search *search, const int alpha)
 			hash_store_data.data.move[0] = NOMOVE;
 		}
 	} else {
-		movelist_evaluate(&movelist, search, &hash_data, alpha, 0);
+		movelist_evaluate_fast(&movelist, search, &hash_data);
 
 		board0 = search->board;
 		parity0 = search->eval.parity;

@@ -245,6 +245,20 @@ int search_eval_2(Search *search, int alpha, const int beta, bool pass1)
 	return bestscore;
 }
 
+/**
+ * @brief Probcut
+ *
+ * Check if a position is worth to analyze further.
+ *
+ * @param search Position to test.
+ * @param alpha Alpha lower bound.
+ * @param depth Search depth.
+ * @param parent Parent node.
+ * @param value Returned value.
+ * (called from PVS_shallow and NWS_midgame @ depth <= 3)
+ *
+ * @return true if probable cutoff has been found, false otherwise.
+ */
 static inline void search_update_probcut(Search *search, const NodeType node_type) 
 {
 	search->node_type[search->height] = node_type;
@@ -260,19 +274,6 @@ static inline void search_restore_probcut(Search *search, const NodeType node_ty
 	LIMIT_RECURSIVE_PROBCUT(--search->probcut_level;)
 }
 
-/**
- * @brief Probcut
- *
- * Check if a position is worth to analyze further.
- *
- * @param search Position to test.
- * @param alpha Alpha lower bound.
- * @param depth Search depth.
- * @param parent Parent node.
- * @param value Returned value.
- *
- * @return true if probable cutoff has been found, false otherwise.
- */
 static bool search_probcut(Search *search, const int alpha, const int depth, Node *parent, int *value)
 {
 	// assertion 
@@ -346,6 +347,7 @@ static bool search_probcut(Search *search, const int alpha, const int depth, Nod
  * ordering, hash table cutoff, enhanced transposition cutoff, etc. are used in
  * order to diminish the size of the tree to analyse, but at the expense of a
  * slower speed.
+ * (called from guess_move @ depth <= 6 and movelist_evaluate @ depth > 2)
  *
  * @param search     search.
  * @param alpha      lower bound.
@@ -355,7 +357,7 @@ static bool search_probcut(Search *search, const int alpha, const int depth, Nod
  */
 static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *hash_table)
 {
-	int score;
+	int score, bestscore;
 	unsigned long long hash_code;
 	// const int beta = alpha + 1;
 	HashData hash_data;
@@ -363,7 +365,6 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 	MoveList movelist;
 	Move *move;
 	Search_Backup backup;
-	int bestscore;
 	long long nodes_org = search->n_nodes;
 
 	if (depth == 2) return search_eval_2(search, alpha, alpha + 1, false);
@@ -376,13 +377,16 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 	assert(depth > 2);
 	assert(hash_table != NULL);
 
+	hash_code = board_get_hash_code(&search->board);
+	hash_prefetch(hash_table, hash_code);
+
 	// stability cutoff
 	if (search_SC_NWS(search, alpha, &score)) return score;
 
-	// transposition cutoff
-	hash_code = board_get_hash_code(&search->board);
-	if (hash_get(hash_table, &search->board, hash_code, &hash_data) && search_TC_NWS(&hash_data, depth, search->selectivity, alpha, &score)) return score;
 	search_get_movelist(search, &movelist);
+	// transposition cutoff
+	if (hash_get(hash_table, &search->board, hash_code, &hash_data) && search_TC_NWS(&hash_data, depth, search->selectivity, alpha, &score))
+		return score;
 
 	if (movelist_is_empty(&movelist)) { // no moves ?
 		if (can_move(search->board.opponent, search->board.player)) { // pass ?
@@ -446,17 +450,14 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
  */
 int PVS_shallow(Search *search, int alpha, int beta, int depth)
 {
-	int score;
-	HashTable *const hash_table = &search->shallow_table;
+	int score, bestscore, lower;
 	unsigned long long hash_code;
 	HashData hash_data;
 	HashStoreData hash_store_data;
 	MoveList movelist;
 	Move *move;
 	Search_Backup backup;
-	int bestscore;
 	long long nodes_org = search->n_nodes;
-	int lower;
 
 	if (depth == 2) return search_eval_2(search, alpha, beta, false);
 
@@ -471,8 +472,8 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 
 	// transposition cutoff
 	hash_code = board_get_hash_code(&search->board);
-//	if (hash_get(hash_table, &search->board, hash_code, &hash_data) && search_TC_PVS(&hash_data, depth, search->selectivity, &alpha, &beta, &score)) return score;
-	hash_get(hash_table, &search->board, hash_code, &hash_data);
+//	if (hash_get(&search->shallow_table, &search->board, hash_code, &hash_data) && search_TC_PVS(&hash_data, depth, search->selectivity, &alpha, &beta, &score)) return score;
+	hash_get(&search->shallow_table, &search->board, hash_code, &hash_data);
 
 	search_get_movelist(search, &movelist);
 
@@ -504,7 +505,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 
 		while ((move = move->next) && (bestscore < beta)) {
 			search_update_midgame(search, move);
-			score = -NWS_shallow(search, -lower - 1, depth - 1, hash_table);
+			score = -NWS_shallow(search, -lower - 1, depth - 1, &search->hash_table);
 			if (alpha < score && score < beta)
 				score = -PVS_shallow(search, -beta, -lower, depth - 1);
 			search_restore_midgame(search, move->x, &backup);
@@ -524,7 +525,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 	hash_store_data.alpha = alpha;
 	hash_store_data.beta = beta;
 	hash_store_data.score = bestscore;
-	hash_store(hash_table, &search->board, hash_code, &hash_store_data);
+	hash_store(&search->shallow_table, &search->board, hash_code, &hash_store_data);
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
 
 	return bestscore;
@@ -548,8 +549,6 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 {
 	int score;
-	HashTable *const hash_table = &search->hash_table;
-	HashTable *const pv_table = &search->pv_table;
 	unsigned long long hash_code;
 	const int beta = alpha + 1;
 	HashData hash_data;
@@ -570,7 +569,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	else if (search->eval.n_empties == 0)
 		return search_solve_0(search);
 	else if (depth <= 3 && depth < search->eval.n_empties)
-		return NWS_shallow(search, alpha, depth, hash_table);
+		return NWS_shallow(search, alpha, depth, &search->hash_table);
 	else if (search->eval.n_empties <= depth && depth < DEPTH_MIDGAME_TO_ENDGAME)
 		return NWS_endgame(search, alpha);
 
@@ -582,7 +581,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 
 	// transposition cutoff
 	hash_code = board_get_hash_code(&search->board);
-	if ((hash_get(hash_table, &search->board, hash_code, &hash_data) || hash_get(pv_table, &search->board, hash_code, &hash_data)) && search_TC_NWS(&hash_data, depth, search->selectivity, alpha, &score)) return score;
+	if ((hash_get(&search->hash_table, &search->board, hash_code, &hash_data) || hash_get(&search->pv_table, &search->board, hash_code, &hash_data)) && search_TC_NWS(&hash_data, depth, search->selectivity, alpha, &score)) return score;
 
 	search_get_movelist(search, &movelist);
 
@@ -601,7 +600,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 
 		// sort the list of moves
 		if (movelist.n_moves > 1) {
-			if (hash_data.move[0] == NOMOVE) hash_get(hash_table, &search->board, hash_code, &hash_data);
+			if (hash_data.move[0] == NOMOVE) hash_get(&search->hash_table, &search->board, hash_code, &hash_data);
 			movelist_evaluate(&movelist, search, &hash_data, alpha, depth + options.inc_sort_depth[search->node_type[search->height]]);
 			movelist_sort(&movelist);
 		}
@@ -636,8 +635,8 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		hash_store_data.beta = beta;
 		hash_store_data.score = node.bestscore;
 
-		if (search->height <= PV_HASH_HEIGHT) hash_store(pv_table, &search->board, hash_code, &hash_store_data);
-		hash_store(hash_table, &search->board, hash_code, &hash_store_data);
+		if (search->height <= PV_HASH_HEIGHT) hash_store(&search->pv_table, &search->board, hash_code, &hash_store_data);
+		hash_store(&search->hash_table, &search->board, hash_code, &hash_store_data);
 
 		SQUARE_STATS(foreach_move(move, &movelist))
 		SQUARE_STATS(++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];)
@@ -775,8 +774,9 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 
 	// save the best result in hash tables
 	if (!search->stop) {
-		if (search->eval.n_empties < depth && depth <= DEPTH_MIDGAME_TO_ENDGAME) hash_store_data.data.wl.c.selectivity = NO_SELECTIVITY;
-		else hash_store_data.data.wl.c.selectivity = search->selectivity;
+		if (search->eval.n_empties < depth && depth <= DEPTH_MIDGAME_TO_ENDGAME)
+			hash_store_data.data.wl.c.selectivity = NO_SELECTIVITY;
+		else	hash_store_data.data.wl.c.selectivity = search->selectivity;
 		hash_store_data.data.wl.c.depth = depth;
 		hash_store_data.data.wl.c.cost = last_bit(search_count_nodes(search) - nodes_org);
 		hash_store_data.data.move[0] = node.bestmove;
