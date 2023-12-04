@@ -153,181 +153,186 @@ struct Level LEVEL[61][61];
 void search_global_init(void)
 {
 	int level, n_empties;
+	unsigned char dep, sel;
 
 	for (level = 0; level <= 60; ++level)
 	for (n_empties = 0; n_empties <= 60; ++n_empties) {
+		dep = n_empties;
+		sel = 5;
 		if (level <= 0) {
-			LEVEL[level][n_empties].depth = 0;
-			LEVEL[level][n_empties].selectivity = 5;
+			dep = 0;
+			// sel = 5;
 		} else if (level <= 10) {
-			LEVEL[level][n_empties].selectivity = 5;
+			// sel = 5;
 			if (n_empties <= 2 * level) {
-				LEVEL[level][n_empties].depth = n_empties;
+				// dep = n_empties;
 			} else {
-				LEVEL[level][n_empties].depth = level;
+				dep = level;
 			}
 		} else if (level <= 12) {
 			if (n_empties <= 21) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 5;
+				// dep = n_empties;
+				// sel = 5;
 			} else if (n_empties <= 24) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 3;
+				// dep = n_empties;
+				sel = 3;
 			} else {
-				LEVEL[level][n_empties].depth = level;
-				LEVEL[level][n_empties].selectivity = 0;
+				dep = level;
+				sel = 0;
 			}
 		} else if (level <= 18) {
 			if (n_empties <= 21) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 5;
+				// dep = n_empties;
+				// sel = 5;
 			} else if (n_empties <= 24) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 3;
+				// dep = n_empties;
+				sel = 3;
 			} else if (n_empties <= 27) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 1;
+				// dep = n_empties;
+				sel = 1;
 			} else {
-				LEVEL[level][n_empties].depth = level;
-				LEVEL[level][n_empties].selectivity = 0;
+				dep = level;
+				sel = 0;
 			}
 		} else if (level <= 21) {
 			if (n_empties <= 24) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 5;
+				// dep = n_empties;
+				// sel = 5;
 			} else if (n_empties <= 27) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 3;
+				// dep = n_empties;
+				sel = 3;
 			} else if (n_empties <= 30) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 1;
+				// dep = n_empties;
+				sel = 1;
 			} else {
-				LEVEL[level][n_empties].depth = level;
-				LEVEL[level][n_empties].selectivity = 0;
+				dep = level;
+				sel = 0;
 			}
 		} else if (level <= 24) {
 			if (n_empties <= 24) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 5;
+				// dep = n_empties;
+				// sel = 5;
 			} else if (n_empties <= 27) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 4;
+				// dep = n_empties;
+				sel = 4;
 			} else if (n_empties <= 30) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 2;
+				// dep = n_empties;
+				sel = 2;
 			} else if (n_empties <= 33) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 0;
+				// dep = n_empties;
+				sel = 0;
 			} else {
-				LEVEL[level][n_empties].depth = level;
-				LEVEL[level][n_empties].selectivity = 0;
+				dep = level;
+				sel = 0;
 			}
 		} else if (level <= 27) {
 			if (n_empties <= 27) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 5;
+				// dep = n_empties;
+				// sel = 5;
 			} else if (n_empties <= 30) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 3;
+				// dep = n_empties;
+				sel = 3;
 			} else if (n_empties <= 33) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 1;
+				// dep = n_empties;
+				sel = 1;
 			} else {
-				LEVEL[level][n_empties].depth = level;
-				LEVEL[level][n_empties].selectivity = 0;
+				dep = level;
+				sel = 0;
 			}
 		} else if (level < 30) {
 			if (n_empties <= 27) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 5;
+				// dep = n_empties;
+				// sel = 5;
 			} else if (n_empties <= 30) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 4;
+				// dep = n_empties;
+				sel = 4;
 			} else if (n_empties <= 33) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 2;
+				// dep = n_empties;
+				sel = 2;
 			} else if (n_empties <= 36) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 0;
+				// dep = n_empties;
+				sel = 0;
 			} else {
-				LEVEL[level][n_empties].depth = level;
-				LEVEL[level][n_empties].selectivity = 0;
+				dep = level;
+				sel = 0;
 			}
 		} else if (level <= 31) {
 			if (n_empties <= 30) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 5;
+				// dep = n_empties;
+				// sel = 5;
 			} else if (n_empties <= 33) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 3;
+				// dep = n_empties;
+				sel = 3;
 			} else if (n_empties <= 36) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 1;
+				// dep = n_empties;
+				sel = 1;
 			} else {
-				LEVEL[level][n_empties].depth = level;
-				LEVEL[level][n_empties].selectivity = 0;
+				dep = level;
+				sel = 0;
 			}
 		} else if (level <= 33) {
 			if (n_empties <= 30) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 5;
+				// dep = n_empties;
+				// sel = 5;
 			} else if (n_empties <= 33) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 4;
+				// dep = n_empties;
+				sel = 4;
 			} else if (n_empties <= 36) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 2;
+				// dep = n_empties;
+				sel = 2;
 			} else if (n_empties <= 39) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 0;
+				// dep = n_empties;
+				sel = 0;
 			} else {
-				LEVEL[level][n_empties].depth = level;
-				LEVEL[level][n_empties].selectivity = 0;
+				dep = level;
+				sel = 0;
 			}
 		} else if (level <= 35) {
 			if (n_empties <= 30) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 5;
+				// dep = n_empties;
+				// sel = 5;
 			} else if (n_empties <= 33) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 4;
+				// dep = n_empties;
+				sel = 4;
 			} else if (n_empties <= 36) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 3;
+				// dep = n_empties;
+				sel = 3;
 			} else if (n_empties <= 39) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 1;
+				// dep = n_empties;
+				sel = 1;
 			} else {
-				LEVEL[level][n_empties].depth = level;
-				LEVEL[level][n_empties].selectivity = 0;
+				dep = level;
+				sel = 0;
 			}
 		} else if (level < 60) {
 			if (n_empties <= level - 6) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 5;
+				// dep = n_empties;
+				// sel = 5;
 			} else if (n_empties <= level - 3) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 4;
+				// dep = n_empties;
+				sel = 4;
 			} else if (n_empties <= level) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 3;
+				// dep = n_empties;
+				sel = 3;
 			} else if (n_empties <= level + 3) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 2;
+				// dep = n_empties;
+				sel = 2;
 			} else if (n_empties <= level + 6) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 1;
+				// dep = n_empties;
+				sel = 1;
 			} else if (n_empties <= level + 9) {
-				LEVEL[level][n_empties].depth = n_empties;
-				LEVEL[level][n_empties].selectivity = 0;
+				// dep = n_empties;
+				sel = 0;
 			} else {
-				LEVEL[level][n_empties].depth = level;
-				LEVEL[level][n_empties].selectivity = 0;
+				dep = level;
+				sel = 0;
 			}
 		} else {
-			LEVEL[level][n_empties].depth = n_empties;
-			LEVEL[level][n_empties].selectivity = 5;
+			// dep = n_empties;
+			// sel = 5;
 		}
+		LEVEL[level][n_empties].depth = dep;
+		LEVEL[level][n_empties].selectivity = sel;
 	}
 	search_log->f = NULL;
 }
