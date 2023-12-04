@@ -3,7 +3,7 @@
  *
  * @brief Main file.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.4
  */

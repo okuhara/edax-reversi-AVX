@@ -18,7 +18,7 @@
 #include "search.h"
 #include <assert.h>
 
-#define	SWAP64	0x4e	// for ~alpha
+#define	SWAP64	0x4e	// for _mm_shuffle_epi32
 #define	DUPLO	0x44
 #define	DUPHI	0xee
 
@@ -78,7 +78,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 	__m128i	II;
 
 	// n_flips = last_flip(pos, P);
-#ifdef AVXLASTFLIP
+  #ifdef AVXLASTFLIP
 	__m256i M = mask_dvhd[pos].v4;
 	__m256i PP = _mm256_permute4x64_epi64(_mm256_castsi128_si256(PO), 0x55);
 
@@ -87,7 +87,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 	t = _mm256_movemask_epi8(_mm256_sub_epi8(_mm256_setzero_si256(), _mm256_and_si256(PP, M)));
 	n_flips += COUNT_FLIP_Y[(unsigned char) t];
 	t >>= 16;
-#else
+  #else
 	__m128i M0 = mask_dvhd[pos].v2[0];
 	__m128i M1 = mask_dvhd[pos].v2[1];
 	__m128i	PP = _mm_shuffle_epi32(PO, DUPHI);
@@ -97,7 +97,7 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 	n_flips  = COUNT_FLIP_X[_mm_extract_epi16(II, 4)];
 	n_flips += COUNT_FLIP_X[_mm_cvtsi128_si32(II)];
 	t = _mm_movemask_epi8(_mm_sub_epi8(_mm_setzero_si128(), _mm_and_si128(PP, M1)));
-#endif
+  #endif
 	n_flips += COUNT_FLIP_Y[t >> 8];
 	n_flips += COUNT_FLIP_Y[(unsigned char) t];
 
@@ -111,14 +111,14 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 
 		if (score < beta) {	// lazy cut-off
 			// n_flips = last_flip(pos, ~P);
-#ifdef AVXLASTFLIP
+  #ifdef AVXLASTFLIP
 			PP = _mm256_andnot_si256(PP, M);
 			II = _mm_sad_epu8(_mm256_castsi256_si128(PP), _mm_setzero_si128());
 			t = _mm_movemask_epi8(_mm_sub_epi8(_mm_setzero_si128(), _mm256_extracti128_si256(PP, 1)));
-#else
+  #else
 			II = _mm_sad_epu8(_mm_andnot_si128(PP, M0), _mm_setzero_si128());
 			t = _mm_movemask_epi8(_mm_sub_epi8(_mm_setzero_si128(), _mm_andnot_si128(PP, M1)));
-#endif
+  #endif
 			n_flips  = COUNT_FLIP_X[_mm_extract_epi16(II, 4)];
 			n_flips += COUNT_FLIP_X[_mm_cvtsi128_si32(II)];
 			n_flips += COUNT_FLIP_Y[t >> 8];
@@ -228,7 +228,7 @@ static int vectorcall search_solve_3(__m128i OP, int alpha, int sort3, volatile 
 	empties = _mm_cvtepu8_epi16(empties);	// to ease shuffle
 	(void) sort3;
 #elif defined(__SSSE3__)
-	empties = _mm_unpacklo_epi8(empties, _mm_setzero_si128())
+	empties = _mm_unpacklo_epi8(empties, _mm_setzero_si128());
 	(void) sort3;
 #else
 	// parity based move sorting
@@ -327,7 +327,11 @@ static int search_solve_4(Search *search, int alpha)
 	};
 	enum { sort3 = 0 };	// sort is done on 4 empties
 	#define	SHUFFLE_EMPTIES(empties,mask)	_mm_shuffle_epi32((empties), 0x39)
+  #ifdef __AVX__
 	#define	EXTRACT_MOVE(X)	_mm_extract_epi8((X), 3)
+  #else
+	#define	EXTRACT_MOVE(X)	((unsigned int) _mm_cvtsi128_si32(X) >> 24)
+  #endif
 #else
 	int sort3;	// for move sorting on 3 empties
 	static const short sort3_shuf[] = {
