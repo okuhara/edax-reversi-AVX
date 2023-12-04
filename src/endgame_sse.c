@@ -431,9 +431,9 @@ static int search_solve_4(Search *search, int alpha)
 
 	else if (bestscore == -SCORE_INF) {	// no move
 		if (can_move(opp, _mm_cvtsi128_si64(OP))) { // pass
-			search_pass_endgame(search);
+			board_pass(&search->board);
 			bestscore = -search_solve_4(search, -(alpha + 1));
-			search_pass_endgame(search);
+			board_pass(&search->board);
 
 		} else { // gameover
 			bestscore = board_solve(_mm_cvtsi128_si64(OP), 4);

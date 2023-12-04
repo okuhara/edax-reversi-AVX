@@ -384,9 +384,9 @@ static int search_solve_4(Search *search, int alpha)
 
 	else if (bestscore == -SCORE_INF) {	// no move
 		if (can_move(opp, vgetq_lane_u64(OP, 0))) { // pass
-			search_pass_endgame(search);
+			board_pass(&search->board);
 			bestscore = -search_solve_4(search, -(alpha + 1));
-			search_pass_endgame(search);
+			board_pass(&search->board);
 		} else { // gameover
 			bestscore = board_solve_neon(vget_low_u64(OP), 4);
 		}
