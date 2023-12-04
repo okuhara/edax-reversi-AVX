@@ -117,7 +117,7 @@ typedef struct Search {
 		const char *separator;                    /**< separator for search output */
 		bool guess_pv;                            /**< guess PV (in cassio mode only) */
 		int multipv_depth;                        /**< multi PV depth */
-		int hash_size;                            /**< hashtable size */                    
+		int hash_size;                            /**< hashtable size */
 	} options;                                    /**< local (threadable) options. */
 
 	Result *result;                               /**< shared result */
@@ -249,6 +249,12 @@ int search_bound(const Search*, int);
 #else
 	#define	mm_malloc(s)	malloc(s)
 	#define	mm_free(p)	free(p)
+#endif
+
+#ifdef hasSSE2	// search->board is aligned
+	#define	search_pass(search)	_mm_store_si128((__m128i *) &(search)->board, _mm_shuffle_epi32(*(__m128i *) &(search)->board, 0x4e))
+#else
+	#define	search_pass(search)	board_pass(&(search)->board)
 #endif
 
 #endif

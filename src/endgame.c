@@ -412,9 +412,9 @@ static int search_shallow(Search *search, const int alpha)
 	moves = vboard_get_moves(board0, search->board);
 	if (moves == 0) {	// pass (2%)
 		if (can_move(search->board.opponent, search->board.player)) { // pass
-			board_pass(&search->board);
+			search_pass(search);
 			bestscore = -search_shallow(search, -(alpha + 1));
-			board_pass(&search->board);
+			search_pass(search);
 		} else { // gameover
 			bestscore = search_solve(search);
 		}
@@ -528,9 +528,9 @@ int NWS_endgame(Search *search, const int alpha)
 	// special cases
 	if (movelist_is_empty(&movelist)) {
 		if (can_move(search->board.opponent, search->board.player)) { // pass
-			board_pass(&search->board);
+			search_pass(search);
 			bestscore = -NWS_endgame(search, -(alpha + 1));
-			board_pass(&search->board);
+			search_pass(search);
 			hash_store_data.data.move[0] = PASS;
 		} else  { // game over
 			bestscore = search_solve(search);
