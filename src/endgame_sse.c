@@ -209,12 +209,11 @@ static int vectorcall board_solve_2(__m128i OP, int alpha, volatile unsigned lon
  *
  * @param OP The board to evaluate.
  * @param alpha Alpha bound.
- * @param sort3 Parity flags.
  * @param n_nodes Node counter.
  * @param empties Packed empty square coordinates.
  * @return The final score, as a disc difference.
  */
-static int vectorcall search_solve_3(__m128i OP, int alpha, int sort3, volatile unsigned long long *n_nodes, __m128i empties)
+static int vectorcall search_solve_3(__m128i OP, int alpha, volatile unsigned long long *n_nodes, __m128i empties)
 {
 	__m128i flipped;
 	int score, bestscore, x, pol;
@@ -223,27 +222,6 @@ static int vectorcall search_solve_3(__m128i OP, int alpha, int sort3, volatile 
 
 	SEARCH_STATS(++statistics.n_search_solve_3);
 	SEARCH_UPDATE_INTERNAL_NODES(*n_nodes);
-
-#ifdef __AVX__
-	empties = _mm_cvtepu8_epi16(empties);	// to ease shuffle
-	(void) sort3;
-#elif defined(__SSSE3__)
-	empties = _mm_unpacklo_epi8(empties, _mm_setzero_si128());
-	(void) sort3;
-#else
-	// parity based move sorting
-	switch (sort3 & 0x03) {
-		case 1:
-			empties = _mm_shufflelo_epi16(empties, 0xd8); // case 1(x2) 2(x1 x3)
-			break;
-		case 2:
-			empties = _mm_shufflelo_epi16(empties, 0xc9); // case 1(x3) 2(x1 x2)
-			break;
-		case 3:
-			empties = _mm_shufflelo_epi16(empties, 0xe1); // swap x2, x3
-			break;
-	}
-#endif
 
 	for (pol = 1; pol >= -1; pol -= 2) {
 		// best move alphabeta search
@@ -288,6 +266,24 @@ static int vectorcall search_solve_3(__m128i OP, int alpha, int sort3, volatile 
  * @return The final score, as a disc difference.
  */
 
+// pick the move for this ply and pass the rest as packed 3 x 16 bit, in search order.
+#ifdef __AVX__
+	#define	EXTRACT_MOVE(X)	_mm_extract_epi8((X), 3)
+	#define	v3hi_empties(empties,sort3)	_mm_cvtepu8_epi16(empties)
+#elif defined(__SSSE3__)
+	#define	EXTRACT_MOVE(X)	((unsigned int) _mm_cvtsi128_si32(X) >> 24)
+	#define	v3hi_empties(empties,sort3)	_mm_unpacklo_epi8((empties), _mm_setzero_si128())
+#else // SSE
+	#define	EXTRACT_MOVE(X)	_mm_extract_epi16((X), 3)
+	static inline __m128i v3hi_empties(__m128i empties, int sort3) {
+		// parity based move sorting
+		// if (sort3 == 3) empties = _mm_shufflelo_epi16(empties, 0xe1); // swap x2, x3
+		if (sort3 & 2)	empties = _mm_shufflelo_epi16(empties, 0xc9); // case 1(x3) 2(x1 x2): x3->x1->x2->x3
+		if (sort3 & 1)	empties = _mm_shufflelo_epi16(empties, 0xd8); // case 1(x2) 2(x1 x3): swap x1, x2
+		return empties;
+	}
+#endif
+
 static int search_solve_4(Search *search, int alpha)
 {
 	__m128i	OP, flipped;
@@ -327,11 +323,6 @@ static int search_solve_4(Search *search, int alpha)
 	};
 	enum { sort3 = 0 };	// sort is done on 4 empties
 	#define	SHUFFLE_EMPTIES(empties,mask)	_mm_shuffle_epi32((empties), 0x39)
-  #ifdef __AVX__
-	#define	EXTRACT_MOVE(X)	_mm_extract_epi8((X), 3)
-  #else
-	#define	EXTRACT_MOVE(X)	((unsigned int) _mm_cvtsi128_si32(X) >> 24)
-  #endif
 #else
 	int sort3;	// for move sorting on 3 empties
 	static const short sort3_shuf[] = {
@@ -349,7 +340,6 @@ static int search_solve_4(Search *search, int alpha)
 		0x0112	// 11: 2(x1 x4) 2(x2 x3)	x4x1x2x3-x3x2x1x4-x2x3x1x4-x1x4x2x3
 	};
 	#define	SHUFFLE_EMPTIES(empties,mask)	_mm_shufflelo_epi16((empties), (mask))
-	#define	EXTRACT_MOVE(X)	_mm_extract_epi16((X), 3)
 #endif
 
 	SEARCH_STATS(++statistics.n_search_solve_4);
@@ -402,33 +392,32 @@ static int search_solve_4(Search *search, int alpha)
 	opp = EXTRACT_O(OP);
 	x1 = EXTRACT_MOVE(empties_series);
 	if ((NEIGHBOUR[x1] & opp) && !TESTZ_FLIP(flipped = mm_Flip(OP, x1))) {
-		bestscore = -search_solve_3(board_flip_next(OP, x1, flipped), -(alpha + 1), sort3, &search->n_nodes, empties_series);
+		bestscore = -search_solve_3(board_flip_next(OP, x1, flipped), ~alpha, &search->n_nodes, v3hi_empties(empties_series, sort3));
 		if (bestscore > alpha) return bestscore;
 	}
 
 	empties_series = SHUFFLE_EMPTIES(empties_series, 0xb4);	// (SSE) x1x2x3x4 -> x2x1x3x4
 	x2 = EXTRACT_MOVE(empties_series);
 	if ((NEIGHBOUR[x2] & opp) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
-		score = -search_solve_3(board_flip_next(OP, x2, flipped), -(alpha + 1), sort3 >> 4, &search->n_nodes, empties_series);
+		score = -search_solve_3(board_flip_next(OP, x2, flipped), ~alpha, &search->n_nodes, v3hi_empties(empties_series, sort3 >> 4));
 		if (score > alpha) return score;
 		else if (score > bestscore) bestscore = score;
 	}
 
-		empties_series = SHUFFLE_EMPTIES(empties_series, 0x6c);	// (SSE) x2x1x3x4 -> x3x1x2x4
+	empties_series = SHUFFLE_EMPTIES(empties_series, 0x6c);	// (SSE) x2x1x3x4 -> x3x1x2x4
 	x3 = EXTRACT_MOVE(empties_series);
 	if ((NEIGHBOUR[x3] & opp) && !TESTZ_FLIP(flipped = mm_Flip(OP, x3))) {
-		score = -search_solve_3(board_flip_next(OP, x3, flipped), -(alpha + 1), sort3 >> 8, &search->n_nodes, empties_series);
+		score = -search_solve_3(board_flip_next(OP, x3, flipped), ~alpha, &search->n_nodes, v3hi_empties(empties_series, sort3 >> 8));
 		if (score > alpha) return score;
 		else if (score > bestscore) bestscore = score;
 	}
 
-		empties_series = SHUFFLE_EMPTIES(empties_series, 0x27);	// (SSE) x3x1x2x4 -> x4x1x2x3
+	empties_series = SHUFFLE_EMPTIES(empties_series, 0x27);	// (SSE) x3x1x2x4 -> x4x1x2x3
 	x4 = EXTRACT_MOVE(empties_series);
 	if ((NEIGHBOUR[x4] & opp) && !TESTZ_FLIP(flipped = mm_Flip(OP, x4))) {
-		score = -search_solve_3(board_flip_next(OP, x4, flipped), -(alpha + 1), sort3 >> 12, &search->n_nodes, empties_series);
+		score = -search_solve_3(board_flip_next(OP, x4, flipped), ~alpha, &search->n_nodes, v3hi_empties(empties_series, sort3 >> 12));
 		if (score > bestscore) bestscore = score;
 	}
-
 	else if (bestscore == -SCORE_INF) {	// no move
 		if (can_move(opp, _mm_cvtsi128_si64(OP))) { // pass
 			board_pass(&search->board);
