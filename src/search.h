@@ -194,8 +194,8 @@ extern int board_score_1(const unsigned long long, const int, const int);
 int NWS_endgame(Search*, const int);
 
 int search_eval_0(Search*);
-int search_eval_1(Search*, const int, int, unsigned long long);
-int search_eval_2(Search*, int, const int, unsigned long long);
+int search_eval_1(Search*, const int, int, bool);
+int search_eval_2(Search*, int, const int, bool);
 int NWS_midgame(Search*, const int, int, struct Node*);
 int PVS_midgame(Search*, const int, const int, int, struct Node*);
 int NWS_shallow(Search*, const int, int, HashTable*);
