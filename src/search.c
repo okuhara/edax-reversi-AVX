@@ -868,13 +868,14 @@ void search_get_movelist(const Search *search, MoveList *movelist)
 {
 	Move *previous = movelist->move;
 	Move *move = movelist->move + 1;
-	const Board * const board = &search->board;
-	unsigned long long moves = get_moves(board->player, board->opponent);
+	vBoard board = load_vboard(search->board);
+	unsigned long long moves = vboard_get_moves(board, search->board);
 	int x;
 
 	movelist->n_moves = 0;
 	foreach_bit(x, moves) {
-		board_get_move(board, x, move);
+		move->x = x;
+		move->flipped = vboard_flip(board, x);
 		move->cost = 0;
 		previous = previous->next = move;
 		++move;

@@ -495,7 +495,6 @@ static int search_shallow(Search *search, const int alpha)
 int NWS_endgame(Search *search, const int alpha)
 {
 	int score, bestscore;
-	HashTable *const hash_table = &search->hash_table;
 	unsigned long long hash_code;
 	// const int beta = alpha + 1;
 	HashData hash_data;
@@ -503,7 +502,7 @@ int NWS_endgame(Search *search, const int alpha)
 	MoveList movelist;
 	Move *move;
 	long long nodes_org;
-	Board board0;
+	vBoard board0;
 	unsigned int parity0;
 
 	if (search->stop) return alpha;
@@ -522,7 +521,7 @@ int NWS_endgame(Search *search, const int alpha)
 
 	// transposition cutoff
 	hash_code = board_get_hash_code(&search->board);
-	if (hash_get(hash_table, &search->board, hash_code, &hash_data) && search_TC_NWS(&hash_data, search->eval.n_empties, NO_SELECTIVITY, alpha, &score)) return score;
+	if (hash_get(&search->hash_table, &search->board, hash_code, &hash_data) && search_TC_NWS(&hash_data, search->eval.n_empties, NO_SELECTIVITY, alpha, &score)) return score;
 
 	search_get_movelist(search, &movelist);
 
@@ -542,7 +541,7 @@ int NWS_endgame(Search *search, const int alpha)
 	} else {
 		movelist_evaluate_fast(&movelist, search, &hash_data);
 
-		board0 = search->board;
+		board0 = load_vboard(search->board);
 		parity0 = search->eval.parity;
 		bestscore = -SCORE_INF;
 		// loop over all moves
@@ -556,7 +555,7 @@ int NWS_endgame(Search *search, const int alpha)
 
 			search->eval.parity = parity0;
 			empty_restore(search->empties, move->x);
-			search->board = board0;
+			store_vboard(search->board, board0);
 			++search->eval.n_empties;
 
 			if (score > bestscore) {
@@ -577,7 +576,7 @@ int NWS_endgame(Search *search, const int alpha)
 	hash_store_data.alpha = alpha;
 	hash_store_data.beta = alpha + 1;
 	hash_store_data.score = bestscore;
-	hash_store(hash_table, &search->board, hash_code, &hash_store_data);
+	hash_store(&search->hash_table, &search->board, hash_code, &hash_store_data);
 
 	if (SQUARE_STATS(1) + 0) {
 		foreach_move(move, movelist)

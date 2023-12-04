@@ -84,7 +84,11 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 
 	P = _mm_cvtsi128_si64(_mm256_castsi256_si128(PP));
 	n_flips  = COUNT_FLIP_X[(unsigned char) (P >> (pos & 0x38))];
+    #ifdef __AVX512VL__
+    	t = _cvtmask32_u32(_mm256_test_epi8_mask(PP, M));
+    #else
 	t = _mm256_movemask_epi8(_mm256_sub_epi8(_mm256_setzero_si256(), _mm256_and_si256(PP, M)));
+    #endif
 	n_flips += COUNT_FLIP_Y[(unsigned char) t];
 	t >>= 16;
   #else
@@ -96,7 +100,11 @@ static inline int board_score_sse_1(__m128i PO, const int beta, const int pos)
 	II = _mm_sad_epu8(_mm_and_si128(PP, M0), _mm_setzero_si128());
 	n_flips  = COUNT_FLIP_X[_mm_extract_epi16(II, 4)];
 	n_flips += COUNT_FLIP_X[_mm_cvtsi128_si32(II)];
+    #ifdef __AVX512VL__
+    	t = _cvtmask16_u32(_mm_test_epi8_mask(PP, M1));
+    #else
 	t = _mm_movemask_epi8(_mm_sub_epi8(_mm_setzero_si128(), _mm_and_si128(PP, M1)));
+    #endif
   #endif
 	n_flips += COUNT_FLIP_Y[t >> 8];
 	n_flips += COUNT_FLIP_Y[(unsigned char) t];
