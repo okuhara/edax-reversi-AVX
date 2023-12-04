@@ -74,11 +74,12 @@ typedef enum Stop {
 } Stop;
 
 /** node type */
-typedef enum {
+enum {
 	PV_NODE,
 	CUT_NODE,
 	ALL_NODE
-} NodeType;
+};
+typedef	unsigned char	NodeType;
 
 #define VERSION 4
 #define RELEASE 4
