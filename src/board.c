@@ -881,6 +881,7 @@ static inline unsigned long long get_full_lines(const unsigned long long line, c
 }
 
 #ifdef HAS_CPU_64
+
 static unsigned long long get_full_lines_h(unsigned long long full)
 {
 	full &= full >> 1;
@@ -888,6 +889,15 @@ static unsigned long long get_full_lines_h(unsigned long long full)
 	full &= full >> 4;
 	return (full & 0x0101010101010101) * 0xff;
 }
+
+static unsigned long long get_full_lines_v(unsigned long long full)
+{
+	full &= (full >> 8) | (full << 56);	// ror 8
+	full &= (full >> 16) | (full << 48);	// ror 16
+	full &= (full >> 32) | (full << 32);	// ror 32
+	return full;
+}
+
 #else
 static unsigned int get_full_lines_h_32(unsigned int full)
 {
@@ -901,21 +911,17 @@ static unsigned long long get_full_lines_h(unsigned long long full)
 {
 	return ((unsigned long long) get_full_lines_h_32(full >> 32) << 32) | get_full_lines_h_32(full);
 }
-#endif
 
 static unsigned long long get_full_lines_v(unsigned long long full)
 {
-#ifdef _MSC_VER
-	full &= _rotr64(full, 8);
-	full &= _rotr64(full, 16);
-	full &= _rotr64(full, 32);
-#else
-	full &= (full >> 8) | (full << 56);	// ror 8
-	full &= (full >> 16) | (full << 48);	// ror 16
-	full &= (full >> 32) | (full << 32);	// ror 32
-#endif
+	unsigned int	t = (unsigned int) full & (unsigned int)(full >> 32);
+	t &= (t >> 16) | (t << 16);	// ror 16
+	t &= (t >> 8) | (t << 24);	// ror 8
+	full = t | ((unsigned long long) t << 32);
 	return full;
 }
+
+#endif
 
 /**
  * @brief Estimate the stability.

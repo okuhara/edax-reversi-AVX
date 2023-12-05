@@ -1155,7 +1155,7 @@ bool search_SC_PVS(Search *search, volatile int *alpha, volatile int *beta, int 
 }
 
 /**
- * @brief Stability Cutoff (TC).
+ * @brief Stability Cutoff (SC).
  *
  * @param search Current position.
  * @param alpha Alpha bound.

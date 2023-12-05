@@ -586,11 +586,14 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	// stability cutoff
 	if (search_SC_NWS(search, alpha, &score)) return score;
 
-	// transposition cutoff
 	hash_code = board_get_hash_code(&search->board);
-	if ((hash_get(&search->hash_table, &search->board, hash_code, &hash_data) || hash_get(&search->pv_table, &search->board, hash_code, &hash_data)) && search_TC_NWS(&hash_data, depth, search->selectivity, alpha, &score)) return score;
+	hash_prefetch(&search->hash_table, hash_code);
+	hash_prefetch(&search->pv_table, hash_code);
 
 	search_get_movelist(search, &movelist);
+
+	// transposition cutoff
+	if ((hash_get(&search->hash_table, &search->board, hash_code, &hash_data) || hash_get(&search->pv_table, &search->board, hash_code, &hash_data)) && search_TC_NWS(&hash_data, depth, search->selectivity, alpha, &score)) return score;
 
 	if (movelist_is_empty(&movelist)) { // no moves ?
 		node_init(&node, search, alpha, beta, depth, movelist.n_moves, parent);
@@ -601,6 +604,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		} else { // game-over !
 			node.bestscore = search_solve(search);
 		}
+
 	} else {
 		// probcut
 		if (search_probcut(search, alpha, depth, parent, &score)) return score;
