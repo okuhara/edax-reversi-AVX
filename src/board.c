@@ -980,7 +980,7 @@ int get_corner_stability(const unsigned long long P)
   	unsigned int P2187 = (P >> 48) | (P << 16);	// ror 48
 	unsigned int stable = 0x00818100 & P2187;
 	stable |= ((((stable * 5) >> 1) & 0x00424200) | (stable << 8) | (stable >> 8)) & P2187;	// 1-8 alias does not matter since corner is stable anyway
-	return bit_count(stable);
+	return bit_count_32(stable);
 
 #else	// kindergarten
 	static const char n_stable_h2a2h1g1b1a1[64] = {

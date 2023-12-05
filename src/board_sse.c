@@ -560,7 +560,7 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
  * @return the number of stable discs on the edges.
  *
  */
-#if defined(__aarch64__) || defined(_M_ARM64)	// for vaddvq
+  #if defined(__aarch64__) || defined(_M_ARM64)	// for vaddvq
 int get_edge_stability(const unsigned long long P, const unsigned long long O)
 {
 	const uint64x2_t shiftv = { 0x0003000200010000, 0x0007000600050004 };
@@ -572,7 +572,7 @@ int get_edge_stability(const unsigned long long P, const unsigned long long O)
 	return vaddv_u8(vcnt_u8(packedstable));
 }
 
-#elif defined(__ARM_NEON__) // Neon kindergarten
+  #elif defined(__ARM_NEON__) // Neon kindergarten
 int get_edge_stability(const unsigned long long P, const unsigned long long O)
 {
 	const uint64x2_t kMul  = { 0x1020408001020408, 0x1020408001020408 };
@@ -591,7 +591,7 @@ int get_edge_stability(const unsigned long long P, const unsigned long long O)
 	return vget_lane_u32(vpaddl_u16(vpaddl_u8(vcnt_u8(packedstable))), 0);
 }
 
-#elif defined(hasSSE2) || defined(USE_MSVC_X86)
+  #elif defined(hasSSE2)
 int get_edge_stability(const unsigned long long P, const unsigned long long O)
 {
 	__m128i	P0 = _mm_cvtsi64_si128(P);
@@ -602,7 +602,7 @@ int get_edge_stability(const unsigned long long P, const unsigned long long O)
 	packedstable |= edge_stability[_mm_movemask_epi8(_mm_slli_epi64(PO, 7))] << 16 | edge_stability[_mm_movemask_epi8(PO)] << 24;
 	return bit_count_32(packedstable & 0xffff7e7e);
 }
-#endif
+  #endif
 
 #if defined(hasSSE2) || defined(hasNeon) || defined(ANDROID) || defined(USE_MSVC_X86)
 /**
@@ -625,7 +625,7 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 	unsigned long long stable;
 	__m128i	l81, l79, l8, v2_stable, v2_old_stable, v2_P_central;
 	__m256i	lr79, v4_disc, v4_stable, v4_full;
-	const __m128i kff  = _mm_set1_epi8(0xff);
+	const __m128i kff  = _mm_set1_epi8(-1);
 	const __m256i shift1897 = _mm256_set_epi64x(7, 9, 8, 1);
     #if 0 // PCMPEQQ
 	static const V4DI m791 = {{ 0x0402010000804020, 0x2040800000010204, 0x0804020180402010, 0x1020408001020408 }};	// V8SI
