@@ -18,10 +18,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-/** Board : board representation */
-typedef struct Board {
-	unsigned long long player, opponent;     /**< bitboard representation */
-} Board;
+// struct Board: moved to bit.h
 
 struct Move;
 struct Random;

@@ -136,8 +136,14 @@ extern const unsigned long long NEIGHBOUR[];
 extern bool	hasSSE2;
 #endif
 
+/** Board : board representation */
+typedef struct Board {
+	unsigned long long player, opponent;     /**< bitboard representation */
+} Board;
+
 typedef union {
 	unsigned long long	ull[2];
+	Board	board;	// for vboard optimization in search
   #ifdef __ARM_NEON
 	uint64x2_t	v2;
   #elif defined(hasSSE2) || defined(USE_MSVC_X86)
@@ -162,6 +168,16 @@ typedef union {
 	__m64	v1[4];
   #endif
 } V4DI;
+
+typedef union {
+	unsigned long long	ull[8];
+  #ifdef __AVX512VL__
+	__m512i	v8;
+  #endif
+  #ifdef __AVX2__
+	__m256i	v4[2];
+  #endif
+} V8DI;
 
 /* Define function attributes directive when available */
 
