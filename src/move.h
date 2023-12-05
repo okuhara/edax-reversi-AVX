@@ -27,7 +27,7 @@ typedef struct Move {
 
 /** (simple) list of a legal moves */
 typedef struct MoveList {
-	Move move[MAX_MOVE + 2];   /**< array of legal moves */
+	Move move[MAX_MOVE + 1];   /**< array of legal moves */
 	int n_moves;
 } MoveList;
 

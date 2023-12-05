@@ -15,7 +15,7 @@
 #define MAX_THREADS 64
 
 /** maximal number of moves */
-#define MAX_MOVE 32
+#define MAX_MOVE 33	// https://eukaryote.hateblo.jp/entry/2023/05/23/145945
 
 /** size of the board */
 #define BOARD_SIZE 64
