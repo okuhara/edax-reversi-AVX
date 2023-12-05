@@ -132,7 +132,7 @@ int search_eval_1(Search *search, const int alpha, int beta, bool pass1)
 	Eval Ev;
 	int x, score, bestscore, betathres;
 	unsigned long long flipped;
-	unsigned long long moves = get_moves(search->board.player, search->board.opponent);
+	unsigned long long moves = board_get_moves(&search->board);
 
 	SEARCH_STATS(++statistics.n_search_eval_1);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);

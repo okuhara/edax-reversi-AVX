@@ -49,7 +49,7 @@ inline bool board_equal(const Board *b1, const Board *b2)
 #endif
 
 int board_count_last_flips(const Board*, const int);
-unsigned long long board_get_move(const Board*, const int, struct Move*);
+unsigned long long board_get_move_flip(const Board*, const int, struct Move*);
 bool board_check_move(const Board*, struct Move*);
 void board_swap_players(Board*);
 void board_update(Board*, const struct Move*);
@@ -206,9 +206,11 @@ extern unsigned long long A1_A8[256];
 #if defined(__AVX2__) && (vBoard == __m128i) && (defined(_MSC_VER) || defined(__linux__))
 	unsigned long long vectorcall get_moves_avx(__m256i PP, __m256i OO);
 	#define	get_moves(P,O)	get_moves_avx(_mm256_broadcastq_epi64(_mm_cvtsi64_si128(P)), _mm256_broadcastq_epi64(_mm_cvtsi64_si128(O)))
+	#define	board_get_moves(board)	get_moves_avx(_mm256_broadcastq_epi64(*(__m128i *) &(board)->player), _mm256_broadcastq_epi64(*(__m128i *) &(board)->opponent))
 	#define	vboard_get_moves(vboard,board)	get_moves_avx(_mm256_broadcastq_epi64(vboard), _mm256_permute4x64_epi64(_mm256_castsi128_si256(vboard), 0x55))
 #else
 	unsigned long long get_moves(const unsigned long long, const unsigned long long);
+	#define	board_get_moves(board)	get_moves((board)->player, (board)->opponent)
 	#define	vboard_get_moves(vboard,board)	get_moves((board).player, (board).opponent)
 #endif
 

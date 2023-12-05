@@ -197,7 +197,7 @@ static bool position_is_ok(const Position *position)
 		} else {
 			if (/*l->move < A1 ||*/ l->move > H8
 			 || board_is_occupied(&board, l->move)
-			 || board_get_move(&board, l->move, &move) == 0) {
+			 || board_get_move_flip(&board, l->move, &move) == 0) {
 				warn("link %s is wrong\n", move_to_string(l->move, WHITE, s));
 				position_print(position, &position->board, stdout);
 				return false;
@@ -222,7 +222,7 @@ static bool position_is_ok(const Position *position)
 		}
 	} else if (/*l->move < A1 ||*/ l->move > H8
 		 || board_is_occupied(&board, l->move)
-		 || board_get_move(&board, l->move, &move) == 0) {
+		 || board_get_move_flip(&board, l->move, &move) == 0) {
 			warn("leaf %s is wrong\n", move_to_string(l->move, WHITE, s));
 			position_print(position, &position->board, stdout);
 			return false;
@@ -495,14 +495,14 @@ static int position_get_moves(const Position *position, const Board *board, Move
 		if (board_equal(&sym, board)) {
 			for (i = 0; i < position->n_link; ++i) {
 				x = symetry(position->link[i].move, s);
-				board_get_move(board, x, move);
+				board_get_move_flip(board, x, move);
 				move->score = position->link[i].score;
 				previous = previous->next = move;
 				++move;
 			}
 			x = symetry(position->leaf.move, s);
 			if (x != NOMOVE) {
-				board_get_move(board, x, move);
+				board_get_move_flip(board, x, move);
 				move->score = position->leaf.score;
 				previous = previous->next = move;
 				++move;
@@ -2293,7 +2293,7 @@ void book_add_game(Book *book, const Game *game)
 			stack[n_moves++] = MOVE_PASS;
 			board_pass(&board);
 		}
-		if (!board_is_occupied(&board, game->move[i]) && board_get_move(&board, game->move[i], &stack[n_moves])) {
+		if (!board_is_occupied(&board, game->move[i]) && board_get_move_flip(&board, game->move[i], &stack[n_moves])) {
 			board_update(&board, stack + n_moves);
 			++n_moves;
 		} else {
@@ -2373,7 +2373,7 @@ void book_check_game(Book *book, MoveHash *hash, const Game *game, BookCheckGame
 			stack[n_moves++] = MOVE_PASS;
 			board_pass(&board);
 		}
-		if (!board_is_occupied(&board, game->move[i]) && board_get_move(&board, game->move[i], &stack[n_moves])) {
+		if (!board_is_occupied(&board, game->move[i]) && board_get_move_flip(&board, game->move[i], &stack[n_moves])) {
 			board_update(&board, stack + n_moves);
 			++n_moves;
 		} else {

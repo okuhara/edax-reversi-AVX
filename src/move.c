@@ -172,23 +172,22 @@ void tune_move_evaluate(Search *search, const char *filename, const char *w_name
 int movelist_get_moves(MoveList *movelist, const Board *board)
 {
 	Move *previous = movelist->move;
-	Move *move = movelist->move + 1;
-	unsigned long long moves = get_moves(board->player, board->opponent);
-	int x;
+	Move *move;
+	unsigned long long moves = board_get_moves(board);
+	int x, n;
 
-	movelist->n_moves = 0;
+	n = 0;
 	foreach_bit (x, moves) {
-		board_get_move(board, x, move);
-		move->score = -SCORE_INF;
-		previous = previous->next = move;
-		++move;
-		++(movelist->n_moves);
+		move = previous + 1;
+		previous->next = move;
+		board_get_move_flip(board, x, move);
+		// move->score = -SCORE_INF;	// -INT_MAX?
+		previous = move;
+		++n;
 	}
 	previous->next = NULL;
-
-	assert(movelist->n_moves == bit_count(moves));
-
-	return movelist->n_moves;
+	movelist->n_moves = n;
+	return n;
 }
 
 /**

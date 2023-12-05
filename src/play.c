@@ -298,7 +298,7 @@ void play_go(Play *play, const bool update)
 				
 		play->result = *search->result;
 		play->state = IS_WAITING;
-		if (!board_get_move(&play->board, search->result->move, &move) && move.x != PASS) {
+		if (!board_get_move_flip(&play->board, search->result->move, &move) && move.x != PASS) {
 			fatal_error("bad move found: %s\n", move_to_string(move.x, play->player, s_move));
 		}
 		if (options.verbosity) {
@@ -335,7 +335,7 @@ void play_go(Play *play, const bool update)
 		search_run(search);
 		play->result = *search->result;
 		play->state = IS_WAITING;
-		if (!board_get_move(&play->board, search->result->move, &move) && move.x != PASS) {
+		if (!board_get_move_flip(&play->board, search->result->move, &move) && move.x != PASS) {
 			fatal_error("bad move found: %s\n", move_to_string(move.x, play->player, s_move));
 		}
 		if (options.verbosity) {
@@ -462,7 +462,7 @@ void* play_ponder_run(void *v)
 
 		// guess opponent move and start the search
 		if (play->state == IS_PONDERING && move.x != NOMOVE) {
-			board_get_move(&board, move.x, &move);
+			board_get_move_flip(&board, move.x, &move);
 
 			board_update(&board, &move);
 				play->ponder.board = board;
@@ -648,7 +648,7 @@ bool play_move(Play *play, int x)
 	Move move;
 
 	move = MOVE_INIT;
-	board_get_move(&play->board, x, &move);
+	board_get_move_flip(&play->board, x, &move);
 	if (board_check_move(&play->board, &move)) {
 		play_update(play, &move);
 		return true;
@@ -1176,7 +1176,7 @@ bool play_force_go(Play *play, Move *move)
 				board_symetry(play->force.real + play->force.i_move, s, &sym);
 				if (board_equal(&play->board, &sym)) {
 					x = symetry(play->force.move[play->force.i_move].x, s);
-					board_get_move(&play->board, x, move);
+					board_get_move_flip(&play->board, x, move);
 					return true;
 				}
 			}
@@ -1203,7 +1203,7 @@ void play_symetry(Play *play, const int sym)
 	board = play->initial_board;
 	for (i = 0; i  < play->n_game; ++i) {
 		x = symetry(play->game[i].x, sym);
-		board_get_move(&board, x, &move);
+		board_get_move_flip(&board, x, &move);
 		board_update(&board, &move);
 		play->game[i] = move;
 	}
