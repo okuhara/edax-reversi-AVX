@@ -779,6 +779,24 @@ int get_stability_sse(const unsigned long long P, const unsigned long long O)
 		return 0;
 
 	// now compute the other stable discs (ie discs touching another stable disc in each flipping direction).
+    #if defined(hasSSE2) && !defined(HAS_CPU_64)	// 32bit SSE
+	__m128i v_stable = _mm_cvtsi64_si128(stable), v_old_stable, stable_vh, stable_d79;
+	do {
+		v_old_stable = v_stable;
+		stable_vh = _mm_set_epi32(full_v >> 32, full_v, full_h >> 32, full_h);
+		stable_vh = _mm_or_si128(stable_vh, _mm_unpacklo_epi64(_mm_srli_epi64(v_stable, 1), _mm_srli_epi64(v_stable, 8)));
+		stable_vh = _mm_or_si128(stable_vh, _mm_unpacklo_epi64(_mm_slli_epi64(v_stable, 1), _mm_slli_epi64(v_stable, 8)));
+		stable_d79 = _mm_set_epi32(full_d7 >> 32, full_d7, full_d9 >> 32, full_d9);
+		stable_d79 = _mm_or_si128(stable_d79, _mm_unpacklo_epi64(_mm_srli_epi64(v_stable, 9), _mm_srli_epi64(v_stable, 7)));
+		stable_d79 = _mm_or_si128(stable_d79, _mm_unpacklo_epi64(_mm_slli_epi64(v_stable, 9), _mm_slli_epi64(v_stable, 7)));
+		v_stable = _mm_and_si128(stable_vh, stable_d79);
+		v_stable = _mm_and_si128(v_stable, _mm_unpackhi_epi64(v_stable, v_stable));
+		v_stable = _mm_or_si128(v_old_stable, _mm_and_si128(v_stable, _mm_loadl_epi64((__m128i *) &P_central)));
+	} while (_mm_movemask_epi8(_mm_cmpeq_epi8(v_stable, v_old_stable)) != 0xffff);	// (44%)
+
+	return bit_count_si64(v_stable);
+
+    #else
 	do {
 		old_stable = stable;
 		stable_h = ((stable >> 1) | (stable << 1) | full_h);
@@ -789,6 +807,7 @@ int get_stability_sse(const unsigned long long P, const unsigned long long O)
 	} while (stable != old_stable);
 
 	return bit_count(stable);
+    #endif
 }
 
   #endif // __AVX2__

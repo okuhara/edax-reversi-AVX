@@ -95,19 +95,21 @@ extern const unsigned long long NEIGHBOUR[];
 	*/
 	#ifdef _MSC_VER
 		#if defined(_M_ARM) || defined(_M_ARM64)
-			#define bit_count(x)	_CountOneBits64(x)
-			#define bit_count_32(x)	_CountOneBits(x)
+			#define	bit_count(x)	_CountOneBits64(x)
+			#define	bit_count_32(x)	_CountOneBits(x)
 		#elif defined(_M_X64)
 			#define	bit_count(x)	((int) __popcnt64(x))
 			#define	bit_count_32(x)	__popcnt(x)
 		#else
-			#define bit_count(x)	(__popcnt((unsigned int) (x)) + __popcnt((unsigned int) ((x) >> 32)))
+			#define	bit_count(x)	(__popcnt((unsigned int) (x)) + __popcnt((unsigned int) ((x) >> 32)))
 			#define	bit_count_32(x)	__popcnt(x)
 		#endif
 	#else
-		#define bit_count(x)	__builtin_popcountll(x)
-		#define bit_count_32(x)	__builtin_popcount(x)
+		#define	bit_count(x)	__builtin_popcountll(x)
+		#define	bit_count_32(x)	__builtin_popcount(x)
 	#endif
+	#define bit_count_si64(x)	bit_count(_mm_cvtsi128_si64(x))
+
 #else
 	extern unsigned char PopCnt16[1 << 16];
 	static inline int bit_count(unsigned long long b) {
@@ -118,6 +120,7 @@ extern const unsigned long long NEIGHBOUR[];
 		union { unsigned int bb; unsigned short u[2]; } v = { b };
 		return (unsigned char)(PopCnt16[v.u[0]] + PopCnt16[v.u[1]]);
 	}
+	#define bit_count_si64(x)	((unsigned char)(PopCnt16[_mm_extract_epi16((x), 0)] + PopCnt16[_mm_extract_epi16((x), 1)] + PopCnt16[_mm_extract_epi16((x), 2)] + PopCnt16[_mm_extract_epi16((x), 3)]))
 #endif
 
 #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
