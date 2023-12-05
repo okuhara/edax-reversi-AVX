@@ -37,6 +37,17 @@ int board_unique(const Board*, Board*);
 void board_check(const Board*);
 void board_rand(Board*, int, struct Random*);
 
+// Compare two board for equality
+#ifdef __AVX2__
+inline bool board_equal(const Board *b1, const Board *b2)
+{
+	__m128i b = _mm_xor_si128(*(__m128i *) b1, *(__m128i *) b2);
+	return _mm_testz_si128(b, b);
+}
+#else
+#define	board_equal(b1,b2)	((b1)->player == (b2)->player && (b1)->opponent == (b2)->opponent)
+#endif
+
 int board_count_last_flips(const Board*, const int);
 unsigned long long board_get_move(const Board*, const int, struct Move*);
 bool board_check_move(const Board*, struct Move*);
