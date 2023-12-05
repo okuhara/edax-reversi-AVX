@@ -541,8 +541,9 @@ int NWS_endgame(Search *search, const int alpha)
 	search_get_movelist(search, (MoveList *) &movelist);
 
 	// transposition cutoff
-	if (hash_get(&search->hash_table, &search->board, hash_code, &hash_data.data) && search_TC_NWS(&hash_data.data, search->eval.n_empties, NO_SELECTIVITY, alpha, &score))
-		return score;
+	if (hash_get(&search->hash_table, &search->board, hash_code, &hash_data.data))
+		if (search_TC_NWS(&hash_data.data, search->eval.n_empties, NO_SELECTIVITY, alpha, &score))	// (6%)
+			return score;
 
 	nodes_org = search->n_nodes;
 
@@ -560,29 +561,28 @@ int NWS_endgame(Search *search, const int alpha)
 	} else {
 		movelist_evaluate_fast((MoveList *) &movelist, search, &hash_data.data);
 
-		board0 = load_vboard(search->board);
+		board0 = load_rboard(search->board);
 		parity0 = search->eval.parity;
 		bestscore = -SCORE_INF;
 		// loop over all moves
-		foreach_best_move(move, movelist) {
-			search_swap_parity(search, move->x);
+		move = &movelist.move[0];
+		--search->eval.n_empties;	// for next move
+		while ((move = move_next_best(move))) {	// (76%)
+			search->eval.parity = parity0 ^ QUADRANT_ID[move->x];
 			empty_remove(search->empties, move->x);
-			board_update(&search->board, move);
-			--search->eval.n_empties;
-
-			score = -NWS_endgame(search, -(alpha + 1));
-
-			search->eval.parity = parity0;
+			rboard_update(&search->board, board0, move);
+			score = -NWS_endgame(search, ~alpha);
 			empty_restore(search->empties, move->x);
-			store_vboard(search->board, board0);
-			++search->eval.n_empties;
 
-			if (score > bestscore) {
+			if (score > bestscore) {	// (63%)
 				bestscore = score;
 				hash_data.data.move[0] = move->x;
-				if (bestscore > alpha) break;
+				if (bestscore > alpha) break;	// (39%)
 			}
 		}
+		++search->eval.n_empties;
+		store_rboard(search->board, board0);
+		search->eval.parity = parity0;
 	}
 
 	if (search->stop)
