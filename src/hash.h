@@ -67,7 +67,7 @@ typedef struct HashLock {
 /** HashTable: position storage */
 typedef struct HashTable {
 	void *memory;                 /*!< allocated memory */
-	Hash *hash;  				  /*!< hash table */
+	Hash *hash;                   /*!< hash table */
 	HashLock *lock;               /*!< table with locks */
 	unsigned long long hash_mask; /*!< a bit mask for hash entries */
 	unsigned int lock_mask;       /*!< a bit mask for lock entries */

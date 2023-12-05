@@ -12,7 +12,7 @@
  *   -verbose [n]          set Edax verbosity (default 1).
  *   -noise [n]            start displaying Edax search result from this depth\n  (default 5).
  *   -witdh [n]            display edax search results using <width> characters\n  (default 80).
- *   -hash-table-size [n]  set hashtable size (default 18 bits).
+ *   -hash-table-size [n]  set hashtable size (default 21 bits).
  *   -n-tasks [n]          control the number of parallel threads used in searching\n  (default 1).
  *   -l|level [n]          search using limited depth (default 21).
  *   -t|game-time <time>   search using limited time per game.
@@ -173,7 +173,7 @@ void help_options(void)
 		"  verbose [n]          set Edax verbosity (default 1).\n"
 		"  noise [n]            start displaying Edax search result from this depth\n  (default 5).\n"
 		"  witdh [n]            display edax search results using <width> characters\n  (default 80).\n"
-		"  hash-table-size [n]  set hashtable size (default 18 bits).\n"
+		"  hash-table-size [n]  set hashtable size (default 21 bits).\n"
 		"  n-tasks [n]          control the number of parallel threads used in searching\n  (default 1).\n"
 		"  l|level [n]          search using limited depth (default 21).\n"
 		"  t|game-time <time>   search using limited time per game.\n"

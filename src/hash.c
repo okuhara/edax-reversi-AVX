@@ -87,7 +87,7 @@ void hash_init(HashTable *hash_table, const unsigned long long size)
 {
 	int i, n_way;
 
-	for (n_way = 1; n_way < HASH_N_WAY; n_way <<= 1);
+	for (n_way = 1; n_way < HASH_N_WAY; n_way <<= 1);	// round up HASH_N_WAY to 2 ^ n
 
 	assert(hash_table != NULL);
 	assert((n_way & -n_way) == n_way);
@@ -100,8 +100,8 @@ void hash_init(HashTable *hash_table, const unsigned long long size)
 	}
 
 	if (HASH_ALIGNED) {
-		size_t alignment = n_way * sizeof (Hash);
-		alignment = (alignment & -alignment) - 1;	// LS1B - 1
+		size_t alignment = n_way * sizeof (Hash);	// (4 * 24)
+		alignment = (alignment & -alignment) - 1;	// LS1B - 1 (0x1f)
 		hash_table->hash = (Hash*) (((size_t) hash_table->memory + alignment) & ~alignment);
 		hash_table->hash_mask = size - n_way;
 	} else {
@@ -127,13 +127,43 @@ void hash_init(HashTable *hash_table, const unsigned long long size)
  */
 void hash_cleanup(HashTable *hash_table)
 {
-	unsigned int i, imax = hash_table->hash_mask + HASH_N_WAY;
+	unsigned int i = 0, imax = hash_table->hash_mask + HASH_N_WAY;
 	Hash *pHash = hash_table->hash;
 
 	assert(hash_table != NULL && hash_table->hash != NULL);
 
 	info("< cleaning hashtable >\n");
-	for (i = 0; i <= imax; ++i, ++pHash) {
+
+  #if defined(hasSSE2) || defined(USE_MSVC_X86)
+	if (hasSSE2 && (sizeof(Hash) == 24) && (((size_t) pHash & 0x1f) == 0) && (imax >= 7)) {
+		for (; i < 4; ++i, ++pHash) {
+			HASH_COLLISIONS(pHash->key = 0;)
+			pHash->board.player = pHash->board.opponent = 0;
+			pHash->data = HASH_DATA_INIT;
+		}
+    #ifdef __AVX__
+		__m256i d0 = _mm256_load_si256((__m256i *)(pHash - 4));
+		__m256i d1 = _mm256_load_si256((__m256i *)(pHash - 4) + 1);
+		__m256i d2 = _mm256_load_si256((__m256i *)(pHash - 4) + 2);
+		for (i = 4; i <= imax - 3; i += 4, pHash += 4) {
+			_mm256_stream_si256((__m256i *) pHash, d0);
+			_mm256_stream_si256((__m256i *) pHash + 1, d1);
+			_mm256_stream_si256((__m256i *) pHash + 2, d2);
+		}
+    #else
+		__m128i d0 = _mm_load_si128((__m128i *)(pHash - 4));
+		__m128i d1 = _mm_load_si128((__m128i *)(pHash - 4) + 1);
+		__m128i d2 = _mm_load_si128((__m128i *)(pHash - 4) + 2);
+		for (i = 4; i <= imax - 1; i += 2, pHash += 2) {
+			_mm_stream_si128((__m128i *) pHash, d0);
+			_mm_stream_si128((__m128i *) pHash + 1, d1);
+			_mm_stream_si128((__m128i *) pHash + 2, d2);
+		}
+    #endif
+		_mm_sfence();
+	}
+  #endif
+	for (; i <= imax; ++i, ++pHash) {
 		HASH_COLLISIONS(pHash->key = 0;)
 		pHash->board.player = pHash->board.opponent = 0; 
 		pHash->data = HASH_DATA_INIT;
