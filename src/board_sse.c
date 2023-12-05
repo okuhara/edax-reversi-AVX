@@ -501,7 +501,7 @@ unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
  * @return a bitboard with (some of) player's stable discs.
  *
  */
-#if defined(__aarch64__) || defined(_M_ARM64)
+  #if defined(__aarch64__) || defined(_M_ARM64)	// for vaddvq
 unsigned long long get_stable_edge(unsigned long long P, unsigned long long O)
 {	// compute the exact stable edges (from precomputed tables)
 	// const int16x8_t shiftv = { 0, 1, 2, 3, 4, 5, 6, 7 };	// error on MSVC
@@ -514,7 +514,7 @@ unsigned long long get_stable_edge(unsigned long long P, unsigned long long O)
 	    |  unpackA1A8(a1a8) | unpackH1H8(h1h8);
 }
 
-#elif defined(__ARM_NEON__) // Neon kindergarten
+  #elif defined(__ARM_NEON__) // Neon kindergarten
 unsigned long long get_stable_edge_sse(unsigned long long P, unsigned long long O)
 {	// compute the exact stable edges (from precomputed tables)
 	const uint64x2_t kMul  = { 0x1020408001020408, 0x1020408001020408 };
@@ -533,7 +533,7 @@ unsigned long long get_stable_edge_sse(unsigned long long P, unsigned long long 
 	    |  unpackA1A8(a1a8) | unpackH1H8(h1h8);
 }
 
-#elif defined(__x86_64__) || defined(_M_X64)
+  #elif defined(hasSSE2)
 unsigned long long get_stable_edge(const unsigned long long P, const unsigned long long O)
 {
 	// compute the exact stable edges (from precomputed tables)
@@ -553,7 +553,7 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
 
 	return stable_edge;
 }
-#endif // __aarch64__/__x86_64__/_M_X64
+  #endif
 
 /**
  * @brief SSE optimized get_edge_stability
