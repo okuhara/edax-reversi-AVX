@@ -414,16 +414,16 @@ void engine_free(void *v)
 
 void feed_all_hash_table(Search *search, Board *board, const int depth, const int selectivity, const int lower, const int upper, const int move)
 {
-	HashStoreData hash_store_data;
+	HashStoreData hash_data;
 	const unsigned long long hash_code = board_get_hash_code(board);
 
-	hash_store_data.data.wl.c.depth = depth;
-	hash_store_data.data.wl.c.selectivity = selectivity;
-	hash_store_data.data.move[0] = move;
-	hash_store_data.data.lower = lower;
-	hash_store_data.data.upper = upper;
-	hash_feed(&search->hash_table, board, hash_code, &hash_store_data);
-	hash_feed(&search->pv_table, board, hash_code, &hash_store_data);
+	hash_data.data.wl.c.depth = depth;
+	hash_data.data.wl.c.selectivity = selectivity;
+	hash_data.data.move[0] = move;
+	hash_data.data.lower = lower;
+	hash_data.data.upper = upper;
+	hash_feed(&search->hash_table, board, hash_code, &hash_data);
+	hash_feed(&search->pv_table, board, hash_code, &hash_data);
 }
 
 /**
