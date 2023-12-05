@@ -625,7 +625,7 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 	unsigned long long stable;
 	__m128i	l81, l79, l8, v2_stable, v2_old_stable, v2_P_central;
 	__m256i	lr79, v4_disc, v4_stable, v4_full;
-	const __m128i kff = _mm_set1_epi64x(0xffffffffffffffff);;
+	const __m128i kff  = _mm_set1_epi8(0xff);
 	const __m256i shift1897 = _mm256_set_epi64x(7, 9, 8, 1);
     #if 0 // PCMPEQQ
 	static const V4DI m791 = {{ 0x0402010000804020, 0x2040800000010204, 0x0804020180402010, 0x1020408001020408 }};	// V8SI
@@ -734,7 +734,7 @@ int get_stability_sse(const unsigned long long P, const unsigned long long O)
 
     #elif 1	// 1 CPU, 3 SSE
 	__m128i l01, l79, r79;	// full lines
-	const __m128i kff  = _mm_set1_epi64x(0xffffffffffffffff);
+	const __m128i kff  = _mm_set1_epi8(0xff);
 	const __m128i edge = _mm_set1_epi64x(0xff818181818181ff);
 	const __m128i e791 = _mm_set1_epi64x(0x00003f3f3f3f3f3f);
 	const __m128i e792 = _mm_set1_epi64x(0x0f0f0f0ff0f0f0f0);
