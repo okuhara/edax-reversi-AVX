@@ -30,8 +30,10 @@
 #endif
 
 #ifdef __AVX__
-	static inline int vectorcall TESTZ_FLIP(__m128i X) { return _mm_testz_si128(X, X); }
+	#define	vflip	__m256i
+	static inline int vectorcall TESTZ_FLIP(__m256i X) { return _mm256_testz_si256(X, X); }
 #else
+	#define	vflip	__m128i
 	#if defined(__x86_64__) || defined(_M_X64)
 		#define TESTZ_FLIP(X)	(!_mm_cvtsi128_si64(X))
 	#else
@@ -51,9 +53,9 @@ extern const V4DI mask_dvhd[64];
  * @param flipped flipped returned from mm_Flip.
  * @return resulting board.
  */
-static inline __m128i vectorcall board_flip_next(__m128i OP, int x, __m128i flipped)
+static inline __m128i vectorcall board_flip_next(__m128i OP, int x, vflip flipped)
 {
-	OP = _mm_xor_si128(OP, _mm_or_si128(flipped, _mm_loadl_epi64((__m128i *) &X_TO_BIT[x])));
+	OP = _mm_xor_si128(OP, _mm_or_si128(reduce_vflip(flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[x])));
 	return _mm_shuffle_epi32(OP, SWAP64);
 }
 
@@ -160,7 +162,8 @@ int board_score_1(const unsigned long long player, const int beta, const int x)
  */
 static int vectorcall board_solve_2(__m128i OP, int alpha, volatile unsigned long long *n_nodes, __m128i empties)
 {
-	__m128i flipped, PO;
+	__m128i PO;
+	vflip	flipped;
 	int score, bestscore, nodes;
 	int x1 = _mm_extract_epi16(empties, 1);
 	int x2 = _mm_extract_epi16(empties, 0);
@@ -171,34 +174,34 @@ static int vectorcall board_solve_2(__m128i OP, int alpha, volatile unsigned lon
 
 	opponent = EXTRACT_O(OP);
 	if ((NEIGHBOUR[x1] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x1))) {
-		bestscore = board_score_sse_1(_mm_xor_si128(OP, flipped), alpha, x2);
+		bestscore = board_score_sse_1(_mm_xor_si128(OP, reduce_vflip(flipped)), alpha, x2);
 
 		if ((bestscore > alpha) && (NEIGHBOUR[x2] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
-			score = board_score_sse_1(_mm_xor_si128(OP, flipped), alpha, x1);
+			score = board_score_sse_1(_mm_xor_si128(OP, reduce_vflip(flipped)), alpha, x1);
 			if (score < bestscore)
 				bestscore = score;
 			nodes = 3;
 		} else	nodes = 2;
 
 	} else if ((NEIGHBOUR[x2] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x2))) {
-		bestscore = board_score_sse_1(_mm_xor_si128(OP, flipped), alpha, x1);
+		bestscore = board_score_sse_1(_mm_xor_si128(OP, reduce_vflip(flipped)), alpha, x1);
 		nodes = 2;
 
 	} else {	// pass - NEIGHBOUR test is almost 100% true
 		alpha = ~alpha;	// = -alpha - 1
 		PO = _mm_shuffle_epi32(OP, SWAP64);
 		if (!TESTZ_FLIP(flipped = mm_Flip(PO, x1))) {
-			bestscore = board_score_sse_1(_mm_xor_si128(PO, flipped), alpha, x2);
+			bestscore = board_score_sse_1(_mm_xor_si128(PO, reduce_vflip(flipped)), alpha, x2);
 
 			if ((bestscore > alpha) && !TESTZ_FLIP(flipped = mm_Flip(PO, x2))) {
-				score = board_score_sse_1(_mm_xor_si128(PO, flipped), alpha, x1);
+				score = board_score_sse_1(_mm_xor_si128(PO, reduce_vflip(flipped)), alpha, x1);
 				if (score < bestscore)
 					bestscore = score;
 				nodes = 3;
 			} else	nodes = 2;
 
 		} else if (!TESTZ_FLIP(flipped = mm_Flip(PO, x2))) {
-			bestscore = board_score_sse_1(_mm_xor_si128(PO, flipped), alpha, x1);
+			bestscore = board_score_sse_1(_mm_xor_si128(PO, reduce_vflip(flipped)), alpha, x1);
 			nodes = 2;
 
 		} else {	// gameover
@@ -227,7 +230,7 @@ static int vectorcall board_solve_2(__m128i OP, int alpha, volatile unsigned lon
  */
 static int vectorcall search_solve_3(__m128i OP, int alpha, volatile unsigned long long *n_nodes, __m128i empties)
 {
-	__m128i flipped;
+	vflip flipped;
 	int score, bestscore, x, pol;
 	unsigned long long bb;
 	// const int beta = alpha + 1;
@@ -307,7 +310,8 @@ static int vectorcall search_solve_3(__m128i OP, int alpha, volatile unsigned lo
 
 static int search_solve_4(Search *search, int alpha)
 {
-	__m128i	OP, flipped;
+	__m128i	OP;
+	vflip	flipped;
 	__m128i	empties_series;	// (AVX) B15:4th, B11:3rd, B7:2nd, B3:1st, lower 3 bytes for 3 empties
 				// (SSE) W3:1st, W2:2nd, W1:3rd, W0:4th
 	int x1, x2, x3, x4, paritysort, score, bestscore;
