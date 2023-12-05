@@ -192,18 +192,9 @@ static inline __m128i _mm_set1_epi64x(unsigned long long x) {
     #endif
   #endif
 
-// Double casting (unsigned long long) (unsigned int) improves MSVC code
-  #ifdef __AVX2__
 static inline unsigned long long _mm_cvtsi128_si64(__m128i x) {
-	return ((unsigned long long) (unsigned int) _mm_extract_epi32(x, 1) << 32)
-		| (unsigned int) _mm_cvtsi128_si32(x);
+	return *(unsigned long long *) &x;
 }
-  #elif defined(hasSSE2) || defined(USE_MSVC_X86)
-static inline unsigned long long _mm_cvtsi128_si64(__m128i x) {
-	return ((unsigned long long) (unsigned int) _mm_cvtsi128_si32(_mm_shuffle_epi32(x, 0xb1)) << 32)
-		| (unsigned int) _mm_cvtsi128_si32(x);
-}
-  #endif
 #endif // !HAS_CPU_64
 
 #if __clang_major__ == 3	// undefined reference to `llvm.x86.avx.storeu.dq.256'

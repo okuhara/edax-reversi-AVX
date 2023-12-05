@@ -52,7 +52,7 @@ typedef struct HashData {
 	unsigned char move[2];    /*!< best moves */
 } HashData;
 
-/** Hash  : item stored in the hash table*/
+/** Hash  : item stored in the hash table */
 typedef struct Hash {
 	HASH_COLLISIONS(unsigned long long key;)
 	Board board;

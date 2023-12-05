@@ -407,14 +407,12 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 	} else {
 		// sort the list of moves
 		movelist_evaluate(&movelist, search, &hash_data.data, alpha, depth);
-		movelist_sort(&movelist);
 
 		// loop over all moves
 		bestscore = -SCORE_INF;
 		backup.board = search->board;
 		backup.eval = search->eval;
-		move = movelist.move[0].next;
-		do {
+		foreach_best_move(move, movelist) {
 			search_update_midgame(search, move);
 			score = -NWS_shallow(search, ~alpha, depth - 1, hash_table);
 			search_restore_midgame(search, move->x, &backup);
@@ -423,7 +421,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 				hash_data.data.move[0] = move->x;
 				if (score > alpha) break;
 			}
-		} while ((move = move->next));
+		}
 	}
 
 	// save the best result in hash tables
@@ -495,12 +493,11 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 	} else {
 		// sort the list of moves
 		movelist_evaluate(&movelist, search, &hash_data.data, alpha, depth);
-		movelist_sort(&movelist) ;
 
 		// loop over all moves
 		backup.board = search->board;
 		backup.eval = search->eval;
-		move = movelist.move[0].next;
+		move = movelist_best(&movelist);
 
 		search_update_midgame(search, move);
 		bestscore = score = -PVS_shallow(search, -beta, -alpha, depth - 1);
@@ -508,7 +505,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 		search_restore_midgame(search, move->x, &backup);
 		lower = (bestscore > alpha) ? bestscore : alpha;
 
-		while ((move = move->next) && (bestscore < beta)) {
+		while ((bestscore < beta) && (move = move_next_best(move))) {
 			search_update_midgame(search, move);
 			score = -NWS_shallow(search, -lower - 1, depth - 1, &search->hash_table);
 			if (alpha < score && score < beta)

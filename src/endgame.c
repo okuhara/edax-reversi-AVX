@@ -521,10 +521,10 @@ int NWS_endgame(Search *search, const int alpha)
 		Move move[DEPTH_MIDGAME_TO_ENDGAME];
 	} movelist;
 
-	if (search->stop) return alpha;
-
 	assert(bit_count(~(search->board.player|search->board.opponent)) < DEPTH_MIDGAME_TO_ENDGAME);
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
+
+	if (search->stop) return alpha;
 
 	SEARCH_STATS(++statistics.n_NWS_endgame);
 
