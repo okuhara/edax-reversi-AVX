@@ -25,9 +25,10 @@
  */
 
 #include "bit.h"
+#include <stdint.h>
 
 /** precomputed count flip array */
-const unsigned char COUNT_FLIP[8][256] = {
+const uint8_t COUNT_FLIP[8][256] = {
 	{
 		 0,  0,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,  6,  6,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,
 		 8,  8,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,  6,  6,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,
@@ -188,20 +189,20 @@ const V4DI mask_dvhd[64] = {
 
 int last_flip(int pos, unsigned long long P)
 {
-	unsigned char	n_flips;
+	uint_fast8_t	n_flips;
 	unsigned int	t;
-	const unsigned char *COUNT_FLIP_X = COUNT_FLIP[pos & 7];
-	const unsigned char *COUNT_FLIP_Y = COUNT_FLIP[pos >> 3];
-  #ifdef AVXLASTFLIP
+	const uint8_t *COUNT_FLIP_X = COUNT_FLIP[pos & 7];
+	const uint8_t *COUNT_FLIP_Y = COUNT_FLIP[pos >> 3];
+  #ifdef AVXLASTFLIP	// no gain
 	__m256i PP = _mm256_broadcastq_epi64(_mm_cvtsi64_si128(P));
 
-	n_flips  = COUNT_FLIP_X[(unsigned char) (P >> (pos & 0x38))];
+	n_flips  = COUNT_FLIP_X[(P >> (pos & 0x38)) & 0xFF];
     #ifdef __AVX512VL__
     	t = _cvtmask32_u32(_mm256_test_epi8_mask(PP, mask_dvhd[pos].v4));
     #else
 	t = _mm256_movemask_epi8(_mm256_sub_epi8(_mm256_setzero_si256(), _mm256_and_si256(PP, mask_dvhd[pos].v4)));
     #endif
-	n_flips += COUNT_FLIP_Y[(unsigned char) t];
+	n_flips += COUNT_FLIP_Y[t & 0xFF];
 	t >>= 16;
   #else
 	__m128i	PP, II;
@@ -218,7 +219,7 @@ int last_flip(int pos, unsigned long long P)
     #endif
   #endif
 	n_flips += COUNT_FLIP_Y[t >> 8];
-	n_flips += COUNT_FLIP_Y[(unsigned char) t];
+	n_flips += COUNT_FLIP_Y[t & 0xFF];
 
 	return n_flips;
 }

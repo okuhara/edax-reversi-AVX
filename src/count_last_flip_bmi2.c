@@ -27,7 +27,7 @@
 #include "bit.h"
 
 /** precomputed count flip array */
-const unsigned char COUNT_FLIP[8][256] = {
+const uint8_t COUNT_FLIP[8][256] = {
 	{
 		 0,  0,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,  6,  6,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,
 		 8,  8,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,  6,  6,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,
@@ -188,13 +188,13 @@ const unsigned long long mask_x[64][4] = {
 
 inline int last_flip(int pos, unsigned long long P)
 {
-	unsigned char	n_flipped;
+	uint_fast8_t	n_flipped;
 	int	x = pos & 7;
 	int	y = pos >> 3;
 
 	P &= mask_x[pos][3];	// mask out unrelated bits to make dummy 0 bits for outside
 	// n_flipped  = COUNT_FLIP[x][_bextr_u64(P, pos & 0x38, 8)];
-	n_flipped  = COUNT_FLIP[x][(unsigned char) (P >> (pos & 0x38))];
+	n_flipped  = COUNT_FLIP[x][(P >> (pos & 0x38)) & 0xFF];
 	n_flipped += COUNT_FLIP[y][_pext_u64(P, mask_x[pos][0])];
 	n_flipped += COUNT_FLIP[y][_pext_u64(P, mask_x[pos][1])];
 	n_flipped += COUNT_FLIP[y][_pext_u64(P, mask_x[pos][2])];
