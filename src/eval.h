@@ -5,7 +5,7 @@
  *
  * @date 1998 - 2022
  * @author Richard Delorme
- * @version 4.5
+ * @version 4.4
  */
 
 #ifndef EDAX_EVAL_H

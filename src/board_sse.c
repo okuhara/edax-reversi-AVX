@@ -734,7 +734,7 @@ int get_stability_sse(const unsigned long long P, const unsigned long long O)
 
     #elif 1	// 1 CPU, 3 SSE
 	__m128i l01, l79, r79;	// full lines
-	const __m128i kff  = _mm_set1_epi8(0xff);
+	const __m128i kff  = _mm_set1_epi8(-1);
 	const __m128i edge = _mm_set1_epi64x(0xff818181818181ff);
 	const __m128i e791 = _mm_set1_epi64x(0x00003f3f3f3f3f3f);
 	const __m128i e792 = _mm_set1_epi64x(0x0f0f0f0ff0f0f0f0);

@@ -475,8 +475,8 @@ static int search_shallow(Search *search, const int alpha)
 				search->empties[prev].next = x;	// restore
 
 				if (score > alpha) {	// (40%)
-					// store_vboard(search->board, board0);
-					// search->eval.parity = parity0;
+					store_vboard(search->board, board0);
+					search->eval.parity = parity0;
 					++search->eval.n_empties;
 					return score;
 
@@ -573,6 +573,7 @@ int NWS_endgame(Search *search, const int alpha)
 			rboard_update(&search->board, board0, move);
 			score = -NWS_endgame(search, ~alpha);
 			empty_restore(search->empties, move->x);
+			store_rboard(search->board, board0);
 
 			if (score > bestscore) {	// (63%)
 				bestscore = score;
@@ -581,7 +582,6 @@ int NWS_endgame(Search *search, const int alpha)
 			}
 		}
 		++search->eval.n_empties;
-		store_rboard(search->board, board0);
 		search->eval.parity = parity0;
 	}
 

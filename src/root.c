@@ -417,9 +417,11 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 
 	if (!search->stop) {
 		hash_get(&search->pv_table, &search->board, hash_code, &hash_data.data);
-		if (depth < search->options.multipv_depth) movelist_sort(movelist);
-		else movelist_sort_cost(movelist, &hash_data.data);
-		movelist_sort_bestmove(movelist, node.bestmove);
+		if (movelist->n_moves) {
+			if (depth < search->options.multipv_depth) movelist_sort(movelist);
+			else movelist_sort_cost(movelist, &hash_data.data);
+			movelist_sort_bestmove(movelist, node.bestmove);
+		}
 		record_best_move(search, movelist_first(movelist), alpha, beta, depth);
 
 		if (movelist->n_moves == get_mobility(search->board.player, search->board.opponent)) {

@@ -882,6 +882,7 @@ void eval_update(int x, unsigned long long f, Eval *eval)
   #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
 	if (hasSSE2) {
 		eval_update_sse(x, f, eval, eval);
+		return;
 	}
   #endif
 	if (eval->n_empties & 1)
@@ -895,6 +896,7 @@ void eval_update_leaf(int x, unsigned long long f, Eval *eval_out, const Eval *e
    #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
 	if (hasSSE2) {
 		eval_update_sse(x, f, eval_out, eval_in);
+		return;
 	}
   #endif
 	eval_out->feature = eval_in->feature;
