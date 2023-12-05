@@ -91,6 +91,10 @@ unsigned long long get_moves_sse(unsigned long long, unsigned long long);
 int get_stability_sse(const unsigned long long P, const unsigned long long O);
 #endif
 
+#ifdef __AVX2__
+__m128i vectorcall get_moves_and_potential(__m256i, __m256i);
+#endif
+
 extern unsigned char edge_stability[256 * 256];
 extern unsigned long long A1_A8[256];
 
