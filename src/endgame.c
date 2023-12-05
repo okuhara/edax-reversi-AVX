@@ -514,7 +514,7 @@ int NWS_endgame(Search *search, const int alpha)
 	HashStoreData hash_data;
 	Move *move;
 	long long nodes_org;
-	vBoard board0;
+	rBoard board0;
 	unsigned int parity0;
 	struct size_reduced_MoveList {	// derived from MoveList in move.h
 		int n_moves;

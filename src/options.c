@@ -271,7 +271,7 @@ void options_parse(const char *file)
 	if (f != NULL) {
 
 		while ((line = string_read_line(f)) != NULL) {
-			int n = strlen(line);
+			size_t n = strlen(line);
 			option = (char*) malloc(n + 1);
 			value = (char*) malloc(n + 1);
 			option_parse(line, option, value, n);

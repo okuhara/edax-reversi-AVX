@@ -22,13 +22,20 @@ struct Random;
 
 /* declaration */
 void bit_init(void);
-int bit_weighted_count(unsigned long long);
 // int next_bit(unsigned long long*);
 void bitboard_write(unsigned long long, FILE*);
 unsigned long long transpose(unsigned long long);
 unsigned int horizontal_mirror_32(unsigned int b);
 unsigned long long horizontal_mirror(unsigned long long);
 int get_rand_bit(unsigned long long, struct Random*);
+
+#if !defined(__AVX2__) && defined(hasSSE2) && !defined(POPCOUNT)
+__m128i bit_weighted_count_sse(unsigned long long, unsigned long long);
+#elif defined (hasNeon)
+uint64x2_t bit_weighted_count_neon(unsigned long long, unsigned long long);
+#else
+int bit_weighted_count(unsigned long long);
+#endif
 
 extern unsigned long long X_TO_BIT[];
 extern const unsigned long long NEIGHBOUR[];
@@ -192,12 +199,14 @@ typedef union {
 #endif
 
 // X64 compatibility sims for X86
-#ifndef HAS_CPU_64
-  #if defined(hasSSE2) || defined(USE_MSVC_X86)
+#if !defined(HAS_CPU_64) && (defined(hasSSE2) || defined(USE_MSVC_X86))
 static inline __m128i _mm_cvtsi64_si128(unsigned long long x) {
 	return _mm_unpacklo_epi32(_mm_cvtsi32_si128(x), _mm_cvtsi32_si128(x >> 32));
 }
-    #if defined(_MSC_VER) && _MSC_VER<1900
+static inline unsigned long long _mm_cvtsi128_si64(__m128i x) {
+	return *(unsigned long long *) &x;
+}
+  #if defined(_MSC_VER) && _MSC_VER<1900
 static inline __m128i _mm_set_epi64x(unsigned long long b, unsigned long long a) {
 	return _mm_unpacklo_epi64(_mm_cvtsi64_si128(b), _mm_cvtsi64_si128(a));
 }
@@ -205,12 +214,7 @@ static inline __m128i _mm_set1_epi64x(unsigned long long x) {
 	__m128i t = _mm_cvtsi64_si128(x);
 	return _mm_unpacklo_epi64(t, t);
 }
-    #endif
   #endif
-
-static inline unsigned long long _mm_cvtsi128_si64(__m128i x) {
-	return *(unsigned long long *) &x;
-}
 #endif // !HAS_CPU_64
 
 #if __clang_major__ == 3	// undefined reference to `llvm.x86.avx.storeu.dq.256'

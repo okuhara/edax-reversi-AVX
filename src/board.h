@@ -67,8 +67,15 @@ bool can_move(const unsigned long long, const unsigned long long);
 unsigned long long get_moves_6x6(const unsigned long long, const unsigned long long);
 bool can_move_6x6(const unsigned long long, const unsigned long long);
 int get_mobility(const unsigned long long, const unsigned long long);
-int get_weighted_mobility(const unsigned long long, const unsigned long long);
+#ifdef __AVX2__
+__m128i vectorcall get_moves_and_potential(__m256i, __m256i);
+#else
+unsigned long long get_potential_moves(const unsigned long long, const unsigned long long);
+  #if !(defined(hasSSE2) && !defined(POPCOUNT)) && !defined(hasNeon)
 int get_potential_mobility(const unsigned long long, const unsigned long long);
+  #endif
+#endif
+
 void edge_stability_init(void);
 unsigned long long get_stable_edge(const unsigned long long, const unsigned long long);
 int get_stability(const unsigned long long, const unsigned long long);
@@ -86,10 +93,6 @@ int get_potential_mobility_mmx(unsigned long long, unsigned long long);
 void init_neon (void);
 unsigned long long get_moves_sse(unsigned long long, unsigned long long);
 int get_stability_sse(const unsigned long long P, const unsigned long long O);
-#endif
-
-#ifdef __AVX2__
-__m128i vectorcall get_moves_and_potential(__m256i, __m256i);
 #endif
 
 extern unsigned char edge_stability[256 * 256];
