@@ -123,12 +123,8 @@ void bit_init(void)
 int bit_weighted_count(unsigned long long v)
 {
 #if defined(POPCOUNT)
-
-  #ifdef HAS_CPU_64
-	return bit_count(v) + bit_count(v & 0x8100000000000081ULL);
-  #else
-	return bit_count(v) + bit_count_32(((unsigned int)(v >> 32) & 0x81000000) | ((unsigned int) v & 0x00000081));
-  #endif
+  	unsigned int P2187 = (v >> 48) | (v << 16);	// ror 48
+	return bit_count(v) + bit_count_32(P2187 & 0x00818100);
 
 #else
 	int	c;
