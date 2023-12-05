@@ -22,8 +22,8 @@
 #include <ctype.h>
 #include <string.h>
 
-const Move MOVE_INIT = {0, NOMOVE, -SCORE_INF, 0, NULL};
-const Move MOVE_PASS = {0, PASS, -SCORE_INF, 0, NULL};
+const Move MOVE_INIT = {NULL, 0, NOMOVE, -SCORE_INF, 0};
+const Move MOVE_PASS = {NULL, 0, PASS, -SCORE_INF, 0};
 
 const unsigned char SQUARE_VALUE[] = {
 	// JCW's score:
@@ -204,7 +204,7 @@ void movelist_print(const MoveList *movelist, const int player, FILE *f)
 {
 	Move *iter;
 
-	for (iter = movelist->move->next; iter != NULL; iter = iter->next) {
+	for (iter = movelist->move[0].next; iter != NULL; iter = iter->next) {
 		move_print(iter->x, player, f);
 		fprintf(f, "[%d] ", iter->score);
 	}
@@ -221,20 +221,20 @@ __attribute__((noinline))
 #endif
 Move* move_next_best(Move *previous_best)
 {
-	if (previous_best->next) {
-		Move *move, *best;
-		best = previous_best;
-		for (move = best->next; move->next != NULL; move = move->next) {
-			if (move->next->score > best->next->score) {
+	Move *move = previous_best->next;
+	if (move && move->next) {	// at least 2 elements
+		Move *best = previous_best;
+		do {
+			if (move->next->score > best->next->score)
 				best = move;
-			}
-		}
-		if (previous_best != best) {
-			move = best->next;
-			best->next = move->next;
-			move->next = previous_best->next;
-			previous_best->next = move;
-		}
+			move = move->next;
+		} while (move->next);
+		// if (previous_best != best) {
+		move = best->next;
+		best->next = move->next;
+		move->next = previous_best->next;
+		previous_best->next = move;
+		// }
 	}
 
 	return previous_best->next;
@@ -248,20 +248,20 @@ Move* move_next_best(Move *previous_best)
  */
 Move* move_next_most_expensive(Move *previous_best)
 {
-	if (previous_best->next) {
-		Move *move, *best;
-		best = previous_best;
-		for (move = best->next; move->next != NULL; move = move->next) {
-			if (move->next->cost > best->next->cost) {
+	Move *move = previous_best->next;
+	if (move && move->next) {	// at least 2 elements
+		Move *best = previous_best;
+		do {
+			if (move->next->cost > best->next->cost)
 				best = move;
-			}
-		}
-		if (previous_best != best) {
-			move = best->next;
-			best->next = move->next;
-			move->next = previous_best->next;
-			previous_best->next = move;
-		}
+			move = move->next;
+		} while (move->next);
+		// if (previous_best != best) {
+		move = best->next;
+		best->next = move->next;
+		move->next = previous_best->next;
+		previous_best->next = move;
+		// }
 	}
 
 	return previous_best->next;
@@ -444,34 +444,49 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
  */
 Move* movelist_sort_bestmove(MoveList *movelist, const int move)
 {
-	Move *iter, *previous;
+	Move *iter, *m;
 
-	for (iter = (previous = movelist->move)->next; iter != NULL; iter = (previous = iter)->next) {
-		if (iter->x == move) {
-			previous->next = iter->next;
-			iter->next = movelist->move->next;
-			movelist->move->next = iter;
+	for (iter = &movelist->move[0]; (m = iter->next); iter = m) {
+		if (m->x == move) {
+			iter->next = m->next;
+			m->next = movelist->move[0].next;
+			movelist->move[0].next = m;
 			break;
 		}
 	}
-	return previous;
+	return iter;
 }
 
 /**
- * @brief Sort all moves except the first, based on move cost & hash_table storage.
+ * @brief Sort all moves based on move cost & hash_table storage.
  *
  * @param movelist List of moves to sort.
  * @param hash_data  Data from the hash table.
  */
 void movelist_sort_cost(MoveList *movelist, const HashData *hash_data)
 {
-	Move *iter;
+	Move *iter, *m;
+	Move *hashmove[2];
+	int	i;
 
-	foreach_move(iter, *movelist) {
-		if (iter->x == hash_data->move[0]) iter->cost = INT_MAX;
-		else if (iter->x == hash_data->move[1]) iter->cost = INT_MAX - 1;
+	hashmove[0] = hashmove[1] = NULL;
+	for (iter = &movelist->move[0]; (m = iter->next); iter = m) {
+		if (m->x == hash_data->move[0])
+			hashmove[0] = iter;
+		if (m->x == hash_data->move[1])
+			hashmove[1] = iter;
 	}
-	for (iter =  move_next_most_expensive(movelist->move); iter; iter = move_next_most_expensive(iter));
+	iter = &movelist->move[0];
+	for (i = 0; i <= 1; ++i)
+		if (hashmove[i]) {
+			m = hashmove[i]->next;
+			hashmove[i]->next = m->next;
+			m->next = iter->next;
+			iter->next = m;
+			iter = iter->next;
+		}
+	while ((iter = move_next_most_expensive(iter)))
+		;
 }
 
 /**
@@ -480,9 +495,25 @@ void movelist_sort_cost(MoveList *movelist, const HashData *hash_data)
  */
 void movelist_sort(MoveList *movelist)
 {
-	Move *move;
+	// foreach_best_move(move, *movelist) ;
 
-	foreach_best_move(move, *movelist) ;
+	Move *previous_best = &movelist->move[0];
+	while (previous_best->next->next) {	// until last 2
+		Move *best = previous_best;
+		Move *move = previous_best->next;
+		do {
+			if (move->next->score > best->next->score)
+				best = move;
+			move = move->next;
+		} while (move->next);
+		// if (previous_best != best) {
+		move = best->next;
+		best->next = move->next;
+		move->next = previous_best->next;
+		previous_best->next = move;
+		// }
+		previous_best = previous_best->next;
+	}
 }
 
 /**
@@ -492,17 +523,16 @@ void movelist_sort(MoveList *movelist)
  */
 Move* movelist_exclude(MoveList *movelist, const int move)
 {
-	Move *iter, *previous;
+	Move *iter, *m;
 
-	for (iter = (previous = movelist->move)->next; iter != NULL; iter = (previous = iter)->next) {
-		if (iter->x == move) {
-			previous->next = iter->next;
+	for (iter = &movelist->move[0]; (m = iter->next); iter = m) {
+		if (m->x == move) {
+			iter->next = m->next;
+			--movelist->n_moves;
 			break;
 		}
 	}
-	if (iter) --movelist->n_moves;
-
-	return iter;
+	return m;
 }
 
 /**

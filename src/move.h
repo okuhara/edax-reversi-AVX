@@ -18,11 +18,11 @@
 
 /** move representation */
 typedef struct Move {
+	struct Move *next;            /**< next move in a MoveList */
 	unsigned long long flipped;   /**< bitboard representation of flipped squares */
 	int x;                        /**< square played */
 	int score;                    /**< score for this move */
 	unsigned int cost;            /**< move cost */
-	struct Move *next;            /**< next move in a MoveList */
 } Move;
 
 /** (simple) list of a legal moves */
