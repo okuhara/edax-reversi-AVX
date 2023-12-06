@@ -129,14 +129,16 @@ int search_eval_0(Search *search)
  */
 int search_eval_1(Search *search, const int alpha, int beta, bool pass1)
 {
-	Eval Ev;
 	int x, score, bestscore, betathres;
-	unsigned long long flipped;
-	unsigned long long moves = board_get_moves(&search->board);
+	unsigned long long flipped, moves;
+	Eval Ev;
+	V2DI board0;
 
 	SEARCH_STATS(++statistics.n_search_eval_1);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
+	board0.board = search->board;
+	moves = vboard_get_moves(board0);
 	if (moves) {
 		bestscore = -SCORE_INF * 128;
 		if (beta > SCORE_MAX - 1) betathres = ((SCORE_MAX - 1) * 128) - 64;
@@ -149,7 +151,7 @@ int search_eval_1(Search *search, const int alpha, int beta, bool pass1)
 			} while (!(moves & x_to_bit(x)));
 
 			moves &= ~x_to_bit(x);
-			flipped = board_flip(&search->board, x);
+			flipped = vboard_flip(board0, x);
 			if (flipped == search->board.opponent)
 				return SCORE_MAX;	// wipeout
 
@@ -197,10 +199,12 @@ int search_eval_1(Search *search, const int alpha, int beta, bool pass1)
 int search_eval_2(Search *search, int alpha, const int beta, bool pass1)
 {
 	int x, prev, bestscore, score;
-	unsigned long long flipped;
+	unsigned long long flipped, moves;
 	Eval eval0;
-	vBoard board0 = load_vboard(search->board);
-	unsigned long long moves = vboard_get_moves(board0, search->board);
+	V2DI board0;
+
+	board0.board = search->board;
+	moves = vboard_get_moves(board0);
 
 	SEARCH_STATS(++statistics.n_search_eval_2);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
@@ -209,6 +213,8 @@ int search_eval_2(Search *search, int alpha, const int beta, bool pass1)
 	assert(beta <= SCORE_MAX);
 	assert(alpha <= beta);
 
+	board0.board = search->board;
+	moves = vboard_get_moves(board0);
 	if (moves) {
 		bestscore = -SCORE_INF;
 		eval0.feature = search->eval.feature;
@@ -235,7 +241,7 @@ int search_eval_2(Search *search, int alpha, const int beta, bool pass1)
 		} while (moves);
 		search->eval.feature = eval0.feature;
 		search->eval.n_empties = eval0.n_empties;
-		store_vboard(search->board, board0);
+		search->board = board0.board;
 
 	} else {
 		if (pass1) { // game over
@@ -370,7 +376,8 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 	HashStoreData hash_data;
 	MoveList movelist;
 	Move *move;
-	Search_Backup backup;
+	Eval eval0;
+	V2DI board0;
 	long long nodes_org = search->n_nodes;
 
 	if (depth == 2) return search_eval_2(search, alpha, alpha + 1, false);
@@ -396,10 +403,10 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 
 	if (movelist_is_empty(&movelist)) { // no moves ?
 		if (can_move(search->board.opponent, search->board.player)) { // pass ?
-			search_update_pass_midgame(search, &backup.eval);
+			search_update_pass_midgame(search, &eval0);
 			bestscore = -NWS_shallow(search, ~alpha, depth, hash_table);
 			hash_data.data.move[0] = PASS;
-			search_restore_pass_midgame(search, &backup.eval);
+			search_restore_pass_midgame(search, &eval0);
 		} else { // game-over !
 			bestscore = search_solve(search);
 			hash_data.data.move[0] = NOMOVE;
@@ -410,12 +417,14 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 
 		// loop over all moves
 		bestscore = -SCORE_INF;
-		backup.board = search->board;
-		backup.eval = search->eval;
+		board0.board = search->board;
+		eval0 = search->eval;
+
 		foreach_best_move(move, movelist) {
 			search_update_midgame(search, move);
 			score = -NWS_shallow(search, ~alpha, depth - 1, hash_table);
-			search_restore_midgame(search, move->x, &backup);
+			search_restore_midgame(search, move->x, &eval0);
+			search->board = board0.board;
 			if (score > bestscore) {
 				bestscore = score;
 				hash_data.data.move[0] = move->x;
@@ -459,7 +468,8 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 	HashStoreData hash_data;
 	MoveList movelist;
 	Move *move;
-	Search_Backup backup;
+	Eval eval0;
+	Board board0;
 	long long nodes_org = search->n_nodes;
 
 	if (depth == 2) return search_eval_2(search, alpha, beta, false);
@@ -482,27 +492,29 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 
 	if (movelist_is_empty(&movelist)) { // no moves ?
 		if (can_move(search->board.opponent, search->board.player)) { // pass ?
-			search_update_pass_midgame(search, &backup.eval);
+			search_update_pass_midgame(search, &eval0);
 			bestscore = -PVS_shallow(search, -beta, -alpha, depth);
 			hash_data.data.move[0] = PASS;
-			search_restore_pass_midgame(search, &backup.eval);
+			search_restore_pass_midgame(search, &eval0);
 		} else { // game-over !
 			bestscore = search_solve(search);
 			hash_data.data.move[0] = NOMOVE;
 		}
+
 	} else {
 		// sort the list of moves
 		movelist_evaluate(&movelist, search, &hash_data.data, alpha, depth);
 
 		// loop over all moves
-		backup.board = search->board;
-		backup.eval = search->eval;
 		move = movelist_best(&movelist);
 
+		board0 = search->board;
+		eval0 = search->eval;
 		search_update_midgame(search, move);
-		bestscore = score = -PVS_shallow(search, -beta, -alpha, depth - 1);
+		bestscore = -PVS_shallow(search, -beta, -alpha, depth - 1);
 		hash_data.data.move[0] = move->x;
-		search_restore_midgame(search, move->x, &backup);
+		search_restore_midgame(search, move->x, &eval0);
+		search->board = board0;
 		lower = (bestscore > alpha) ? bestscore : alpha;
 
 		while ((bestscore < beta) && (move = move_next_best(move))) {
@@ -510,7 +522,8 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 			score = -NWS_shallow(search, -lower - 1, depth - 1, &search->hash_table);
 			if (alpha < score && score < beta)
 				score = -PVS_shallow(search, -beta, -lower, depth - 1);
-			search_restore_midgame(search, move->x, &backup);
+			search_restore_midgame(search, move->x, &eval0);
+			search->board = board0;
 			if (score > bestscore) {
 				bestscore = score;
 				hash_data.data.move[0] = move->x;
@@ -557,7 +570,8 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	MoveList movelist;
 	Move *move;
 	Node node;
-	Search_Backup backup;
+	Eval eval0;
+	V2DI board0;
 	long long nodes_org = search->n_nodes + search->child_nodes;
 
 	assert(search->eval.n_empties == bit_count(~(search->board.player | search->board.opponent)));
@@ -593,9 +607,9 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	if (movelist_is_empty(&movelist)) { // no moves ?
 		node_init(&node, search, alpha, beta, depth, movelist.n_moves, parent);
 		if (can_move(search->board.opponent, search->board.player)) { // pass ?
-			search_update_pass_midgame(search, &backup.eval);
+			search_update_pass_midgame(search, &eval0);
 			node.bestscore = -NWS_midgame(search, -node.beta, depth, &node);
-			search_restore_pass_midgame(search, &backup.eval);
+			search_restore_pass_midgame(search, &eval0);
 		} else { // game-over !
 			node.bestscore = search_solve(search);
 		}
@@ -617,13 +631,14 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		node_init(&node, search, alpha, beta, depth, movelist.n_moves, parent);
 
 		// loop over all moves
-		backup.board = search->board;
-		backup.eval = search->eval;
+		board0.board = search->board;
+		eval0 = search->eval;
 		for (move = node_first_move(&node, &movelist); move; move = node_next_move(&node)) {
 			if (!node_split(&node, move)) {
 				search_update_midgame(search, move);
 				move->score = -NWS_midgame(search, -beta, depth - 1, &node);
-				search_restore_midgame(search, move->x, &backup);
+				search_restore_midgame(search, move->x, &eval0);
+				search->board = board0.board;
 				node_update(&node, move);
 			}
 		}
@@ -684,7 +699,8 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 	MoveList movelist;
 	Move *move;
 	Node node;
-	Search_Backup backup;
+	Eval eval0;
+	V2DI board0;
 	long long nodes_org;
 	int reduced_depth, depth_pv_extension, saved_selectivity;
 
@@ -717,10 +733,10 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 	// special cases
 	if (movelist_is_empty(&movelist)) {
 		if (can_move(search->board.opponent, search->board.player)) {
-			search_update_pass_midgame(search, &backup.eval);
+			search_update_pass_midgame(search, &eval0);
 			search->node_type[search->height] = PV_NODE;
 			node.bestscore = -PVS_midgame(search, -beta, -alpha, depth, &node);
-			search_restore_pass_midgame(search, &backup.eval);
+			search_restore_pass_midgame(search, &eval0);
 			node.bestmove = PASS;
 		} else {
 			node.alpha = -(node.beta = +SCORE_INF);
@@ -752,12 +768,13 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 		}
 
 		// first move
-		backup.board = search->board;
-		backup.eval = search->eval;
+		board0.board = search->board;
+		eval0 = search->eval;
 		if ((move = node_first_move(&node, &movelist))) { // why if there ?
 			search_update_midgame(search, move); search->node_type[search->height] = PV_NODE;
 			move->score = -PVS_midgame(search, -beta, -alpha, depth - 1, &node);
-			search_restore_midgame(search, move->x, &backup);
+			search_restore_midgame(search, move->x, &eval0);
+			search->board = board0.board;
 			node_update(&node, move);
 
 			// other moves : try to refute the first/best one
@@ -770,7 +787,8 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 						search->node_type[search->height] = PV_NODE;
 						move->score = -PVS_midgame(search, -beta, -alpha, depth - 1, &node);
 					}
-					search_restore_midgame(search, move->x, &backup);
+					search_restore_midgame(search, move->x, &eval0);
+					search->board = board0.board;
 					node_update(&node, move);
 				}
 			}

@@ -332,7 +332,8 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 	MoveList *const movelist = &search->movelist;
 	Move *move;
 	Node node;
-	Search_Backup backup;
+	Eval eval0;
+	Board board0;
 	long long nodes_org = search_count_nodes(search);
 	assert(alpha < beta);
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
@@ -360,19 +361,19 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 		move = movelist->move->next = movelist->move + 1;
 		move->flipped = 0;
 		if (can_move(search->board.opponent, search->board.player)) {
-			search_update_pass_midgame(search, &backup.eval);
+			search_update_pass_midgame(search, &eval0);
 			node.bestscore = move->score = -search_route_PVS(search, -node.beta, -node.alpha, depth, &node);
-			search_restore_pass_midgame(search, &backup.eval);
+			search_restore_pass_midgame(search, &eval0);
 			node.bestmove =  move->x = PASS;
 		} else  { // game over
 			node.bestscore =  move->score = search_solve(search);
 			move->x = NOMOVE;
 		}
-	} else {
 
+	} else {
 		// first move
-		backup.board = search->board;
-		backup.eval = search->eval;
+		board0 = search->board;
+		eval0 = search->eval;
 		if ((move = node_first_move(&node, movelist))) {
 			assert(board_check_move(&search->board, move));
 			search_update_midgame(search, move); search->node_type[search->height] = PV_NODE;
@@ -380,7 +381,8 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 				move->cost = search_get_pv_cost(search);
 				assert(SCORE_MIN <= move->score && move->score <= SCORE_MAX);
 				assert(search->stability_bound.lower <= move->score && move->score <= search->stability_bound.upper);
-			search_restore_midgame(search, move->x, &backup);
+			search_restore_midgame(search, move->x, &eval0);
+			search->board = board0;
 			if (log_is_open(search_log)) show_current_move(search_log->f, search, move, alpha, beta, false);
 			node_update(&node, move);
 			if (search->options.verbosity == 4) pv_debug(search, move, stdout);
@@ -402,7 +404,8 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 						}
 						move->cost = search_get_pv_cost(search);
 					assert(SCORE_MIN <= move->score && move->score <= SCORE_MAX);
-					search_restore_midgame(search, move->x, &backup);
+					search_restore_midgame(search, move->x, &eval0);
+					search->board = board0;
 					if (log_is_open(search_log)) show_current_move(search_log->f, search, move, alpha, beta, false);
 					node_update(&node, move);
 					assert(SCORE_MIN <= node.bestscore && node.bestscore <= SCORE_MAX);

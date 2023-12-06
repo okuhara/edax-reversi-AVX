@@ -404,7 +404,7 @@ static int search_shallow(Search *search, const int alpha)
 	unsigned long long moves, prioritymoves;
 	int x, prev, score, bestscore;
 	// const int beta = alpha + 1;
-	vBoard board0;
+	V2DI board0;
 	unsigned int parity0;
 
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
@@ -416,12 +416,12 @@ static int search_shallow(Search *search, const int alpha)
 	// stability cutoff (try 8%, cut 7%)
 	if (search_SC_NWS(search, alpha, &score)) return score;
 
-	board0 = load_vboard(search->board);
-	moves = vboard_get_moves(board0, search->board);
+	board0.board = search->board;
+	moves = vboard_get_moves(board0);
 	if (moves == 0) {	// pass (2%)
 		if (can_move(search->board.opponent, search->board.player)) { // pass
 			search_pass(search);
-			bestscore = -search_shallow(search, -(alpha + 1));
+			bestscore = -search_shallow(search, ~alpha);
 			search_pass(search);
 		} else { // gameover (1%)
 			bestscore = search_solve(search);
@@ -475,7 +475,7 @@ static int search_shallow(Search *search, const int alpha)
 				search->empties[prev].next = x;	// restore
 
 				if (score > alpha) {	// (40%)
-					store_vboard(search->board, board0);
+					search->board = board0.board;
 					search->eval.parity = parity0;
 					++search->eval.n_empties;
 					return score;
@@ -487,7 +487,7 @@ static int search_shallow(Search *search, const int alpha)
 		++search->eval.n_empties;
 	}
 
-	store_vboard(search->board, board0);
+	search->board = board0.board;
 	search->eval.parity = parity0;
 
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
@@ -514,7 +514,7 @@ int NWS_endgame(Search *search, const int alpha)
 	HashStoreData hash_data;
 	Move *move;
 	long long nodes_org;
-	rBoard board0;
+	V2DI board0;
 	unsigned int parity0;
 	struct size_reduced_MoveList {	// derived from MoveList in move.h
 		int n_moves;
@@ -551,17 +551,18 @@ int NWS_endgame(Search *search, const int alpha)
 	if (movelist_is_empty(&movelist)) {
 		if (can_move(search->board.opponent, search->board.player)) { // pass
 			search_pass(search);
-			bestscore = -NWS_endgame(search, -(alpha + 1));
+			bestscore = -NWS_endgame(search, ~alpha);
 			search_pass(search);
 			hash_data.data.move[0] = PASS;
 		} else  { // game over
 			bestscore = search_solve(search);
 			hash_data.data.move[0] = NOMOVE;
 		}
+
 	} else {
 		movelist_evaluate_fast((MoveList *) &movelist, search, &hash_data.data);
 
-		board0 = load_rboard(search->board);
+		board0.board = search->board;
 		parity0 = search->eval.parity;
 		bestscore = -SCORE_INF;
 		// loop over all moves
@@ -570,10 +571,10 @@ int NWS_endgame(Search *search, const int alpha)
 		while ((move = move_next_best(move))) {	// (76%)
 			search->eval.parity = parity0 ^ QUADRANT_ID[move->x];
 			empty_remove(search->empties, move->x);
-			rboard_update(&search->board, board0, move);
+			vboard_update(&search->board, board0, move);
 			score = -NWS_endgame(search, ~alpha);
 			empty_restore(search->empties, move->x);
-			store_rboard(search->board, board0);
+			search->board = board0.board;
 
 			if (score > bestscore) {	// (63%)
 				bestscore = score;

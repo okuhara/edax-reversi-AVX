@@ -383,7 +383,8 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 	Move *move;
 	int	sort_depth, min_depth, sort_alpha, score, empties, parity_weight;
 	HashData dummy;
-	Search_Backup backup;
+	Eval eval0;
+	Board board0;
 
 	// https://eukaryote.hateblo.jp/entry/2020/05/16/082757
 	empties = search->eval.n_empties;
@@ -401,8 +402,8 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 		if (sort_depth < 0) sort_depth = 0;
 		else if (sort_depth > 6) sort_depth = 6;
 
-		backup.board = search->board;
-		backup.eval = search->eval;
+		board0 = search->board;
+		eval0 = search->eval;
 		sort_alpha = MAX(SCORE_MIN, alpha - SORT_ALPHA_DELTA);
 
 		move = movelist->move[0].next;
@@ -424,16 +425,16 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 				score += (36 - bit_weighted_count(MM.ull[1])) * w_potential_mobility; // potential mobility
 				score += (36 - bit_weighted_count(MM.ull[0])) * w_mobility; // real mobility
 #elif defined(hasSSE2) && !defined(POPCOUNT)
-				__m128i MM = bit_weighted_count_sse(get_moves(search->board.player, search->board.opponent), get_potential_moves(search->board.player, search->board.opponent));
+				__m128i MM = bit_weighted_count_sse(board_get_moves(&search->board), get_potential_moves(search->board.player, search->board.opponent));
 				score += (36 - _mm_extract_epi16(MM, 4)) * w_potential_mobility; // potential mobility
 				score += (36 - _mm_cvtsi128_si32(MM)) * w_mobility; // real mobility
 #elif defined(hasNeon)
-				uint64x2_t MM = bit_weighted_count_neon(get_moves(search->board.player, search->board.opponent), get_potential_moves(search->board.player, search->board.opponent));
+				uint64x2_t MM = bit_weighted_count_neon(board_get_moves(&search->board), get_potential_moves(search->board.player, search->board.opponent));
 				score += (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 2)) * w_potential_mobility; // potential mobility
 				score += (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 0)) * w_mobility; // real mobility
 #else
 				score += (36 - get_potential_mobility(search->board.player, search->board.opponent)) * w_potential_mobility; // potential mobility
-				score += (36 - bit_weighted_count(get_moves(search->board.player, search->board.opponent))) * w_mobility; // real mobility
+				score += (36 - bit_weighted_count(board_get_moves(&search->board))) * w_mobility; // real mobility
 #endif
 				score += get_edge_stability(search->board.opponent, search->board.player) * w_edge_stability; // edge stability
 				switch (sort_depth) {
@@ -455,7 +456,8 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 					break;
 	}
 
-				search_restore_midgame(search, move->x, &backup);
+				search_restore_midgame(search, move->x, &eval0);
+				search->board = board0;
 			}
 			move->score = score;
 		} while ((move = move->next));

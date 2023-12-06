@@ -365,7 +365,8 @@ void task_search(Task *task)
 	Node *node = task->node;
 	Search *search = task->search;
 	Move *move = task->move;
-	Search_Backup backup;
+	Eval eval0;
+	Board board0;
 	int i;
 
 	search_set_state(search, node->search->stop);
@@ -376,15 +377,16 @@ void task_search(Task *task)
 		const int alpha = node->alpha;
 		if (alpha >= node->beta) break;
 
-		backup.board = search->board;
-		backup.eval = search->eval;
+		board0 = search->board;
+		eval0 = search->eval;
 		search_update_midgame(search, move);
 			move->score = -NWS_midgame(search, -alpha - 1, node->depth - 1, node);
 			if (alpha < move->score && move->score < node->beta) {
 				move->score = -PVS_midgame(search, -node->beta, -alpha, node->depth - 1, node);
 				assert(node->pv_node == true);
 			}
-		search_restore_midgame(search, move->x, &backup);
+		search_restore_midgame(search, move->x, &eval0);
+		search->board = board0;
 		if (node->height == 0) {
 			move->cost = search_get_pv_cost(search);
 			move->score = search_bound(search, move->score);

@@ -868,14 +868,16 @@ void search_get_movelist(const Search *search, MoveList *movelist)
 {
 	Move *previous = movelist->move;
 	Move *move = movelist->move + 1;
-	vBoard board = load_vboard(search->board);
-	unsigned long long moves = vboard_get_moves(board, search->board);
+	V2DI vboard;
+	unsigned long long moves;
 	int x;
 
+	vboard.board = search->board;
+	moves = vboard_get_moves(vboard);
 	movelist->n_moves = 0;
 	foreach_bit(x, moves) {
 		move->x = x;
-		move->flipped = vboard_flip(board, x);
+		move->flipped = vboard_flip(vboard, x);
 		move->cost = 0;
 		previous = previous->next = move;
 		++move;
@@ -954,7 +956,7 @@ void search_update_midgame(Search *search, const Move *move)
  * @param x       played move.
  * @param backup  board/eval to restore.
  */
-void search_restore_midgame(Search *search, int x, const Search_Backup *backup)
+void search_restore_midgame(Search *search, int x, const Eval *eval0)
 {
 //	line_print(&debug_line, 100, " ", stdout); putchar('\n');
 //	line_pop(&debug_line);
@@ -962,9 +964,8 @@ void search_restore_midgame(Search *search, int x, const Search_Backup *backup)
 	// search_swap_parity(search, move->x);
 	// ++search->eval.n_empties;
 	// eval_restore(search->eval, move);
-	search->eval = backup->eval;
+	search->eval = *eval0;
 	// board_restore(&search->board, move);
-	search->board = backup->board;
 	empty_restore(search->empties, x);
 	assert(search->height > 0);
 	--search->height;
@@ -989,11 +990,11 @@ void search_update_pass_midgame(Search *search, Eval *backup)
  *
  * @param search  search.
  */
-void search_restore_pass_midgame(Search *search, const Eval *backup)
+void search_restore_pass_midgame(Search *search, const Eval *eval0)
 {
 	board_pass(&search->board);
 	// eval_pass(&search->eval);
-	search->eval.feature = backup->feature;
+	search->eval.feature = eval0->feature;
 	assert(search->height > 0);
 	--search->height;
 }

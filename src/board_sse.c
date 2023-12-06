@@ -147,7 +147,7 @@ void board_symetry(const Board *board, const int s, Board *sym)
  */
 #if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)
 
-unsigned long long vectorcall vboard_next(__m128i OP, const int x, Board *next)
+unsigned long long vectorcall board_next_sse(__m128i OP, const int x, Board *next)
 {
 	__m128i flipped = reduce_vflip(mm_Flip(OP, x));
 
@@ -159,7 +159,7 @@ unsigned long long vectorcall vboard_next(__m128i OP, const int x, Board *next)
 
 #elif MOVE_GENERATOR == MOVE_GENERATOR_NEON
 
-unsigned long long vboard_next(uint64x2_t OP, const int x, Board *next)
+unsigned long long board_next_neon(uint64x2_t OP, const int x, Board *next)
 {
 	uint64x2_t flipped = mm_Flip(OP, x);
   #if !defined(_MSC_VER) && !defined(__clang__)	// MSVC-arm32 does not have vld1q_lane_u64
@@ -187,7 +187,7 @@ unsigned long long vboard_next(uint64x2_t OP, const int x, Board *next)
  */
 #ifdef __AVX2__	// 4 AVX
 
-  #if (vBoard == __m128i) && (defined(_MSC_VER) || defined(__linux__))	// vectorcall and SYSV-ABI passes __m256i in registers
+  #if (defined(_MSC_VER) || defined(__linux__))	// vectorcall and SYSV-ABI passes __m256i in registers
 unsigned long long vectorcall get_moves_avx(__m256i PP, __m256i OO)
 {
   #else

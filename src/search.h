@@ -125,11 +125,6 @@ typedef struct Search {
 	void (*observer)(Result*);                    /**< call back function to print search result */
 } Search;
 
-typedef struct Search_Backup {
-	Eval eval;
-	Board board;
-} Search_Backup;
-
 struct Node;
 
 extern const unsigned char QUADRANT_ID[];
@@ -168,7 +163,7 @@ void search_get_movelist(const Search*, MoveList*);
 // void search_restore_endgame(Search*, const Move*);
 // void search_pass_endgame(Search*);
 void search_update_midgame(Search*, const Move*);
-void search_restore_midgame(Search*, int, const Search_Backup*);
+void search_restore_midgame(Search*, int, const Eval*);
 void search_update_pass_midgame(Search*, Eval*);
 void search_restore_pass_midgame(Search*, const Eval*);
 long long search_clock(Search*);
