@@ -29,27 +29,27 @@
 	#define	EXTRACT_O(OP)	_mm_cvtsi128_si64(_mm_shuffle_epi32(OP, DUPHI))
 #endif
 
-#ifdef __AVX__
+#if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512)
 	#define	vflip	__m256i
 	static inline int vectorcall TESTZ_FLIP(__m256i X) { return _mm256_testz_si256(X, X); }
 #else
 	#define	vflip	__m128i
-	#if defined(__x86_64__) || defined(_M_X64)
-		#define TESTZ_FLIP(X)	(!_mm_cvtsi128_si64(X))
-	#else
-		static inline int vectorcall TESTZ_FLIP(__m128i X) { return !_mm_cvtsi128_si32(_mm_packs_epi16(X, X)); }
-	#endif
+  #if defined(__x86_64__) || defined(_M_X64)
+	#define TESTZ_FLIP(X)	(!_mm_cvtsi128_si64(X))
+  #else
+	static inline int vectorcall TESTZ_FLIP(__m128i X) { return !_mm_cvtsi128_si32(_mm_packs_epi16(X, X)); }
+  #endif
 #endif
 
 #ifdef __AVX512VL__
 	#define	TEST_EPI8_MASK32(X,Y)	_cvtmask32_u32(_mm256_test_epi8_mask((X), (Y)))
 	#define	TEST_EPI8_MASK16(X,Y)	_cvtmask16_u32(_mm_test_epi8_mask((X), (Y)))
-	#define	TESTNOT_EPI8_MASK32(X,Y)	_cvtmask32_u32(_mm256_test_epi8_mask(_mm256_xor_si256((X),(Y)), (Y)))
+	// #define	TESTNOT_EPI8_MASK32(X,Y)	_cvtmask32_u32(_mm256_test_epi8_mask(_mm256_xor_si256((X),(Y)), (Y)))
 #else	// AVX2
 	#define	TEST_EPI8_MASK32(X,Y)	_mm256_movemask_epi8(_mm256_sub_epi8(_mm256_setzero_si256(), _mm256_and_si256((X),(Y))))
 	#define	TEST_EPI8_MASK16(X,Y)	_mm_movemask_epi8(_mm_sub_epi8(_mm_setzero_si128(), _mm_and_si128((X),(Y))))
-	#define	TESTNOT_EPI8_MASK32(X,Y)	_mm256_movemask_epi8(_mm256_sub_epi8(_mm256_setzero_si256(), _mm256_andnot_si256((X),(Y))))
 #endif
+#define	TESTNOT_EPI8_MASK32(X,Y)	_mm256_movemask_epi8(_mm256_sub_epi8(_mm256_setzero_si256(), _mm256_andnot_si256((X),(Y))))
 
 // in count_last_flip_sse.c
 extern const uint8_t COUNT_FLIP[8][256];
@@ -78,33 +78,138 @@ static inline __m128i vectorcall board_flip_next(__m128i OP, int x, vflip flippe
  * @param PO     Board to evaluate. (O ignored)
  * @param alpha  Alpha bound. (beta - 1)
  * @param pos    Last empty square to play.
- * @return       The final opponent score, as a disc difference.
+ * @return       The final score, as a disc difference.
  */
+#if LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BMI2
+// PEXT count last flip (2.38s icc/icelake), very slow on Zen1/2
+extern const unsigned long long mask_x[64][4];
+
 static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, const int pos)
 {
 	uint_fast8_t	n_flips;
-	unsigned int	t;
-	unsigned long long P;
+	unsigned int	th, tv;
+	unsigned long long P = _mm_extract_epi64(PO, 1);
+	unsigned long long mP;
 	int	score, score2;
 	const uint8_t *COUNT_FLIP_X = COUNT_FLIP[pos & 7];
 	const uint8_t *COUNT_FLIP_Y = COUNT_FLIP[pos >> 3];
 
+	mP = P & mask_x[pos][3];	// mask out unrelated bits to make dummy 0 bits for outside
+	// n_flips  = COUNT_FLIP_X[th = _bextr_u64(mP, pos & 0x38, 8)];
+	n_flips  = COUNT_FLIP_X[th = (mP >> (pos & 0x38)) & 0xFF];
+	n_flips += COUNT_FLIP_Y[_pext_u64(mP, mask_x[pos][0])];
+	n_flips += COUNT_FLIP_Y[_pext_u64(mP, mask_x[pos][1])];
+	n_flips += COUNT_FLIP_Y[tv = _pext_u64(mP, mask_x[pos][2])];
+
+	score = 2 * bit_count(P) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+	score += n_flips;
+
+	if (n_flips == 0) {
+		score2 = score - 2;	// empty for opponent
+		if (score <= 0)
+			score = score2;
+
+		if (score > alpha) {	// lazy cut-off
+			mP = ~P & mask_x[pos][3];
+			n_flips  = COUNT_FLIP_X[th ^ 0xFF];
+			n_flips += COUNT_FLIP_Y[_pext_u64(mP, mask_x[pos][0])];
+			n_flips += COUNT_FLIP_Y[_pext_u64(mP, mask_x[pos][1])];
+			n_flips += COUNT_FLIP_Y[tv ^ 0xFF];
+
+			if (n_flips != 0)
+				score = score2 - n_flips;
+		}
+	}
+
+	return score;
+}
+
+#elif (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_AVX512)
+// AVX512 lastflip (2.41s icc/icelake)
+extern	const V8DI lrmask_v4[66];	// in flip_avx512cd.c
+
+static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, const int pos)
+{
+	int	score, score2, nflip;
+	__m256i PP = _mm256_permute4x64_epi64(_mm256_castsi128_si256(PO), 0x55);
+	__m256i	rmP, rmO, flip, outflank, rmask, lmask;
+	__m128i	flip2, p2;
+
+		// left: look for player LS1B
+	lmask = lrmask[pos].v4[0];
+	outflank = _mm256_and_si256(PP, lmask);
+		// set below LS1B if P is in lmask
+	// flip = _mm256_andnot_si256(outflank, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)));
+	// flip = _mm256_maskz_and_epi64(_mm256_test_epi64_mask(outflank, lmask), flip, lmask);
+	flip = _mm256_maskz_ternarylogic_epi64(_mm256_test_epi64_mask(PP, lmask),
+		outflank, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), lmask, 0x08);
+
+		// right: look for player bit with lzcnt
+	rmask = lrmask[pos].v4[1];
+	rmP = _mm256_and_si256(PP, rmask);		rmO = _mm256_andnot_si256(PP, rmask);
+		// clear all bits lower than outflank
+	outflank = _mm256_srlv_epi64(_mm256_set1_epi64x(0x8000000000000000), _mm256_lzcnt_epi64(rmP));
+	// flip = _mm256_or_si256(flip, _mm256_andnot_si256(_mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), rmO));
+	flip = _mm256_ternarylogic_epi64(flip, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), rmO, 0xf2);
+
+	flip2 = _mm_or_si128(_mm256_castsi256_si128(flip), _mm256_extracti128_si256(flip, 1));
+	// p2 = _mm_or_si128(_mm_or_si128(flip2, _mm_shuffle_epi32(flip2, SWAP64)), _mm256_castsi256_si128(PP));
+	p2 = _mm_ternarylogic_epi64(flip2, _mm_shuffle_epi32(flip2, SWAP64), _mm256_castsi256_si128(PP), 0xfe);
+	score = 2 * bit_count(_mm_cvtsi128_si64(p2)) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+
+	if (_mm_testz_si128(flip2, flip2)) {
+		score2 = score - 2;	// empty for player
+		if (score <= 0)
+			score = score2;
+
+		if (score > alpha) {	// lazy cut-off
+				// left: look for opponent LS1B
+			outflank = _mm256_andnot_si256(PP, lmask);
+				// set below LS1B if O is in lmask
+			// flip = _mm256_andnot_si256(outflank, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)));
+			// flip = _mm256_maskz_and_epi64(_mm256_test_epi64_mask(outflank, lmask), flip, lmask);
+			flip = _mm256_maskz_ternarylogic_epi64(_mm256_test_epi64_mask(outflank, lmask),
+				outflank, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), lmask, 0x08);
+
+				// right: clear all bits lower than outflank
+			outflank = _mm256_srlv_epi64(_mm256_set1_epi64x(0x8000000000000000), _mm256_lzcnt_epi64(rmO));
+			// flip = _mm256_or_si256(flip, _mm256_andnot_si256(_mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), rmP));
+			flip = _mm256_ternarylogic_epi64(flip, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), rmP, 0xf2);
+
+			flip2 = _mm_or_si128(_mm256_castsi256_si128(flip), _mm256_extracti128_si256(flip, 1));
+			nflip = bit_count(_mm_cvtsi128_si64(_mm_or_si128(flip2, _mm_shuffle_epi32(flip2, SWAP64))));
+			if (nflip)
+				score = score2 - nflip * 2;
+		}
+	}
+
+	return score;
+}
+
+#else	// COUNT_LAST_FLIP_SSE - reasonably fast on all platforms (2.36s icc/icelake)
+static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, const int pos)
+{
+	uint_fast8_t	n_flips;
+	unsigned int	t;
+	int	score, score2;
+	const uint8_t *COUNT_FLIP_X = COUNT_FLIP[pos & 7];
+	const uint8_t *COUNT_FLIP_Y = COUNT_FLIP[pos >> 3];
+	__m128i P2 = _mm_unpackhi_epi64(PO, PO);
+
 	// n_flips = last_flip(pos, P);
   #ifdef AVXLASTFLIP	// no gain
 	__m256i M = mask_dvhd[pos].v4;
-	__m256i P4 = _mm256_permute4x64_epi64(_mm256_castsi128_si256(PO), 0x55);
-	__m128i P2 = _mm_cvtsi128_si64(_mm256_castsi256_si128(P4));
+	__m256i P4 = _mm256_broadcastq_epi64(P2);
 	unsigned int h = (_mm_cvtsi128_si64(P2) >> (pos & 0x38)) & 0xFF;
 
-	n_flips  = COUNT_FLIP_X[h];
 	t = TEST_EPI8_MASK32(P4, M);
+	n_flips  = COUNT_FLIP_X[h];
 	n_flips += COUNT_FLIP_Y[t & 0xFF];
 	t >>= 16;
 
   #else
 	__m128i M0 = mask_dvhd[pos].v2[0];
 	__m128i M1 = mask_dvhd[pos].v2[1];
-	__m128i P2 = _mm_shuffle_epi32(PO, DUPHI);
 	__m128i II = _mm_sad_epu8(_mm_and_si128(P2, M0), _mm_setzero_si128());
 
 	n_flips  = COUNT_FLIP_X[_mm_extract_epi16(II, 4)];
@@ -118,7 +223,7 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, cons
 	score += n_flips;
 
 	if (n_flips == 0) {
-		score2 = score - 2;	// empty for opponent
+		score2 = score - 2;	// empty for player
 		if (score <= 0)
 			score = score2;
 
@@ -145,11 +250,12 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, cons
 
 	return score;
 }
+#endif
 
 // from bench.c
-int board_score_1(const unsigned long long player, const int beta, const int x)
+int board_score_1(const unsigned long long player, const int alpha, const int x)
 {
-	return board_score_sse_1(_mm_shuffle_epi32(_mm_cvtsi64_si128(player), SWAP64), beta, x);
+	return board_score_sse_1(_mm_shuffle_epi32(_mm_cvtsi64_si128(player), SWAP64), alpha, x);
 }
 
 /**
@@ -235,8 +341,7 @@ static int vectorcall search_solve_3(__m128i OP, int alpha, volatile unsigned lo
 {
 	vflip flipped;
 	int score, bestscore, x, pol;
-	unsigned long long bb;
-	// const int beta = alpha + 1;
+	unsigned long long opponent;
 
 	SEARCH_STATS(++statistics.n_search_solve_3);
 	SEARCH_UPDATE_INTERNAL_NODES(*n_nodes);
@@ -250,30 +355,31 @@ static int vectorcall search_solve_3(__m128i OP, int alpha, volatile unsigned lo
 	pol = 1;
 	do {
 		// best move alphabeta search
-		bb = EXTRACT_O(OP);	// opponent
+		opponent = EXTRACT_O(OP);
 		x = _mm_extract_epi16(empties, 2);
-		if ((NEIGHBOUR[x] & bb) && !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
+		if ((NEIGHBOUR[x] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
 			bestscore = board_solve_2(board_flip_next(OP, x, flipped), alpha, n_nodes, empties);
 			if (bestscore > alpha) return bestscore * pol;
 		}
 
 		x = _mm_extract_epi16(empties, 1);
-		if (/* (NEIGHBOUR[x] & bb) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
+		if (/* (NEIGHBOUR[x] & opponent) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
 			score = board_solve_2(board_flip_next(OP, x, flipped), alpha, n_nodes, _mm_shufflelo_epi16(empties, 0xd8));	// (d3d1)d2d0
 			if (score > alpha) return score * pol;
 			else if (score > bestscore) bestscore = score;
 		}
 
 		x = _mm_extract_epi16(empties, 0);
-		if (/* (NEIGHBOUR[x] & bb) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
+		if (/* (NEIGHBOUR[x] & opponent) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
 			score = board_solve_2(board_flip_next(OP, x, flipped), alpha, n_nodes, _mm_shufflelo_epi16(empties, 0xc9));	// (d3d0)d2d1
 			if (score > bestscore) bestscore = score;
+			return bestscore * pol;
 		}
 
 		if (bestscore > -SCORE_INF)
 			return bestscore * pol;
 
-		OP = _mm_shuffle_epi32(OP, SWAP64);
+		OP = _mm_shuffle_epi32(OP, SWAP64);	// pass
 		alpha = ~alpha;	// = -(alpha + 1)
 	} while ((pol = -pol) < 0);
 

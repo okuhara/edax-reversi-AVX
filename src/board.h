@@ -119,7 +119,7 @@ extern unsigned long long A1_A8[256];
 		_mm_cvtsi32_si128(P), ((P) >> 32), 1), (O), 2), (O >> 32), 3), (x)))))
   #endif
 	#define	board_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(reduce_vflip(mm_Flip(_mm_loadu_si128((__m128i *) (board)), (x)))))
-	#define	vboard_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(reduce_vflip(mm_Flip((board), (x)))))
+	#define	vboard_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(reduce_vflip(mm_Flip((board).v2, (x)))))
 
 #elif MOVE_GENERATOR == MOVE_GENERATOR_SSE
 	extern __m128i (vectorcall *mm_flip[BOARD_SIZE + 2])(const __m128i);

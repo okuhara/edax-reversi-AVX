@@ -6,7 +6,7 @@
  *
  * Bitboard and empty list is kept in Neon registers.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.4
@@ -38,12 +38,14 @@ extern const uint64x2_t mask_dvhd[64][2];
  */
 static inline uint64x2_t board_flip_next(uint64x2_t OP, int x, uint64x2_t flipped)
 {
-#ifdef HAS_CPU_64	// vld1q_lane_u64
+#if !defined(_MSC_VER) && !defined(__clang__)	// MSVC-arm32 does not have vld1q_lane_u64
+	// arm64-gcc-13: 8, armv8a-clang-16: 8, msvc-arm64-19: 8, gcc-arm-13: 16, clang-armv7-11: 18
 	OP = veorq_u64(OP, vorrq_u64(flipped, vld1q_lane_u64((uint64_t *) &X_TO_BIT[x], flipped, 0)));
-#else
-	OP = veorq_u64(OP, vcombine_u64(vorr_u64(vget_low_u64(flipped), vld1_u64(&X_TO_BIT[x])), vget_high_u64(flipped)));
-#endif
 	return vextq_u64(OP, OP, 1);
+#else	// arm64-gcc-13: 8, armv8a-clang-16: 7, msvc-arm64-19: 7, gcc-arm-13: 21, clang-armv7-11: 15
+	OP = veorq_u64(OP, flipped);
+	return vcombine_u64(vget_high_u64(OP), vorr_u64(vget_low_u64(OP), vld1_u64((uint64_t *) &X_TO_BIT[x])));
+#endif
 }
 
 /**
@@ -62,10 +64,10 @@ static int board_solve_neon(uint64x1_t P, int n_empties)
 
 	SEARCH_STATS(++statistics.n_search_solve);
 
-	if (diff >= 0)
+	if (diff == 0)
 		score = diff;
-	if (diff > 0)
-		score += n_empties;
+	else if (diff > 0)
+		score = diff + n_empties;
 	return score;
 }
 
@@ -78,7 +80,7 @@ static int board_solve_neon(uint64x1_t P, int n_empties)
  * @param P      Board.player to evaluate.
  * @param alpha  Alpha bound. (beta - 1)
  * @param pos    Last empty square to play.
- * @return       The final opponent score, as a disc difference.
+ * @return       The final score, as a disc difference.
  */
 static int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 {
@@ -220,7 +222,7 @@ static int board_solve_2(uint64x2_t OP, int alpha, volatile unsigned long long *
 			nodes = 1;
 		}
 		bestscore = -bestscore;
-@	}
+	}
 
 	SEARCH_UPDATE_2EMPTIES_NODES(*n_nodes += nodes;)
 	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
@@ -243,8 +245,7 @@ static int search_solve_3(uint64x2_t OP, int alpha, volatile unsigned long long 
 {
 	uint64x2_t flipped;
 	int score, bestscore, x, pol;
-	unsigned long long bb;
-	// const int beta = alpha + 1;
+	unsigned long long opponent;
 
 	SEARCH_STATS(++statistics.n_search_solve_3);
 	SEARCH_UPDATE_INTERNAL_NODES(*n_nodes);
@@ -253,30 +254,31 @@ static int search_solve_3(uint64x2_t OP, int alpha, volatile unsigned long long 
 	pol = 1;
 	do {
 		// best move alphabeta search
-		bb = vgetq_lane_u64(OP, 1);	// opponent
+		opponent = vgetq_lane_u64(OP, 1);
 		x = vget_lane_u8(empties, 2);
-		if ((NEIGHBOUR[x] & bb) && !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
+		if ((NEIGHBOUR[x] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
 			bestscore = board_solve_2(board_flip_next(OP, x, flipped), alpha, n_nodes, empties);
 			if (bestscore > alpha) return bestscore * pol;
 		}
 
 		x = vget_lane_u8(empties, 1);
-		if (/* (NEIGHBOUR[x] & bb) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
-			score = board_solve_2(board_flip_next(OP, x, flipped), alpha, n_nodes, vuzp_u8(empties, empties).val[0]);
+		if (/* (NEIGHBOUR[x] & opponent) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
+			score = board_solve_2(board_flip_next(OP, x, flipped), alpha, n_nodes, vuzp_u8(empties, empties).val[0]);	// d2d0
 			if (score > alpha) return score * pol;
 			else if (score > bestscore) bestscore = score;
 		}
 
 		x = vget_lane_u8(empties, 0);
-		if (/* (NEIGHBOUR[x] & bb) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
-			score = board_solve_2(board_flip_next(OP, x, flipped), alpha, n_nodes, vext_u8(empties, empties, 1));
+		if (/* (NEIGHBOUR[x] & opponent) && */ !TESTZ_FLIP(flipped = mm_Flip(OP, x))) {
+			score = board_solve_2(board_flip_next(OP, x, flipped), alpha, n_nodes, vext_u8(empties, empties, 1));	// d2d1
 			if (score > bestscore) bestscore = score;
+			return bestscore * pol;
 		}
 
 		if (bestscore > -SCORE_INF)
 			return bestscore * pol;
 
-		OP = vextq_u64(OP, OP, 1);
+		OP = vextq_u64(OP, OP, 1);	// pass
 		alpha = ~alpha;	// = -(alpha + 1)
 	} while ((pol = -pol) < 0);
 
@@ -291,7 +293,7 @@ static int search_solve_3(uint64x2_t OP, int alpha, volatile unsigned long long 
  * @param search Search position.
  * @param alpha Upper score value.
  * @return The final min score, as a disc difference.
-  */
+ */
 
 static int search_solve_4(Search *search, int alpha)
 {
@@ -384,15 +386,16 @@ static int search_solve_4(Search *search, int alpha)
 			vget_low_u8(vextq_u8(empties_series, empties_series, 12)));
 		if (score < bestscore) bestscore = score;
 	}
-	else if (bestscore == -SCORE_INF) {	// no move
-		if (can_move(opp, vgetq_lane_u64(OP, 0))) { // pass
+	else if (bestscore == SCORE_INF) {	// no move
+		if (can_move(opponent, vgetq_lane_u64(OP, 0))) { // pass
 			board_pass(&search->board);
 			bestscore = -search_solve_4(search, ~alpha);
 			board_pass(&search->board);
 		} else { // gameover
-			bestscore = board_solve_neon(opponent, 4);
+			bestscore = board_solve_neon(vget_high_u64(OP), 4);
 		}
 	}
 
 	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
-	return bestscore;}
+	return bestscore;
+}

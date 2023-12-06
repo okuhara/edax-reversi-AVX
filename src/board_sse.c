@@ -145,7 +145,7 @@ void board_symetry(const Board *board, const int s, Board *sym)
  * @param next resulting board.
  * @return flipped discs.
  */
-#if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)
+#if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)
 
 unsigned long long vectorcall board_next_sse(__m128i OP, const int x, Board *next)
 {

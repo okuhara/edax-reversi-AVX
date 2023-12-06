@@ -120,4 +120,4 @@ __m256i vectorcall mm_Flip(const __m128i OP, int pos)
 	flip = _mm256_ternarylogic_epi64(flip, outflank, mask, 0xf8);
 
 	return flip;
-}}
+}
