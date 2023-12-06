@@ -733,13 +733,14 @@ int get_stability_sse(const unsigned long long P, const unsigned long long O)
 	full_v = l8;				full_d7 = vertical_mirror(vgetq_lane_u64(l79, 1));
 
     #elif 1	// 1 CPU, 3 SSE
+	unsigned long long rdisc = vertical_mirror(disc);
 	__m128i l01, l79, r79;	// full lines
 	const __m128i kff  = _mm_set1_epi8(-1);
 	const __m128i edge = _mm_set1_epi64x(0xff818181818181ff);
 	const __m128i e791 = _mm_set1_epi64x(0x00003f3f3f3f3f3f);
 	const __m128i e792 = _mm_set1_epi64x(0x0f0f0f0ff0f0f0f0);
 
-	l01 = l79 = _mm_cvtsi64_si128(disc);	r79 = _mm_cvtsi64_si128(vertical_mirror(disc));
+	l01 = l79 = _mm_cvtsi64_si128(disc);	r79 = _mm_cvtsi64_si128(rdisc);
 	l01 = _mm_cmpeq_epi8(kff, l01);		l79 = r79 = _mm_unpacklo_epi64(l79, r79);
 	full_h = _mm_cvtsi128_si64(l01);	l79 = _mm_and_si128(l79, _mm_or_si128(edge, _mm_srli_epi64(l79, 9)));
 						r79 = _mm_and_si128(r79, _mm_or_si128(edge, _mm_slli_epi64(r79, 9)));
