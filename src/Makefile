@@ -1,7 +1,7 @@
 #
 # makefile to Compile Edax
 #
-# Copyright 1998 - 2022
+# Copyright 1998 - 2023
 # Richard Delorme
 # Version 4.5
 #

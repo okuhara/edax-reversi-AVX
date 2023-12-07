@@ -3,7 +3,7 @@
  *
  * SSE/AVX translation of some eval.c functions
  *
- * @date 2018 - 2022
+ * @date 2018 - 2023
  * @author Toshihiko Okuhara
  * @version 4.5
  */

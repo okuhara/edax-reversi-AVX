@@ -93,7 +93,7 @@ const V4DI lmask_v4[66] = {
  * @return flipped disc pattern.
  */
 
-__m128i vectorcall mm_Flip(const __m128i OP, int pos)
+__m256i vectorcall mm_Flip(const __m128i OP, int pos)
 {
 	__m256i	PP, mOO, flip, shift2, pre, outflank, mask, ocontig;
 	const __m256i shift1897 = _mm256_set_epi64x(7, 9, 8, 1);

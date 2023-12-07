@@ -1,9 +1,9 @@
 /**
- * @file move.c
+ * @file move.h
  *
  * @brief Move & list of moves management - header file.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.5
  */

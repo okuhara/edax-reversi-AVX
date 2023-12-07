@@ -120,7 +120,7 @@ __m256i vectorcall mm_Flip(const __m128i OP, int pos)
 		// set all bits higher than outflank
 	flip = _mm256_and_si256(_mm256_sub_epi64(_mm256_setzero_si256(), _mm256_add_epi64(outflank, outflank)), mask);
 
-	mask = lrmask_v4[pos].v4[0];
+	mask = lrmask[pos].v4[0];
 		// look for non-opponent (or edge) bit
 	ocontig = _mm256_andnot_si256(mOO, mask);
 	ocontig = _mm256_and_si256(ocontig, _mm256_sub_epi64(_mm256_setzero_si256(), ocontig));	// LS1B

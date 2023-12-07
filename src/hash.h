@@ -3,7 +3,7 @@
  *
  * Hash table's header.
  *
- * @date 1998 - 2021
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.5
  */
@@ -87,6 +87,7 @@ typedef struct HashStoreData {
 
 /* declaration */
 
+void hash_move_init(void);
 void hash_init(HashTable*, const unsigned long long);
 void hash_cleanup(HashTable*);
 void hash_clear(HashTable*);

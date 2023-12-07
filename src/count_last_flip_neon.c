@@ -17,7 +17,7 @@
  * For optimization purpose, the value returned is twice the number of flipped
  * disc, to facilitate the computation of disc difference.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -288,7 +288,6 @@ int last_flip(int pos, unsigned long long P)
 	n_flips += COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(II), 11)];
 	n_flips += COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(II), 3)];
 #endif
-
 	return n_flips;
 }
 

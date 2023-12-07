@@ -14,7 +14,7 @@
  * When doing parallel search with a shared hashtable, a locked implementation
  * avoid concurrency collisions.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.5
  */
@@ -352,9 +352,9 @@ static bool hash_update(Hash *hash, HashLock *lock, const Board *board, HashStor
 {
 	bool ok = false;
 
-	if (board_equal(board, &hash->board)) {
+	if (board_equal(&hash->board, board)) {
 		spin_lock(lock);
-		if (board_equal(board, &hash->board)) {
+		if (board_equal(&hash->board, board)) {
 			if (hash->data.wl.us.selectivity_depth == storedata->data.wl.us.selectivity_depth)
 				data_update(&hash->data, storedata);
 			else	data_upgrade(&hash->data, storedata);
@@ -394,9 +394,9 @@ static bool hash_replace(Hash *hash, HashLock *lock, const Board *board, HashSto
 {
 	bool ok = false;
 
-	if (board_equal(board, &hash->board)) {
+	if (board_equal(&hash->board, board)) {
 		spin_lock(lock);
-		if (board_equal(board, &hash->board)) {
+		if (board_equal(&hash->board, board)) {
 			data_new(&hash->data, storedata);
 			ok = true;
 		}
@@ -422,9 +422,9 @@ static bool hash_reset(Hash *hash, HashLock *lock, const Board *board, HashStore
 {
 	bool ok = false;
 
-	if (board_equal(board, &hash->board)) {
+	if (board_equal(&hash->board, board)) {
 		spin_lock(lock);
-		if (board_equal(board, &hash->board)) {
+		if (board_equal(&hash->board, board)) {
 			if (hash->data.wl.us.selectivity_depth == storedata->data.wl.us.selectivity_depth) {
 				if (hash->data.lower < storedata->data.lower) hash->data.lower = storedata->data.lower;
 				if (hash->data.upper > storedata->data.upper) hash->data.upper = storedata->data.upper;
@@ -607,10 +607,10 @@ bool hash_get(HashTable *hash_table, const Board *board, const unsigned long lon
 		HASH_COLLISIONS(	})
 		HASH_COLLISIONS(	spin_unlock(lock);)
 		HASH_COLLISIONS(})
-		if (board_equal(board, &hash->board)) {
+		if (board_equal(&hash->board, board)) {
 			lock = hash_table->lock + (hash_code & hash_table->lock_mask);
 			spin_lock(lock);
-			if (board_equal(board, &hash->board)) {
+			if (board_equal(&hash->board, board)) {
 				*data = hash->data;
 				HASH_STATS(++statistics.n_hash_found;)
 				hash->data.wl.c.date = hash_table->date;
@@ -654,10 +654,10 @@ void hash_exclude_move(HashTable *hash_table, const Board *board, const unsigned
 
 	hash = hash_table->hash + (hash_code & hash_table->hash_mask);
 	for (i = 0; i < HASH_N_WAY; ++i) {
-		if (board_equal(board, &hash->board)) {
+		if (board_equal(&hash->board, board)) {
 			lock = hash_table->lock + (hash_code & hash_table->lock_mask);
 			spin_lock(lock);
-			if (board_equal(board, &hash->board)) {
+			if (board_equal(&hash->board, board)) {
 				if (hash->data.move[0] == move) {
 					hash->data.move[0] = hash->data.move[1];
 					hash->data.move[1] = NOMOVE;

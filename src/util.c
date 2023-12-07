@@ -6,7 +6,7 @@
  * This should be the only file with linux/windows
  * dedicated code.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.5
  */

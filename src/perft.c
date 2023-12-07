@@ -3,7 +3,7 @@
  *
  * @brief Move generator test.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.5
  */
@@ -1090,14 +1090,14 @@ void count_shapes(const Board *board, const int depth, const int size)
  * @param line line to reach the target position
  */
 bool seek_position(const Board *target, const Board *board, Line *line) {
- 	const unsigned long long mask = target->opponent | target->player;
- 	unsigned long long moves;
- 	int x;
- 	Board next;
- 	
- 	if (board_equal(board, target)) return true;
- 		
- 	moves = board_get_moves(board);
+	const unsigned long long mask = target->opponent | target->player;
+	unsigned long long moves;
+	int x;
+	Board next;
+
+	if (board_equal(board, target)) return true;
+
+	moves = board_get_moves(board);
 	if (moves) {
 		moves &= mask;
 		foreach_bit (x, moves) {
@@ -1112,7 +1112,7 @@ bool seek_position(const Board *target, const Board *board, Line *line) {
 			if (seek_position(target, &next, line)) return true;
 		}
 	}
-	
+
 	return false;
 }
 

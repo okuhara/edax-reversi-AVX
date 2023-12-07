@@ -3,7 +3,7 @@
  *
  * Game management
  *
- * @date 1998 - 2022
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.5
  */

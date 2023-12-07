@@ -92,7 +92,7 @@ const V8DI lrmask[66] = {
  * @return flipped disc pattern.
  */
 
-__m128i vectorcall mm_Flip(const __m128i OP, int pos)
+__m256i vectorcall mm_Flip(const __m128i OP, int pos)
 {
 	__m256i	PP, OO, flip, outflank, eraser, mask;
 	const __m256i mask0F0F = _mm256_set1_epi16(0x0F0F);
