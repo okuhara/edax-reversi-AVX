@@ -1,4 +1,14 @@
-# edax-reversi-AVX
+# edax-reversi-AVX-v446mod2
+
+[![DOI](https://zenodo.org/badge/708297159.svg)](https://zenodo.org/doi/10.5281/zenodo.10030905)
+
+Manually exported from https://github.com/okuhara/edax-reversi-AVX to local on 2018/09/10.
+
+eval.dat.bz2 is from https://github.com/abulmo/edax-reversi/releases/download/v4.4/eval.7z .
+
+Two commits, https://github.com/eukaryo/edax-reversi-AVX-v446mod2/commit/018a4f9b1d79ba441859f7bd8d5ec4ba52816855 and https://github.com/eukaryo/edax-reversi-AVX-v446mod2/commit/9132243769be4d80806243ae2c8904f44d40fadc , are my modifications to the original source code.
+
+# edax-reversi-AVX (4.4.9)
 Automatically exported from code.google.com/p/okuharaandroid-edax-reversi
 
 Edax is a strong othello program. Its main features are:
@@ -12,11 +22,8 @@ Edax is a strong othello program. Its main features are:
 
 This is SSE/AVX optimized version of Edax 4.4.0. Functionally equivalent to the parent project, provided no bugs are introduced.
 
-64 bit version solves fforum-20-39 7% to 9% faster than the original 4.4.0 on my test. Thanks to AVX2, x64-modern build runs 14% faster on Haswell. 32 bit version runs 9% (Core2) to 20% (Athlon) faster than the original.
-
-All SSE/AVX/MMX stuff belongs to board.c are moved into separate board_sse.c (for x64 and x86) and board_mmx.c (for x86) files.
-
-I used GCC 4.7.2, Athlon X4 605e, Windows 8 (64) / XP (32), Clang 3.4, Core i5-4260U (Haswell), OSX 10.9.4 and Clang 1.7, Core2, OSX 10.6.8 for the benchmark.
+64 bit version solves fforum-20-39 40% faster than the original 4.4.0 on my test. Thanks to AVX2, x64-modern build runs 60% faster on Haswell.
+32 bit version runs 2 times faster than the original.
 
 ## 1. Mobility (board_sse.c, board_mmx.c)
 
