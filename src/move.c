@@ -235,7 +235,6 @@ Move* move_next_best(Move *previous_best)
 		previous_best->next = move;
 		// }
 	}
-
 	return previous_best->next;
 }
 
@@ -262,7 +261,6 @@ Move* move_next_most_expensive(Move *previous_best)
 		previous_best->next = move;
 		// }
 	}
-
 	return previous_best->next;
 }
 
@@ -331,12 +329,12 @@ void movelist_evaluate_fast(MoveList *movelist, Search *search, const HashData *
 			__m128i MM = bit_weighted_count_sse(get_moves(P, O), get_potential_moves(P, O));
 			score += (36 - _mm_extract_epi16(MM, 4)) * w_potential_mobility; // potential mobility
 			score += (36 - _mm_cvtsi128_si32(MM)) * w_mobility; // real mobility
-  #elif defined(hasNeon)
+  #elif defined(__ARM_NEON)
 			uint64x2_t MM = bit_weighted_count_neon(get_moves(P, O), get_potential_moves(P, O));
 			score += (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 2)) * w_potential_mobility; // potential mobility
 			score += (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 0)) * w_mobility; // real mobility
   #else
-			score += (36 - get_potential_mobility(P, O)) * w_potential_mobility; // potential mobility
+			score += (36 - bit_weighted_count(get_potential_moves(P, O))) * w_potential_mobility; // potential mobility
 			score += (36 - bit_weighted_count(get_moves(P, O))) * w_mobility; // real mobility
   #endif
 #endif
@@ -371,8 +369,8 @@ void movelist_evaluate_fast(MoveList *movelist, Search *search, const HashData *
 void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_data, const int alpha, const int depth)
 {
 	static const char min_depth_table[64] = {
-		19, 18, 18, 18, 17, 17, 17, 16,
-		16, 16, 15, 15, 15, 14, 14, 14,	// (Never for empties < 14)
+		19, 18, 18, 18, 17, 17, 17, 16,	// (Never for empties < 14)
+		16, 16, 15, 15, 15, 14, 14, 14,
 		13, 13, 13, 12, 12, 12, 11, 11,
 		11, 10, 10, 10,  9,  9,  9,  9,
 		 9,  9,  9,  9,  9,  9,  9,  9,
@@ -386,7 +384,6 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 	Eval eval0;
 	Board board0;
 
-	// https://eukaryote.hateblo.jp/entry/2020/05/16/082757
 	empties = search->eval.n_empties;
 	// min_depth = 9;
 	// if (empties <= 27) min_depth += (30 - empties) / 3;
@@ -396,6 +393,7 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 		if (empties < 21)
 			parity_weight = (empties < 12) ? w_low_parity : w_mid_parity;
 		else	parity_weight = (empties < 30) ? w_high_parity : 0;
+
 		sort_depth = (depth - 15) / 3;
 		if (hash_data->upper < alpha) sort_depth -= 2;
 		if (empties >= 27) ++sort_depth;
@@ -428,12 +426,12 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 				__m128i MM = bit_weighted_count_sse(board_get_moves(&search->board), get_potential_moves(search->board.player, search->board.opponent));
 				score += (36 - _mm_extract_epi16(MM, 4)) * w_potential_mobility; // potential mobility
 				score += (36 - _mm_cvtsi128_si32(MM)) * w_mobility; // real mobility
-#elif defined(hasNeon)
+#elif defined(__ARM_NEON)
 				uint64x2_t MM = bit_weighted_count_neon(board_get_moves(&search->board), get_potential_moves(search->board.player, search->board.opponent));
 				score += (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 2)) * w_potential_mobility; // potential mobility
 				score += (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 0)) * w_mobility; // real mobility
 #else
-				score += (36 - get_potential_mobility(search->board.player, search->board.opponent)) * w_potential_mobility; // potential mobility
+				score += (36 - bit_weighted_count(get_potential_moves(search->board.player, search->board.opponent))) * w_potential_mobility; // potential mobility
 				score += (36 - bit_weighted_count(board_get_moves(&search->board))) * w_mobility; // real mobility
 #endif
 				score += get_edge_stability(search->board.opponent, search->board.player) * w_edge_stability; // edge stability
@@ -448,7 +446,7 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 					score += ((SCORE_MAX - search_eval_2(search, SCORE_MIN, -sort_alpha, false)) >> 1) * w_eval;  // 3 level score bonus
 					break;
 				default:	// 3 to 6
-					if (hash_get(&search->hash_table, &search->board, board_get_hash_code(&search->board), &dummy)) score += w_hash; // bonus if the position leads to a position stored in the hash-table
+					if (hash_get_from_board(&search->hash_table, &search->board, &dummy)) score += w_hash; // bonus if the position leads to a position stored in the hash-table
 					// org_selectivity = search->selectivity;
 					// search->selectivity = NO_SELECTIVITY;
 					score += ((SCORE_MAX - PVS_shallow(search, SCORE_MIN, -sort_alpha, sort_depth))) * w_eval; // > 3 level bonus

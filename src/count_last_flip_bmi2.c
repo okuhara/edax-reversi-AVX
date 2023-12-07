@@ -25,6 +25,7 @@
  */
 
 #include "bit.h"
+#include <stdint.h>
 
 /** precomputed count flip array */
 const uint8_t COUNT_FLIP[8][256] = {

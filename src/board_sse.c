@@ -12,7 +12,7 @@
 #include "hash.h"
 #include "board.h"
 
-#if defined(ANDROID) && !defined(hasNeon) && !defined(hasSSE2)
+#if defined(ANDROID) && !defined(HAS_CPU_64) && !defined(hasSSE2)
 #include "android/cpu-features.h"
 
 bool	hasSSE2 = false;
@@ -27,7 +27,7 @@ void init_neon (void)
 	#endif
 		hasSSE2 = true;	// for eval_update_sse
 	}
-  #else	// android x86 w/o SSE2 - uncommon and not tested
+  #elif defined(__i386__)	// android x86 w/o SSE2 - uncommon and not tested
 	int	cpuid_edx, cpuid_ecx;
 	__asm__ (
 		"movl	$1, %%eax\n\t"
@@ -99,7 +99,7 @@ void board_symetry(const Board *board, const int s, Board *sym)
 	board_check(sym);
 }
 
-#elif defined(hasNeon)
+#elif defined(__ARM_NEON) && !defined(DISPATCH_NEON)
 
 void board_symetry(const Board *board, const int s, Board *sym)
 {
@@ -136,12 +136,10 @@ void board_symetry(const Board *board, const int s, Board *sym)
 #endif // hasSSE2/Neon
 
 /**
- * @brief Compute a board resulting of an opponent move played on a previous board.
- *
- * Compute the board after passing and playing a move.
+ * @brief Compute a board resulting of a move played on a previous board.
  *
  * @param OP board to play the move on.
- * @param x opponent move to play.
+ * @param x move to play.
  * @param next resulting board.
  * @return flipped discs.
  */
@@ -172,7 +170,6 @@ unsigned long long board_next_neon(uint64x2_t OP, const int x, Board *next)
   #endif
 	return vgetq_lane_u64(flipped, 0);
 }
-
 #endif
 
 /**
@@ -187,7 +184,7 @@ unsigned long long board_next_neon(uint64x2_t OP, const int x, Board *next)
  */
 #ifdef __AVX2__	// 4 AVX
 
-  #if (defined(_MSC_VER) || defined(__linux__))	// vectorcall and SYSV-ABI passes __m256i in registers
+  #if defined(_MSC_VER) || defined(__linux__)	// vectorcall and SYSV-ABI passes __m256i in registers
 unsigned long long vectorcall get_moves_avx(__m256i PP, __m256i OO)
 {
   #else
@@ -216,7 +213,6 @@ unsigned long long get_moves(unsigned long long P, unsigned long long O)	// minG
 	MM = _mm256_or_si256(_mm256_sllv_epi64(flip_l, shift1897), _mm256_srlv_epi64(flip_r, shift1897));
 
 	M = _mm_or_si128(_mm256_castsi256_si128(MM), _mm256_extracti128_si256(MM, 1));
-	M = _mm_or_si128(M, _mm_unpackhi_epi64(M, M));
 	return _mm_cvtsi128_si64(_mm_andnot_si128(occupied, _mm_or_si128(M, _mm_unpackhi_epi64(M, M))));	// mask with empties
 }
 
@@ -273,9 +269,9 @@ unsigned long long get_moves(const unsigned long long P, const unsigned long lon
 	return moves & ~(P|O);	// mask with empties
 }
 
-#elif defined(__ARM_NEON__)	// 3 Neon, 1 CPU(32)
+#elif defined(__ARM_NEON)	// 3 Neon, 1 CPU(32)
 
-  #ifdef hasNeon
+  #ifndef DISPATCH_NEON
 	#define	get_moves_sse	get_moves	// no dispatch
   #endif
 
@@ -331,7 +327,7 @@ unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
 	#define	get_moves_sse	get_moves	// no dispatch
     #endif
 
-unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
+unsigned long long get_moves_sse(const unsigned long long P, const unsigned long long O)
 {
 	unsigned int	mO, movesL, movesH, flip1, pre1;
 	__m128i	OP, rOP, PP, OO, MM, flip, pre;
@@ -340,8 +336,7 @@ unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
 	OP  = _mm_unpacklo_epi64(_mm_cvtsi64_si128(P), _mm_cvtsi64_si128(O));		mO = (unsigned int) O & 0x7e7e7e7eU;
 	rOP = _mm_shufflelo_epi16(OP, 0x1B);						flip1  = mO & ((unsigned int) P << 1);
 	rOP = _mm_shufflehi_epi16(rOP, 0x1B);						flip1 |= mO & (flip1 << 1);
-											pre1   = mO & (mO << 1);
-	rOP = _mm_or_si128(_mm_srli_epi16(rOP, 8), _mm_slli_epi16(rOP, 8));
+	rOP = _mm_or_si128(_mm_srli_epi16(rOP, 8), _mm_slli_epi16(rOP, 8));		pre1   = mO & (mO << 1);
 	    										flip1 |= pre1 & (flip1 << 2);
 	PP  = _mm_unpacklo_epi64(OP, rOP);						flip1 |= pre1 & (flip1 << 2);
 	OO  = _mm_unpackhi_epi64(OP, rOP);						movesL = flip1 << 1;
@@ -377,7 +372,7 @@ unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
 
   #else // non-VEX asm
 
-unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
+unsigned long long get_moves_sse(const unsigned long long P, const unsigned long long O)
 {
 	unsigned long long moves;
 	static const V2DI mask7e = {{ 0x7e7e7e7e7e7e7e7eULL, 0x7e7e7e7e7e7e7e7eULL }};
@@ -490,8 +485,10 @@ unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
   #endif // hasSSE2
 #endif // x86
 
+#if defined(hasSSE2) || (defined(__ARM_NEON) && !defined(DISPATCH_NEON))
+
 /**
- * @brief SSE optimized get_stable_edge
+ * @brief SSE/neon optimized get_stable_edge
  *
  * @param P bitboard with player's discs.
  * @param O bitboard with opponent's discs.
@@ -508,11 +505,11 @@ unsigned long long get_stable_edge(unsigned long long P, unsigned long long O)
 	unsigned int h1h8 = edge_stability[vaddvq_u16(vshlq_u16(vreinterpretq_u16_u8(vshrq_n_u8(PO, 7)), vreinterpretq_s16_u64(shiftv)))];
 	return edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 0)]
 	    |  (unsigned long long) edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 7)] << 56
-	    |  unpackA1A8(a1a8) | unpackH1H8(h1h8);
+	    |  unpackA2A7(a1a8) | unpackH2H7(h1h8);
 }
 
-  #elif defined(__ARM_NEON__) // Neon kindergarten
-unsigned long long get_stable_edge_sse(unsigned long long P, unsigned long long O)
+  #elif defined(__ARM_NEON)	// Neon kindergarten
+unsigned long long get_stable_edge(unsigned long long P, unsigned long long O)
 {	// compute the exact stable edges (from precomputed tables)
 	const uint64x2_t kMul  = { 0x1020408001020408, 0x1020408001020408 };
 	uint64x2_t PP = vcombine_u64(vshl_n_u64(vcreate_u64(P), 7), vcreate_u64(P));
@@ -527,7 +524,7 @@ unsigned long long get_stable_edge_sse(unsigned long long P, unsigned long long 
 	uint8x16_t PO = vzipq_u8(vreinterpretq_u8_u64(OO), vreinterpretq_u8_u64(PP)).val[1];
 	return edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 0)]
 	    |  (unsigned long long) edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 7)] << 56
-	    |  unpackA1A8(a1a8) | unpackH1H8(h1h8);
+	    |  unpackA2A7(a1a8) | unpackH2H7(h1h8);
 }
 
   #elif defined(hasSSE2)
@@ -546,14 +543,16 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
 	PO = _mm_unpacklo_epi64(O0, P0);
 	a1a8 = edge_stability[_mm_movemask_epi8(_mm_slli_epi64(PO, 7))];
 	h1h8 = edge_stability[_mm_movemask_epi8(PO)];
-	stable_edge |= unpackA1A8(a1a8) | unpackH1H8(h1h8);
+	stable_edge |= unpackA2A7(a1a8) | unpackH2H7(h1h8);
 
 	return stable_edge;
 }
   #endif
 
 /**
- * @brief SSE optimized get_edge_stability
+ * @brief SSE/neon optimized get_edge_stability
+ *
+ * Compute the exact stable edges from precomputed tables.
  *
  * @param P bitboard with player's discs.
  * @param O bitboard with opponent's discs.
@@ -572,7 +571,7 @@ int get_edge_stability(const unsigned long long P, const unsigned long long O)
 	return vaddv_u8(vcnt_u8(packedstable));
 }
 
-  #elif defined(__ARM_NEON__) // Neon kindergarten
+  #elif defined(__ARM_NEON)	// Neon kindergarten
 int get_edge_stability(const unsigned long long P, const unsigned long long O)
 {
 	const uint64x2_t kMul  = { 0x1020408001020408, 0x1020408001020408 };
@@ -603,10 +602,11 @@ int get_edge_stability(const unsigned long long P, const unsigned long long O)
 	return bit_count_32(packedstable & 0xffff7e7e);
 }
   #endif
+#endif // HAS_CPU_64/ANDROID
 
-#if defined(hasSSE2) || defined(hasNeon) || defined(ANDROID) || defined(USE_MSVC_X86)
+#if defined(HAS_CPU_64) || defined(hasSSE2) || defined(ANDROID)
 /**
- * @brief AVX2/SSE optimized get_stability
+ * @brief AVX2/SSE/neon optimized get_full_lines.
  *
  * SSE pcmpeqb for horizontal get_full_lines.
  * CPU rotate for vertical get_full_lines.
@@ -705,7 +705,7 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 
   #else // __AVX2__
 
-    #if defined(hasNeon) || defined(hasSSE2)
+    #if defined(hasSSE2) || (defined(__ARM_NEON) && !defined(DISPATCH_NEON))
 	#define	get_stability_sse	get_stability	// no dispatch
     #endif
 
@@ -715,7 +715,7 @@ int get_stability_sse(const unsigned long long P, const unsigned long long O)
 	unsigned long long P_central = (P & 0x007e7e7e7e7e7e00);
 	unsigned long long l8, full_h, full_v, full_d7, full_d9, stable;
 	unsigned long long stable_h, stable_v, stable_d7, stable_d9, old_stable;
-    #ifdef __ARM_NEON__
+    #ifdef __ARM_NEON
 	uint8x8_t l01;
 	uint64x2_t l79, r79;
 	const uint64x2_t e790 = vdupq_n_u64(0x007e7e7e7e7e7e00);

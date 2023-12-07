@@ -1008,7 +1008,7 @@ void play_print(Play *play, FILE *f)
 		wh0 = play->initial_board.player;
 	}
 
-	moves = get_moves(play->board.player, play->board.opponent);
+	moves = board_get_moves(&play->board);
 	discs[BLACK] = bit_count(bk);
 	discs[WHITE] = bit_count(wh);
 	mobility[BLACK] = get_mobility(bk, wh);

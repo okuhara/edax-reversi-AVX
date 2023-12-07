@@ -105,19 +105,33 @@ __m256i vectorcall mm_Flip(const __m128i OP, int pos)
 	outflank = _mm256_srlv_epi64(_mm256_set1_epi64x(0x8000000000000000), _mm256_lzcnt_epi64(outflank));
 	outflank = _mm256_and_si256(outflank, PP);
 		// set all bits higher than outflank
+#if 0 // use 0
 	// flip = _mm256_and_si256(_mm256_xor_si256(_mm256_sub_epi64(_mm256_setzero_si256(), outflank), outflank), mask);
 	flip = _mm256_ternarylogic_epi64(_mm256_sub_epi64(_mm256_setzero_si256(), outflank), outflank, mask, 0x28);
+#else // use -1
+	// flip = _mm256_andnot_si256(_mm256_or_si256(_mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), outflank), mask);
+	flip = _mm256_ternarylogic_epi64(_mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), outflank, mask, 0x02);
+#endif
 
 	mask = lrmask[pos].v4[0];
-		// look for non-opponent LS1B
+		// left: look for non-opponent LS1B
 	outflank = _mm256_andnot_si256(OO, mask);
+#if 0 // cmpeq
 	// outflank = _mm256_and_si256(outflank, _mm256_sub_epi64(_mm256_setzero_si256(), outflank));	// LS1B
 	// outflank = _mm256_and_si256(outflank, PP);
 	outflank = _mm256_ternarylogic_epi64(_mm256_sub_epi64(_mm256_setzero_si256(), outflank), outflank, PP, 0x80);
-		// set all bits lower than outflank if outflank != 0
-	outflank = _mm256_sub_epi64(outflank, _mm256_min_epu64(outflank, _mm256_set1_epi64x(1)));
-	// flip = _mm256_or_si256(flip, _mm256_and_si256(outflank, mask));
-	flip = _mm256_ternarylogic_epi64(flip, outflank, mask, 0xf8);
+		// set all bits if outflank = 0, otherwise higher bits than outflank
+	outflank = _mm256_sub_epi64(_mm256_cmpeq_epi64(outflank, _mm256_setzero_si256()), outflank);
+	// flip = _mm256_or_si256(flip, _mm256_andnot_si256(outflank, mask));
+	flip = _mm256_ternarylogic_epi64(flip, outflank, mask, 0xf2);
+#else // test_mask
+	// outflank = _mm256_xor_si256(outflank, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)));	// BLSMSK
+	// outflank = _mm256_and_si256(outflank, mask);	// non-opponent LS1B and opponent inbetween
+	outflank = _mm256_ternarylogic_epi64(outflank, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), mask, 0x28);
+		// apply flip if P is in BLSMSK, i.e. LS1B is P
+	// flip = _mm256_mask_or_epi64(flip, _mm256_test_epi64_mask(outflank, PP), flip, _mm256_and_si256(outflank, OO));
+	flip = _mm256_mask_ternarylogic_epi64(flip, _mm256_test_epi64_mask(outflank, PP), outflank, OO, 0xf8);
+#endif
 
 	return flip;
 }

@@ -744,7 +744,7 @@ static void position_search(Position *position, Book *book)
 static void position_link(Position *position, Book *book)
 {
 	int x;
-	unsigned long long moves = get_moves(position->board.player, position->board.opponent);
+	unsigned long long moves = board_get_moves(&position->board);
 	Board next;
 	Link link;
 	Position *child;

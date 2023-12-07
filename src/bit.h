@@ -30,11 +30,11 @@ unsigned long long horizontal_mirror(unsigned long long);
 int get_rand_bit(unsigned long long, struct Random*);
 
 #if !defined(__AVX2__) && defined(hasSSE2) && !defined(POPCOUNT)
-__m128i bit_weighted_count_sse(unsigned long long, unsigned long long);
-#elif defined (hasNeon)
-uint64x2_t bit_weighted_count_neon(unsigned long long, unsigned long long);
+	__m128i bit_weighted_count_sse(unsigned long long, unsigned long long);
+#elif defined (__ARM_NEON)
+	uint64x2_t bit_weighted_count_neon(unsigned long long, unsigned long long);
 #else
-int bit_weighted_count(unsigned long long);
+	int bit_weighted_count(unsigned long long);
 #endif
 
 extern unsigned long long X_TO_BIT[];
@@ -43,9 +43,9 @@ extern const unsigned long long NEIGHBOUR[];
 /** Return a bitboard with bit x set. */
 // https://eukaryote.hateblo.jp/entry/2020/04/12/054905
 #ifdef HAS_CPU_64 // 1% slower on Sandy Bridge
-#define x_to_bit(x) (1ULL << (x))
+	#define x_to_bit(x) (1ULL << (x))
 #else
-#define x_to_bit(x) X_TO_BIT[x]
+	#define x_to_bit(x) X_TO_BIT[x]
 #endif
 
 /** Loop over each bit set. */
@@ -73,7 +73,7 @@ extern const unsigned long long NEIGHBOUR[];
 #endif
 
 // popcount
-#ifdef hasNeon
+#ifdef __ARM_NEON
 	#ifdef HAS_CPU_64
 		#define bit_count(x)	vaddv_u8(vcnt_u8(vcreate_u8(x)))
 		#define bit_count_32(x)	vaddv_u8(vcnt_u8(vcreate_u8((unsigned int) x)))
@@ -121,7 +121,7 @@ extern const unsigned long long NEIGHBOUR[];
 	extern unsigned char PopCnt16[1 << 16];
 	static inline int bit_count(unsigned long long b) {
 		union { unsigned long long bb; unsigned short u[4]; } v = { b };
-		return PopCnt16[v.u[0]] + PopCnt16[v.u[1]] + PopCnt16[v.u[2]] + PopCnt16[v.u[3]];
+		return (unsigned char)(PopCnt16[v.u[0]] + PopCnt16[v.u[1]] + PopCnt16[v.u[2]] + PopCnt16[v.u[3]]);
 	}
 	static inline int bit_count_32(unsigned int b) {
 		union { unsigned int bb; unsigned short u[2]; } v = { b };
@@ -139,7 +139,7 @@ extern const unsigned long long NEIGHBOUR[];
 	#endif
 #endif
 
-#if defined(ANDROID) && ((defined(__arm__) && !defined(hasNeon)) || (defined(__i386__) && !defined(hasSSE2)))
+#if defined(ANDROID) && ((defined(__arm__) && !defined(__ARM_NEON)) || (defined(__i386__) && !defined(hasSSE2)))
 extern bool	hasSSE2;
 #endif
 
@@ -221,8 +221,8 @@ typedef union {
 #endif // !HAS_CPU_64
 
 #if __clang_major__ == 3	// undefined reference to `llvm.x86.avx.storeu.dq.256'
-#define	_mm_storeu_si128(a,b)	*(__m128i *)(a) = (b)
-#define	_mm256_storeu_si256(a,b)	*(__m256i *)(a) = (b)
+	#define	_mm_storeu_si128(a,b)	*(__m128i *)(a) = (b)
+	#define	_mm256_storeu_si256(a,b)	*(__m256i *)(a) = (b)
 #endif
 
 #endif // EDAX_BIT_H

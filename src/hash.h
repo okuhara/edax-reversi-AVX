@@ -3,7 +3,7 @@
  *
  * Hash table's header.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.4
  */
@@ -92,11 +92,12 @@ void hash_init(HashTable*, const unsigned long long);
 void hash_cleanup(HashTable*);
 void hash_clear(HashTable*);
 void hash_free(HashTable*);
-void hash_feed(HashTable*, const Board*, const unsigned long long, HashStoreData *);
-void hash_store(HashTable*, const Board*, const unsigned long long, HashStoreData *);
-void hash_force(HashTable*, const Board*, const unsigned long long, HashStoreData *);
-bool hash_get(HashTable*, const Board*, const unsigned long long, HashData *);
-void hash_exclude_move(HashTable*, const Board*, const unsigned long long, const int);
+void hash_feed(HashTable*, const Board *, const unsigned long long, HashStoreData *);
+void hash_store(HashTable*, const Board *, const unsigned long long, HashStoreData *);
+void hash_force(HashTable*, const Board *, const unsigned long long, HashStoreData *);
+bool hash_get(HashTable*, const Board *, const unsigned long long, HashData *);
+bool hash_get_from_board(HashTable*, const Board *, HashData *);
+void hash_exclude_move(HashTable*, const Board *, const unsigned long long, const int);
 void hash_copy(const HashTable*, HashTable*);
 void hash_print(const HashData*, FILE*);
 extern unsigned int writeable_level(HashData *data);

@@ -34,7 +34,7 @@
 #elif MOVE_GENERATOR == MOVE_GENERATOR_SSE
 	#include "flip_sse.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_BITSCAN
-	#ifdef hasNeon
+  #ifdef __ARM_NEON
 		#define	flip_neon	flip
 		#include "flip_neon_bitscan.c"
 	#else
@@ -64,14 +64,11 @@
 /** edge stability global data */
 unsigned char edge_stability[256 * 256];
 
-/** conversion from an 8-bit line to the A1-A8 line */
-// unsigned long long A1_A8[256];
-
-#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
-#include "board_mmx.c"
+#if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)) && !defined(hasSSE2)
+	#include "board_mmx.c"
 #endif
-#if !defined(ANDROID) && (defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(hasSSE2) || defined(hasNeon))
-#include "board_sse.c"
+#if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(hasSSE2) || defined(__ARM_NEON)) && !defined(ANDROID)
+	#include "board_sse.c"
 #endif
 
 
@@ -242,7 +239,7 @@ bool board_lesser(const Board *b1, const Board *b2)
 	else	return (b1->opponent < b2->opponent);
 }
 
-#if !defined(hasSSE2) && !defined(hasNeon)	// SSE version in board_sse.c
+#if !defined(hasSSE2) && !defined(__ARM_NEON)	// SSE version in board_sse.c
 /**
  * @brief symetric board
  *
@@ -374,7 +371,6 @@ bool board_check_move(const Board *board, Move *move)
 	else return true;
 }
 
-#if !(defined(hasMMX) && (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)))	// 32bit MMX/SSE version in board_mmx.c
 /**
  * @brief Update a board.
  *
@@ -386,9 +382,24 @@ bool board_check_move(const Board *board, Move *move)
  */
 void board_update(Board *board, const Move *move)
 {
+#if defined(hasSSE2) && (defined(HAS_CPU_64) || !defined(__3dNOW__))	// 3DNow CPU has fast emms, and possibly slow SSE
+	__m128i	OP = _mm_loadu_si128((__m128i *) board);
+	OP = _mm_xor_si128(OP, _mm_or_si128(_mm_set1_epi64x(move->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x])));
+	_mm_storeu_si128((__m128i *) board, _mm_shuffle_epi32(OP, 0x4e));
+
+#elif defined(hasMMX)
+	__m64	F = *(__m64 *) &move->flipped;
+	__m64	P = _m_pxor(*(__m64 *) &board->player, _m_por(F, *(__m64 *) &X_TO_BIT[move->x]));
+	__m64	O = _m_pxor(*(__m64 *) &board->opponent, F);
+	*(__m64 *) &board->player = O;
+	*(__m64 *) &board->opponent = P;
+	_mm_empty();
+
+#else
 	unsigned long long O = board->opponent;
 	board->opponent = board->player ^ (move->flipped | X_TO_BIT[move->x]);
 	board->player = O ^ move->flipped;
+#endif
 	board_check(board);
 }
 
@@ -403,12 +414,26 @@ void board_update(Board *board, const Move *move)
  */
 void board_restore(Board *board, const Move *move)
 {
+#if defined(hasSSE2) && (defined(HAS_CPU_64) || !defined(__3dNOW__))
+	__m128i	OP = _mm_shuffle_epi32(_mm_loadu_si128((__m128i *) board), 0x4e);
+	OP = _mm_xor_si128(OP, _mm_or_si128(_mm_set1_epi64x(move->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x])));
+	_mm_storeu_si128((__m128i *) board, OP);
+
+#elif defined(hasMMX)
+	__m64	F = *(__m64 *) &move->flipped;
+	__m64	P = *(__m64 *) &board->opponent;
+	__m64	O = *(__m64 *) &board->player;
+	*(__m64 *) &board->player = _m_pxor(P, _m_por(F, *(__m64 *) &X_TO_BIT[move->x]));
+	*(__m64 *) &board->opponent = _m_pxor(O, F);
+	_mm_empty();
+
+#else
 	unsigned long long P = board->player;
 	board->player = board->opponent ^ (move->flipped | X_TO_BIT[move->x]);
 	board->opponent = P ^ move->flipped;
+#endif
 	board_check(board);
 }
-#endif // hasMMX
 
 /**
  * @brief Passing move
@@ -445,7 +470,7 @@ unsigned long long board_next(const Board *board, const int x, Board *next)
 }
 #endif
 
-#if !defined(hasSSE2) && !defined(hasNeon)	// SSE version in board_sse.c
+#if !defined(hasSSE2) && !defined(__ARM_NEON)	// SSE version in board_sse.c
 /**
  * @brief Get a part of the moves.
  *
@@ -529,13 +554,13 @@ unsigned long long get_moves(const unsigned long long P, const unsigned long lon
 {
 	unsigned long long moves, OM;
 
-	#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
+	#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(DISPATCH_NEON)
 	if (hasSSE2)
 		return get_moves_sse(P, O);
-	#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
-	else if (hasMMX)
-		return get_moves_mmx(P, O);
 	#endif
+	#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+	if (hasMMX)
+		return get_moves_mmx(P, O);
 	#endif
 
 	OM = O & 0x7e7e7e7e7e7e7e7e;
@@ -546,7 +571,7 @@ unsigned long long get_moves(const unsigned long long P, const unsigned long lon
 
 	return moves & ~(P|O);	// mask with empties
 }
-#endif // hasSSE2/hasNeon
+#endif // hasSSE2/__ARM_NEON
 
 /**
  * @brief Get legal moves on a 6x6 board.
@@ -573,7 +598,7 @@ unsigned long long get_moves_6x6(const unsigned long long P, const unsigned long
  */
 bool can_move(const unsigned long long P, const unsigned long long O)
 {
-#if defined(hasMMX) || defined(hasNeon)
+#if defined(hasMMX) || defined(__ARM_NEON)
 	return get_moves(P, O) != 0;
 
 #else
@@ -613,7 +638,7 @@ int get_mobility(const unsigned long long P, const unsigned long long O)
 	return bit_count(get_moves(P, O));
 }
 
-#ifndef __AVX2__
+#ifndef __AVX2__	// AVX2 version in board_sse.c
 /**
  * @brief Get some potential moves.
  *
@@ -643,26 +668,6 @@ unsigned long long get_potential_moves(const unsigned long long P, const unsigne
 		| get_some_potential_moves(O & 0x007E7E7E7E7E7E00, 9))
 		& ~(P|O); // mask with empties
 }
-
-  #if !(defined(hasSSE2) && !defined(POPCOUNT)) && !defined(hasNeon)
-/**
- * @brief Get potential mobility.
- *
- * Count the list of empty squares in contact of a player square.
- *
- * @param P bitboard with player's discs.
- * @param O bitboard with opponent's discs.
- * @return a count of potential moves.
- */
-int get_potential_mobility(const unsigned long long P, const unsigned long long O)
-{
-    #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
-	if (hasMMX)
-		return get_potential_mobility_mmx(P, O);
-    #endif
-	return bit_weighted_count(get_potential_moves(P, O));
-}
-  #endif
 #endif // AVX2
 
 /**
@@ -732,12 +737,11 @@ static int find_edge_stable(const int old_P, const int old_O, int stable)
 }
 
 /**
- * @brief Initialize the edge stability and A1_A8 tables.
+ * @brief Initialize the edge stability table.
  */
 void edge_stability_init(void)
 {
 	int P, O, PO, rPO;
-	// unsigned long long Q;
 	// long long t = cpu_clock();
 
 	for (PO = 0; PO < 256 * 256; ++PO) {
@@ -754,12 +758,6 @@ void edge_stability_init(void)
 		}
 	}
 	// printf("edge_stability_init: %d\n", (int)(cpu_clock() - t));
-
-	/* Q = 0;
-	for (P = 0; P < 256; ++P) {
-		A1_A8[P] = Q;
-		Q = ((Q | ~0x0101010101010101) + 1) & 0x0101010101010101;
-	} */
 }
 
 #ifdef HAS_CPU_64
@@ -770,9 +768,11 @@ void edge_stability_init(void)
 #define	packH1H8(X)	(((((unsigned int)((X) >> 32) & 0x80808080) + (((unsigned int)(X) & 0x80808080) >> 4)) * 0x00204081) >> 24)
 #endif
 
-#if !defined(__AVX2__) && !defined(hasNeon) && !defined(hasSSE2)
+#if !defined(__AVX2__) && !defined(__ARM_NEON) && !defined(hasSSE2)
 /**
  * @brief Get stable edge.
+ *
+ * Compute the exact stable edges from precomputed tables.
  *
  * @param P bitboard with player's discs.
  * @param O bitboard with opponent's discs.
@@ -783,8 +783,8 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
 {	// compute the exact stable edges (from precomputed tables)
 	return edge_stability[((unsigned int) P & 0xff) * 256 + ((unsigned int) O & 0xff)]
 	    |  (unsigned long long) edge_stability[(unsigned int) (P >> 56) * 256 + (unsigned int) (O >> 56)] << 56
-	    |  unpackA1A8(edge_stability[packA1A8(P) * 256 + packA1A8(O)])
-	    |  unpackH1H8(edge_stability[packH1H8(P) * 256 + packH1H8(O)]);
+	    |  unpackA2A7(edge_stability[packA1A8(P) * 256 + packA1A8(O)])
+	    |  unpackH2H7(edge_stability[packH1H8(P) * 256 + packH1H8(O)]);
 }
 
 /**
@@ -798,13 +798,15 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
  */
 int get_edge_stability(const unsigned long long P, const unsigned long long O)
 {
-	unsigned int packedstable = edge_stability[((unsigned char) P) * 256 + ((unsigned char) O)]
+	unsigned int packedstable = edge_stability[((unsigned int) P & 0xff) * 256 + ((unsigned int) O & 0xff)]
 	  | edge_stability[(unsigned int) (P >> 56) * 256 + (unsigned int) (O >> 56)] << 8
 	  | edge_stability[packA1A8(P) * 256 + packA1A8(O)] << 16
 	  | edge_stability[packH1H8(P) * 256 + packH1H8(O)] << 24;
 	return bit_count_32(packedstable & 0xffff7e7e);
 }
+#endif
 
+#if !defined(HAS_CPU_64) && !defined(hasSSE2) && !(defined(ANDROID) && (defined(__ARM_NEON) && !defined(DISPATCH_NEON)))
 /**
  * @brief Get full lines.
  *
@@ -814,7 +816,7 @@ int get_edge_stability(const unsigned long long P, const unsigned long long O)
  */
 static inline unsigned long long get_full_lines(const unsigned long long line, const int dir)
 {
-#if KOGGE_STONE & 2
+  #if KOGGE_STONE & 2
 
 	// kogge-stone algorithm
  	// 5 << + 5 >> + 7 & + 10 |
@@ -832,7 +834,7 @@ static inline unsigned long long get_full_lines(const unsigned long long line, c
 
 	return full_r & full_l;
 
-#elif PARALLEL_PREFIX & 2
+  #elif PARALLEL_PREFIX & 2
 
 	// 1-stage Parallel Prefix (intermediate between kogge stone & sequential) 
 	// 5 << + 5 >> + 7 & + 10 |
@@ -849,7 +851,7 @@ static inline unsigned long long get_full_lines(const unsigned long long line, c
 
 	return full_l & full_r;
 
-#else
+  #else
 
 	// sequential algorithm
  	// 6 << + 6 >> + 12 & + 5 |
@@ -864,10 +866,10 @@ static inline unsigned long long get_full_lines(const unsigned long long line, c
 
 	return ((full >> dir) & (full << dir));
 
-#endif
+  #endif
 }
 
-#ifdef HAS_CPU_64
+  #ifdef HAS_CPU_64
 
 static unsigned long long get_full_lines_h(unsigned long long full)
 {
@@ -885,7 +887,8 @@ static unsigned long long get_full_lines_v(unsigned long long full)
 	return full;
 }
 
-#else
+  #else
+
 static unsigned int get_full_lines_h_32(unsigned int full)
 {
 	full &= full >> 1;
@@ -904,11 +907,10 @@ static unsigned long long get_full_lines_v(unsigned long long full)
 	unsigned int	t = (unsigned int) full & (unsigned int)(full >> 32);
 	t &= (t >> 16) | (t << 16);	// ror 16
 	t &= (t >> 8) | (t << 24);	// ror 8
-	full = t | ((unsigned long long) t << 32);
-	return full;
+	return t | ((unsigned long long) t << 32);
 }
 
-#endif
+  #endif
 
 /**
  * @brief Estimate the stability.
@@ -924,13 +926,13 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 	unsigned long long P_central, disc, full_h, full_v, full_d7, full_d9;
 	unsigned long long stable_h, stable_v, stable_d7, stable_d9, stable, old_stable;
 
-#ifdef ANDROID
+  #ifdef ANDROID
 	if (hasSSE2)
 		return get_stability_sse(P, O);
-#elif (defined(USE_GAS_MMX) && !(defined(__clang__) && (__clang__major__ < 3))) || defined(USE_MSVC_X86)
+  #elif (defined(USE_GAS_MMX) && !(defined(__clang__) && (__clang__major__ < 3))) || defined(USE_MSVC_X86)
 	if (hasMMX)
 		return get_stability_mmx(P, O);
-#endif
+  #endif
 
 	disc = (P | O);
 	P_central = (P & 0x007e7e7e7e7e7e00);

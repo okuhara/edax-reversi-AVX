@@ -537,7 +537,7 @@ void search_clone(Search *search, Search *master)
 	search_setup(search);
 	search->hash_table = master->hash_table; // share the hashtable
 	search->pv_table = master->pv_table; // share the pvtable
-	search->shallow_table = master->shallow_table; // share the pvtable
+	search->shallow_table = master->shallow_table; // share the shallowtable
 	search->tasks = master->tasks;
 	search->observer = master->observer;
 
@@ -978,7 +978,7 @@ void search_restore_midgame(Search *search, int x, const Eval *eval0)
  */
 void search_update_pass_midgame(Search *search, Eval *backup)
 {
-	board_pass(&search->board);
+	search_pass(search);
 	backup->feature = search->eval.feature;
 	eval_pass(&search->eval);
 	++search->height;
@@ -992,7 +992,7 @@ void search_update_pass_midgame(Search *search, Eval *backup)
  */
 void search_restore_pass_midgame(Search *search, const Eval *eval0)
 {
-	board_pass(&search->board);
+	search_pass(search);
 	// eval_pass(&search->eval);
 	search->eval.feature = eval0->feature;
 	assert(search->height > 0);
@@ -1139,13 +1139,11 @@ void result_print(Result *result, FILE *f)
  * @param score Score to return in case of a cutoff is found.
  * @return 'true' if a cutoff is found, false otherwise.
  */
-bool search_SC_PVS(Search *search, volatile int *alpha, volatile int *beta, int *score)
+bool search_SC_PVS(Search *search, int *alpha, int *beta, int *score)
 {
-	const Board * const board = &search->board;
-
 	if (USE_SC && *beta >= PVS_STABILITY_THRESHOLD[search->eval.n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
-		*score = SCORE_MAX - 2 * get_stability(board->opponent, board->player);
+		*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player);
 		if (*score <= *alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return true;
@@ -1165,11 +1163,9 @@ bool search_SC_PVS(Search *search, volatile int *alpha, volatile int *beta, int 
  */
 bool search_SC_NWS(Search *search, const int alpha, int *score)
 {
-	const Board * const board = &search->board;
-
 	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
-		*score = SCORE_MAX - 2 * get_stability(board->opponent, board->player);
+		*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player);
 		if (*score <= alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return true;
@@ -1192,6 +1188,7 @@ bool search_SC_NWS_4(Search *search, const int alpha, int *score)
 	return false;
 }
 
+#if 0	// unused
 /**
  * @brief Transposition Cutoff (TC).
  *
@@ -1203,7 +1200,7 @@ bool search_SC_NWS_4(Search *search, const int alpha, int *score)
  * @param score Score to return in case of a cutoff is found.
  * @return 'true' if a cutoff is found, false otherwise.
  */
-bool search_TC_PVS(HashData *data, const int depth, const int selectivity, volatile int *alpha, volatile int *beta, int *score)
+bool search_TC_PVS(HashData *data, const int depth, const int selectivity, int *alpha, int *beta, int *score)
 {
 	if (USE_TC && (data->wl.c.selectivity >= selectivity && data->wl.c.depth >= depth)) {
 		CUTOFF_STATS(++statistics.n_hash_try;)
@@ -1226,6 +1223,7 @@ bool search_TC_PVS(HashData *data, const int depth, const int selectivity, volat
 	}
 	return false;
 }
+#endif
 
 /**
  * @brief Transposition Cutoff (TC).

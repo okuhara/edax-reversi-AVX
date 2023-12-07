@@ -12,11 +12,11 @@
 #ifndef EDAX_BIT_INTRINSICS_H
 #define EDAX_BIT_INTRINSICS_H
 
-#if !defined(HAS_CPU_64) && (defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(_M_ARM64))
+#if defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(_M_ARM64)
 	#define	HAS_CPU_64	1
 #endif
 
-#if defined(__SSE2__) || defined(_M_X64)
+#if defined(__SSE2__) || defined(__AVX__) || defined(_M_X64)
 	#define hasSSE2	1
 #endif
 
@@ -24,14 +24,17 @@
 	#define	hasMMX	1
 #endif
 
-#if defined(__aarch64__) || defined(_M_ARM) || defined(_M_ARM64)
-	#define hasNeon	1
-	#ifndef __ARM_NEON__
-		#define	__ARM_NEON__	1
+#if defined(ANDROID) && defined(__arm__)
+  #if __ANDROID_API__ < 21
+	#define	DISPATCH_NEON	1
+  #else
+	#define	__ARM_NEON	1
 	#endif
+#elif defined(__ARM_NEON__) || defined(__aarch64__) || defined(_M_ARM) || defined(_M_ARM64)
+	#define	__ARM_NEON	1
 #endif
-#ifdef __ARM_NEON__
-#include "arm_neon.h"
+#ifdef __ARM_NEON
+	#include "arm_neon.h"
 #endif
 
 #ifdef _MSC_VER
@@ -43,21 +46,21 @@
 	#include <x86intrin.h>
 #endif
 
-#ifndef __has_builtin
-	#define __has_builtin(x) 0  // Compatibility with non-clang compilers.
+#ifndef __has_builtin  // Compatibility with non-clang compilers.
+	#define __has_builtin(x) 0
 #endif
 
 // mirror byte
 #if defined(_M_ARM) // || defined(_M_ARM64) // https://developercommunity.visualstudio.com/content/problem/498995/arm64-missing-rbit-intrinsics.html
-#define mirror_byte(b)	(_arm_rbit(b) >> 24)
+	#define mirror_byte(b)	(_arm_rbit(b) >> 24)
 #elif defined(__ARM_ACLE)
-#include <arm_acle.h>
-#define mirror_byte(b)	(__rbit(b) >> 24)
+	#include <arm_acle.h>
+	#define mirror_byte(b)	(__rbit(b) >> 24)
 #elif defined(HAS_CPU_64)
-// http://graphics.stanford.edu/~seander/bithacks.html
-#define mirror_byte(b)	(unsigned char)((((b) * 0x80200802ULL) & 0x0884422110ULL) * 0x0101010101ULL >> 32)
+	// http://graphics.stanford.edu/~seander/bithacks.html
+	#define mirror_byte(b)	(unsigned char)((((b) * 0x80200802ULL) & 0x0884422110ULL) * 0x0101010101ULL >> 32)
 #else
-static inline unsigned char mirror_byte(unsigned int b) { return ((((b * 0x200802) & 0x4422110) + ((b << 7) & 0x880)) * 0x01010101 >> 24); }
+	static inline unsigned char mirror_byte(unsigned int b) { return ((((b * 0x200802) & 0x4422110) + ((b << 7) & 0x880)) * 0x01010101 >> 24); }
 #endif
 
 // rotl8
@@ -148,7 +151,7 @@ static inline int _tzcnt_u64(unsigned long long x) {
 
 #elif defined(_MSC_VER)
 	static inline int lzcnt_u32(unsigned int n) {
-		unsigned int i;
+		unsigned long i;
 		if (!_BitScanReverse(&i, n))
 			i = 32 ^ 31;
 		return i ^ 31;

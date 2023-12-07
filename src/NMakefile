@@ -34,6 +34,9 @@ vc-w32-modern:
 vc-w32-sse:
 	cl $(VC_FLAGS) /GL /D hasSSE2 all.c ws2_32.lib /Fe..\bin\wEdax-w32-sse.exe
 
+vc-w32-mmx:
+	cl $(VC_FLAGS) /GL /arch:IA32 /D hasMMX all.c ws2_32.lib /Fe..\bin\wEdax-w32-mmx.exe
+
 vc-w32:
 	cl $(VC_FLAGS) /GL /arch:IA32 all.c ws2_32.lib /Fe..\bin\wEdax-w32.exe
 
@@ -43,7 +46,7 @@ vc-a64:
 
 vc-a32:
 #	vcvarsamd64_arm.bat
-	cl $(VC_FLAGS) /GL /D hasNeon all.c ws2_32.lib /Fe..\bin\wEdax-a32.exe
+	cl $(VC_FLAGS) /GL all.c ws2_32.lib /Fe..\bin\wEdax-a32.exe
 
 icc-w64-modern:
 	icl $(VC_FLAGS) /GL /D HAS_CPU_64 /arch:AVX2 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-w64-modern.exe /link /VERSION:4.5
@@ -108,6 +111,6 @@ icc-pgo-w64-modern:
 	cd ..\src
 	icl $(VC_FLAGS) /GL /arch:AVX2 /D POPCOUNT /Qprof-use /Qip all.c ws2_32.lib /Fe..\bin\wEdax-w64-modern.exe /link /VERSION:4.5
 
-cclean:
+clean:
 	del -f pgopti* *.dyn all.gc* *~ *.p* *.obj
 

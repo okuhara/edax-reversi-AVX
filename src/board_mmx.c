@@ -16,11 +16,11 @@
 #include "board.h"
 #include "move.h"
 
-#if !defined(hasSSE2) && defined(USE_GAS_MMX)
-#ifndef hasMMX
+#ifdef USE_GAS_MMX
+  #ifndef hasMMX
 	#pragma GCC push_options
 	#pragma GCC target ("mmx")
-#endif
+  #endif
 	#include <mmintrin.h>
 #endif
 
@@ -30,8 +30,6 @@ static const unsigned long long mask_55 = 0x5555555555555555ULL;
 static const unsigned long long mask_33 = 0x3333333333333333ULL;
 static const unsigned long long mask_0F = 0x0f0f0f0f0f0f0f0fULL;
 #endif
-
-#ifndef hasSSE2
 
 #ifndef hasMMX
 bool	hasMMX = false;
@@ -95,117 +93,6 @@ void init_mmx (void)
 		init_flip_sse();
 #endif
 }
-#endif	// hasSSE2
-
-#ifdef hasMMX
-/**
- * @brief Update a board.
- *
- * Update a board by flipping its discs and updating every other data,
- * according to the 'move' description.
- *
- * @param board the board to modify
- * @param move  A Move structure describing the modification.
- */
-#if defined(hasSSE2) && !defined(__3dNOW__)	// Faster on CPU with slow emms
-
-void board_update(Board *board, const Move *move)
-{
-	__m128i	F = _mm_loadl_epi64((__m128i *) &move->flipped);
-	__m128i	OP = _mm_loadu_si128((__m128i *) board);
-	OP = _mm_xor_si128(OP, _mm_or_si128(_mm_unpacklo_epi64(F, F), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x])));
-	_mm_storeu_si128((__m128i *) board, _mm_shuffle_epi32(OP, 0x4e));
-	board_check(board);
-}
-
-#elif defined(USE_MSVC_X86)
-
-void board_update(Board *board, const Move *move)
-{
-	__m64	F = *(__m64 *) &move->flipped;
-	__m64	P = _m_pxor(*(__m64 *) &board->player, _m_por(F, *(__m64 *) &X_TO_BIT[move->x]));
-	__m64	O = _m_pxor(*(__m64 *) &board->opponent, F);
-	*(__m64 *) &board->player = O;
-	*(__m64 *) &board->opponent = P;
-	_mm_empty();
-	board_check(board);
-}
-
-#else
-
-void board_update(Board *board, const Move *move)
-{
-	__asm__ (
-		"movq	%2, %%mm1\n\t"
-		"movq	%3, %%mm0\n\t"
-		"por	%%mm1, %%mm0\n\t"
-		"pxor	%0, %%mm0\n\t"
-		"pxor	%1, %%mm1\n\t"
-		"movq	%%mm0, %1\n\t"
-		"movq	%%mm1, %0\n\t"
-		"emms"
-	: "=m" (board->player), "=m" (board->opponent)
-	: "m" (move->flipped), "m" (X_TO_BIT[move->x])
-	: "mm0", "mm1");
-	board_check(board);
-}
-
-#endif
-
-/**
- * @brief Restore a board.
- *
- * Restore a board by un-flipping its discs and restoring every other data,
- * according to the 'move' description, in order to cancel a board_update_move.
- *
- * @param board board to restore.
- * @param move  a Move structure describing the modification.
- */
-#if defined(hasSSE2) && !defined(__3dNOW__)
-
-void board_restore(Board *board, const Move *move)
-{
-	__m128i	F = _mm_loadl_epi64((__m128i *) &move->flipped);
-	__m128i	OP = _mm_shuffle_epi32(_mm_loadu_si128((__m128i *) board), 0x4e);
-	OP = _mm_xor_si128(OP, _mm_or_si128(_mm_unpacklo_epi64(F, F), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x])));
-	_mm_storeu_si128((__m128i *) board, OP);
-	board_check(board);
-}
-
-#elif defined(USE_MSVC_X86)
-
-void board_restore(Board *board, const Move *move)
-{
-	__m64	F = *(__m64 *) &move->flipped;
-	__m64	P = *(__m64 *) &board->opponent;
-	__m64	O = *(__m64 *) &board->player;
-	*(__m64 *) &board->player = _m_pxor(P, _m_por(F, *(__m64 *) &X_TO_BIT[move->x]));
-	*(__m64 *) &board->opponent = _m_pxor(O, F);
-	_mm_empty();
-	board_check(board);
-}
-
-#else
-
-void board_restore(Board *board, const Move *move)
-{
-	__asm__ (
-		"movq	%2, %%mm1\n\t"
-		"movq	%3, %%mm0\n\t"
-		"por	%%mm1, %%mm0\n\t"
-		"pxor	%1, %%mm0\n\t"
-		"pxor	%0, %%mm1\n\t"
-		"movq	%%mm0, %0\n\t"
-		"movq	%%mm1, %1\n\t"
-		"emms"
-	: "=m" (board->player), "=m" (board->opponent)
-	: "m" (move->flipped), "m" (X_TO_BIT[move->x])
-	: "mm0", "mm1");
-	board_check(board);
-}
-
-#endif
-#endif // hasMMX
 
 /**
  * @brief MMX translation of get_moves
@@ -215,13 +102,13 @@ void board_restore(Board *board, const Move *move)
  */
 #ifdef USE_MSVC_X86
 
-unsigned long long get_moves_mmx(unsigned long long P_, unsigned long long O_)
+unsigned long long get_moves_mmx(const unsigned long long P_, const unsigned long long O_)
 {
 	unsigned int movesL, movesH, mO1, flip1, pre1;
 	__m64	P, O, M, mO, flip, pre;
 
-	P = *(__m64 *) &P_;
-	O = *(__m64 *) &O_;						mO1 = (unsigned int) O_ & 0x7e7e7e7e;
+	P = _m_punpckldq(_m_from_int(P_), _m_from_int(P_ >> 32));
+	O = _m_punpckldq(_m_from_int(O_), _m_from_int(O_ >> 32));	mO1 = (unsigned int) O_ & 0x7e7e7e7e;
 		/* shift = +8 */						/* shift = +1 */
 	flip = _m_pand(O, _m_psllqi(P, 8));				flip1  = mO1 & ((unsigned int) P_ << 1);
 	flip = _m_por(flip, _m_pand(O, _m_psllqi(flip, 8)));		flip1 |= mO1 & (flip1 << 1);
@@ -274,7 +161,7 @@ unsigned long long get_moves_mmx(unsigned long long P_, unsigned long long O_)
 
 #else
 
-unsigned long long get_moves_mmx(unsigned long long P, unsigned long long O)
+unsigned long long get_moves_mmx(const unsigned long long P, const unsigned long long O)
 {
 	unsigned long long moves;
 	__asm__ (
@@ -692,139 +579,6 @@ int get_stability_mmx(unsigned long long P_, unsigned long long O_)
 	return t;
 }
 #endif // USE_MSVC_X86
-
-/**
- * @brief MMX translation of get_potential_mobility
- *
- * @param P bitboard with player's discs.
- * @param O bitboard with opponent's discs.
- * @return a count of potential moves.
- */
-#ifdef USE_MSVC_X86
-
-int get_potential_mobility_mmx(unsigned long long P, unsigned long long O)
-{
-	__m64	m, mO;
-	int	count;
-	static const unsigned long long mask_v = 0x00ffffffffffff00ULL;
-	// static const unsigned long long mask_d = 0x007e7e7e7e7e7e00ULL;	// = mask_7e & mask_v
-  #ifdef POPCOUNT
-	int	mh, ml;
-  #else
-	static const unsigned long long mask_15 = 0x1555555555555515ULL;
-	static const unsigned long long mask_01 = 0x0100000000000001ULL;
-  #endif
-
-	mO = _m_pand(*(__m64 *) &O, *(__m64 *) &mask_7e);
-	m = _m_por(_m_psllqi(mO, 1), _m_psrlqi(mO, 1));
-	mO = _m_pand(*(__m64 *) &O, *(__m64 *) &mask_v);
-	m = _m_por(m, _m_por(_m_psllqi(mO, 8), _m_psrlqi(mO, 8)));
-	mO = _m_pand(mO, *(__m64 *) &mask_7e);
-	m = _m_por(m, _m_por(_m_psllqi(mO, 7), _m_psrlqi(mO, 7)));
-	m = _m_por(m, _m_por(_m_psllqi(mO, 9), _m_psrlqi(mO, 9)));
-	m = _m_pandn(_m_por(*(__m64 *) &O, *(__m64 *) &P), m);
-
-  #ifdef POPCOUNT
-	ml = _m_to_int(m);
-	mh = _m_to_int(_m_psrlqi(m, 32));
-	count = bit_count_32(ml) + bit_count_32(mh) + bit_count_32((ml & 0x00000081) + (mh & 0x81000000));
-  #else
-	m = _m_paddd(_m_psubd(m, _m_pand(_m_psrlqi(m, 1), *(__m64 *) &mask_15)), _m_pand(m, *(__m64 *) &mask_01));
-	m = _m_paddd(_m_pand(m, *(__m64 *) &mask_33), _m_pand(_m_psrlqi(m, 2), *(__m64 *) &mask_33));
-	m = _m_pand(_m_paddd(m, _m_psrlqi(m, 4)), *(__m64 *) &mask_0F);
-	count = ((unsigned int) _m_to_int(_m_paddb(m, _m_psrlqi(m, 32))) * 0x01010101u) >> 24;
-  #endif
-	_mm_empty();
-	return count;
-}
-
-#elif defined(USE_GAS_MMX)
-
-int get_potential_mobility_mmx(unsigned long long P, unsigned long long O)
-{
-	int	count;
-	static const unsigned long long mask_v = 0x00ffffffffffff00ULL;
-	// static const unsigned long long mask_d = 0x007e7e7e7e7e7e00ULL;	// = mask_7e & mask_v
-#ifndef POPCOUNT
-	static const unsigned long long mask_15 = 0x1555555555555515ULL;
-	static const unsigned long long mask_01 = 0x0100000000000001ULL;
-#endif
-
-	__asm__ (
-		"movq	%3, %%mm2\n\t"		"movq	%4, %%mm5\n\t"
-		"pand	%2, %%mm2\n\t"		"pand	%2, %%mm5\n\t"		"movq	%%mm2, %%mm3\n\t"
-		"movq	%%mm2, %%mm4\n\t"	"movq	%%mm5, %%mm6\n\t"	"pand	%%mm5, %%mm3\n\t"
-		"psllq	$1, %%mm2\n\t"		"psllq	$8, %%mm5\n\t"
-		"psrlq	$1, %%mm4\n\t"		"psrlq	$8, %%mm6\n\t"
-		"por	%%mm4, %%mm2\n\t"	"por	%%mm6, %%mm5\n\t"
-		"por	%%mm5, %%mm2\n\t"
-		"movq	%%mm3, %%mm5\n\t"
-		"movq	%%mm3, %%mm4\n\t"	"movq	%%mm5, %%mm6\n\t"
-		"psllq	$7, %%mm3\n\t"		"psllq	$9, %%mm5\n\t"
-		"psrlq	$7, %%mm4\n\t"		"psrlq	$9, %%mm6\n\t"
-		"por	%%mm4, %%mm3\n\t"	"por	%%mm6, %%mm5\n\t"
-		"por	%%mm3, %%mm2\n\t"	"por	%%mm5, %%mm2\n\t"
-		"por	%1, %2\n\t"
-		"pandn	%%mm2, %2\n\t"
-
-#ifdef POPCOUNT
-		"movd	%2, %%ecx\n\t"
-		"popcntl %%ecx, %0\n\t"		"andl	$0x00000081, %%ecx\n\t"
-		"psrlq	$32, %2\n\t"		"popcntl %%ecx, %%ecx\n\t"
-		"movd	%2, %%edx\n\t"		"addl	%%ecx, %0\n\t"
-		"popcntl %%edx, %%ecx\n\t"	"andl	$0x81000000, %%edx\n\t"
-		"addl	%%ecx, %0\n\t"		"popcntl %%edx, %%edx\n\t"
-						"addl	%%edx, %0\n\t"
-		"emms"
-	: "=g" (count) : "y" (P), "y" (O), "m" (mask_7e), "m" (mask_v)
-	: "ecx", "edx", "mm2", "mm3", "mm4", "mm5", "mm6");
-
-#else
-		"movq	%2, %1\n\t"		"movq	%2, %%mm2\n\t"
-		"psrlq	$1, %2\n\t"
-		"pand	%5, %2\n\t"		"pand	%6, %%mm2\n\t"
-		"psubd	%2, %1\n\t"		"paddd	%%mm2, %1\n\t"
-
-		"movq	%1, %2\n\t"
-		"psrlq	$2, %1\n\t"
-		"pand	%7, %2\n\t"
-		"pand	%7, %1\n\t"
-		"paddd	%2, %1\n\t"
-
-		"movq	%1, %2\n\t"
-		"psrlq	$4, %1\n\t"
-		"paddd	%2, %1\n\t"
-		"pand	%8, %1\n\t"
-	#ifdef hasSSE2
-		"pxor	%2, %2\n\t"
-		"psadbw	%2, %1\n\t"
-		"movd	%1, %0\n\t"
-	#else
-		"movq	%1, %2\n\t"
-		"psrlq	$32, %1\n\t"
-		"paddb	%2, %1\n\t"
-
-		"movd	%1, %0\n\t"
-		"imull	$0x01010101, %0, %0\n\t"
-		"shrl	$24, %0\n\t"
-	#endif
-		"emms"
-	: "=g" (count)
-	: "y" (P), "y" (O), "m" (mask_7e), "m" (mask_v),
-	  "m" (mask_15), "m" (mask_01), "m" (mask_33), "m" (mask_0F)
-	: "mm2", "mm3", "mm4", "mm5", "mm6");
-#endif
-
-	return count;
-}
-#endif
-
-/**
- * @brief MMX translation of board_get_hash_code.
- *
- * @param p pointer to 16 bytes to hash.
- * @return the hash code of the bitboard
- */
 
 #if !defined(hasMMX) && defined(USE_GAS_MMX)
 	#pragma GCC pop_options

@@ -145,7 +145,7 @@ static void estimate_game(const Board *board, const int depth, Random *r, double
 	int x, i, j, k;
 	Board next;
 
-	moves = get_moves(board->player, board->opponent);
+	moves = board_get_moves(board);
 	i = bit_count(moves);
 	if (i == 0 && !can_move(board->opponent, board->player)) {
 		n[depth] = 0;

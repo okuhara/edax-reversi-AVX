@@ -3,9 +3,9 @@
  *
  * SSE/AVX translation of some eval.c functions
  *
- * @date 2018 - 2022
+ * @date 2018 - 2023
  * @author Toshihiko Okuhara
- * @version 4.5
+ * @version 4.4
  */
 
 #include <assert.h>
@@ -18,14 +18,14 @@
 extern const EVAL_FEATURE_V EVAL_FEATURE[65];
 extern const EVAL_FEATURE_V EVAL_FEATURE_all_opponent;
 
-#ifdef __ARM_NEON__
+#ifdef __ARM_NEON
 #define __m128i		int16x8_t
 #define	_mm_add_epi16	vaddq_s16
 #define _mm_sub_epi16	vsubq_s16
 #define _mm_slli_epi16	vshlq_n_s16
 #endif
 
-#if defined(hasSSE2) || defined(__ARM_NEON__) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(__ARM_NEON) || defined(USE_MSVC_X86)
 
 void eval_update_sse(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
@@ -190,7 +190,7 @@ void eval_update_sse(int x, unsigned long long f, Eval *eval_out, const Eval *ev
 
 #endif // hasSSE2
 
-#if defined(hasSSE2) || defined(hasNeon)
+#if defined(hasSSE2) || (defined(__ARM_NEON) && !defined(DISPATCH_NEON))
 
 /**
  * @brief Set up evaluation features from a board.

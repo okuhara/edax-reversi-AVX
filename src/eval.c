@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#if !defined(VECTOR_EVAL_UPDATE) && !defined(hasSSE2) && !defined(hasNeon)
+#if !defined(VECTOR_EVAL_UPDATE) && !defined(hasSSE2) && !defined(__ARM_NEON)
 
 /** coordinate to feature conversion */
 typedef struct CoordinateToFeature {
@@ -170,7 +170,7 @@ static const CoordinateToFeature EVAL_X2F[] = {
 };
 
 #endif
-#if defined(VECTOR_EVAL_UPDATE) || defined(hasSSE2) || defined(hasNeon) || defined(ANDROID) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(VECTOR_EVAL_UPDATE) || defined(hasSSE2) || defined(__ARM_NEON) || defined(DISPATCH_NEON) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 
 const EVAL_FEATURE_V EVAL_FEATURE[65] = {
 	{{ // a1
@@ -517,7 +517,7 @@ static unsigned short *set_opponent_feature(unsigned short *p, int o, int d)
  * @param l feature index.
  * @param k feature index for the mirror position.
  * @param n packed count so far.
- * @param d feature size, >= 3.
+ * @param d feature size, >= 4.
  * @return updated packed count.
  */
 static int set_eval_packing(short *pe, int *T, const int *kd, int l, int k, int n, int d)
@@ -725,11 +725,11 @@ void eval_close(void)
 
 #ifdef ANDROID
 extern void eval_update_sse(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in);
-#elif defined(hasSSE2) || defined(hasNeon) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#elif defined(hasSSE2) || defined(__ARM_NEON) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
 #include "eval_sse.c"
 #endif
 
-#if !defined(hasSSE2) && !defined(hasNeon)
+#if !defined(hasSSE2) && !defined(__ARM_NEON)
 
 /**
  * @brief Set up evaluation features from a board.
@@ -841,7 +841,6 @@ static void eval_update_1(int x, unsigned long long f, Eval *eval)
 	foreach_bit (x, f)
 		for (i = 0; i < 12; ++i)
 			eval->feature.ull[i] += EVAL_FEATURE[x].ull[i];
-	}
 
   #else
 	const CoordinateToFeature *s = EVAL_X2F + x;
@@ -879,7 +878,7 @@ void eval_update(int x, unsigned long long f, Eval *eval)
 {
 	assert(f);
 
-  #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
+  #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(DISPATCH_NEON)
 	if (hasSSE2) {
 		eval_update_sse(x, f, eval, eval);
 		return;
@@ -893,7 +892,7 @@ void eval_update(int x, unsigned long long f, Eval *eval)
 
 void eval_update_leaf(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
-   #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
+  #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(DISPATCH_NEON)
 	if (hasSSE2) {
 		eval_update_sse(x, f, eval_out, eval_in);
 		return;
@@ -906,7 +905,7 @@ void eval_update_leaf(int x, unsigned long long f, Eval *eval_out, const Eval *e
 		eval_update_0(x, f, eval_out);
 }
 
-#endif // !defined(hasSSE2) && !defined(hasNeon)
+#endif // !defined(hasSSE2) && !defined(__ARM_NEON)
 
 /**
  * @brief Update/Restore the features after a passing move.
@@ -922,7 +921,7 @@ void eval_pass(Eval *eval)
 	for (i =  4; i < 16; ++i)	// 10
 		eval->feature.us[i] = OPPONENT_FEATURE[eval->feature.us[i]];
 	for (i = 16; i < 30; ++i)	// 8
-		eval->feature.us[i] = OPPONENT_FEATURE[eval->feature.us[i] - EVAL_OFFSET[i] + 26244]+ EVAL_OFFSET[i];
+		eval->feature.us[i] = OPPONENT_FEATURE[eval->feature.us[i] - EVAL_OFFSET[i] + 26244] + EVAL_OFFSET[i];
 	for (i = 30; i < 34; ++i)	// 7
 		eval->feature.us[i] = OPPONENT_FEATURE[eval->feature.us[i] + 28431];
 	for (i = 34; i < 38; ++i)	// 6

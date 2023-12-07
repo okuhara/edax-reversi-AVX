@@ -27,7 +27,6 @@ struct Random;
 void board_init(Board*);
 int board_set(Board*, const char*);
 int board_from_FEN(Board*, const char*);
-int board_compare(const Board*, const Board*);
 bool board_lesser(const Board*, const Board*);
 void board_symetry(const Board*, const int, Board*);
 int board_unique(const Board*, Board*);
@@ -60,12 +59,9 @@ unsigned long long get_moves_6x6(const unsigned long long, const unsigned long l
 bool can_move_6x6(const unsigned long long, const unsigned long long);
 int get_mobility(const unsigned long long, const unsigned long long);
 #ifdef __AVX2__
-__m128i vectorcall get_moves_and_potential(__m256i, __m256i);
+	__m128i vectorcall get_moves_and_potential(__m256i, __m256i);
 #else
-unsigned long long get_potential_moves(const unsigned long long, const unsigned long long);
-  #if !(defined(hasSSE2) && !defined(POPCOUNT)) && !defined(hasNeon)
-int get_potential_mobility(const unsigned long long, const unsigned long long);
-  #endif
+	unsigned long long get_potential_moves(const unsigned long long, const unsigned long long);
 #endif
 
 void edge_stability_init(void);
@@ -75,38 +71,36 @@ int get_edge_stability(const unsigned long long, const unsigned long long);
 int get_corner_stability(const unsigned long long);
 
 #if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
-void init_mmx (void);
-unsigned long long get_moves_mmx(unsigned long long, unsigned long long);
-unsigned long long get_moves_sse(unsigned long long, unsigned long long);
-int get_stability_mmx(unsigned long long, unsigned long long);
-int get_potential_mobility_mmx(unsigned long long, unsigned long long);
+	void init_mmx (void);
+	unsigned long long get_moves_mmx(const unsigned long long, const unsigned long long);
+	unsigned long long get_moves_sse(const unsigned long long, const unsigned long long);
+	int get_stability_mmx(unsigned long long, unsigned long long);
 
 #elif defined(ANDROID) && !defined(hasNeon) && !defined(hasSSE2)
-void init_neon (void);
-unsigned long long get_moves_sse(unsigned long long, unsigned long long);
-int get_stability_sse(const unsigned long long P, const unsigned long long O);
+	void init_neon (void);
+	unsigned long long get_moves_sse(unsigned long long, unsigned long long);
+	int get_stability_sse(const unsigned long long P, const unsigned long long O);
 #endif
 
 extern unsigned char edge_stability[256 * 256];
-extern unsigned long long A1_A8[256];
 
-#if 0 // defined(__BMI2__) && !defined(__bdver4__) && !defined(__znver1__) && !defined(__znver2__) // pdep is slow on AMD before Zen3
-	#define	unpackA1A8(x)	_pdep_u64((x), 0x0101010101010101)
-	#define	unpackH1H8(x)	_pdep_u64((x), 0x8080808080808080)
+// a1/a8/h1/h8 are already stable in horizontal line, so omit them in vertical line to ease kindergarten for CPU_64
+#if 0 // defined(__BMI2__) && defined(HAS_CPU_64) && !defined(__bdver4__) && !defined(__znver1__) && !defined(__znver2__) // pdep is slow on AMD before Zen3
+	#define	unpackA2A7(x)	_pdep_u64((x), 0x0101010101010101)
+	#define	unpackH2H7(x)	_pdep_u64((x), 0x8080808080808080)
 #else
-	#define	unpackA1A8(x)	(((unsigned long long)((((x) >> 4) * 0x00204081) & 0x01010101) << 32) | ((((x) & 0x0f) * 0x00204081) & 0x01010101))
-	#define	unpackH1H8(x)	(((unsigned long long)((((x) >> 4) * 0x10204080) & 0x80808080) << 32) | ((((x) & 0x0f) * 0x10204080) & 0x80808080))
+	#define	unpackA2A7(x)	((((x) & 0x7e) * 0x0000040810204080) & 0x0001010101010100)
+	#define	unpackH2H7(x)	((((x) & 0x7e) * 0x0002040810204000) & 0x0080808080808000)
 #endif
 
-#if (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_PLAIN) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BMI2)
-	extern int last_flip(int pos, unsigned long long P);
-#else
+#if (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_CARRY) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_KINDERGARTEN) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BITSCAN) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_32)
 	extern int (*count_last_flip[BOARD_SIZE + 1])(const unsigned long long);
 	#define	last_flip(x,P)	count_last_flip[x](P)
+#else
+	extern int last_flip(int pos, unsigned long long P);
 #endif
 
 #if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512)
-	extern const V4DI lmask_v4[66], rmask_v4[66];
 	extern __m256i vectorcall mm_Flip(const __m128i OP, int pos);
 	inline __m128i vectorcall reduce_vflip(__m256i flip4) {
 		__m128i flip2 = _mm_or_si128(_mm256_castsi256_si128(flip4), _mm256_extracti128_si256(flip4, 1));
@@ -160,7 +154,7 @@ extern unsigned long long A1_A8[256];
 
 // Use backup copy of search->board in a vector register if available (assume *pboard == vboard on entry)
 #ifdef hasSSE2
-	#define	vboard_update(pboard,vboard,move)	_mm_storeu_si128((__m128i *) (pboard), _mm_shuffle_epi32(_mm_xor_si128((vboard).v2, _mm_or_si128(_mm_set1_epi64x((move)->flipped), _mm_cvtsi64_si128(X_TO_BIT[(move)->x]))), 0x4e))
+	#define	vboard_update(pboard,vboard,move)	_mm_storeu_si128((__m128i *) (pboard), _mm_shuffle_epi32(_mm_xor_si128((vboard).v2, _mm_or_si128(_mm_set1_epi64x((move)->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x]))), 0x4e))
 #else
 	#define	vboard_update(pboard,vboard,move)	board_update((pboard), (move))
 #endif
@@ -183,7 +177,7 @@ extern unsigned long long A1_A8[256];
 // Pass vboard to get_moves if vectorcall available, otherwise board
 #if defined(__AVX2__) && (defined(_MSC_VER) || defined(__linux__))
 	unsigned long long vectorcall get_moves_avx(__m256i PP, __m256i OO);
-	#define	get_moves(P,O)	get_moves_avx(_mm256_broadcastq_epi64(_mm_cvtsi64_si128(P)), _mm256_broadcastq_epi64(_mm_cvtsi64_si128(O)))
+	#define	get_moves(P,O)	get_moves_avx(_mm256_set1_epi64x(P), _mm256_set1_epi64x(O))
 	#define	board_get_moves(board)	get_moves_avx(_mm256_broadcastq_epi64(*(__m128i *) &(board)->player), _mm256_broadcastq_epi64(*(__m128i *) &(board)->opponent))
 	#define	vboard_get_moves(vboard)	get_moves_avx(_mm256_broadcastq_epi64((vboard).v2), _mm256_broadcastq_epi64(_mm_unpackhi_epi64((vboard).v2, (vboard).v2)))
 #else

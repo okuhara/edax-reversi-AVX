@@ -134,4 +134,3 @@ __m256i vectorcall mm_Flip(const __m128i OP, int pos)
 
 	return flip;
 }
-

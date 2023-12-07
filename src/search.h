@@ -175,12 +175,12 @@ int get_pv_extension(const int, const int);
 
 void result_print(Result*, FILE*);
 
-bool search_SC_PVS(Search*, volatile int*, volatile int*, int*);
+bool search_SC_PVS(Search*, int*, int*, int*);
 bool search_SC_NWS(Search*, const int, int*);
 bool search_SC_NWS_4(Search*, const int, int*);
-bool search_TC_PVS(HashData*, const int, const int, volatile int*, volatile int*, int*);
+// bool search_TC_PVS(HashData*, const int, const int, int*, int*, int*);
 bool search_TC_NWS(HashData*, const int, const int, const int, int*);
-bool search_ETC_PVS(Search*, MoveList*, unsigned long long, const int, const int, volatile int*, volatile int*, int*);
+// bool search_ETC_PVS(Search*, MoveList*, unsigned long long, const int, const int, int*, int*, int*);
 bool search_ETC_NWS(Search*, MoveList*, unsigned long long, const int, const int, const int, int*);
 
 NodeType next_node_type(const NodeType parent, const bool first_move);
@@ -221,7 +221,7 @@ int search_get_pv_cost(Search*);
 void show_current_move(FILE *f, Search*, const Move*, const int, const int, const bool);
 int search_bound(const Search*, int);
 
-#if defined(hasSSE2) || defined(hasNeon) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
+#if defined(hasSSE2) || defined(__ARM_NEON) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
 	#ifdef __AVX2__
 		#define	mm_malloc(s)	_mm_malloc((s), 32)
 		#define	mm_free(p)	_mm_free(p)

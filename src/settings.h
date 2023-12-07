@@ -32,16 +32,17 @@
 #define COUNT_LAST_FLIP_PLAIN 5		// 33.3Mnps
 #define COUNT_LAST_FLIP_32 6		// 33.1Mnps
 #define COUNT_LAST_FLIP_BMI2 7		// 34.7Mnps	// slow on AMD
+#define	COUNT_LAST_FLIP_AVX512 9
 
 /**move generation. */
 #ifndef MOVE_GENERATOR
-	#if defined(__AVX512CD__) && defined(__AVX512VL__)
+	#ifdef __AVX512VL__
 		#define MOVE_GENERATOR MOVE_GENERATOR_AVX512
 	#elif defined(__AVX2__)
 		#define MOVE_GENERATOR MOVE_GENERATOR_AVX
 	#elif defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2)
 		#define MOVE_GENERATOR MOVE_GENERATOR_SSE
-	#elif defined(__aarch64__) || defined(_M_ARM64) || defined(hasNeon)
+	#elif defined(__aarch64__) || defined(_M_ARM64) || defined(__ARM_NEON)
 		#define MOVE_GENERATOR MOVE_GENERATOR_NEON
 	#elif defined(__arm__) || defined(_M_ARM)
 		#define MOVE_GENERATOR MOVE_GENERATOR_BITSCAN
@@ -50,7 +51,7 @@
 	#endif
 #endif
 #ifndef LAST_FLIP_COUNTER
-	#if defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2) || defined(__aarch64__) || defined(_M_ARM64) || defined(hasNeon)
+	#if defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2) || defined(__aarch64__) || defined(_M_ARM64) || defined(__ARM_NEON)
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_SSE
 	#elif defined(__arm__) || defined(_M_ARM)
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_BITSCAN

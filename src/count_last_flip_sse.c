@@ -204,12 +204,13 @@ int last_flip(int pos, unsigned long long P)
     #endif
 	n_flips += COUNT_FLIP_Y[t & 0xFF];
 	t >>= 16;
+
   #else
 	__m128i PP = _mm_set1_epi64x(P);
 	__m128i II = _mm_sad_epu8(_mm_and_si128(PP, mask_dvhd[pos].v2[0]), _mm_setzero_si128());
 
-	n_flips  = COUNT_FLIP_X[_mm_cvtsi128_si32(II)];
-	n_flips += COUNT_FLIP_X[_mm_extract_epi16(II, 4)];
+	n_flips  = COUNT_FLIP_X[_mm_extract_epi16(II, 4)];
+	n_flips += COUNT_FLIP_X[_mm_cvtsi128_si32(II)];
     #ifdef __AVX512VL__
     	t = _cvtmask16_u32(_mm_test_epi8_mask(PP, mask_dvhd[pos].v2[1]));
     #else

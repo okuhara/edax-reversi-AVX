@@ -20,7 +20,7 @@
  *
  * @return a CPU clock tick.
  */
-static unsigned long long click()
+static unsigned long long click(void)
 {
 #if defined(USE_GAS_X64)
 
@@ -44,7 +44,7 @@ static unsigned long long click()
 /*
  * @brief Move generator performance test.
  */
-static void bench_move_generator()
+static void bench_move_generator(void)
 {
 	const char *b = "OOOOOOOOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOOOOOOOO O";
 	char m[4];
@@ -111,7 +111,7 @@ static void bench_move_generator()
 /*
  * @brief Last Move performance test.
  */
-static void bench_count_last_flip()
+static void bench_count_last_flip(void)
 {
 	const char *b = "OOOOOOOOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOOOOOOOO O";
 	char m[4];
@@ -178,7 +178,7 @@ static void bench_count_last_flip()
 /*
  * @brief Scoring performance test.
  */
-static void bench_board_score_1()
+static void bench_board_score_1(void)
 {
 	const char *b = "OOOOOOOOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOOOOOOOO O";
 	char m[4];
@@ -217,13 +217,13 @@ static void bench_board_score_1()
 
 		c = -click();
 		for (i = 0; i < N_WARMUP; ++i) {
-			v += board_score_1(board.player, SCORE_MAX, x);
+			v += board_score_1(board.player, SCORE_MAX - 1, x);
 		}
 		c += click();
 
 		c = -click();
 		for (i = 0; i < N_REPEAT; ++i) {
-			v += board_score_1(board.player, SCORE_MAX, x);
+			v += board_score_1(board.player, SCORE_MAX - 1, x);
 		}
 		c += click();
 
@@ -246,7 +246,7 @@ static void bench_board_score_1()
 /*
  * @brief Mobility performance test.
  */
-static void bench_mobility()
+static void bench_mobility(void)
 {
 	const char *b = "OOOOOOOOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOOOOOOOO O";
 	char m[4];
@@ -324,7 +324,7 @@ static void bench_mobility()
 /*
  * @brief Stability performance test.
  */
-static void bench_stability()
+static void bench_stability(void)
 {
 	const char *b = "OOOOOOOOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOOOOOOOO O";
 	char m[4];
