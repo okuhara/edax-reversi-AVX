@@ -35,11 +35,11 @@
 	#include "flip_sse.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_BITSCAN
   #ifdef __ARM_NEON
-		#define	flip_neon	flip
-		#include "flip_neon_bitscan.c"
-	#else
-		#include "flip_bitscan.c"
-	#endif
+	#define	flip_neon	flip
+	#include "flip_neon_bitscan.c"
+  #else
+	#include "flip_bitscan.c"
+  #endif
 #elif MOVE_GENERATOR == MOVE_GENERATOR_ROXANE
 	#include "flip_roxane.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_32
@@ -51,11 +51,11 @@
 #elif MOVE_GENERATOR == MOVE_GENERATOR_AVX512
 	#include "flip_avx512cd.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_NEON
-	#ifdef __aarch64__
-		#include "flip_neon_rbit.c"
-	#else
-		#include "flip_neon_lzcnt.c"
-	#endif
+  #ifdef __aarch64__
+	#include "flip_neon_rbit.c"
+  #else
+	#include "flip_neon_lzcnt.c"
+  #endif
 #else // MOVE_GENERATOR == MOVE_GENERATOR_KINDERGARTEN
 	#include "flip_kindergarten.c"
 #endif

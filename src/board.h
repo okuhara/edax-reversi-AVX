@@ -76,7 +76,7 @@ int get_corner_stability(const unsigned long long);
 	unsigned long long get_moves_sse(const unsigned long long, const unsigned long long);
 	int get_stability_mmx(unsigned long long, unsigned long long);
 
-#elif defined(ANDROID) && !defined(hasNeon) && !defined(hasSSE2)
+#elif defined(ANDROID) && !defined(__ARM_NEON) && !defined(hasSSE2)
 	void init_neon (void);
 	unsigned long long get_moves_sse(unsigned long long, unsigned long long);
 	int get_stability_sse(const unsigned long long P, const unsigned long long O);
@@ -137,17 +137,17 @@ extern unsigned char edge_stability[256 * 256];
   #else
 	#define	board_flip(board,x)	flip[x]((unsigned int)((board)->player), ((unsigned int *) &(board)->player)[1], (unsigned int)((board)->opponent), ((unsigned int *) &(board)->opponent)[1])
   #endif
-	#if defined(USE_GAS_MMX) && !defined(hasSSE2)
-		extern void init_flip_sse(void);
-	#endif
+  #if defined(USE_GAS_MMX) && !defined(hasSSE2)
+	extern void init_flip_sse(void);
+  #endif
 
 #else
-	#if MOVE_GENERATOR == MOVE_GENERATOR_SSE_BSWAP
-		extern unsigned long long Flip(int, unsigned long long, unsigned long long);
-	#else
-		extern unsigned long long (*flip[BOARD_SIZE + 2])(const unsigned long long, const unsigned long long);
-		#define	Flip(x,P,O)	flip[x]((P), (O))
-	#endif
+  #if MOVE_GENERATOR == MOVE_GENERATOR_SSE_BSWAP
+	extern unsigned long long Flip(int, unsigned long long, unsigned long long);
+  #else
+	extern unsigned long long (*flip[BOARD_SIZE + 2])(const unsigned long long, const unsigned long long);
+	#define	Flip(x,P,O)	flip[x]((P), (O))
+  #endif
 
 	#define	board_flip(board,x)	Flip((x), (board)->player, (board)->opponent)
 #endif

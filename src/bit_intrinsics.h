@@ -29,7 +29,7 @@
 	#define	DISPATCH_NEON	1
   #else
 	#define	__ARM_NEON	1
-	#endif
+  #endif
 #elif defined(__ARM_NEON__) || defined(__aarch64__) || defined(_M_ARM) || defined(_M_ARM64)
 	#define	__ARM_NEON	1
 #endif
@@ -39,9 +39,9 @@
 
 #ifdef _MSC_VER
 	#include <intrin.h>
-	#ifdef _M_IX86
-		#define	USE_MSVC_X86	1
-	#endif
+  #ifdef _M_IX86
+	#define	USE_MSVC_X86	1
+  #endif
 #elif defined(hasSSE2)
 	#include <x86intrin.h>
 #endif
@@ -51,7 +51,7 @@
 #endif
 
 // mirror byte
-#if defined(_M_ARM) // || defined(_M_ARM64) // https://developercommunity.visualstudio.com/content/problem/498995/arm64-missing-rbit-intrinsics.html
+#if defined(_M_ARM) || (defined(_M_ARM64) && _MSC_VER >= 1922)	// https://developercommunity.visualstudio.com/content/problem/498995/arm64-missing-rbit-intrinsics.html
 	#define mirror_byte(b)	(_arm_rbit(b) >> 24)
 #elif defined(__ARM_ACLE)
 	#include <arm_acle.h>
@@ -80,18 +80,18 @@
 	#define	bswap_int(x)	_byteswap_ulong(x)
 	#define	vertical_mirror(x)	_byteswap_uint64(x)
 #else
-	#if (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))) || __has_builtin(__builtin_bswap16)
-		#define	bswap_short(x)	__builtin_bswap16(x)
-	#else
-		#define bswap_short(x)	(((unsigned short) (x) >> 8) | ((unsigned short) (x) << 8))
-	#endif
-	#if (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3))) || __has_builtin(__builtin_bswap64)
-		#define	bswap_int(x)	__builtin_bswap32(x)
-		#define	vertical_mirror(x)	__builtin_bswap64(x)
-	#else
-		unsigned int bswap_int(unsigned int);
-		unsigned long long vertical_mirror(unsigned long long);
-	#endif
+  #if (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))) || __has_builtin(__builtin_bswap16)
+	#define	bswap_short(x)	__builtin_bswap16(x)
+  #else
+	#define bswap_short(x)	(((unsigned short) (x) >> 8) | ((unsigned short) (x) << 8))
+  #endif
+  #if (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3))) || __has_builtin(__builtin_bswap64)
+	#define	bswap_int(x)	__builtin_bswap32(x)
+	#define	vertical_mirror(x)	__builtin_bswap64(x)
+  #else
+	unsigned int bswap_int(unsigned int);
+	unsigned long long vertical_mirror(unsigned long long);
+  #endif
 #endif
 
 // lzcnt / tzcnt (0 allowed)
@@ -156,32 +156,32 @@ static inline int _tzcnt_u64(unsigned long long x) {
 			i = 32 ^ 31;
 		return i ^ 31;
 	}
-	#ifdef _M_X64
-		static inline int lzcnt_u64(unsigned long long n) {
-			unsigned long i;
-			if (!_BitScanReverse64(&i, n))
-				i = 64 ^ 63;
-			return i ^ 63;
-		}
-	#else
-		static inline int lzcnt_u64(unsigned long long n) {
-			unsigned long i;
-			if (_BitScanReverse(&i, n >> 32))
-				return i ^ 31;
-			if (!_BitScanReverse(&i, (unsigned int) n))
-				i = 64 ^ 63;
-			return i ^ 63;
-		}
-	#endif
+  #ifdef _M_X64
+	static inline int lzcnt_u64(unsigned long long n) {
+		unsigned long i;
+		if (!_BitScanReverse64(&i, n))
+			i = 64 ^ 63;
+		return i ^ 63;
+	}
+  #else
+	static inline int lzcnt_u64(unsigned long long n) {
+		unsigned long i;
+		if (_BitScanReverse(&i, n >> 32))
+			return i ^ 31;
+		if (!_BitScanReverse(&i, (unsigned int) n))
+			i = 64 ^ 63;
+		return i ^ 63;
+	}
+  #endif
 
 #elif defined(__ARM_FEATURE_CLZ)
-	#if __ARM_ACLE >= 110
-		#define	lzcnt_u32(x)	__clz(x)
-		#define	lzcnt_u64(x)	__clzll(x)
-	#else // strictly-incorrect patch
-		#define	lzcnt_u32(x)	__builtin_clz(x)
-		#define	lzcnt_u64(x)	__builtin_clzll(x)
-	#endif
+  #if __ARM_ACLE >= 110
+	#define	lzcnt_u32(x)	__clz(x)
+	#define	lzcnt_u64(x)	__clzll(x)
+  #else // strictly-incorrect patch
+	#define	lzcnt_u32(x)	__builtin_clz(x)
+	#define	lzcnt_u64(x)	__builtin_clzll(x)
+  #endif
 
 #else
 	static inline int lzcnt_u32(unsigned long x) { return (x ? __builtin_clz(x) : 32); }
@@ -193,11 +193,11 @@ static inline int _tzcnt_u64(unsigned long long x) {
 	#define	tzcnt_u64(x)	_tzcnt_u64(x)
 
 #elif defined(__ARM_FEATURE_CLZ)
-	#ifdef _M_ARM
-		#define	tzcnt_u32(x)	_arm_clz(_arm_rbit(x))
-	#elif __has_builtin(__rbit) // (__ARM_ARCH >= 6 && __ARM_ISA_THUMB >= 2) || __ARM_ARCH >= 7	// not for gcc
-		#define	tzcnt_u32(x)	__clz(__rbit(x))
-	#endif
+  #ifdef _M_ARM
+	#define	tzcnt_u32(x)	_arm_clz(_arm_rbit(x))
+  #elif __has_builtin(__rbit) // (__ARM_ARCH >= 6 && __ARM_ISA_THUMB >= 2) || __ARM_ARCH >= 7	// not for gcc
+	#define	tzcnt_u32(x)	__clz(__rbit(x))
+  #endif
 #endif
 
 #endif // EDAX_BIT_INTRINSICS_H

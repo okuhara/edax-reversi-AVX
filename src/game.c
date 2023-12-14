@@ -998,7 +998,7 @@ void game_import_pgn(Game *game, FILE *f)
 		}  else  if  (c == '{') { // skip comments
 			do {
 				c = getc(f);
-			} while(c != EOF && c != '}');			
+			} while(c != EOF && c != '}');
 		}  else  if  (c == '[') {
 			switch(state) {
 			case STATE_START:

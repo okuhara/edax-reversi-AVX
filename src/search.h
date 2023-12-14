@@ -191,8 +191,8 @@ extern int board_score_1(const unsigned long long, const int, const int);
 int NWS_endgame(Search*, const int);
 
 int search_eval_0(Search*);
-int search_eval_1(Search*, const int, int, bool);
-int search_eval_2(Search*, int, const int, bool);
+int search_eval_1(Search*, int, int, unsigned long long);
+int search_eval_2(Search*, int, int, unsigned long long);
 int NWS_midgame(Search*, const int, int, struct Node*);
 int PVS_midgame(Search*, const int, const int, int, struct Node*);
 // static int NWS_shallow(Search*, const int, int, HashTable*);
@@ -222,25 +222,25 @@ void show_current_move(FILE *f, Search*, const Move*, const int, const int, cons
 int search_bound(const Search*, int);
 
 #if defined(hasSSE2) || defined(__ARM_NEON) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
-	#ifdef __AVX2__
-		#define	mm_malloc(s)	_mm_malloc((s), 32)
-		#define	mm_free(p)	_mm_free(p)
-	#elif defined(hasSSE2) && !defined(ANDROID)
-		#define	mm_malloc(s)	_mm_malloc((s), 16)
-		#define	mm_free(p)	_mm_free(p)
-	#elif defined(_MSC_VER)
-		#define	mm_malloc(s)	_aligned_malloc((s), 16)
-		#define	mm_free(p)	_aligned_free(p)
-	#else
-		static inline void *mm_malloc(size_t s) {
-			void *p = malloc(s + 16 + sizeof(void *));
-			if (!p) return p;
-			void **q = (void **)(((size_t) p + 15 + sizeof(void *)) & -16);
-			*(q - 1) = p;
-			return (void *) q;
-		}
-		#define mm_free(p)	free(*((void **)(p) - 1));
-	#endif
+  #ifdef __AVX2__
+	#define	mm_malloc(s)	_mm_malloc((s), 32)
+	#define	mm_free(p)	_mm_free(p)
+  #elif defined(hasSSE2) && !defined(ANDROID)
+	#define	mm_malloc(s)	_mm_malloc((s), 16)
+	#define	mm_free(p)	_mm_free(p)
+  #elif defined(_MSC_VER)
+	#define	mm_malloc(s)	_aligned_malloc((s), 16)
+	#define	mm_free(p)	_aligned_free(p)
+  #else
+	static inline void *mm_malloc(size_t s) {
+		void *p = malloc(s + 16 + sizeof(void *));
+		if (!p) return p;
+		void **q = (void **)(((size_t) p + 15 + sizeof(void *)) & -16);
+		*(q - 1) = p;
+		return (void *) q;
+	}
+	#define mm_free(p)	free(*((void **)(p) - 1));
+  #endif
 #else
 	#define	mm_malloc(s)	malloc(s)
 	#define	mm_free(p)	free(p)

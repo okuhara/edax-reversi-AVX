@@ -31,6 +31,7 @@
  *
  * @param ply	60 - n_empties
  * @param eval	Evaluation function.
+ * @return An evaluated score.
  */
 static int accumlate_eval(int ply, Eval *eval)
 {
@@ -98,6 +99,7 @@ static int accumlate_eval(int ply, Eval *eval)
  * @brief evaluate a midgame position with the evaluation function.
  *
  * @param search Position to evaluate.
+ * @return An evaluated score.
  */
 int search_eval_0(Search *search)
 {
@@ -118,7 +120,7 @@ int search_eval_0(Search *search)
 }
 
 /**
- * @brief Evaluate a position at depth 1.
+ * @brief Evaluate a position at depth 1. (min stage)
  *
  * As an optimization, the last move is used to only updates the evaluation
  * features.
@@ -126,24 +128,25 @@ int search_eval_0(Search *search)
  * @param search Position to evaluate.
  * @param alpha Alpha bound.
  * @param beta Beta bound.
+ * @param moves Next turn legal moves.
+ * @return An evaluated min score.
  */
-int search_eval_1(Search *search, const int alpha, int beta, bool pass1)
+int search_eval_1(Search *search, int alpha, int beta, unsigned long long moves)
 {
-	int x, score, bestscore, betathres;
-	unsigned long long flipped, moves;
+	int x, score, bestscore, alphathres;
+	unsigned long long flipped;
 	Eval Ev;
 	V2DI board0;
 
 	SEARCH_STATS(++statistics.n_search_eval_1);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
-	board0.board = search->board;
-	moves = vboard_get_moves(board0);
 	if (moves) {
-		bestscore = -SCORE_INF * 128;
-		if (beta > SCORE_MAX - 1) betathres = ((SCORE_MAX - 1) * 128) - 64;
-		else betathres = (beta * 128) - ((beta > 0) ? 64 : 63);	// lowest score rounded to beta
+		bestscore = SCORE_INF * 128;	// min stage
+		if (alpha < SCORE_MIN + 1) alphathres = ((SCORE_MIN + 1) * 128) + 64;
+		else alphathres = (alpha * 128) + 63 + (int) (alpha < 0);	// highest score rounded to alpha
 
+		board0.board = search->board;
 		x = NOMOVE;
 		do {
 			do {
@@ -153,31 +156,31 @@ int search_eval_1(Search *search, const int alpha, int beta, bool pass1)
 			moves &= ~x_to_bit(x);
 			flipped = vboard_flip(board0, x);
 			if (flipped == search->board.opponent)
-				return SCORE_MAX;	// wipeout
+				return SCORE_MIN;	// wipeout
 
 			eval_update_leaf(x, flipped, &Ev, &search->eval);
 			SEARCH_UPDATE_EVAL_NODES(search->n_nodes);
 
-			score = -accumlate_eval(60 - search->eval.n_empties + 1, &Ev);
+			score = accumlate_eval(60 - search->eval.n_empties + 1, &Ev);
 
-			if (score > bestscore)
+			if (score < bestscore)
 				bestscore = score;
-			if (bestscore >= betathres) break;
-		} while (moves);
+		} while (moves && (bestscore > alphathres));
 
-		if (bestscore > 0) bestscore += 64;	else bestscore -= 64;
+		if (bestscore >= 0) bestscore += 64; else bestscore -= 64;
 		bestscore /= 128;
 
-			if (bestscore < SCORE_MIN + 1) bestscore = SCORE_MIN + 1;
+		if (bestscore < SCORE_MIN + 1) bestscore = SCORE_MIN + 1;
 		if (bestscore > SCORE_MAX - 1) bestscore = SCORE_MAX - 1;
 
 	} else {
-		if (pass1) { // game over
-			bestscore = search_solve(search);
-		} else {
+		moves = get_moves(search->board.opponent, search->board.player);
+		if (moves) {
 			search_update_pass_midgame(search, &Ev);
-			bestscore = -search_eval_1(search, -beta, -alpha, true);
+			bestscore = -search_eval_1(search, -beta, -alpha, moves);
 			search_restore_pass_midgame(search, &Ev);
+		} else { // game over
+			bestscore = -search_solve(search);
 		}
 	}
 
@@ -193,11 +196,13 @@ int search_eval_1(Search *search, const int alpha, int beta, bool pass1)
  * @param search Position to evaluate.
  * @param alpha Lower bound
  * @param beta  Upper bound
+ * @param moves Next turn legal moves.
+ * @return An evaluated best score.
  */
-int search_eval_2(Search *search, int alpha, const int beta, bool pass1)
+int search_eval_2(Search *search, int alpha, int beta, unsigned long long moves)
 {
 	int x, bestscore, score;
-	unsigned long long flipped, moves;
+	unsigned long long flipped;
 	Eval eval0;
 	V2DI board0;
 
@@ -208,13 +213,11 @@ int search_eval_2(Search *search, int alpha, const int beta, bool pass1)
 	assert(beta <= SCORE_MAX);
 	assert(alpha <= beta);
 
-	board0.board = search->board;
-	moves = vboard_get_moves(board0);
 	if (moves) {
 		bestscore = -SCORE_INF;
 		eval0.feature = search->eval.feature;
 		eval0.n_empties = search->eval.n_empties--;
-
+		board0.board = search->board;
 		x = NOMOVE;
 		do {
 			do {
@@ -222,10 +225,10 @@ int search_eval_2(Search *search, int alpha, const int beta, bool pass1)
 			} while (!(moves & x_to_bit(x)));
 
 			moves &= ~x_to_bit(x);
-			// search->empties[prev].next = search->empties[x].next;
+			// search->empties[prev].next = search->empties[x].next;	// let search_eval_1 skip the last occupied
 			flipped = vboard_next(board0, x, &search->board);
 			eval_update_leaf(x, flipped, &search->eval, &eval0);
-			score = -search_eval_1(search, -beta, -alpha, false);
+			score = search_eval_1(search, alpha, beta, board_get_moves(&search->board));
 			// search->empties[prev].next = x;	// restore
 
 			if (score > bestscore) {
@@ -239,12 +242,13 @@ int search_eval_2(Search *search, int alpha, const int beta, bool pass1)
 		search->board = board0.board;
 
 	} else {
-		if (pass1) { // game over
-			bestscore = search_solve(search);
-		} else {
+		moves = get_moves(search->board.opponent, search->board.player);
+		if (moves) {
 			search_update_pass_midgame(search, &eval0);
-			bestscore = -search_eval_2(search, -beta, -alpha, true);
+			bestscore = -search_eval_2(search, -beta, -alpha, moves);
 			search_restore_pass_midgame(search, &eval0);
+		} else { // game over
+			bestscore = search_solve(search);
 		}
 	}
 
@@ -263,7 +267,6 @@ int search_eval_2(Search *search, int alpha, const int beta, bool pass1)
  * @param depth Search depth.
  * @param parent Parent node.
  * @param value Returned value.
- *
  * @return true if probable cutoff has been found, false otherwise.
  */
 static inline void search_update_probcut(Search *search, const NodeType node_type) 
@@ -374,7 +377,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 	V2DI board0;
 	long long nodes_org = search->n_nodes;
 
-	if (depth == 2) return search_eval_2(search, alpha, alpha + 1, false);
+	if (depth == 2) return search_eval_2(search, alpha, alpha + 1, board_get_moves(&search->board));
 
 	SEARCH_STATS(++statistics.n_NWS_midgame);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
@@ -437,8 +440,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 	hash_data.beta = alpha + 1;
 	hash_data.score = bestscore;
 	hash_store(hash_table, &search->board, hash_code, &hash_data);
- 	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
-
+	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
 	return bestscore;
 }
 
@@ -468,7 +470,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 	Board board0;
 	long long nodes_org = search->n_nodes;
 
-	if (depth == 2) return search_eval_2(search, alpha, beta, false);
+	if (depth == 2) return search_eval_2(search, alpha, beta, board_get_moves(&search->board));
 
 	SEARCH_STATS(++statistics.n_PVS_shallow);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
@@ -583,10 +585,10 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		return search_solve_0(search);
 	else if (depth < search->eval.n_empties) {
 		if (depth <= 3)
-		return NWS_shallow(search, alpha, depth, &search->hash_table);
+			return NWS_shallow(search, alpha, depth, &search->hash_table);
 	} else {
 		if (depth < DEPTH_MIDGAME_TO_ENDGAME)
-		return NWS_endgame(search, alpha);
+			return NWS_endgame(search, alpha);
 	}
 
 	SEARCH_STATS(++statistics.n_NWS_midgame);
@@ -721,7 +723,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 	else if (USE_PV_EXTENSION && depth < search->eval.n_empties && search->eval.n_empties <= search->depth_pv_extension)
 		return PVS_midgame(search, alpha, beta, search->eval.n_empties, parent);
 	else if (depth == 2 && search->eval.n_empties > 2)
-		return search_eval_2(search, alpha, beta, false);
+		return search_eval_2(search, alpha, beta, board_get_moves(&search->board));
 
 	nodes_org = search_count_nodes(search);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);

@@ -275,7 +275,7 @@ int first_bit(unsigned long long b)
  * In practice, clear the first bit set and search the next one.
  *
  * @param b 64-bit integer.
-  * @return the index of the next bit set.
+ * @return the index of the next bit set.
  */
 int next_bit(unsigned long long *b)
 {
