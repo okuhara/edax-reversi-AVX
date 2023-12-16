@@ -768,7 +768,7 @@ void edge_stability_init(void)
 #define	packH1H8(X)	(((((unsigned int)((X) >> 32) & 0x80808080) + (((unsigned int)(X) & 0x80808080) >> 4)) * 0x00204081) >> 24)
 #endif
 
-#if !defined(__AVX2__) && !defined(__ARM_NEON) && !defined(hasSSE2)
+#if !defined(hasSSE2) && !defined(__ARM_NEON)
 /**
  * @brief Get stable edge.
  *
