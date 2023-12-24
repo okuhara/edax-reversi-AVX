@@ -131,7 +131,7 @@ extern	const V8DI lrmask_v4[66];	// in flip_avx512cd.c
 static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, const int pos)
 {
 	int	score, score2, nflip;
-	__m256i PP = _mm256_permute4x64_epi64(_mm256_castsi128_si256(PO), 0x55);
+	__m256i PP = _mm256_broadcastq_epi64(_mm_unpackhi_epi64(PO, PO));
 	__m256i	rmP, rmO, flip, outflank, rmask, lmask;
 	__m128i	flip2, p2;
 
