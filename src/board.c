@@ -239,7 +239,6 @@ bool board_lesser(const Board *b1, const Board *b2)
 	else	return (b1->opponent < b2->opponent);
 }
 
-#if !defined(hasSSE2) && !defined(__ARM_NEON)	// SSE version in board_sse.c
 /**
  * @brief symetric board
  *
@@ -247,32 +246,38 @@ bool board_lesser(const Board *b1, const Board *b2)
  * @param s symetry
  * @param sym symetric output board
  */
+#if !defined(hasSSE2) && !defined(__ARM_NEON)	// SSE version in board_sse.c
+void board_horizontal_mirror(const Board *board, Board *sym)
+{
+	sym->player = horizontal_mirror(board->player);
+	sym->opponent = horizontal_mirror(board->opponent);
+}
+
+void board_vertical_mirror(const Board *board, Board *sym)
+{
+	sym->player = vertical_mirror(board->player);
+	sym->opponent = vertical_mirror(board->opponent);
+}
+
+void board_transpose(const Board *board, Board *sym)
+{
+	sym->player = transpose(board->player);
+	sym->opponent = transpose(board->opponent);
+}
+#endif
+
 void board_symetry(const Board *board, const int s, Board *sym)
 {
-	unsigned long long player, opponent;
-
-	player = board->player;
-	opponent = board->opponent;
-
-	if (s & 1) {
-		player = horizontal_mirror(player);
-		opponent = horizontal_mirror(opponent);
-	}
-	if (s & 2) {
-		player = vertical_mirror(player);
-		opponent = vertical_mirror(opponent);
-	}
-	if (s & 4) {
-		player = transpose(player);
-		opponent = transpose(opponent);
-	}
-
-	sym->player = player;
-	sym->opponent = opponent;
+	*sym = *board;
+	if (s & 1)
+		board_horizontal_mirror(sym, sym);
+	if (s & 2)
+		board_vertical_mirror(sym, sym);
+	if (s & 4)
+		board_transpose(sym, sym);
 
 	board_check(sym);
 }
-#endif
 
 /**
  * @brief unique board
@@ -289,15 +294,15 @@ int board_unique(const Board *board, Board *unique)
 
 	assert(board != unique);
 
-	*unique = *board;
-	board_symetry(board,   1, &sym[1]);
-	board_symetry(board,   2, &sym[2]);
-	board_symetry(&sym[1], 2, &sym[3]);
-	board_symetry(board,   4, &sym[4]);
-	board_symetry(&sym[4], 2, &sym[5]);	// v-h reverted
-	board_symetry(&sym[4], 1, &sym[6]);
-	board_symetry(&sym[6], 2, &sym[7]);
+	board_horizontal_mirror(board, &sym[1]);
+	board_vertical_mirror(board, &sym[2]);
+	board_vertical_mirror(&sym[1], &sym[3]);
+	board_transpose(board, &sym[4]);
+	board_vertical_mirror(&sym[4], &sym[5]);	// v-h reverted
+	board_horizontal_mirror(&sym[4], &sym[6]);
+	board_vertical_mirror(&sym[6], &sym[7]);
 
+	*unique = *board;
 	for (i = 1; i < 8; ++i) {
 		// board_symetry(board, i, &sym);	// moved to before loop to minimize symetry ops
 		if (board_lesser(&sym[i], unique)) {
