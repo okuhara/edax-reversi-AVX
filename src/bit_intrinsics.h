@@ -51,7 +51,7 @@
 #endif
 
 // mirror byte
-#if defined(_M_ARM) || (defined(_M_ARM64) && _MSC_VER >= 1922)	// https://developercommunity.visualstudio.com/content/problem/498995/arm64-missing-rbit-intrinsics.html
+#if defined(_M_ARM) // || (defined(_M_ARM64) && _MSC_VER >= 1922)	// https://developercommunity.visualstudio.com/t/ARM64-still-missing-RBIT-intrinsics/10547420
 	#define mirror_byte(b)	(_arm_rbit(b) >> 24)
 #elif defined(__ARM_ACLE)
 	#include <arm_acle.h>
