@@ -6,7 +6,7 @@
  *
  * Bitboard and empty list are kept in SSE registers.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2024
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -389,10 +389,10 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, cons
   #endif
 			const uint8_t *COUNT_FLIP_Y = COUNT_FLIP[pos >> 3];
 
-			n_flips  = COUNT_FLIP[pos & 7][(~P >> (pos & 0x38)) & 0xFF];
-			n_flips += COUNT_FLIP_Y[(t >> 8) & 0xFF];
-			n_flips += COUNT_FLIP_Y[(t >> 16) & 0xFF];
-			n_flips += COUNT_FLIP_Y[t >> 24];
+			n_flips  = COUNT_FLIP[pos & 7][(~P >> (pos & 0x38)) & 0xFF];	// h
+			n_flips += COUNT_FLIP_Y[(t >> 8) & 0xFF];	// v
+			n_flips += COUNT_FLIP_Y[(t >> 16) & 0xFF];	// d
+			n_flips += COUNT_FLIP_Y[t >> 24];	// d
 			score -= n_flips + (int)((n_flips > 0) | (score <= 0)) * 2;
 		} else	score += 2;	// min flip
 
@@ -401,10 +401,10 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, cons
 
 		// n_flips = last_flip(pos, P);
 		t = TEST_EPI8_MASK32(_mm256_broadcastq_epi64(P2), mask_dvhd[pos].v4);
-		n_flips  = COUNT_FLIP[pos & 7][(P >> (pos & 0x38)) & 0xFF];
-		n_flips += COUNT_FLIP_Y[t & 0xFF];
-		n_flips += COUNT_FLIP_Y[(t >> 16) & 0xFF];
-		n_flips += COUNT_FLIP_Y[t >> 24];
+		n_flips  = COUNT_FLIP[pos & 7][(P >> (pos & 0x38)) & 0xFF];	// h
+		n_flips += COUNT_FLIP_Y[t & 0xFF];	// d
+		n_flips += COUNT_FLIP_Y[(t >> 16) & 0xFF];	// v
+		n_flips += COUNT_FLIP_Y[t >> 24];	// d
 		score += n_flips;
 
 		// if n_flips == 0, score <= alpha so lazy low cut-off
