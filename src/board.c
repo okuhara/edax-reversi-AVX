@@ -11,7 +11,7 @@
  * some board properties. Most of the functions are optimized to be as fast as
  * possible, while remaining readable.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2024
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.4
@@ -279,6 +279,7 @@ void board_symetry(const Board *board, const int s, Board *sym)
 }
 #endif
 
+#ifndef __AVX2__	// AVX2 version in board_sse.c
 /**
  * @brief unique board
  *
@@ -314,6 +315,7 @@ int board_unique(const Board *board, Board *unique)
 	board_check(unique);
 	return s;
 }
+#endif
 
 /** 
  * @brief Get a random board by playing random moves.

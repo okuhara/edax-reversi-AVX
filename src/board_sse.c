@@ -3,7 +3,7 @@
  *
  * SSE/AVX translation of some board.c functions
  *
- * @date 2014 - 2023
+ * @date 2014 - 2024
  * @author Toshihiko Okuhara
  * @version 4.4
  */
@@ -183,6 +183,58 @@ void board_symetry(const Board *board, const int s, Board *sym)
 }
 
 #endif // hasSSE2/Neon
+
+#ifdef __AVX2__
+/**
+ * @brief unique board
+ *
+ * Compute a board unique from all its possible symertries.
+ *
+ * @param board input board
+ * @param unique output board
+ */
+static void board_horizontal_mirror_avx(const __m256i *bb, __m256i *sym)
+{
+	const __m256i mask0F0F = _mm256_set1_epi16(0x0F0F);
+	const __m256i mbitrev  = _mm256_set_epi8(	//cf. http://wm.ite.pl/articles/sse-popcount.html
+		15, 7, 11, 3, 13, 5, 9, 1, 14, 6, 10, 2, 12, 4, 8, 0,
+		15, 7, 11, 3, 13, 5, 9, 1, 14, 6, 10, 2, 12, 4, 8, 0);
+	*sym = _mm256_or_si256(_mm256_shuffle_epi8(mbitrev, _mm256_and_si256(_mm256_srli_epi64(*bb, 4), mask0F0F)),
+		_mm256_slli_epi64(_mm256_shuffle_epi8(mbitrev, _mm256_and_si256(*bb, mask0F0F)), 4));
+}
+
+static void board_vertical_mirror_avx(const __m256i *bb, __m256i *sym)
+{
+	*sym = _mm256_shuffle_epi8(*bb, _mm256_set_epi8(
+		8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7,
+		8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
+}
+
+int board_unique(const Board *board, Board *unique)
+{
+	Board sym[8];
+	int i, j, s = 0;
+	static const char reorder[8] = { 0, 2, 4, 6, 1, 5, 3, 7 };
+
+	sym[0] = *board;
+	board_transpose(board, &sym[1]);	// was sym[4]
+	board_horizontal_mirror_avx((__m256i *) &sym[0], (__m256i *) &sym[2]);	// were sym[1] & sym[6]
+	board_vertical_mirror_avx((__m256i *) &sym[0], (__m256i *) &sym[4]);	// were sym[2] & sym[5]
+	board_vertical_mirror_avx((__m256i *) &sym[2], (__m256i *) &sym[6]);	// were sym[3] & sym[7]
+
+	*unique = *board;
+	for (i = 1; i < 8; ++i) {
+		j = reorder[i];
+		if (board_lesser(&sym[j], unique)) {
+			*unique = sym[j];
+			s = i;
+		}
+	}
+
+	board_check(unique);
+	return s;
+}
+#endif
 
 /**
  * @brief Compute a board resulting of a move played on a previous board.
