@@ -1,7 +1,7 @@
 #
 # makefile to Compile Edax
 #
-# Copyright 1998 - 2023
+# Copyright 1998 - 2024
 # Richard Delorme
 # Version 4.5
 #
@@ -95,6 +95,12 @@ ifeq ($(COMP),gcc)
 	endif
 	ifeq ($(ARCH),arm-neon)
 		CFLAGS += -march=armv7-a+simd -mfloat-abi=softfp
+		ifeq ($(BUILD),optimize)
+			CFLAGS += -fomit-frame-pointer
+		endif
+	endif
+	ifeq ($(ARCH),arm-sve)
+		CFLAGS += -march=armv8.2-a+sve
 		ifeq ($(BUILD),optimize)
 			CFLAGS += -fomit-frame-pointer
 		endif

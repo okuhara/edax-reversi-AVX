@@ -3,7 +3,7 @@
  *
  * Various macro / constants to control algorithm usage.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2024
  * @author Richard Delorme
  * @version 4.5
  */
@@ -44,6 +44,8 @@
 		#define MOVE_GENERATOR MOVE_GENERATOR_AVX
 	#elif defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2)
 		#define MOVE_GENERATOR MOVE_GENERATOR_SSE
+	#elif defined(__ARM_FEATURE_SVE)
+		#define MOVE_GENERATOR MOVE_GENERATOR_SVE
 	#elif defined(__aarch64__) || defined(_M_ARM64) || defined(__ARM_NEON)
 		#define MOVE_GENERATOR MOVE_GENERATOR_NEON
 	#elif defined(__arm__) || defined(_M_ARM)

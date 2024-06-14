@@ -3,7 +3,7 @@
  *
  * Board management header file.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2024
  * @author Richard Delorme
  * @version 4.5
  */
@@ -137,6 +137,12 @@ extern unsigned char edge_stability[256 * 256];
 	#define	board_flip(board,x)	vgetq_lane_u64(mm_Flip(vld1q_u64((uint64_t *) (board)), (x)), 0)
 	#define	vboard_flip(board,x)	vgetq_lane_u64(mm_Flip((board).v2, (x)), 0)
 
+#elif MOVE_GENERATOR == MOVE_GENERATOR_SVE
+	extern uint64_t Flip(int pos, uint64_t P, uint64_t O);
+	#define mm_Flip(OP,x)	vdupq_n_u64(Flip((x), vgetq_lane_u64((OP), 0), vgetq_lane_u64((OP), 1)))
+	#define	board_flip(board,x)	Flip((x), (board)->player, (board)->opponent)
+	#define	vboard_flip(board,x)	Flip((x), vgetq_lane_u64((board).v2, 0), vgetq_lane_u64((board).v2, 1))
+
 #elif MOVE_GENERATOR == MOVE_GENERATOR_32
 	extern unsigned long long (*flip[BOARD_SIZE + 2])(unsigned int, unsigned int, unsigned int, unsigned int);
 	#define Flip(x,P,O)	flip[x]((unsigned int)(P), (unsigned int)((P) >> 32), (unsigned int)(O), (unsigned int)((O) >> 32))
@@ -160,6 +166,10 @@ extern unsigned char edge_stability[256 * 256];
 	#define	board_flip(board,x)	Flip((x), (board)->player, (board)->opponent)
 #endif
 
+#ifndef vboard_flip
+	#define	vboard_flip(vboard,x)	board_flip(&(vboard).board, (x))
+#endif
+
 // Use backup copy of search->board in a vector register if available (assume *pboard == vboard on entry)
 #ifdef hasSSE2
 	#define	vboard_update(pboard,vboard,move)	_mm_storeu_si128((__m128i *) (pboard), _mm_shuffle_epi32(_mm_xor_si128((vboard).v2, _mm_or_si128(_mm_set1_epi64x((move)->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x]))), 0x4e))
@@ -179,7 +189,6 @@ extern unsigned char edge_stability[256 * 256];
 #else
 	unsigned long long board_next(const Board *board, const int x, Board *next);
 	#define	vboard_next(vboard,x,next)	board_next(&(vboard).board, (x), (next))
-	#define	vboard_flip(vboard,x)	board_flip(&(vboard).board, (x))
 #endif
 
 // Pass vboard to get_moves if vectorcall available, otherwise board

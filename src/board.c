@@ -56,6 +56,8 @@
   #else
 	#include "flip_neon_lzcnt.c"
   #endif
+#elif MOVE_GENERATOR == MOVE_GENERATOR_SVE
+	#include "flip_sve_lzcnt.c"
 #else // MOVE_GENERATOR == MOVE_GENERATOR_KINDERGARTEN
 	#include "flip_kindergarten.c"
 #endif
