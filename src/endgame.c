@@ -22,11 +22,7 @@
 #if LAST_FLIP_COUNTER == COUNT_LAST_FLIP_CARRY
 	#include "count_last_flip_carry_64.c"
 #elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE
-	#ifdef hasSSE2
-		#include "count_last_flip_sse.c"
-	#else
-		#include "count_last_flip_neon.c"
-	#endif
+	#include "count_last_flip_sse.c"
 #elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BITSCAN
 	#include "count_last_flip_bitscan.c"
 #elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_PLAIN
@@ -39,6 +35,10 @@
 	#include "count_last_flip_avx_ppfill.c"
 #elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_AVX512
 	#include "count_last_flip_avx512cd.c"
+#elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_NEON
+	#include "count_last_flip_neon.c"
+#elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SVE
+	#include "count_last_flip_sve_lzcnt.c"
 #else // LAST_FLIP_COUNTER == COUNT_LAST_FLIP_KINDERGARTEN
 	#include "count_last_flip_kindergarten.c"
 #endif
@@ -96,7 +96,7 @@ int search_solve_0(const Search *search)
 
 #if ((MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)) && ((LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER >= COUNT_LAST_FLIP_BMI2))
 	#include "endgame_sse.c"	// vectorcall version
-#elif ((MOVE_GENERATOR == MOVE_GENERATOR_NEON) || (MOVE_GENERATOR == MOVE_GENERATOR_SVE)) && (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE)
+#elif ((MOVE_GENERATOR == MOVE_GENERATOR_NEON) || (MOVE_GENERATOR == MOVE_GENERATOR_SVE)) && ((LAST_FLIP_COUNTER == COUNT_LAST_FLIP_NEON) || ((LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SVE) && defined(SIMULLASTFLIP)))
 	#include "endgame_neon.c"
 #else
 /**
