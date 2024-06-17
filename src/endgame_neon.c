@@ -6,7 +6,7 @@
  *
  * Bitboard and empty list is kept in Neon registers.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2024
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.4
@@ -82,6 +82,66 @@ static int board_solve_neon(uint64x1_t P, int n_empties)
  * @param pos    Last empty square to play.
  * @return       The final score, as a disc difference.
  */
+#if (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SVE) && defined(SIMULLASTFLIP)
+
+#include "arm_sve.h"
+
+extern	const uint64_t lrmask[66][8];	// in flip_sve_lzcnt.c
+
+  #ifndef __ARM_FEATURE_SVE2
+		// equivalent only if no intersection between masks
+	#define svbsl_u64(op1,op2,op3)	svorr_u64_m(pg, (op2), svand_u64_x(pg, (op3), (op1)))
+	#define svbsl1n_u64(op1,op2,op3)	svorr_u64_m(pg, (op2), svbic_u64_x(pg, (op3), (op1)))
+  #endif
+
+static int board_score_neon_1(uint64x1_t P, int alpha, int pos)
+{
+	int	score;
+	svuint64_t	PP, p_flip, o_flip, p_oflank, o_oflank, p_eraser, o_eraser, p_cap, o_cap, mask, po_flip, po_score;
+	svbool_t	pg, po_nopass;
+	const uint64_t	(*pmask)[8];
+
+	PP = svdup_u64(vget_lane_u64(P, 0));
+	pmask = &lrmask[pos];
+	pg = svwhilelt_b64(0, 4);
+
+	mask = svld1_u64(pg, *pmask + 4);	// right: clear all bits lower than outflank
+	p_oflank = svand_x(pg, mask, PP);			o_oflank = svbic_x(pg, mask, PP);
+	p_oflank = svand_x(pg, svclz_z(pg, p_oflank), 63);	o_oflank = svand_x(pg, svclz_z(pg, o_oflank), 63);
+	p_eraser = svlsr_x(pg, svdup_u64(-1), p_oflank);	o_eraser = svlsr_x(pg, svdup_u64(-1), o_oflank);
+	p_flip = svbic_x(pg, mask, p_eraser);			o_flip = svbic_x(pg, mask, o_eraser);
+
+	mask = svld1_u64(pg, *pmask + 0);	// left: look for player LS1B
+	p_oflank = svand_x(pg, mask, PP);			o_oflank = svbic_x(pg, mask, PP);
+		// set all bits lower than oflank, using satulation if oflank = 0
+	p_cap = svbic_x(pg, svqsub(p_oflank, 1), p_oflank);	o_cap = svbic_x(pg, svqsub(o_oflank, 1), o_oflank);
+	p_flip = svbsl_u64(p_cap, p_flip, mask);		o_flip = svbsl_u64(o_cap, o_flip, mask);
+
+	if (svcntd() == 2) {	// sve128 only
+		mask = svld1_u64(pg, *pmask + 6);	// right: set all bits higher than outflank
+		p_oflank = svand_x(pg, mask, PP);			o_oflank = svbic_x(pg, mask, PP);
+		p_oflank = svand_x(pg, svclz_z(pg, p_oflank), 63);	o_oflank = svand_x(pg, svclz_z(pg, o_oflank), 63);
+		p_eraser = svlsr_x(pg, svdup_u64(-1), p_oflank);	o_eraser = svlsr_x(pg, svdup_u64(-1), o_oflank);
+		p_flip = svbsl1n_u64(p_eraser, p_flip, mask);		o_flip = svbsl1n_u64(o_eraser, o_flip, mask);
+
+		mask = svld1_u64(pg, *pmask + 2);	// left: look for player LS1B
+		p_oflank = svand_x(pg, mask, PP);			o_oflank = svbic_x(pg, mask, PP);
+			// set all bits lower than oflank, using satulation if oflank = 0
+		p_cap = svbic_x(pg, svqsub(p_oflank, 1), p_oflank);	o_cap = svbic_x(pg, svqsub(o_oflank, 1), o_oflank);
+		p_flip = svbsl_u64(p_cap, p_flip, mask);		o_flip = svbsl_u64(o_cap, o_flip, mask);
+	}
+
+	po_flip = svtrn1_u64(svdup_u64(svorv_u64(pg, o_flip)), svdup_u64(svorv_u64(pg, p_flip)));
+	po_nopass = svcmpne_n_u64(pg, po_flip, 0);
+	po_score = svcnt_u64_x(pg, sveor_u64_x(pg, po_flip, PP));
+		// last square for O if P pass and (not O pass or score < 32)
+	po_score = svsub_n_u64_m(svorr_b_z(svptrue_pat_b64(SV_VL1), svcmplt_n_u64(pg, po_score, 32), po_nopass), po_score, 1);
+	score = svlastb_u64(svorr_b_z(pg, po_nopass, svptrue_pat_b64(SV_VL1)), po_score);	// use o_score if p_pass
+	(void) alpha;	// no lazy cut-off
+	return score * 2 - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+}
+
+#else
 static int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 {
 	int	score = 2 * vaddv_u8(vcnt_u8(vreinterpret_u8_u64(P))) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
@@ -103,7 +163,7 @@ static int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 	};
 
 	// n_flips = last_flip(pos, P);
-#ifdef HAS_CPU_64	// vaddvq
+  #ifdef HAS_CPU_64	// vaddvq
 	unsigned int t0, t1;
 	const uint64x2_t dmask = { 0x0808040402020101, 0x8080404020201010 };
 
@@ -117,7 +177,7 @@ static int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 	n_flips += COUNT_FLIP_Y[t1 >> 8];
 	n_flips += COUNT_FLIP_Y[t1 & 0xFF];
 
-#else // Neon kindergarten
+  #else // Neon kindergarten
 	const uint64x2_t dmask = { 0x1020408001020408, 0x1020408001020408 };
 
 	I0 = vpaddlq_u32(vpaddlq_u16(vpaddlq_u8(vreinterpretq_u8_u64(vandq_u64(PP, mask_dvhd[pos][0])))));
@@ -127,7 +187,7 @@ static int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 	I1 = vpaddlq_u32(vmulq_u32(vreinterpretq_u32_u64(dmask), vreinterpretq_u32_u64(I1)));
 	n_flips += COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(I1), 11)];
 	n_flips += COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(I1), 3)];
-#endif
+  #endif
 	score += n_flips;
 
 	if (n_flips == 0) {
@@ -138,17 +198,17 @@ static int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 		if (score > alpha) {	// lazy cut-off
 			// n_flips = last_flip(pos, O);
 			m = o_mask[pos];	// valid diagonal bits
-#ifdef HAS_CPU_64
+  #ifdef HAS_CPU_64
 			n_flips  = COUNT_FLIP_X[(t0 >> 8) ^ 0xFF];
 			n_flips += COUNT_FLIP_X[(t0 ^ m) & 0xFF];
 			n_flips += COUNT_FLIP_Y[(t1 ^ m) >> 8];
 			n_flips += COUNT_FLIP_Y[(~t1) & 0xFF];
-#else
+  #else
 			n_flips  = COUNT_FLIP_X[vgetq_lane_u32(vreinterpretq_u32_u64(I0), 2) ^ 0xFF];
 			n_flips += COUNT_FLIP_X[vgetq_lane_u32(vreinterpretq_u32_u64(I0), 0) ^ (m & 0xFF)];
 			n_flips += COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(I1), 11) ^ (m >> 8)];
 			n_flips += COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(I1), 3) ^ 0xFF];
-#endif
+  #endif
 			if (n_flips != 0)
 				score = score2 - n_flips;
 		}
@@ -156,6 +216,7 @@ static int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 
 	return score;
 }
+#endif
 
 // from bench.c
 int board_score_1(const unsigned long long player, const int beta, const int x)
