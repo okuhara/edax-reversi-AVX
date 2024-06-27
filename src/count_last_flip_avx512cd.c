@@ -35,10 +35,9 @@ int last_flip(int pos, unsigned long long P)
 	lmask = lrmask[pos].v4[0];
 	outflank = _mm256_and_si256(PP, lmask);
 		// set below LS1B if P is in lmask
-	// flip = _mm256_andnot_si256(outflank, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)));
-	// flip = _mm256_maskz_and_epi64(_mm256_test_epi64_mask(PP, lmask), flip, lmask);
-	flip = _mm256_maskz_ternarylogic_epi64(_mm256_test_epi64_mask(PP, lmask),
-		outflank, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), lmask, 0x08);
+	flip = _mm256_maskz_add_epi64(_mm256_test_epi64_mask(PP, lmask), outflank, _mm256_set1_epi64x(-1));
+	// flip = _mm256_and_si256(_mm256_andnot_si256(outflank, flip), lmask);
+	flip = _mm256_ternarylogic_epi64(outflank, flip, lmask, 0x08);
 
 		// right: look for player bit with lzcnt
 	rmask = lrmask[pos].v4[1];
@@ -48,6 +47,5 @@ int last_flip(int pos, unsigned long long P)
 	flip = _mm256_ternarylogic_epi64(flip, eraser, rmask, 0xf2);
 
 	flip2 = _mm_or_si128(_mm256_castsi256_si128(flip), _mm256_extracti128_si256(flip, 1));
-	flip2 = _mm_or_si128(flip2, _mm_shuffle_epi32(flip2, 0x4e));
-	return 2 * bit_count(_mm_cvtsi128_si64(flip2));
+	return 2 * bit_count(_mm_cvtsi128_si64(_mm_or_si128(flip2, _mm_unpackhi_epi64(flip2, flip2))));
 }
