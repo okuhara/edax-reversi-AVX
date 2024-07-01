@@ -7,9 +7,9 @@
  * contiguous opponent discs.
  * For MSB to LSB directions, MS1B using floating point conversion is used.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2024
  * @author Toshihiko Okuhara
- * @version 4.4
+ * @version 4.5
  */
 
 #include "bit.h"
@@ -89,10 +89,10 @@ const V8DI lrmask[66] = {
  * @param pos player's move.
  * @param P player's disc pattern.
  * @param O opponent's disc pattern.
- * @return flipped disc pattern.
+ * @return partially reduced flipped disc pattern.
  */
 
-__m256i vectorcall mm_Flip(const __m128i OP, int pos)
+__m128i vectorcall mm_Flip(const __m128i OP, int pos)
 {
 	__m256i	PP, OO, flip, outflank, mask;
 	const __m256 exp_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0xff800000));
@@ -125,6 +125,6 @@ __m256i vectorcall mm_Flip(const __m128i OP, int pos)
 	outflank = _mm256_add_epi64(outflank, _mm256_srli_epi64(outflank, 63));
 	flip = _mm256_or_si256(flip, _mm256_and_si256(outflank, mask));
 
-	return flip;
+	return _mm_or_si128(_mm256_castsi256_si128(flip), _mm256_extracti128_si256(flip, 1));
 }
 
