@@ -29,16 +29,12 @@
 	#define	EXTRACT_O(OP)	_mm_cvtsi128_si64(_mm_shuffle_epi32(OP, DUPHI))
 #endif
 
-#if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512)
-	#define	vflip	__m256i
-	static inline int vectorcall TESTZ_FLIP(__m256i X) { return _mm256_testz_si256(X, X); }
-#else
-	#define	vflip	__m128i
-  #if defined(__x86_64__) || defined(_M_X64)
+#if defined(__AVX__) || defined(__SSE4_1__)
+	static inline int vectorcall TESTZ_FLIP(__m128i X) { return _mm_testz_si128(X, X); }
+#elif defined(__x86_64__) || defined(_M_X64)
 	#define TESTZ_FLIP(X)	(!_mm_cvtsi128_si64(X))
-  #else
+#else
 	static inline int vectorcall TESTZ_FLIP(__m128i X) { return !_mm_cvtsi128_si32(_mm_packs_epi16(X, X)); }
-  #endif
 #endif
 
 #if defined(__AVX512VL__) || defined(__AVX10_1__)
@@ -63,7 +59,7 @@ extern const V4DI mask_dvhd[64];
  * @param flipped flipped returned from mm_Flip.
  * @return resulting board.
  */
-static inline __m128i vectorcall board_flip_next(__m128i OP, int x, vflip flipped)
+static inline __m128i vectorcall board_flip_next(__m128i OP, int x, __m128i flipped)
 {
 	OP = _mm_xor_si128(OP, _mm_or_si128(reduce_vflip(flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[x])));
 	return _mm_shuffle_epi32(OP, SWAP64);
@@ -557,8 +553,7 @@ int board_score_1(const unsigned long long player, const int alpha, const int x)
  */
 static int vectorcall board_solve_2(__m128i OP, int alpha, volatile unsigned long long *n_nodes, __m128i empties)
 {
-	__m128i PO;
-	vflip	flipped;
+	__m128i PO, flipped;
 	int score, bestscore, nodes;
 	int x1 = _mm_extract_epi16(empties, 1);
 	int x2 = _mm_extract_epi16(empties, 0);
@@ -625,7 +620,7 @@ static int vectorcall board_solve_2(__m128i OP, int alpha, volatile unsigned lon
  */
 static int vectorcall search_solve_3(__m128i OP, int alpha, volatile unsigned long long *n_nodes, __m128i empties)
 {
-	vflip flipped;
+	__m128i flipped;
 	int score, bestscore, x, pol;
 	unsigned long long opponent;
 
@@ -705,8 +700,7 @@ static int vectorcall search_solve_3(__m128i OP, int alpha, volatile unsigned lo
 
 static int search_solve_4(Search *search, int alpha)
 {
-	__m128i	OP;
-	vflip	flipped;
+	__m128i	OP, flipped;
 	__m128i	empties_series;	// (AVX) B15:4th, B11:3rd, B7:2nd, B3:1st, lower 3 bytes for 3 empties
 				// (SSE) W3:1st, W2:2nd, W1:3rd, W0:4th
 	int x1, x2, x3, x4, paritysort, score, bestscore, pol;

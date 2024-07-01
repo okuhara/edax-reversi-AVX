@@ -8,9 +8,9 @@
  * For MSB to LSB directions, sequencial search with parallel prefix
  * is used.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2024
  * @author Toshihiko Okuhara
- * @version 4.4
+ * @version 4.5
  */
 
 #include "bit.h"
@@ -90,10 +90,10 @@ const V4DI lmask_v4[66] = {
  * @param pos player's move.
  * @param P player's disc pattern.
  * @param O opponent's disc pattern.
- * @return flipped disc pattern.
+ * @return partially reduced flipped disc pattern.
  */
 
-__m256i vectorcall mm_Flip(const __m128i OP, int pos)
+__m128i vectorcall mm_Flip(const __m128i OP, int pos)
 {
 	__m256i	PP, mOO, flip, shift2, pre, outflank, mask, ocontig;
 	const __m256i shift1897 = _mm256_set_epi64x(7, 9, 8, 1);
@@ -121,6 +121,6 @@ __m256i vectorcall mm_Flip(const __m128i OP, int pos)
 	outflank = _mm256_add_epi64(outflank, _mm256_cmpeq_epi64(outflank, ocontig));
 	flip = _mm256_or_si256(flip, _mm256_and_si256(outflank, mask));
 
-	return flip;
+	return _mm_or_si128(_mm256_castsi256_si128(flip), _mm256_extracti128_si256(flip, 1));
 }
 

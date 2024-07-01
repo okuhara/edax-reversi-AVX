@@ -8,7 +8,7 @@
  * For MSB to LSB directions, parallel prefix fill is used to isolate
  * MS1B.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2024
  * @author Toshihiko Okuhara
  * @version 4.5
  */
@@ -90,10 +90,10 @@ const V8DI lrmask[66] = {
  * @param pos player's move.
  * @param P player's disc pattern.
  * @param O opponent's disc pattern.
- * @return flipped disc pattern.
+ * @return partially reduced flipped disc pattern.
  */
 
-__m256i vectorcall mm_Flip(const __m128i OP, int pos)
+__m128i vectorcall mm_Flip(const __m128i OP, int pos)
 {
 	__m256i	PP, OO, flip, outflank, eraser, mask;
 
@@ -132,5 +132,5 @@ __m256i vectorcall mm_Flip(const __m128i OP, int pos)
 	eraser = _mm256_sub_epi64(_mm256_cmpeq_epi64(outflank, _mm256_setzero_si256()), outflank);
 	flip = _mm256_or_si256(flip, _mm256_andnot_si256(eraser, mask));
 
-	return flip;
+	return _mm_or_si128(_mm256_castsi256_si128(flip), _mm256_extracti128_si256(flip, 1));
 }

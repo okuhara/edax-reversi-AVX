@@ -89,10 +89,10 @@ const V8DI lrmask[66] = {
  * @param pos player's move.
  * @param P player's disc pattern.
  * @param O opponent's disc pattern.
- * @return flipped disc pattern.
+ * @return partially reduced flipped disc pattern.
  */
 
-__m256i vectorcall mm_Flip(const __m128i OP, int pos)
+__m128i vectorcall mm_Flip(const __m128i OP, int pos)
 {
 	__m256i	PP, OO, flip, outflank, mask;
 
@@ -124,5 +124,5 @@ __m256i vectorcall mm_Flip(const __m128i OP, int pos)
 	// flip = _mm256_mask_or_epi64(flip, _mm256_test_epi64_mask(mask, PP), flip, _mm256_and_si256(mask, OO));
 	flip = _mm256_mask_ternarylogic_epi64(flip, _mm256_test_epi64_mask(mask, PP), mask, OO, 0xf8);
 
-	return flip;
+	return _mm_or_si128(_mm256_castsi256_si128(flip), _mm256_extracti128_si256(flip, 1));
 }
