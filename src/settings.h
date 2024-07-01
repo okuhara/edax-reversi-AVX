@@ -57,7 +57,7 @@
 	#endif
 #endif
 #ifndef LAST_FLIP_COUNTER
-	#if defined(__AVX512VL__) || defined(__AVX10_1__)
+	#if (defined(__AVX512VL__) || defined(__AVX10_1__)) && (defined(SIMULLASTFLIP512) || defined(SIMULLASTFLIP) || defined(LASTFLIP_HIGHCUT))
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_AVX512
 	#elif defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2)
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_SSE
