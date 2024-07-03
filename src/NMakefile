@@ -9,9 +9,7 @@
 
 # Microsoft Visual C++ 2008 or better for Windows (7 or Vista).
 # VC_FLAGS = /source-charset:.1252 /execution-charset:.1252\
-VC_FLAGS = /D UNICODE /utf-8 /D _CRT_SECURE_NO_DEPRECATE\
-           /I"..\include" /O2 /fp:fast /GS- /D NDEBUG /D inline=__forceinline /D __func__=__FUNCTION__\
-           /MT
+VC_FLAGS = /D UNICODE /utf-8 /D _CRT_SECURE_NO_DEPRECATE /I"..\include" /O2 /fp:fast /GS- /D NDEBUG /MT
 
 vc-w64-modern:
 	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /arch:AVX2 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-w64-modern.exe /link /VERSION:4.4
