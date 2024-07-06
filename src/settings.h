@@ -36,7 +36,7 @@
 
 /**move generation. */
 #ifndef MOVE_GENERATOR
-	#ifdef __AVX512VL__
+	#if defined(__AVX512VL__) || defined(__AVX10_1__)
 		#define MOVE_GENERATOR MOVE_GENERATOR_AVX512
 	#elif defined(__AVX2__)
 		#define MOVE_GENERATOR MOVE_GENERATOR_AVX
@@ -51,7 +51,9 @@
 	#endif
 #endif
 #ifndef LAST_FLIP_COUNTER
-	#if defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2) || defined(__aarch64__) || defined(_M_ARM64) || defined(__ARM_NEON)
+	#if defined(__AVX512VL__) || defined(__AVX10_1__)
+		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_AVX512
+	#elif defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2) || defined(__aarch64__) || defined(_M_ARM64) || defined(__ARM_NEON)
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_SSE
 	#elif defined(__arm__) || defined(_M_ARM)
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_BITSCAN

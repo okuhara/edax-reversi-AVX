@@ -41,7 +41,7 @@
   #endif
 #endif
 
-#ifdef __AVX512VL__
+#if defined(__AVX512VL__) || defined(__AVX10_1__)
 	#define	TEST_EPI8_MASK32(X,Y)	_cvtmask32_u32(_mm256_test_epi8_mask((X), (Y)))
 	#define	TEST_EPI8_MASK16(X,Y)	_cvtmask16_u32(_mm_test_epi8_mask((X), (Y)))
 	// #define	TESTNOT_EPI8_MASK32(X,Y)	_cvtmask32_u32(_mm256_test_epi8_mask(_mm256_xor_si256((X),(Y)), (Y)))
@@ -132,25 +132,22 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, cons
 {
 	int	score, score2, nflip;
 	__m256i PP = _mm256_broadcastq_epi64(_mm_unpackhi_epi64(PO, PO));
-	__m256i	rmP, rmO, flip, outflank, rmask, lmask;
+	__m256i	flip, outflank, eraser, rmask, lmask, mO;
 	__m128i	flip2, p2;
 
-		// left: look for player LS1B
+		// left: set below LS1B if P is in lmask
 	lmask = lrmask[pos].v4[0];
 	outflank = _mm256_and_si256(PP, lmask);
-		// set below LS1B if P is in lmask
-	// flip = _mm256_andnot_si256(outflank, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)));
-	// flip = _mm256_maskz_and_epi64(_mm256_test_epi64_mask(outflank, lmask), flip, lmask);
-	flip = _mm256_maskz_ternarylogic_epi64(_mm256_test_epi64_mask(PP, lmask),
-		outflank, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), lmask, 0x08);
+	flip = _mm256_maskz_add_epi64(_mm256_test_epi64_mask(PP, lmask), outflank, _mm256_set1_epi64x(-1));
+	// flip = _mm256_and_si256(_mm256_andnot_si256(outflank, flip), lmask);
+	flip = _mm256_ternarylogic_epi64(outflank, flip, lmask, 0x08);
 
-		// right: look for player bit with lzcnt
+		// right: clear all bits lower than outflank
 	rmask = lrmask[pos].v4[1];
-	rmP = _mm256_and_si256(PP, rmask);		rmO = _mm256_andnot_si256(PP, rmask);
-		// clear all bits lower than outflank
-	outflank = _mm256_srlv_epi64(_mm256_set1_epi64x(0x8000000000000000), _mm256_lzcnt_epi64(rmP));
-	// flip = _mm256_or_si256(flip, _mm256_andnot_si256(_mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), rmO));
-	flip = _mm256_ternarylogic_epi64(flip, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), rmO, 0xf2);
+	eraser = _mm256_srlv_epi64(_mm256_set1_epi64x(-1),
+		_mm256_maskz_lzcnt_epi64(_mm256_test_epi64_mask(PP, rmask), _mm256_and_si256(PP, rmask)));
+	// flip = _mm256_or_si256(flip, _mm256_andnot_si256(eraser, rmask));
+	flip = _mm256_ternarylogic_epi64(flip, eraser, rmask, 0xf2);
 
 	flip2 = _mm_or_si128(_mm256_castsi256_si128(flip), _mm256_extracti128_si256(flip, 1));
 	// p2 = _mm_or_si128(_mm_or_si128(flip2, _mm_shuffle_epi32(flip2, SWAP64)), _mm256_castsi256_si128(PP));
@@ -163,18 +160,18 @@ static inline int vectorcall board_score_sse_1(__m128i PO, const int alpha, cons
 			score = score2;
 
 		if (score > alpha) {	// lazy cut-off
-				// left: look for opponent LS1B
-			outflank = _mm256_andnot_si256(PP, lmask);
-				// set below LS1B if O is in lmask
-			// flip = _mm256_andnot_si256(outflank, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)));
-			// flip = _mm256_maskz_and_epi64(_mm256_test_epi64_mask(outflank, lmask), flip, lmask);
-			flip = _mm256_maskz_ternarylogic_epi64(_mm256_test_epi64_mask(outflank, lmask),
-				outflank, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), lmask, 0x08);
+				// left: set below LS1B if O is in lmask
+			mO = _mm256_andnot_si256(PP, lmask);
+			flip = _mm256_maskz_add_epi64(_mm256_test_epi64_mask(mO, mO), mO, _mm256_set1_epi64x(-1));
+			// flip = _mm256_and_si256(_mm256_andnot_si256(mO, flip), lmask);
+			flip = _mm256_ternarylogic_epi64(mO, flip, lmask, 0x08);
 
 				// right: clear all bits lower than outflank
-			outflank = _mm256_srlv_epi64(_mm256_set1_epi64x(0x8000000000000000), _mm256_lzcnt_epi64(rmO));
-			// flip = _mm256_or_si256(flip, _mm256_andnot_si256(_mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), rmP));
-			flip = _mm256_ternarylogic_epi64(flip, _mm256_add_epi64(outflank, _mm256_set1_epi64x(-1)), rmP, 0xf2);
+			mO = _mm256_andnot_si256(PP, rmask);
+			eraser = _mm256_srlv_epi64(_mm256_set1_epi64x(-1),
+				_mm256_maskz_lzcnt_epi64(_mm256_test_epi64_mask(mO, mO), mO));
+			// flip = _mm256_or_si256(flip, _mm256_andnot_si256(eraser, rmask));
+			flip = _mm256_ternarylogic_epi64(flip, eraser, rmask, 0xf2);
 
 			flip2 = _mm_or_si128(_mm256_castsi256_si128(flip), _mm256_extracti128_si256(flip, 1));
 			nflip = bit_count(_mm_cvtsi128_si64(_mm_or_si128(flip2, _mm_shuffle_epi32(flip2, SWAP64))));
