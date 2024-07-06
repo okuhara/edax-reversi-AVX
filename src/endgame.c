@@ -3,7 +3,7 @@
  *
  * Search near the end of the game.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2024
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.4
@@ -520,10 +520,7 @@ int NWS_endgame(Search *search, const int alpha)
 	long long nodes_org;
 	V2DI board0;
 	unsigned int parity0;
-	struct size_reduced_MoveList {	// derived from MoveList in move.h
-		int n_moves;
-		Move move[DEPTH_MIDGAME_TO_ENDGAME];
-	} movelist;
+	MoveList movelist;
 
 	assert(bit_count(~(search->board.player|search->board.opponent)) < DEPTH_MIDGAME_TO_ENDGAME);
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
@@ -542,7 +539,7 @@ int NWS_endgame(Search *search, const int alpha)
 	hash_code = board_get_hash_code(&search->board);
 	hash_prefetch(&search->hash_table, hash_code);
 
-	search_get_movelist(search, (MoveList *) &movelist);
+	search_get_movelist(search, &movelist);
 
 	// transposition cutoff
 	if (hash_get(&search->hash_table, &search->board, hash_code, &hash_data.data))
@@ -564,7 +561,7 @@ int NWS_endgame(Search *search, const int alpha)
 		}
 
 	} else {
-		movelist_evaluate_fast((MoveList *) &movelist, search, &hash_data.data);
+		movelist_evaluate_fast(&movelist, search, &hash_data.data);
 
 		board0.board = search->board;
 		parity0 = search->eval.parity;
