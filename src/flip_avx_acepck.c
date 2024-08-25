@@ -1,11 +1,12 @@
 /**
- * @file flip_avx512cd.c
+ * @file flip_avx_acepck.c
  *
  * This module deals with flipping discs.
  *
  * For LSB to MSB directions, isolate LS1B can be used to determine
  * contiguous opponent discs.
- * For MSB to LSB directions, LZCNT is used.
+ * For MSB to LSB directions, PCMPGTQ is used to check if leftmost
+ * non-opponent is P.
  *
  * Optimization ideas by acepck
  * https://github.com/Nyanyan/Egaroucid/pull/293
@@ -97,47 +98,29 @@ const V8DI lrmask[66] = {
 
 __m128i vectorcall mm_Flip(const __m128i OP, int pos)
 {
-	__m256i	PP = _mm256_broadcastq_epi64(OP);
-	__m256i	OO = _mm256_broadcastq_epi64(_mm_unpackhi_epi64(OP, OP));
+	__m256i	PP, OO, flip, mask, rP, rS, rE, lO, lF;
 
-		// right: look for player (or edge) bit with lzcnt
-	__m256i	rM = lrmask[pos].v4[1];
-  #if 1 // use prove
-	__m256i t0 = _mm256_lzcnt_epi64(_mm256_andnot_si256(OO, rM));
-	t0 = _mm256_and_si256(_mm256_srlv_epi64(_mm256_set1_epi64x(0x8000000000000000), t0), PP);
-		// clear masked OO lower than outflank
-	// __m256i rF = _mm256_and_si256(_mm256_xor_si256(_mm256_sub_epi64(_mm256_setzero_si256(), tO), tO), rM);
-	__m256i rF = _mm256_ternarylogic_epi64(_mm256_sub_epi64(_mm256_setzero_si256(), t0), t0, rM, 0x28);
+	PP = _mm256_broadcastq_epi64(OP);
+	OO = _mm256_broadcastq_epi64(_mm_unpackhi_epi64(OP, OP));
 
-  #else // use mask by acepck
-	__m256i	rP = _mm256_and_si256(PP, rM);
-		// shadow mask lower than leftmost P
-	__m256i	t0 = _mm256_srlv_epi64(_mm256_set1_epi64x(-1), _mm256_lzcnt_epi64(rP));
+	mask = lrmask[pos].v4[1];
+		// right: shadow mask lower than leftmost P
+	rP = _mm256_and_si256(PP, mask);
+	rS = _mm256_or_si256(rP, _mm256_srlv_epi64(rP, _mm256_set_epi64x(7, 9, 8, 1)));
+	rS = _mm256_or_si256(rS, _mm256_srlv_epi64(rS, _mm256_set_epi64x(14, 18, 16, 2)));
+	rS = _mm256_or_si256(rS, _mm256_srlv_epi64(rS, _mm256_set_epi64x(28, 36, 32, 4)));
 		// apply flip if leftmost non-opponent is P
-	// __m256i rE = _mm256_andnot_si256(OO, _mm256_andnot_si256(rP, rM));
-	__m256i	rE = _mm256_ternarylogic_epi64(OO, rM, rP, 0x04);	// masked empty
-	__m256i rF = _mm256_maskz_andnot_epi64(_mm256_cmpgt_epi64_mask(rP, rE), t0, rM);
-  #endif
-		// left: look for non-opponent LS1B
-	__m256i	lM = lrmask[pos].v4[0];
-	__m256i	lO = _mm256_andnot_si256(OO, lM);
-  #if 1 // LS1B
-	// lO = _mm256_and_si256(lO, _mm256_sub_epi64(_mm256_setzero_si256(), lO));	// LS1B
-	// lO = _mm256_and_si256(lO, PP);
-	lO = _mm256_ternarylogic_epi64(lO, _mm256_sub_epi64(_mm256_setzero_si256(), lO), PP, 0x80);
-		// set all bits if outflank = 0, otherwise higher bits than outflank
-	__m256i lE = _mm256_sub_epi64(_mm256_cmpeq_epi64(lO, _mm256_setzero_si256()), lO);
-	// __m256i FF = _mm256_or_si256(rF, _mm256_andnot_si256(lE, lM));
-	__m256i FF = _mm256_ternarylogic_epi64(rF, lE, lM, 0xf2);
+	rE = _mm256_xor_si256(_mm256_andnot_si256(OO, mask), rP);	// masked Empty
+	flip = _mm256_and_si256(_mm256_andnot_si256(rS, mask), _mm256_cmpgt_epi64(rP, rE));
 
-  #else // BLSMSK
-	// __m256i t2 = _mm256_xor_si256(_mm256_add_epi64(lO, _mm256_set1_epi64x(-1)), lO);	// BLSMSK
-	// t2 = _mm256_and_si256(lM, t2);	// non-opponent LS1B and opponent inbetween
-	__m256i	t2 = _mm256_ternarylogic_epi64(lM, _mm256_add_epi64(lO, _mm256_set1_epi64x(-1)), lO, 0x60);
-		// apply flip if P is in mask, i.e. LS1B is P
-	// __m256i FF = _mm256_mask_or_epi64(rF, _mm256_test_epi64_mask(PP, t2), rF, _mm256_andnot_si256(PP, t2));
-	__m256i FF = _mm256_mask_ternarylogic_epi64(rF, _mm256_test_epi64_mask(PP, t2), PP, t2, 0xf2);
-  #endif
+	mask = lrmask[pos].v4[0];
+		// left: non-opponent BLSMSK
+	lO = _mm256_andnot_si256(OO, mask);
+	lO = _mm256_and_si256(_mm256_xor_si256(_mm256_add_epi64(lO, _mm256_set1_epi64x(-1)), lO), mask);
+		// clear MSB of BLSMSK if it is P
+	lF = _mm256_andnot_si256(PP, lO);
+		// erase lF if lO = lF (i.e. MSB is not P)
+	flip = _mm256_or_si256(flip, _mm256_andnot_si256(_mm256_cmpeq_epi64(lF, lO), lF));
 
-	return _mm_or_si128(_mm256_castsi256_si128(FF), _mm256_extracti128_si256(FF, 1));
+	return _mm_or_si128(_mm256_castsi256_si128(flip), _mm256_extracti128_si256(flip, 1));
 }
