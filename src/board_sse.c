@@ -316,7 +316,56 @@ unsigned long long get_moves(unsigned long long P, unsigned long long O)	// minG
 	return _mm_cvtsi128_si64(_mm_andnot_si128(occupied, _mm_or_si128(M, _mm_unpackhi_epi64(M, M))));	// mask with empties
 }
 
-#elif defined(__x86_64__) || defined(_M_X64)	// 2 SSE, 2 CPU
+#elif defined(__x86_64__) || defined(_M_X64)	// 4 SSE by acepck, https://github.com/okuhara/edax-reversi-AVX/issues/4
+
+unsigned long long get_moves(const unsigned long long P, const unsigned long long O)
+{
+	__m128i	PP, OO, mOO, MM, r1, occupied, flip, pre;
+
+	PP  = _mm_set_epi64x(vertical_mirror(P), P);
+	OO = _mm_set_epi64x(vertical_mirror(O), O);
+	mOO = _mm_and_si128(OO, _mm_set1_epi64x(0x7e7e7e7e7e7e7e7eULL));
+	occupied = _mm_or_si128(PP, OO);
+
+		// shift=+1
+	MM = _mm_add_epi32(_mm_and_si128(_mm_add_epi8(PP, PP), mOO), mOO);
+		// shift=-1: pick O whose right next is empty
+	r1 = _mm_andnot_si128(_mm_add_epi8(occupied, occupied), mOO);
+		// split them into bit 1 - 3 and bit 4 - 6
+	r1 = _mm_and_si128(r1, _mm_set_epi64x(0x7070707070707070ULL, 0x0e0e0e0e0e0e0e0eULL));
+		// erase lower empty in case of E-O-E sequence
+	r1 = _mm_min_epu8(r1, _mm_set_epi64x(0x4040404040404040ULL, 0x0808080808080808ULL));
+		// get flip with carry propagation and saturate subtract
+	flip = _mm_subs_epu8(_mm_and_si128(_mm_add_epi8(mOO, r1), PP), r1);
+	MM = _mm_or_si128(MM, _mm_srli_epi64(flip, 1));
+
+		// shift=-8:+8
+	flip = _mm_and_si128(OO, _mm_slli_epi64(PP, 8));
+	flip = _mm_or_si128(flip, _mm_and_si128(OO, _mm_slli_epi64(flip, 8)));
+	pre  = _mm_and_si128(OO, _mm_slli_epi64(OO, 8));
+	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_slli_epi64(flip, 16)));
+	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_slli_epi64(flip, 16)));
+	MM = _mm_or_si128(MM, _mm_slli_epi64(flip, 8));
+		// shift=-9:+7
+	flip = _mm_and_si128(mOO, _mm_slli_epi64(PP, 7));
+	flip = _mm_or_si128(flip, _mm_and_si128(mOO, _mm_slli_epi64(flip, 7)));
+	pre  = _mm_and_si128(mOO, _mm_slli_epi64(mOO, 7));
+	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_slli_epi64(flip, 14)));
+	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_slli_epi64(flip, 14)));
+	MM = _mm_or_si128(MM, _mm_slli_epi64(flip, 7));
+		// shift=+9:-7
+	flip = _mm_and_si128(mOO, _mm_srli_epi64(PP, 7));
+	flip = _mm_or_si128(flip, _mm_and_si128(mOO, _mm_srli_epi64(flip, 7)));
+	pre = _mm_srli_epi64(pre, 7);
+	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_srli_epi64(flip, 14)));
+	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_srli_epi64(flip, 14)));
+	MM = _mm_or_si128(MM, _mm_srli_epi64(flip, 7));
+
+	MM = _mm_andnot_si128(occupied, MM);	// mask with empties
+	return _mm_cvtsi128_si64(MM) | vertical_mirror(_mm_cvtsi128_si64(_mm_unpackhi_epi64(MM, MM)));
+}
+
+#elif 0	// 2 SSE, 2 CPU
 
 unsigned long long get_moves(const unsigned long long P, const unsigned long long O)
 {
