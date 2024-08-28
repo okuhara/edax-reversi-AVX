@@ -200,11 +200,12 @@ typedef union {
 
 // X64 compatibility sims for X86
 #if !defined(HAS_CPU_64) && (defined(hasSSE2) || defined(USE_MSVC_X86))
-	// static inline __m128i _mm_cvtsi64_si128(const unsigned long long x) {
-	//	return _mm_unpacklo_epi32(_mm_cvtsi32_si128(x), _mm_cvtsi32_si128(x >> 32));
-	// }
+	static inline __m128i _mm_cvtsi64_si128(const unsigned long long x) {
+		return _mm_unpacklo_epi32(_mm_cvtsi32_si128(x), _mm_cvtsi32_si128(x >> 32));
+	}
 		// better code but requires lvalue
-	#define	_mm_cvtsi64_si128(x)	_mm_loadl_epi64((__m128i *) &(x))
+	// #define	_mm_cvtsi64_si128(x)	_mm_loadl_epi64((__m128i *) &(x))
+
 	static inline unsigned long long vectorcall _mm_cvtsi128_si64(__m128i x) {
 		return *(unsigned long long *) &x;
 	}
