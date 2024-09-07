@@ -548,6 +548,43 @@ static inline unsigned long long get_some_moves(const unsigned long long P, cons
 #endif
 }
 
+// Use carry propagation for +1 Horizontal Left
+static inline unsigned long long get_some_horizontal_moves(const unsigned long long P, const unsigned long long mask)
+{
+#if KOGGE_STONE & 1
+	unsigned long long flip_l, flip_r, mask_r;
+
+	flip_r  = P;
+	flip_r |= mask & (flip_r >> 1);     flip_l = mask & (P << 1);
+	mask_r  = mask & (mask >> 1);       flip_l = mask + flip_l;
+	flip_r |= mask_r & (flip_r >> 2);
+	mask_r &= (mask_r >> 2);
+	flip_r |= mask_r & (flip_r >> 4);
+	return flip_l | ((flip_r & mask) >> 1);
+
+#elif PARALLEL_PREFIX & 1
+	unsigned long long flip_l, flip_r, mask_r;
+
+	flip_r  = mask & (P >> 1);          flip_l = mask & (P << 1);
+	flip_r |= mask & (flip_r >> 1);     flip_l = mask + flip_l;
+	mask_r  = mask & (mask >> 1);
+	flip_r |= mask_r & (flip_r >> 2);
+	flip_r |= mask_r & (flip_r >> 2);
+	return flip_l | (flip_r >> 1);
+
+#else
+	unsigned long long flip_l, flip_r;
+
+	flip_r  = (P >> 1) & mask;          flip_l = (P << 1) & mask;
+	flip_r |= (flip_r >> 1) & mask;     flip_l = flip_l + mask;
+	flip_r |= (flip_r >> 1) & mask;
+	flip_r |= (flip_r >> 1) & mask;
+	flip_r |= (flip_r >> 1) & mask;
+	flip_r |= (flip_r >> 1) & mask;
+	return flip_l | (flip_r >> 1);
+#endif
+}
+
 /**
  * @brief Get legal moves.
  *
@@ -571,7 +608,7 @@ unsigned long long get_moves(const unsigned long long P, const unsigned long lon
 	#endif
 
 	OM = O & 0x7e7e7e7e7e7e7e7e;
-	moves = ( get_some_moves(P, OM, 1) // horizontal
+	moves = ( get_some_horizontal_moves(P, OM)
 		| get_some_moves(P, O, 8)   // vertical
 		| get_some_moves(P, OM, 7)   // diagonals
 		| get_some_moves(P, OM, 9));
@@ -612,9 +649,9 @@ bool can_move(const unsigned long long P, const unsigned long long O)
 	const unsigned long long E = ~(P|O); // empties
 	const unsigned long long OM = O & 0x7E7E7E7E7E7E7E7E;
 
-	return (get_some_moves(P, OM, 7) & E)  // diagonals
+	return ((get_some_horizontal_moves(P, OM) & E)
+		|| get_some_moves(P, OM, 7) & E)  // diagonals
 		|| (get_some_moves(P, OM, 9) & E)
-		|| (get_some_moves(P, OM, 1) & E)  // horizontal
 		|| (get_some_moves(P, O, 8) & E); // vertical
 #endif
 }
