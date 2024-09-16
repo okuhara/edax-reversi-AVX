@@ -101,6 +101,10 @@ __m128i vectorcall mm_Flip(const __m128i OP, int pos)
 	__m256i	PP, OO, flip, mask, rP, rS, rE, lO, lF;
 
 	PP = _mm256_broadcastq_epi64(OP);
+		// Nyanyan reported VPERMQ version is faster on Raptor Lake
+		// https://github.com/Nyanyan/Egaroucid/pull/320
+		// but VPERMQ is slow on AMD.
+	// OO = _mm256_permute4x64_epi64(_mm256_castsi128_si256(OP), 0x55);
 	OO = _mm256_broadcastq_epi64(_mm_unpackhi_epi64(OP, OP));
 
 	mask = lrmask[pos].v4[1];
