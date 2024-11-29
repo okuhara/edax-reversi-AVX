@@ -24,7 +24,7 @@ jobs:
             build_command: make build ARCH=arm COMP=gcc OS=osx
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: build
       run: |-
@@ -32,7 +32,7 @@ jobs:
         cd src
         ${{ matrix.build_command }}
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v4
       with:
         name: artifact_${{ runner.os }}
         path: bin
