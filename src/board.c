@@ -44,8 +44,8 @@
 	#include "flip_roxane.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_32
 	#include "flip_carry_sse_32.c"
-#elif MOVE_GENERATOR == MOVE_GENERATOR_SSE_BSWAP
-	#include "flip_sse_bswap.c"
+#elif MOVE_GENERATOR == MOVE_GENERATOR_SSE_ACEPCK
+	#include "flip_sse_acepck.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_AVX
 	#include "flip_avx_ppfill.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_AVX512
