@@ -104,20 +104,20 @@ void bit_init(void)
 	unsigned int	k, crc;
 
 	// http://stackoverflow.com/a/17646775/1821055
-	// https://github.com/baruch/crcbench
+	// https://github.com/htot/crc32c
 	// Generate byte-wise table.
 	for (n = 0; n < 256; n++) {
-		crc = ~n;
+		crc = n;
 		for (k = 0; k < 8; k++)
 			crc = (crc >> 1) ^ (-(int)(crc & 1) & 0x82f63b78);
-		crc32c_table[0][n] = ~crc;
+		crc32c_table[0][n] = crc;
 	}
 	// Use byte-wise table to generate word-wise table.
 	for (n = 0; n < 256; n++) {
-		crc = ~crc32c_table[0][n];
+		crc = crc32c_table[0][n];
 		for (k = 1; k < 4; k++) {
 			crc = crc32c_table[0][crc & 0xff] ^ (crc >> 8);
-			crc32c_table[k][n] = ~crc;
+			crc32c_table[k][n] = crc;
 		}
 	}
 #endif
