@@ -33,7 +33,7 @@ jobs:
         mkdir -p bin
         cd src
         ${{ matrix.build_command }}
-      shell: ${{ matrix.os == 'windows-latest' && 'cmd' || 'bash' }}
+      shell: ${{ runner.os == 'windows-latest' && 'cmd' || 'bash' }}
 
     - uses: actions/upload-artifact@v4
       with:
