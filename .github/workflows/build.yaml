@@ -18,9 +18,6 @@ jobs:
         include:
           - os: ubuntu-latest
             build_command: make build ARCH=x64-modern COMP=gcc OS=linux
-          - os: windows-latest
-            build_command: |-
-              
           - os: macos-latest
             build_command: make build ARCH=armv8.5-a COMP=clang OS=osx
 
