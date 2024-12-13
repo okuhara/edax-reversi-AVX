@@ -46,7 +46,7 @@
 		#define MOVE_GENERATOR MOVE_GENERATOR_AVX
 	#elif defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2)
 		#define MOVE_GENERATOR MOVE_GENERATOR_SSE
-	#elif defined(__ARM_FEATURE_SVE)
+	#elif defined(__ARM_FEATURE_SVE) && (__ARM_FEATURE_SVE_BITS > 128)
 		#define MOVE_GENERATOR MOVE_GENERATOR_SVE
 	#elif defined(__aarch64__) || defined(_M_ARM64) || defined(__arm__) || defined(_M_ARM)
 		#define MOVE_GENERATOR MOVE_GENERATOR_BITSCAN
