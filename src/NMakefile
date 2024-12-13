@@ -64,13 +64,21 @@ icc-w32:
 	icl $(VC_FLAGS) /GL /arch:IA32 all.c ws2_32.lib /Fe..\bin\wEdax-w32.exe
 
 clang-w64-modern:
-	clang-cl $(VC_FLAGS) /D HAS_CPU_64 /arch:AVX2 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-w64-modern.exe /link /VERSION:4.5
+	clang-cl -mcrc $(VC_FLAGS) /D HAS_CPU_64 /arch:AVX2 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-w64-modern.exe /link /VERSION:4.5
 
 clang-w64:
 	clang-cl $(VC_FLAGS) /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-w64.exe /link /VERSION:4.5
 
 clang-w32:
 	clang-cl $(VC_FLAGS) /arch:IA32 all.c ws2_32.lib /Fe..\bin\wEdax-w32.exe
+
+clang-a64:
+#	vcvarsamd64_arm64.bat
+	clang-cl --target=aarch64-win32-msvc $(VC_FLAGS) /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-a64.exe /link /VERSION:4.6
+
+clang-a64+crc:
+#	vcvarsamd64_arm64.bat
+	clang-cl --target=aarch64-win32-msvc -mcrc $(VC_FLAGS) /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-a64+crc.exe /link /VERSION:4.6
 
 vc-pgo-w64-modern:
 	set VCPROFILE_PATH=..\src
