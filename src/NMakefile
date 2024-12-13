@@ -43,6 +43,10 @@ vc-a64:
 #	vcvarsamd64_arm64.bat
 	cl $(VC_FLAGS) /GL /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-a64.exe /link /VERSION:4.5
 
+vc-a64+crc:
+#	vcvarsamd64_arm64.bat
+	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /D__ARM_FEATURE_CRC32 all.c ws2_32.lib /Fe..\bin\wEdax-a64+crc.exe /link /VERSION:4.5
+
 vc-a32:
 #	vcvarsamd64_arm.bat
 	cl $(VC_FLAGS) /GL all.c ws2_32.lib /Fe..\bin\wEdax-a32.exe
