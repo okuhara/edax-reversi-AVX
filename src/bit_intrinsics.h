@@ -192,10 +192,11 @@ static inline int _tzcnt_u64(unsigned long long x) {
 	#define	tzcnt_u32(x)	_tzcnt_u32(x)
 	#define	tzcnt_u64(x)	_tzcnt_u64(x)
 
-#elif defined(__ARM_FEATURE_CLZ)
-  #ifdef _M_ARM
+#elif defined(_M_ARM)
 	#define	tzcnt_u32(x)	_arm_clz(_arm_rbit(x))
-  #elif __has_builtin(__rbit) // (__ARM_ARCH >= 6 && __ARM_ISA_THUMB >= 2) || __ARM_ARCH >= 7	// not for gcc
+
+#elif defined(__ARM_FEATURE_CLZ)
+  #if __has_builtin(__rbit) // (__ARM_ARCH >= 6 && __ARM_ISA_THUMB >= 2) || __ARM_ARCH >= 7	// not for gcc
 	#define	tzcnt_u32(x)	__clz(__rbit(x))
   #endif
 #endif
@@ -209,7 +210,9 @@ static inline int _tzcnt_u64(unsigned long long x) {
 	#define	crc32c_u8(crc,d)	_mm_crc32_u8((crc),(d))
 
 #elif defined(__ARM_FEATURE_CRC32)
+  #ifndef _MSC_VER
 	#include "arm_acle.h"
+  #endif
 	#define	crc32c_u64(crc,d)	__crc32cd((crc),(d))
 	#define crc32c_u8(crc,d)	__crc32cb((crc),(d))
 
