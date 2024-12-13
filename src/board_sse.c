@@ -284,15 +284,8 @@ unsigned long long board_next_neon(uint64x2_t OP, const int x, Board *next)
  */
 #ifdef __AVX2__	// 4 AVX
 
-  #if defined(_MSC_VER) || defined(__linux__)	// vectorcall and SYSV-ABI passes __m256i in registers
 unsigned long long vectorcall get_moves_avx(__m256i PP, __m256i OO)
 {
-  #else
-unsigned long long get_moves(unsigned long long P, unsigned long long O)	// minGW
-{
-	__m256i	PP = _mm256_broadcastq_epi64(_mm_cvtsi64_si128(P));
-	__m256i OO = _mm256_broadcastq_epi64(_mm_cvtsi64_si128(O));
-  #endif
 	__m256i	MM, flip_l, flip_r, pre_l, pre_r, shift2;
 	__m128i	M;
 	const __m256i shift1897 = _mm256_set_epi64x(7, 9, 8, 1);
