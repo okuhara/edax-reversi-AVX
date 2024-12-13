@@ -599,7 +599,7 @@ bool hash_get(HashTable *hash_table, const Board *board, const unsigned long lon
 		HASH_COLLISIONS(if (hash->key == hash_code) {)
 		HASH_COLLISIONS(	lock = hash_table->lock + (hash_code & hash_table->lock_mask);)
 		HASH_COLLISIONS(	spin_lock(lock);)
-		HASH_COLLISIONS(	if (hash->key == hash_code && !vboard_equal(board, &hash->board)) {)
+		HASH_COLLISIONS(	if (hash->key == hash_code && !board_equal(board, &hash->board)) {)
 		HASH_COLLISIONS(		++statistics.n_hash_collision;)
 		HASH_COLLISIONS(		printf("key = %llu\n", hash_code);)
 		HASH_COLLISIONS(		board_print(board, WHITE, stdout);)
