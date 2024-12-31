@@ -28,7 +28,7 @@
 #include <stdint.h>
 
 /** precomputed count flip array */
-const uint8_t COUNT_FLIP[8][256] = {
+static const uint8_t COUNT_FLIP[8][256] = {
 	{
 		 0,  0,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,  6,  6,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,
 		 8,  8,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,  6,  6,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,
@@ -201,4 +201,61 @@ inline int last_flip(int pos, unsigned long long P)
 	n_flipped += COUNT_FLIP[y][_pext_u64(P, mask_x[pos][2])];
 
 	return n_flipped;
+}
+
+/**
+ * @brief Get the final score.
+ *
+ * Get the final score, when 1 empty square remain.
+ * The original code has been adapted from Zebra by Gunnar Anderson.
+ *
+ * @param player Board.player to evaluate.
+ * @param alpha  Alpha bound. (beta - 1)
+ * @param pos    Last empty square to play.
+ * @return       The final score, as a disc difference.
+ */
+// PEXT count last flip (2.60s on skylake, 2.35 on icelake, 2.16s on Zen4), very slow on Zen1/2
+inline int board_score_1(unsigned long long P, const int alpha, const int pos)
+{
+	uint_fast8_t	n_flips;
+	unsigned int	th, tv;
+	unsigned long long P = ;
+	unsigned long long mP;
+	int	score, score2;
+	const uint8_t *COUNT_FLIP_X = COUNT_FLIP[pos & 7];
+	const uint8_t *COUNT_FLIP_Y = COUNT_FLIP[pos >> 3];
+
+	mP = P & mask_x[pos][3];	// mask out unrelated bits to make dummy 0 bits for outside
+	// n_flips  = COUNT_FLIP_X[th = _bextr_u64(mP, pos & 0x38, 8)];
+	n_flips  = COUNT_FLIP_X[th = (mP >> (pos & 0x38)) & 0xFF];
+	n_flips += COUNT_FLIP_Y[_pext_u64(mP, mask_x[pos][0])];
+	n_flips += COUNT_FLIP_Y[_pext_u64(mP, mask_x[pos][1])];
+	n_flips += COUNT_FLIP_Y[tv = _pext_u64(mP, mask_x[pos][2])];
+
+	score = 2 * bit_count(P) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+	score += n_flips;
+
+	if (n_flips == 0) {
+		score2 = score - 2;	// empty for opponent
+		if (score <= 0)
+			score = score2;
+
+		if (score > alpha) {	// lazy cut-off
+			mP = ~P & mask_x[pos][3];
+			n_flips  = COUNT_FLIP_X[th ^ 0xFF];
+			n_flips += COUNT_FLIP_Y[_pext_u64(mP, mask_x[pos][0])];
+			n_flips += COUNT_FLIP_Y[_pext_u64(mP, mask_x[pos][1])];
+			n_flips += COUNT_FLIP_Y[tv ^ 0xFF];
+
+			if (n_flips != 0)
+				score = score2 - n_flips;
+		}
+	}
+
+	return score;
+}
+
+inline int vectorcall mm_board_score_1(__m128i OP, const int alpha, const int x)
+{
+	return board_score_sse_1(_mm_cvtsi128_si64(OP), alpha, x);
 }

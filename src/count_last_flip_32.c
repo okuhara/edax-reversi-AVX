@@ -1233,3 +1233,36 @@ int (*count_last_flip[])(const unsigned long long) = {
 	count_last_flip_E8, count_last_flip_F8, count_last_flip_G8, count_last_flip_H8,
 	count_last_flip_pass,
 };
+
+/**
+ * @brief Get the final score.
+ *
+ * Get the final score, when 1 empty square remain.
+ * The following code has been adapted from Zebra by Gunnar Anderson.
+ *
+ * @param player Board.player to evaluate.
+ * @param alpha  Alpha bound. (beta - 1)
+ * @param x      Last empty square to play.
+ * @return       The final score, as a disc difference.
+ */
+int board_score_1(const unsigned long long player, const int alpha, const int x)
+{
+	int score, score2, n_flips;
+
+	score = 2 * bit_count(player) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+
+	n_flips = last_flip(x, player);
+	score += n_flips;
+
+	if (n_flips == 0) {	// (23%)
+		score2 = score - 2;	// empty for opponent
+		if (score <= 0)
+			score = score2;
+		if (score > alpha) {	// lazy cut-off (40%)
+			if ((n_flips = last_flip(x, ~player)) != 0)	// (98%)
+				score = score2 - n_flips;
+		}
+	}
+
+	return score;
+}

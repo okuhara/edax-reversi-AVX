@@ -393,7 +393,7 @@ static int search_solve_4(Search *search, int alpha)
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	// stability cutoff (try 12%, cut 7%)
-	if (search_SC_NWS_4(search, alpha, &score)) return score;
+	if (search_SC_NWS_4(search->board.player, search->board.opponent, alpha, &score)) return score;
 
 	OP = vld1q_u64((uint64_t *) &search->board);
 	x1 = search->empties[NOMOVE].next;

@@ -1177,11 +1177,11 @@ bool search_SC_NWS(Search *search, const int alpha, int *score)
 }
 
 // for 4 empties (min stage)
-bool search_SC_NWS_4(Search *search, const int alpha, int *score)
+bool search_SC_NWS_4(unsigned long long player, unsigned long long opponent, const int alpha, int *score)
 {
 	if (USE_SC && alpha < -NWS_STABILITY_THRESHOLD[4]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
-		*score = 2 * get_stability(search->board.opponent, search->board.player) - SCORE_MAX;
+		*score = 2 * get_stability(opponent, player) - SCORE_MAX;
 		if (*score > alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return true;

@@ -107,6 +107,9 @@ extern unsigned char edge_stability[256 * 256];
 #else
 	extern int last_flip(int pos, unsigned long long P);
 #endif
+#if (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_AVX_PPFILL) || (LAST_FLIP_COUNTER >= COUNT_LAST_FLIP_BMI2)
+	extern int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos);
+#endif
 
 #if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE_ACEPCK)
 	extern __m128i vectorcall mm_Flip(const __m128i OP, int pos);
