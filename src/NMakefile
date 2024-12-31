@@ -120,7 +120,7 @@ icc-pgo-x64-v3:
 	icl $(VC_FLAGS) /arch:AVX2 /D POPCOUNT /D LASTFLIP_HIGHCUT /Qprof-gen all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v3.exe /link /VERSION:4.5
 	cd ..\bin
 	wEdax-x86-64-v3 -l 60 -solve ..\problem\fforum-20-39.obf
-	wEdax-w86-64-v3 -l 18 -auto-store on -auto-start on -repeat 2 -auto-quit on -mode 2 -book-file book.pgo
+	wEdax-x86-64-v3 -l 18 -auto-store on -auto-start on -repeat 2 -auto-quit on -mode 2 -book-file book.pgo
 	del book.pgo book.pgo.store
 	cd ..\src
 	icl $(VC_FLAGS) /GL /arch:AVX2 /D POPCOUNT /D LASTFLIP_HIGHCUT /Qprof-use /Qip all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v3.exe /link /VERSION:4.5

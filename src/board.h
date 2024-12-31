@@ -107,8 +107,11 @@ extern unsigned char edge_stability[256 * 256];
 #else
 	extern int last_flip(int pos, unsigned long long P);
 #endif
-#if (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_AVX_PPFILL) || (LAST_FLIP_COUNTER >= COUNT_LAST_FLIP_BMI2)
-	extern int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos);
+extern int board_score_1(const unsigned long long player, const int alpha, const int x);
+#if (LAST_FLIP_COUNTER >= COUNT_LAST_FLIP_NEON)
+	extern int board_score_neon_1(uint64x1_t P, int alpha, int pos);
+#elif (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_AVX_PPFILL) || (LAST_FLIP_COUNTER >= COUNT_LAST_FLIP_BMI2)
+	extern int vectorcall board_score_sse_1(__m128i OP, int alpha, int pos);
 #endif
 
 #if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE_ACEPCK)

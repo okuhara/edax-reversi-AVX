@@ -210,7 +210,7 @@ inline int vectorcall board_score_sse_1(__m128i P, const int alpha, const int po
 
 #endif
 
-inline int board_score_1(const unsigned long long player, const int alpha, const int x)
-{
+// from bench.c
+int board_score_1(unsigned long long player, int alpha, int x) {
 	return board_score_sse_1(_mm_cvtsi64_si128(player), alpha, x);
 }

@@ -28,7 +28,7 @@
 #include <stdint.h>
 
 /** precomputed count flip array */
-static const uint8_t COUNT_FLIP[8][256] = {
+const uint8_t COUNT_FLIP[8][256] = {
 	{
 		 0,  0,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,  6,  6,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,
 		 8,  8,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,  6,  6,  0,  0,  2,  2,  0,  0,  4,  4,  0,  0,  2,  2,  0,  0,
@@ -418,7 +418,7 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
  * @param x      Last empty square to play.
  * @return       The final score, as a disc difference.
  */
-int board_score_1(const unsigned long long player, const int alpha, const int x)
+int board_score_1(unsigned long long player, int alpha, int x)
 {
 	int score, score2, n_flips;
 

@@ -221,4 +221,12 @@ static inline int _tzcnt_u64(unsigned long long x) {
 	unsigned int crc32c_u8(unsigned int crc, unsigned int data);
 #endif
 
+#ifdef __GNUC__
+	#define UNREACHABLE	__builtin_unreachable()
+#elif defined(_MSC_VER)
+	#define UNREACHABLE	__assume(0)
+#else
+	#define	UNREACHABLE
+#endif
+
 #endif // EDAX_BIT_INTRINSICS_H

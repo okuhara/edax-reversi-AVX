@@ -302,24 +302,81 @@ int last_flip(int pos, unsigned long long P)
  * @param x      Last empty square to play.
  * @return       The final score, as a disc difference.
  */
-int board_score_1(const unsigned long long player, const int alpha, const int x)
+int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 {
-	int score, score2, n_flips;
+	int	score = 2 * vaddv_u8(vcnt_u8(vreinterpret_u8_u64(P))) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+	int	score2;
+	unsigned int	n_flips, m;
+	const unsigned char *COUNT_FLIP_X = COUNT_FLIP[pos & 7];
+	const unsigned char *COUNT_FLIP_Y = COUNT_FLIP[pos >> 3];
+	uint64x2_t	PP = vdupq_lane_u64(P, 0);
+	uint64x2_t	I0, I1;
+	static const unsigned short o_mask[64] = {
+		0xff01, 0x7f03, 0x3f07, 0x1f0f, 0x0f1f, 0x073f, 0x037f, 0x01ff,
+		0xfe03, 0xff07, 0x7f0f, 0x3f1f, 0x1f3f, 0x0f7f, 0x07ff, 0x03fe,
+		0xfc07, 0xfe0f, 0xff1f, 0x7f3f, 0x3f7f, 0x1fff, 0x0ffe, 0x07fc,
+		0xf80f, 0xfc1f, 0xfe3f, 0xff7f, 0x7fff, 0x3ffe, 0x1ffc, 0x0ff8,
+		0xf01f, 0xf83f, 0xfc7f, 0xfeff, 0xfffe, 0x7ffc, 0x3ff8, 0x1ff0,
+		0xe03f, 0xf07f, 0xf8ff, 0xfcfe, 0xfefc, 0xfff8, 0x7ff0, 0x3fe0,
+		0xc07f, 0xe0ff, 0xf0fe, 0xf8fc, 0xfcf8, 0xfef0, 0xffe0, 0x7fc0,
+		0x80ff, 0xc0fe, 0xe0fc, 0xf0f8, 0xf8f0, 0xfce0, 0xfec0, 0xff80
+	};
 
-	score = 2 * bit_count(player) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+	// n_flips = last_flip(pos, P);
+  #ifdef HAS_CPU_64	// vaddvq
+	unsigned int t0, t1;
+	const uint64x2_t dmask = { 0x0808040402020101, 0x8080404020201010 };
 
-	n_flips = last_flip(x, player);
+	PP = vreinterpretq_u64_u8(vzip1q_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(PP)));
+	I0 = vandq_u64(PP, mask_dvhd[pos][0]);	// 2 dirs interleaved
+	t0 = vaddvq_u16(vreinterpretq_u16_u64(I0));
+	n_flips  = COUNT_FLIP_X[t0 >> 8];
+	n_flips += COUNT_FLIP_X[t0 & 0xFF];
+	I1 = vandq_u64(vreinterpretq_u64_u8(vtstq_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(mask_dvhd[pos][1]))), dmask);
+	t1 = vaddvq_u16(vreinterpretq_u16_u64(I1));
+	n_flips += COUNT_FLIP_Y[t1 >> 8];
+	n_flips += COUNT_FLIP_Y[t1 & 0xFF];
+
+  #else // Neon kindergarten
+	const uint64x2_t dmask = { 0x1020408001020408, 0x1020408001020408 };
+
+	I0 = vpaddlq_u32(vpaddlq_u16(vpaddlq_u8(vreinterpretq_u8_u64(vandq_u64(PP, mask_dvhd[pos][0])))));
+	n_flips  = COUNT_FLIP_X[vgetq_lane_u32(vreinterpretq_u32_u64(I0), 2)];
+	n_flips += COUNT_FLIP_X[vgetq_lane_u32(vreinterpretq_u32_u64(I0), 0)];
+	I1 = vreinterpretq_u64_s8(vnegq_s8(vreinterpretq_s8_u8(vtstq_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(mask_dvhd[pos][1])))));
+	I1 = vpaddlq_u32(vmulq_u32(vreinterpretq_u32_u64(dmask), vreinterpretq_u32_u64(I1)));
+	n_flips += COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(I1), 11)];
+	n_flips += COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(I1), 3)];
+  #endif
 	score += n_flips;
 
-	if (n_flips == 0) {	// (23%)
+	if (n_flips == 0) {
 		score2 = score - 2;	// empty for opponent
 		if (score <= 0)
 			score = score2;
-		if (score > alpha) {	// lazy cut-off (40%)
-			if ((n_flips = last_flip(x, ~player)) != 0)	// (98%)
+
+		if (score > alpha) {	// lazy cut-off
+			// n_flips = last_flip(pos, O);
+			m = o_mask[pos];	// valid diagonal bits
+  #ifdef HAS_CPU_64
+			n_flips  = COUNT_FLIP_X[(t0 >> 8) ^ 0xFF];
+			n_flips += COUNT_FLIP_X[(t0 ^ m) & 0xFF];
+			n_flips += COUNT_FLIP_Y[(t1 ^ m) >> 8];
+			n_flips += COUNT_FLIP_Y[(~t1) & 0xFF];
+  #else
+			n_flips  = COUNT_FLIP_X[vgetq_lane_u32(vreinterpretq_u32_u64(I0), 2) ^ 0xFF];
+			n_flips += COUNT_FLIP_X[vgetq_lane_u32(vreinterpretq_u32_u64(I0), 0) ^ (m & 0xFF)];
+			n_flips += COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(I1), 11) ^ (m >> 8)];
+			n_flips += COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(I1), 3) ^ 0xFF];
+  #endif
+			if (n_flips != 0)
 				score = score2 - n_flips;
 		}
 	}
 
 	return score;
+}
+
+int board_score_1(unsigned long long player, int alpha, int x) {
+	return board_score_neon_1(vcreate_u64(player), alpha, x);
 }

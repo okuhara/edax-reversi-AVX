@@ -280,18 +280,6 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 
 #endif
 
-/**
- * @brief Get the final score.
- *
- * Get the final score, when 1 empty square remain.
- * The following code has been adapted from Zebra by Gunnar Anderson.
- *
- * @param player Board.player to evaluate.
- * @param alpha  Alpha bound. (beta - 1)
- * @param x      Last empty square to play.
- * @return       The final score, as a disc difference.
- */
-inline int board_score_1(const unsigned long long player, const int alpha, const int x)
-{
+int board_score_1(unsigned long long player, int alpha, int x) {
 	return board_score_sse_1(_mm_cvtsi64_si128(player), alpha, x);
 }
