@@ -16,7 +16,7 @@ ifeq ($(BUILD),)
 endif
 
 ifeq ($(ARCH),)
-	ARCH = x64-modern
+	ARCH = x86-64-v3
 endif
 
 ifeq ($(COMP),)
@@ -49,22 +49,22 @@ ifeq ($(COMP),gcc)
 		CFLAGS += -O1 -g -DDEBUG
 	endif
 
-	ifeq ($(ARCH),x64-modern)
+	ifeq ($(ARCH),x86-64-v3)
 		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
 	endif
-	ifeq ($(ARCH),x64-avx512)
+	ifeq ($(ARCH),x86-64-v4)
 		CFLAGS += -m64 -march=skylake-avx512 -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
 	endif
-	ifeq ($(ARCH),x64-popcnt)
+	ifeq ($(ARCH),x86-64-v2)
 		CFLAGS += -m64 -mpopcnt -mtune=generic -DUSE_GAS_X64 -DPOPCOUNT
 	endif
-	ifeq ($(ARCH),x64-k10)
+	ifeq ($(ARCH),x86-64-k10)
 		CFLAGS += -m64 -march=amdfam10 -DUSE_GAS_X64 -DPOPCOUNT -DMOVE_GENERATOR=MOVE_GENERATOR_BITSCAN
 	endif
-	ifeq ($(ARCH),x32-modern)
+	ifeq ($(ARCH),x86-avx2)
 		CFLAGS += -mx32 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
-	ifeq ($(ARCH),x64)
+	ifeq ($(ARCH),x86-64)
 		CFLAGS += -m64 -mtune=generic -DUSE_GAS_X64
 	endif
 	ifeq ($(ARCH),x32)
@@ -87,20 +87,20 @@ ifeq ($(COMP),gcc)
 			CFLAGS += -fomit-frame-pointer
 		endif
 	endif
-	ifeq ($(ARCH),armv7)
-		CFLAGS += -march=armv7-a
-		ifeq ($(BUILD),optimize)
-			CFLAGS += -fomit-frame-pointer
-		endif
-	endif
 	ifeq ($(ARCH),arm-neon)
 		CFLAGS += -march=armv7-a+simd -mfloat-abi=softfp
 		ifeq ($(BUILD),optimize)
 			CFLAGS += -fomit-frame-pointer
 		endif
 	endif
-	ifeq ($(ARCH),arm-sve)
-		CFLAGS += -march=armv8.2-a+sve
+	ifeq ($(ARCH),armv8)
+		CFLAGS += -march=armv8-a
+		ifeq ($(BUILD),optimize)
+			CFLAGS += -fomit-frame-pointer
+		endif
+	endif
+	ifeq ($(ARCH),arm-sve256)
+		CFLAGS += -march=armv8.3-a+sve -msve-vector-bits=256
 		ifeq ($(BUILD),optimize)
 			CFLAGS += -fomit-frame-pointer
 		endif
@@ -127,98 +127,6 @@ ifeq ($(COMP),gcc)
 
 endif
 
-ifeq ($(COMP),gcc-old)
-	CC = gcc
-	CFLAGS = -std=c99 -pedantic -W -Wall -Wextra -pipe -D_GNU_SOURCE=1 -DUNICODE
-
-	ifeq ($(BUILD),optimize)
-		CFLAGS += -O3 -fwhole-program -DNDEBUG
-	else
-		CFLAGS += -O0 -g -DDEBUG
-	endif
-
-	ifeq ($(ARCH),x64-modern)
-		CFLAGS += -m64 -march=native -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
-	endif
-	ifeq ($(ARCH),x64)
-		CFLAGS += -m64 -mtune=generic -DUSE_GAS_X64 
-	endif
-	ifeq ($(ARCH),x86)
-		CFLAGS += -m32 -mtune=generic -DUSE_GAS_X86 -DUSE_GAS_MMX
-		ifeq ($(BUILD),optimize)
-			CFLAGS += -fomit-frame-pointer
-		endif
-	endif
-	ifeq ($(ARCH),arm)
-		ifeq ($(BUILD),optimize)
-			CFLAGS += -fomit-frame-pointer -DUSE_GCC_ARM
-		endif
-	endif
-	ifeq ($(ARCH),armv7)
-		ifeq ($(BUILD),optimize)
-			CFLAGS += -fomit-frame-pointer -march=armv7-a -mfpu=neon -DUSE_GCC_ARM
-		endif
-	endif
-
-	ifeq ($(OS),osx)
-		CFLAGS += -mmacosx-version-min=10.4 -mdynamic-no-pic
-		ifeq ($(ARCH),x86)
-			CFLAGS += -msse2 -DhasSSE2
-		endif
-	endif
-	ifeq ($(OS),android)
-		CFLAGS += -DANDROID=1
-	endif
-	ifeq ($(OS),windows)
-		CFLAGS += -D__USE_MINGW_ANSI_STDIO
-		ifeq ($(ARCH),x86)
-			CFLAGS += -DUSE_PTHREAD
-		endif
-	endif
-
-endif
-
-# g++
-ifeq ($(COMP),g++)
-	CFLAGS = -x c++ -std=c++11 -pedantic -W -Wall -Wextra -pipe -D_GNU_SOURCE=1 -DUNICODE
-	PGO_GEN = -fprofile-generate
-	PGO_USE = -fprofile-correction -fprofile-use
-
-	ifeq ($(BUILD),optimize)
-		CFLAGS += -Ofast -fwhole-program -DNDEBUG
-		LTOFLAG = -flto
-	else
-		CFLAGS += -O0 -g -DDEBUG
-	endif
-
-	ifeq ($(ARCH),x64-modern)
-		CFLAGS += -m64 -march=native -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
-	endif
-	ifeq ($(ARCH),x64)
-		CFLAGS += -m64 -mtune=generic -DUSE_GAS_X64 
-	endif
-	ifeq ($(ARCH),x86)
-		CFLAGS += -m32 -mtune=generic -DUSE_GAS_X86 -DUSE_GAS_MMX
-		ifeq ($(BUILD),optimize)
-			CFLAGS += -fomit-frame-pointer
-		endif
-	endif
-
-	ifeq ($(OS),osx)
-		CFLAGS += -mmacosx-version-min=10.4 -mdynamic-no-pic
-		ifeq ($(ARCH),x86)
-			CFLAGS += -msse2 -DhasSSE2
-		endif
-	endif
-	ifeq ($(OS),windows)
-		CFLAGS += -D__USE_MINGW_ANSI_STDIO -DWINVER=0x501
-		ifeq ($(ARCH),x86)
-			CFLAGS += -DUSE_PTHREAD
-		endif
-	endif
-
-endif
-
 #icc
 ifeq ($(COMP),icc)
 	CFLAGS = -std=c99 -Wall -Wcheck -wd2259 -D_GNU_SOURCE=1 -DUNICODE -Qoption,cpp,--unicode_source_kind,"UTF-8"
@@ -231,13 +139,16 @@ ifeq ($(COMP),icc)
 		CFLAGS += -O0 -g -DDEBUG -rcd -DRCD=0.0
 	endif
 
-	ifeq ($(ARCH),x64-modern)
+	ifeq ($(ARCH),x86-64-v3)
 		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
-	ifeq ($(ARCH),x64-avx512)
+	ifeq ($(ARCH),x86-64-v4)
 		CFLAGS += -m64 -march=skylake-avx512 -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
 	endif
-	ifeq ($(ARCH),x64)
+	ifeq ($(ARCH),x86-64-v2)
+		CFLAGS += -m64 -mpopcnt -DUSE_GAS_X64 -DPOPCOUNT
+	endif
+	ifeq ($(ARCH),x86-64)
 		CFLAGS += -m64 -DUSE_GAS_X64
 	endif
 	ifeq ($(ARCH),x32-modern)
@@ -245,27 +156,6 @@ ifeq ($(COMP),icc)
 	endif
 	ifeq ($(ARCH),x86)
 		CFLAGS += -m32 -DUSE_GAS_X86
-	endif
-endif
-
-#pcc
-ifeq ($(COMP),pcc)
-	CFLAGS = - -D_GNU_SOURCE=1 -DUNICODE
-
-	ifeq ($(BUILD),optimize)
-		CFLAGS += -O4 -DNDEBUG
-	else
-		CFLAGS += -O0 -g -DDEBUG
-	endif
-
-	ifeq ($(ARCH),x64-modern)
-		CFLAGS += -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
-	endif
-	ifeq ($(ARCH),x64)
-		CFLAGS += -DUSE_GAS_X64
-	endif
-	ifeq ($(ARCH),x86)
-		CFLAGS += -DUSE_GAS_X86
 	endif
 endif
 
@@ -283,17 +173,43 @@ ifeq ($(COMP),clang)
 		CFLAGS += -O0 -g -DDEBUG
 	endif
 
-	ifeq ($(ARCH),x64-modern)
+	ifeq ($(ARCH),x86-64-v3)
 		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
 	endif
-	ifeq ($(ARCH),x64-avx512)
+	ifeq ($(ARCH),x86-64-v4)
 		CFLAGS += -m64 -march=skylake-avx512 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
-	ifeq ($(ARCH),x64)
+	ifeq ($(ARCH),x86-64-v2)
+		CFLAGS += -m64 -mpopcnt -DUSE_GAS_X64 -DPOPCOUNT
+	endif
+	ifeq ($(ARCH),x86-64)
 		CFLAGS += -m64 -DUSE_GAS_X64 
 	endif
 	ifeq ($(ARCH),x86)
 		CFLAGS += -m32 -DUSE_GAS_X86 -DUSE_GAS_MMX
+	endif
+	ifeq ($(ARCH),arm)
+		ifeq ($(BUILD),optimize)
+			CFLAGS += -fomit-frame-pointer
+		endif
+	endif
+	ifeq ($(ARCH),arm-neon)
+		CFLAGS += -march=armv7-a+simd -mfloat-abi=softfp
+		ifeq ($(BUILD),optimize)
+			CFLAGS += -fomit-frame-pointer
+		endif
+	endif
+	ifeq ($(ARCH),armv8)
+		CFLAGS += -march=armv8-a
+		ifeq ($(BUILD),optimize)
+			CFLAGS += -fomit-frame-pointer
+		endif
+	endif
+	ifeq ($(ARCH),arm-sve256)
+		CFLAGS += -march=armv8.3-a+sve -msve-vector-bits=256
+		ifeq ($(BUILD),optimize)
+			CFLAGS += -fomit-frame-pointer
+		endif
 	endif
 
 	ifeq ($(OS),osx)
@@ -353,10 +269,11 @@ help:
 	@echo "   help       Print this message"
 	@echo ""
 	@echo "Archs:"
-	@echo " x64-modern*  x64 with popcount"
-	@echo " x64          x64"
-	@echo " x32-modern   x32 with popcount"
-	@echo " x32          x32"
+	@echo " x86-64-v4    x64 with avx512 support"
+	@echo " x86-64-v3*   x64 with avx2 support"
+	@echo " x86-64-v2    x64 with sse4 & popcount support"
+	@echo " x86-64       x64 with sse2 support"
+	@echo " x86-sse      x86 with sse2"
 	@echo " x86          x86"
 	@echo " arm          arm v5 & up"
 	@echo " armv7        arm v7-a"
