@@ -219,7 +219,6 @@ inline int board_score_1(unsigned long long P, const int alpha, const int pos)
 {
 	uint_fast8_t	n_flips;
 	unsigned int	th, tv;
-	unsigned long long P = ;
 	unsigned long long mP;
 	int	score, score2;
 	const uint8_t *COUNT_FLIP_X = COUNT_FLIP[pos & 7];
@@ -255,6 +254,6 @@ inline int board_score_1(unsigned long long P, const int alpha, const int pos)
 	return score;
 }
 
-inline int vectorcall mm_board_score_1(__m128i OP, const int alpha, const int x) {
-	return board_score_sse_1(_mm_cvtsi128_si64(OP), alpha, x);
+inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int x) {
+	return board_score_1(_mm_cvtsi128_si64(OP), alpha, x);
 }

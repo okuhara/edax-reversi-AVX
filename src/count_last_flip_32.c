@@ -1245,24 +1245,672 @@ int (*count_last_flip[])(const unsigned long long) = {
  * @param x      Last empty square to play.
  * @return       The final score, as a disc difference.
  */
-int board_score_1(unsigned long long player, int alpha, int x)
+int board_score_1(unsigned long long P, int alpha, int pos)
 {
-	int score, score2, n_flips;
+	int n_flips, score2, t1, t2;
+	int score = 2 * bit_count(P) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 
-	score = 2 * bit_count(player) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+	switch (pos) {
+		case  0: // A1 (4%)
+			n_flips  = COUNT_FLIP_R[t1 = (((LODWORD(P) & 0x01010101u) + ((HIDWORD(P) & 0x01010101u) << 4)) * 0x01020408u) >> 25];
+			n_flips += COUNT_FLIP_R[(LODWORD(P) >> 1) & 0x7f];
+			n_flips += COUNT_FLIP_R[t2 = (((LODWORD(P) & 0x08040200u) + (HIDWORD(P) & 0x80402010u)) * 0x01010101u) >> 25];
+			score += n_flips;
 
-	n_flips = last_flip(x, player);
-	score += n_flips;
+			if (n_flips == 0) {	// (23%)
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off (40%)
+					n_flips  = COUNT_FLIP_R[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_R[(~LODWORD(P) >> 1) & 0x7f];
+					n_flips += COUNT_FLIP_R[t2 ^ 0x7f];
+					if (n_flips != 0)	// (98%)
+						score = score2 - n_flips;
+				}
+			}
+			break;
 
-	if (n_flips == 0) {	// (23%)
-		score2 = score - 2;	// empty for opponent
-		if (score <= 0)
-			score = score2;
-		if (score > alpha) {	// lazy cut-off (40%)
-			if ((n_flips = last_flip(x, ~player)) != 0)	// (98%)
-				score = score2 - n_flips;
-		}
+		case  1: // B1 (6%)
+			n_flips  = COUNT_FLIP_R[t1 = (((LODWORD(P) & 0x02020202u) + ((HIDWORD(P) & 0x02020202u) << 4)) * 0x00810204u) >> 25];
+			n_flips += COUNT_FLIP_R[(LODWORD(P) >> 2) & 0x3f];
+			n_flips += COUNT_FLIP_R[t2 = (((LODWORD(P) & 0x10080400u) + (HIDWORD(P) & 0x00804020u)) * 0x01010101u) >> 26];
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_R[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_R[(~LODWORD(P) >> 2) & 0x3f];
+					n_flips += COUNT_FLIP_R[t2 ^ 0x3f];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case  2: // C1 (0.2%)
+			n_flips  = COUNT_FLIP_R[t1 = (((LODWORD(P) & 0x04040404u) + ((HIDWORD(P) & 0x04040404u) << 4)) * 0x00408102u) >> 25];
+			n_flips += COUNT_FLIP_2[LODWORD(P) & 0xff];
+			n_flips += COUNT_FLIP_2[t2 = (((LODWORD(P) & 0x20110A04u) + (HIDWORD(P) & 0x00008040u)) * 0x01010101u) >> 24];	// A3C1H6
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_R[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_2[~LODWORD(P) & 0xff];
+					n_flips += COUNT_FLIP_2[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case  3: // D1 (0.4%)
+			n_flips  = COUNT_FLIP_R[t1 = (((LODWORD(P) & 0x08080808u) + ((HIDWORD(P) & 0x08080808u) << 4)) * 0x00204081u) >> 25];
+			n_flips += COUNT_FLIP_3[LODWORD(P) & 0xff];
+			n_flips += COUNT_FLIP_3[t2 = (((LODWORD(P) & 0x41221408u) + (HIDWORD(P) & 0x00000080u)) * 0x01010101u) >> 24];	// A4D1H5
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off (40%)
+					n_flips  = COUNT_FLIP_R[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_3[~LODWORD(P) & 0xff];
+					n_flips += COUNT_FLIP_3[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case  4: // E1 (0.7%)
+			n_flips  = COUNT_FLIP_R[t1 = ((((LODWORD(P) & 0x10101010u) >> 4) + (HIDWORD(P) & 0x10101010u)) * 0x01020408u) >> 25];
+			n_flips += COUNT_FLIP_4[LODWORD(P) & 0xff];
+			n_flips += COUNT_FLIP_4[t2 = (((LODWORD(P) & 0x82442810u) + (HIDWORD(P) & 0x00000001u)) * 0x01010101u) >> 24];	// A5E1H4
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off (40%)
+					n_flips  = COUNT_FLIP_R[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_4[~LODWORD(P) & 0xff];
+					n_flips += COUNT_FLIP_4[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case  5: // F1 (0.3%)
+			n_flips  = COUNT_FLIP_R[t1 = ((((LODWORD(P) & 0x20202020u) >> 4) + (HIDWORD(P) & 0x20202020u)) * 0x00810204u) >> 25];
+			n_flips += COUNT_FLIP_5[LODWORD(P) & 0xff];
+			n_flips += COUNT_FLIP_5[t2 = (((LODWORD(P) & 0x04885020u) + (HIDWORD(P) & 0x00000102u)) * 0x01010101u) >> 24];	// A6F1H3
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_R[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_5[~LODWORD(P) & 0xff];
+					n_flips += COUNT_FLIP_5[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case  6: // G1 (4%)
+			n_flips  = COUNT_FLIP_R[t1 = ((((LODWORD(P) & 0x40404040u) >> 4) + (HIDWORD(P) & 0x40404040u)) * 0x00408102u) >> 25];
+			n_flips += COUNT_FLIP_L[(LODWORD(P) << 1) & 0x7e];
+			n_flips += COUNT_FLIP_L[t2 = (((LODWORD(P) & 0x08102000u) + (HIDWORD(P) & 0x00010204u)) * 0x02020202u) >> 24];
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_R[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_L[~(LODWORD(P) << 1) & 0x7e];
+					n_flips += COUNT_FLIP_L[t2 ^ 0x7e];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case  7: // H1 (4%)
+			n_flips  = COUNT_FLIP_R[t1 = ((((LODWORD(P) & 0x80808080u) >> 4) + (HIDWORD(P) & 0x80808080u)) * 0x00204081u) >> 25];
+			n_flips += COUNT_FLIP_L[LODWORD(P) & 0x7f];
+			n_flips += COUNT_FLIP_L[t2 = (((LODWORD(P) & 0x10204000u) + (HIDWORD(P) & 0x01020408u)) * 0x01010101u) >> 24];
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_R[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_L[~LODWORD(P) & 0x7f];
+					n_flips += COUNT_FLIP_L[t2 ^ 0x7f];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case  8: // A2 (4%)
+			n_flips  = COUNT_FLIP_R[t1 = (((LODWORD(P) & 0x01010000u) + ((HIDWORD(P) & 0x01010101u) << 4)) * 0x01020408u) >> 26];
+			n_flips += COUNT_FLIP_R[(LODWORD(P) >> 9) & 0x7f];
+			n_flips += COUNT_FLIP_R[t2 = (((LODWORD(P) & 0x04020000u) + (HIDWORD(P) & 0x40201008u)) * 0x01010101u) >> 25];
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_R[t1 ^ 0x3f];
+					n_flips += COUNT_FLIP_R[~(LODWORD(P) >> 9) & 0x7f];
+					n_flips += COUNT_FLIP_R[t2 ^ 0x3f];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case  9: // B2 (2%)
+			n_flips  = COUNT_FLIP_R[t1 = (((LODWORD(P) & 0x02020000u) + ((HIDWORD(P) & 0x02020202u) << 4)) * 0x00810204u) >> 26];
+			n_flips += COUNT_FLIP_R[(LODWORD(P) >> 10) & 0x3f];
+			n_flips += COUNT_FLIP_R[t2 = (((LODWORD(P) & 0x08040000u) + (HIDWORD(P) & 0x80402010u)) * 0x01010101u) >> 26];
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_R[t1 ^ 0x3f];
+					n_flips += COUNT_FLIP_R[~(LODWORD(P) >> 10) & 0x3f];
+					n_flips += COUNT_FLIP_R[t2 ^ 0x3f];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 14: // G2 (4%)
+			n_flips  = COUNT_FLIP_R[t1 = ((((LODWORD(P) & 0x40400000u) >> 4) + (HIDWORD(P) & 0x40404040u)) * 0x00408102u) >> 26];
+			n_flips += COUNT_FLIP_L[(LODWORD(P) >> 7) & 0x7e];
+			n_flips += COUNT_FLIP_L[t2 = (((LODWORD(P) & 0x10200000u) + (HIDWORD(P) & 0x01020408u)) * 0x02020202u) >> 24];
+			score += n_flips;
+
+			if (n_flips == 0) {	// (23%)
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_R[t1 ^ 0x3f];
+					n_flips += COUNT_FLIP_L[~(LODWORD(P) >> 7) & 0x7e];
+					n_flips += COUNT_FLIP_L[t2 ^ 0x7e];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 15: // H2 (6%)
+			n_flips  = COUNT_FLIP_R[t1 = ((((LODWORD(P) & 0x80800000u) >> 4) + (HIDWORD(P) & 0x80808080u)) * 0x00204081u) >> 26];
+			n_flips += COUNT_FLIP_L[(LODWORD(P) >> 8) & 0x7f];
+			n_flips += COUNT_FLIP_L[t2 = (((LODWORD(P) & 0x20400000u) + (HIDWORD(P) & 0x02040810u)) * 0x01010101u) >> 24];
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_R[t1 ^ 0x3f];
+					n_flips += COUNT_FLIP_L[~(LODWORD(P) >> 8) & 0x7f];
+					n_flips += COUNT_FLIP_L[t2 ^ 0x7e];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 16: // A3 (0.4%)
+			n_flips  = COUNT_FLIP_2[t1 = ((LODWORD(P) & 0x02010101u) * 0x01020404u + (HIDWORD(P) & 0x20100804u) * 0x04040404u) >> 24];	// A1A3F8
+			n_flips += COUNT_FLIP_R[(LODWORD(P) >> 17) & 0x7f];
+			n_flips += COUNT_FLIP_5[t2 = ((LODWORD(P) & 0x01010204u) * 0x20202010u + (HIDWORD(P) & 0x01010101u) * 0x08040201u) >> 24];	// C1A3A8
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_2[t1 ^ 0xff];
+					n_flips += COUNT_FLIP_R[~(LODWORD(P) >> 17) & 0x7f];
+					n_flips += COUNT_FLIP_5[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 23: // H3 (1%)
+			n_flips  = COUNT_FLIP_2[t1 = (((LODWORD(P) & 0x80804020u) >> 4) * 0x00808081u + (HIDWORD(P) & 0x80808080u) * 0x00204081u) >> 24];	// F1H3H8
+			n_flips += COUNT_FLIP_L[(LODWORD(P) >> 16) & 0x7f];
+			n_flips += COUNT_FLIP_5[t2 = (((LODWORD(P) & 0x40808080u) >> 2) * 0x04020101u + ((HIDWORD(P) & 0x04081020u) >> 2) * 0x01010101u) >> 24];	// H1H3C8
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_2[t1 ^ 0xff];
+					n_flips += COUNT_FLIP_L[~(LODWORD(P) >> 16) & 0x7f];
+					n_flips += COUNT_FLIP_5[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 24: // A4 (0.2%)
+			n_flips  = COUNT_FLIP_3[t1 = ((LODWORD(P) & 0x01010101u) * 0x01020408u + (HIDWORD(P) & 0x10080402u) * 0x08080808u) >> 24];	// A1A4E8
+			n_flips += COUNT_FLIP_R[LODWORD(P) >> 25];
+			n_flips += COUNT_FLIP_4[t2 = ((LODWORD(P) & 0x01020408u) * 0x10101010u + (HIDWORD(P) & 0x01010101u) * 0x08040201u) >> 24];	// D1A4A8
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_3[t1 ^ 0xff];
+					n_flips += COUNT_FLIP_R[~LODWORD(P) >> 25];
+					n_flips += COUNT_FLIP_4[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 31: // H4 (0.8%)
+			n_flips  = COUNT_FLIP_3[t1 = (((LODWORD(P) & 0x80402010u) >> 4) * 0x01010101u + (HIDWORD(P) & 0x80808080u) * 0x00204081u) >> 24];	// E1H4H8
+			n_flips += COUNT_FLIP_L[(LODWORD(P) >> 24) & 0x7f];
+			n_flips += COUNT_FLIP_4[t2 = (((LODWORD(P) & 0x80808080u) >> 3) * 0x08040201u + ((HIDWORD(P) & 0x08102040u) >> 3) * 0x01010101u) >> 24];	// H1H4D8
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_3[t1 ^ 0xff];
+					n_flips += COUNT_FLIP_L[~(LODWORD(P) >> 24) & 0x7f];
+					n_flips += COUNT_FLIP_4[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 32: // A5 (0.5%)
+			n_flips  = COUNT_FLIP_4[t1 = ((LODWORD(P) & 0x01010101u) * 0x01020408u + (HIDWORD(P) & 0x08040201u) * 0x10101010u) >> 24];	// A1A5D8
+			n_flips += COUNT_FLIP_R[(HIDWORD(P) >> 1) & 0x7f];
+			n_flips += COUNT_FLIP_3[t2 = ((LODWORD(P) & 0x02040810u) * 0x08080808u + (HIDWORD(P) & 0x01010101u) * 0x08040201u) >> 24];	// E1A5A8
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_4[t1 ^ 0xff];
+					n_flips += COUNT_FLIP_R[~(HIDWORD(P) >> 1) & 0x7f];
+					n_flips += COUNT_FLIP_3[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 39: // H5 (1%)
+			n_flips  = COUNT_FLIP_4[t1 = (((LODWORD(P) & 0x40201008u) >> 3) * 0x01010101u + (HIDWORD(P) & 0x80808080u) * 0x00204081u) >> 24];	// D1H5H8
+			n_flips += COUNT_FLIP_L[HIDWORD(P) & 0x7f];
+			n_flips += COUNT_FLIP_3[t2 = (((LODWORD(P) & 0x80808080u) >> 4) * 0x10080402u + ((HIDWORD(P) & 0x10204080u) >> 4) * 0x01010101u) >> 24];	// H1H5E8
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_4[t1 ^ 0xff];
+					n_flips += COUNT_FLIP_L[~HIDWORD(P) & 0x7f];
+					n_flips += COUNT_FLIP_3[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 40: // A6 (0.5%)
+			n_flips  = COUNT_FLIP_5[t1 = ((LODWORD(P) & 0x01010101u) * 0x01020408u + (HIDWORD(P) & 0x04020101u) * 0x10202020u) >> 24];	// A1A6C8
+			n_flips += COUNT_FLIP_R[(HIDWORD(P) >> 9) & 0x7f];
+			n_flips += COUNT_FLIP_2[t2 = ((LODWORD(P) & 0x04081020u) * 0x04040404u + (HIDWORD(P) & 0x01010102u) * 0x04040201u) >> 24];	// F1A6A8
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_5[t1 ^ 0xff];
+					n_flips += COUNT_FLIP_R[~(HIDWORD(P) >> 9) & 0x7f];
+					n_flips += COUNT_FLIP_2[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 47: // H6 (1%)
+			n_flips  = COUNT_FLIP_5[t1 = (((LODWORD(P) & 0x20100804u) >> 2) * 0x01010101u + (HIDWORD(P) & 0x80808040u) * 0x00404081u) >> 24];	// C1H6H8
+			n_flips += COUNT_FLIP_L[(HIDWORD(P) >> 8) & 0x7f];
+			n_flips += COUNT_FLIP_2[t2 = (((LODWORD(P) & 0x80808080u) >> 5) * 0x20100804u + ((HIDWORD(P) & 0x20408080u) >> 5) * 0x02010101u) >> 24];	// H1H6F8
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_5[t1 ^ 0xff];
+					n_flips += COUNT_FLIP_L[~(HIDWORD(P) >> 8) & 0x7f];
+					n_flips += COUNT_FLIP_2[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 48: // A7 (6%)
+			n_flips  = COUNT_FLIP_L[t1 = ((((HIDWORD(P) & 0x00000101u) << 4) + (LODWORD(P) & 0x01010101u)) * 0x02040810u) >> 24];
+			n_flips += COUNT_FLIP_R[(HIDWORD(P) >> 17) & 0x7f];
+			n_flips += COUNT_FLIP_R[t2 = (((HIDWORD(P) & 0x00000204u) + (LODWORD(P) & 0x08102040u)) * 0x01010101u) >> 25];
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_L[t1 ^ 0x7e];
+					n_flips += COUNT_FLIP_R[~(HIDWORD(P) >> 17) & 0x7f];
+					n_flips += COUNT_FLIP_R[t2 ^ 0x3f];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 49: // B7 (5%)
+			n_flips  = COUNT_FLIP_L[t1 = ((((HIDWORD(P) & 0x00000202u) << 4) + (LODWORD(P) & 0x02020202u)) * 0x01020408u) >> 24];
+			n_flips += COUNT_FLIP_R[(HIDWORD(P) >> 18) & 0x3f];
+			n_flips += COUNT_FLIP_R[t2 = (((HIDWORD(P) & 0x00000408u) + (LODWORD(P) & 0x10204080u)) * 0x01010101u) >> 26];
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_L[t1 ^ 0x7e];
+					n_flips += COUNT_FLIP_R[~(HIDWORD(P) >> 18) & 0x3f];
+					n_flips += COUNT_FLIP_R[t2 ^ 0x3f];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 54: // G7 (5%)
+			n_flips  = COUNT_FLIP_L[t1 = (((HIDWORD(P) & 0x00004040u) + ((LODWORD(P) & 0x40404040u) >> 4)) * 0x00810204u) >> 24];
+			n_flips += COUNT_FLIP_L[(HIDWORD(P) >> 15) & 0x7e];
+			n_flips += COUNT_FLIP_L[t2 = (((HIDWORD(P) & 0x00002010u) + (LODWORD(P) & 0x08040201u)) * 0x02020202u) >> 24];
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_L[t1 ^ 0x7e];
+					n_flips += COUNT_FLIP_L[~(HIDWORD(P) >> 15) & 0x7e];
+					n_flips += COUNT_FLIP_L[t2 ^ 0x7e];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 55: // H7 (8%)
+			n_flips  = COUNT_FLIP_L[t1 = (((HIDWORD(P) & 0x00008080u) + ((LODWORD(P) & 0x80808080u) >> 4)) * 0x00408102u) >> 24];
+			n_flips += COUNT_FLIP_L[(HIDWORD(P) >> 16) & 0x7f];
+			n_flips += COUNT_FLIP_L[t2 = (((HIDWORD(P) & 0x00004020u) + (LODWORD(P) & 0x10080402u)) * 0x01010101u) >> 24];
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_L[t1 ^ 0x7e];
+					n_flips += COUNT_FLIP_L[~(HIDWORD(P) >> 16) & 0x7f];
+					n_flips += COUNT_FLIP_L[t2 ^ 0x7e];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 56: // A8 (4%)
+			n_flips  = COUNT_FLIP_L[t1 = ((((HIDWORD(P) & 0x00010101u) << 4) + (LODWORD(P) & 0x01010101u)) * 0x01020408u) >> 24];
+			n_flips += COUNT_FLIP_R[HIDWORD(P) >> 25];
+			n_flips += COUNT_FLIP_R[t2 = (((HIDWORD(P) & 0x00020408u) + (LODWORD(P) & 0x10204080u)) * 0x01010101u) >> 25];
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_L[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_R[~HIDWORD(P) >> 25];
+					n_flips += COUNT_FLIP_R[t2 ^ 0x7f];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 57: // B8 (9%)
+			n_flips  = COUNT_FLIP_L[t1 = ((((HIDWORD(P) & 0x00020202u) << 4) + (LODWORD(P) & 0x02020202u)) * 0x00810204u) >> 24];
+			n_flips += COUNT_FLIP_R[HIDWORD(P) >> 26];
+			n_flips += COUNT_FLIP_R[t2 = (((HIDWORD(P) & 0x00040810u) + (LODWORD(P) & 0x20408000u)) * 0x01010101u) >> 26];
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_L[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_R[~HIDWORD(P) >> 26];
+					n_flips += COUNT_FLIP_R[t2 ^ 0x3f];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 58: // C8 (1%)
+			n_flips  = COUNT_FLIP_L[t1 = (((LODWORD(P) & 0x04040404u) + ((HIDWORD(P) & 0x00040404u) << 4)) * 0x00408102u) >> 24];
+			n_flips += COUNT_FLIP_2[HIDWORD(P) >> 24];
+			n_flips += COUNT_FLIP_2[t2 = (((HIDWORD(P) & 0x040A1120u) + (LODWORD(P) & 0x40800000u)) * 0x01010101u) >> 24];	// A6C8H3
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_L[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_2[~HIDWORD(P) >> 24];
+					n_flips += COUNT_FLIP_2[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 59: // D8 (2%)
+			n_flips  = COUNT_FLIP_L[t1 = ((((HIDWORD(P) & 0x00080808u) << 4) + (LODWORD(P) & 0x08080808u)) * 0x00204081u) >> 24];
+			n_flips += COUNT_FLIP_3[HIDWORD(P) >> 24];
+			n_flips += COUNT_FLIP_3[t2 = (((HIDWORD(P) & 0x08142241u) + (LODWORD(P) & 0x80000000u)) * 0x01010101u) >> 24];	// A5D8H4
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_L[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_3[~HIDWORD(P) >> 24];
+					n_flips += COUNT_FLIP_3[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 60: // E8 (2%)
+			n_flips  = COUNT_FLIP_L[t1 = (((HIDWORD(P) & 0x00101010u) + ((LODWORD(P) & 0x10101010u) >> 4)) * 0x01020408u) >> 24];
+			n_flips += COUNT_FLIP_4[HIDWORD(P) >> 24];
+			n_flips += COUNT_FLIP_4[t2 = (((HIDWORD(P) & 0x10284482u) + (LODWORD(P) & 0x01000000u)) * 0x01010101u) >> 24];	// A4E8H5
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_L[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_4[~HIDWORD(P) >> 24];
+					n_flips += COUNT_FLIP_4[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 61: // F8 (2%)
+			n_flips  = COUNT_FLIP_L[t1 = (((HIDWORD(P) & 0x00202020u) + ((LODWORD(P) & 0x20202020u) >> 4)) * 0x00810204u) >> 24];
+			n_flips += COUNT_FLIP_5[HIDWORD(P) >> 24];
+			n_flips += COUNT_FLIP_5[t2 = (((HIDWORD(P) & 0x00508804u) + (LODWORD(P) & 0x02010000u)) * 0x01010101u) >> 24];	// A3F8H6
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_L[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_5[~HIDWORD(P) >> 24];
+					n_flips += COUNT_FLIP_5[t2 ^ 0xff];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 62: // G8 (8%)
+			n_flips  = COUNT_FLIP_L[t1 = (((HIDWORD(P) & 0x00404040u) + ((LODWORD(P) & 0x40404040u) >> 4)) * 0x00408102u) >> 24];
+			n_flips += COUNT_FLIP_L[(HIDWORD(P) >> 23) & 0x7e];
+			n_flips += COUNT_FLIP_L[t2 = (((HIDWORD(P) & 0x00201008u) + (LODWORD(P) & 0x04020100u)) * 0x02020202u) >> 24];
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_L[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_L[~(HIDWORD(P) >> 23) & 0x7e];
+					n_flips += COUNT_FLIP_L[t2 ^ 0x7e];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 63: // H8 (4%)
+			n_flips  = COUNT_FLIP_L[t1 = (((HIDWORD(P) & 0x00808080u) + ((LODWORD(P) & 0x80808080) >> 4)) * 0x00204081u) >> 24];
+			n_flips += COUNT_FLIP_L[(HIDWORD(P) >> 24) & 0x7f];
+			n_flips += COUNT_FLIP_L[t2 = (((HIDWORD(P) & 0x00402010u) + (LODWORD(P) & 0x08040201u)) * 0x01010101u) >> 24];
+			score += n_flips;
+
+			if (n_flips == 0) {
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off
+					n_flips  = COUNT_FLIP_L[t1 ^ 0x7f];
+					n_flips += COUNT_FLIP_L[~(HIDWORD(P) >> 24) & 0x7f];
+					n_flips += COUNT_FLIP_L[t2 ^ 0x7f];
+					if (n_flips != 0)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		case 10: case 11: case 12: case 13: case 17: case 22: case 25: case 30: // (0.4%)
+		case 33: case 38: case 41: case 46: case 50: case 51: case 52: case 53: // (2.3%)
+		case 18: case 19: case 20: case 21: case 26: case 27: case 28: case 29:	// (0%)
+		case 34: case 35: case 36: case 37: case 42: case 43: case 44: case 45:	// (0%)
+			n_flips = last_flip(pos, P);
+			score += n_flips;
+
+			if (n_flips == 0) {	// (23%)
+				score2 = score - 2;	// empty for opponent
+				if (score <= 0)
+					score = score2;
+				if (score > alpha) {	// lazy cut-off (40%)
+					if ((n_flips = last_flip(pos, ~P)) != 0)	// (98%)
+						score = score2 - n_flips;
+				}
+			}
+			break;
+
+		default:
+			UNREACHABLE;
 	}
-
 	return score;
 }
