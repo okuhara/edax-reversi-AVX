@@ -34,10 +34,10 @@ vc-x86-sse:
 	cl $(VC_FLAGS) /GL /D hasSSE2 all.c ws2_32.lib /Fe..\bin\wEdax-x86-sse.exe
 
 vc-x86-mmx:
-	cl $(VC_FLAGS) /GL /arch:IA32 /D hasMMX all.c ws2_32.lib /Fe..\bin\wEdax-x86-mmx.exe
+	cl $(VC_FLAGS) /GL /arch:IA32 /D hasMMX /D SIMULLASTFLIP all.c ws2_32.lib /Fe..\bin\wEdax-x86-mmx.exe
 
 vc-x86:
-	cl $(VC_FLAGS) /GL /arch:IA32 all.c ws2_32.lib /Fe..\bin\wEdax-x86.exe
+	cl $(VC_FLAGS) /GL /arch:IA32 /D SIMULLASTFLIP all.c ws2_32.lib /Fe..\bin\wEdax-x86.exe
 
 vc-a64:
 #	vcvarsamd64_arm64.bat
@@ -61,7 +61,7 @@ icc-x64:
 	icl $(VC_FLAGS) /GL /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-x86-64.exe /link /VERSION:4.5
 
 icc-x86:
-	icl $(VC_FLAGS) /GL /arch:IA32 all.c ws2_32.lib /Fe..\bin\wEdax-x86.exe
+	icl $(VC_FLAGS) /GL /arch:IA32 /D SIMULLASTFLIP all.c ws2_32.lib /Fe..\bin\wEdax-x86.exe
 
 clang-x64-v3:
 	clang-cl -mcrc $(VC_FLAGS) /D HAS_CPU_64 /arch:AVX2 /D POPCOUNT /D LASTFLIP_HIGHCUT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v3.exe /link /VERSION:4.5
@@ -73,7 +73,7 @@ clang-x64:
 	clang-cl $(VC_FLAGS) /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-x86-64.exe /link /VERSION:4.5
 
 clang-x86:
-	clang-cl $(VC_FLAGS) /arch:IA32 all.c ws2_32.lib /Fe..\bin\wEdax-x86.exe
+	clang-cl $(VC_FLAGS) /arch:IA32 /D SIMULLASTFLIP all.c ws2_32.lib /Fe..\bin\wEdax-x86.exe
 
 clang-a64:
 #	vcvarsamd64_arm64.bat

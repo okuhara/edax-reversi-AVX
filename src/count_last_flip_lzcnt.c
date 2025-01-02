@@ -18,14 +18,14 @@
  * For optimization purpose, the value returned is twice the number of flipped
  * disc, to facilitate the computation of disc difference.
  *
- * @date 1998 - 2014
+ * @date 1998 - 2025
  * @author Richard Delorme
  * @author Toshihiko Okuhara
- * @version 4.4
+ * @version 4.5
  * 
  */
 
-#include "bit_intrinsics.h"
+#include "bit.h"
 
 /** precomputed count flip array */
 static const unsigned char COUNT_FLIP[8][256] = {
@@ -250,7 +250,7 @@ int board_score_1(unsigned long long player, int alpha, int x)
 {
 	int score, score2, n_flips;
 
-	score = 2 * bit_count(player) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+	score = 2 * bit_count(player) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 
 	n_flips = last_flip(x, player);
 	score += n_flips;

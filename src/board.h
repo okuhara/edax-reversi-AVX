@@ -101,16 +101,16 @@ extern unsigned char edge_stability[256 * 256];
 	#define	unpackH2H7(x)	((((x) & 0x7e) * 0x0002040810204000) & 0x0080808080808000)
 #endif
 
-#if (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_CARRY) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_KINDERGARTEN) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BITSCAN) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_32)
+#if (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER >= COUNT_LAST_FLIP_BMI2)
+	extern int last_flip(int pos, unsigned long long P);
+#else
 	extern int (*count_last_flip[BOARD_SIZE + 1])(const unsigned long long);
 	#define	last_flip(x,P)	count_last_flip[x](P)
-#else
-	extern int last_flip(int pos, unsigned long long P);
 #endif
 extern int board_score_1(const unsigned long long player, const int alpha, const int x);
 #if (LAST_FLIP_COUNTER >= COUNT_LAST_FLIP_NEON)
 	extern int board_score_neon_1(uint64x1_t P, int alpha, int pos);
-#elif (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_AVX_PPFILL) || (LAST_FLIP_COUNTER >= COUNT_LAST_FLIP_BMI2)
+#elif (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER >= COUNT_LAST_FLIP_BMI2)
 	extern int vectorcall board_score_sse_1(__m128i OP, int alpha, int pos);
 #endif
 

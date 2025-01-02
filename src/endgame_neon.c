@@ -6,7 +6,7 @@
  *
  * Bitboard and empty list is kept in Neon registers.
  *
- * @date 1998 - 2024
+ * @date 1998 - 2025
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -23,10 +23,6 @@
 #ifndef HAS_CPU_64
 	#define vaddv_u8(x)	vget_lane_u32(vreinterpret_u32_u64(vpaddl_u32(vpaddl_u16(vpaddl_u8(x)))), 0)
 #endif
-
-// in count_last_flip_neon.c
-extern const unsigned char COUNT_FLIP[8][256];
-extern const uint64x2_t mask_dvhd[64][2];
 
 /**
  * @brief Compute a board resulting of a move played on a previous board.

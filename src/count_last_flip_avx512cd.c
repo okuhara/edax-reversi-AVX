@@ -7,7 +7,7 @@
  * For optimization purpose, the value returned is twice the number of flipped
  * disc, to facilitate the computation of disc difference.
  *
- * @date 2023 - 2024
+ * @date 2023 - 2025
  * @author Toshihiko Okuhara
  * @version 4.5
  * 
@@ -102,7 +102,7 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 	// score += ((~op_pass & 1) | ((op_pass >> 1) & (score >= 32)));
 	score += (~op_pass | ((op_pass >> 1) & (score >> 5))) & 1;
 	(void) alpha;	// no lazy cut-off
-	return score * 2 - SCORE_MAX;	// = bit_count(P) - (SCORE_MAX - bit_count(P))
+	return score * 2 - 64;	// = bit_count(P) - (SCORE_MAX - bit_count(P))
 }
 
 #elif defined(SIMULLASTFLIP)
@@ -149,7 +149,7 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 	// score += ((~op_pass & 1) | ((op_pass >> 1) & (score >= 32)));
 	score += (~op_pass | ((op_pass >> 1) & (score >> 5))) & 1;
 	(void) alpha;	// no lazy cut-off
-	return score * 2 - SCORE_MAX;	// = bit_count(P) - (SCORE_MAX - bit_count(P))
+	return score * 2 - 64;	// = bit_count(P) - (SCORE_MAX - bit_count(P))
 }
 
 #elif defined(LASTFLIP_HIGHCUT)
@@ -157,7 +157,7 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 
 inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 {
-	int score = 2 * bit_count(_mm_cvtsi128_si64(OP)) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+	int score = 2 * bit_count(_mm_cvtsi128_si64(OP)) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 		// if player can move, final score > this score.
 		// if player pass then opponent play, final score < score - 1 (cancel P) - 1 (last O).
 		// if both pass, score - 1 (cancel P) - 1 (empty for O) <= final score <= score (empty for P).
@@ -220,7 +220,7 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 
 inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 {
-	int score = 2 * bit_count(_mm_cvtsi128_si64(OP)) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+	int score = 2 * bit_count(_mm_cvtsi128_si64(OP)) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 		// if player can move, final score > this score.
 		// if player pass then opponent play, final score < score - 1 (cancel P) - 1 (last O).
 		// if both pass, score - 1 (cancel P) - 1 (empty for O) <= final score <= score (empty for P).
@@ -248,7 +248,7 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 
 	flip2 = _mm_or_si128(_mm256_castsi256_si128(flip), _mm256_extracti128_si256(flip, 1));
 	flip2 = _mm_or_si128(flip2, _mm_unpackhi_epi64(flip2, flip2));
-	score = 2 * bit_count(_mm_cvtsi128_si64(_mm_or_si128(P, flip2))) - SCORE_MAX + 2;
+	score = 2 * bit_count(_mm_cvtsi128_si64(_mm_or_si128(P, flip2))) - 64 + 2;
 
 	if (_mm_testz_si128(flip2, flip2)) {	// (23%)
 		score2 = score - 2;	// empty for opponent

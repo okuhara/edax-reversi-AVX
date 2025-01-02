@@ -48,7 +48,7 @@
 		#define MOVE_GENERATOR MOVE_GENERATOR_SSE
 	#elif defined(__ARM_FEATURE_SVE) && (__ARM_FEATURE_SVE_BITS > 128)
 		#define MOVE_GENERATOR MOVE_GENERATOR_SVE
-	#elif defined(__aarch64__) || defined(_M_ARM64) || defined(__arm__) || defined(_M_ARM)
+	#elif defined(__aarch64__) || defined(_M_ARM64)
 		#define MOVE_GENERATOR MOVE_GENERATOR_BITSCAN
 	#else
 		#define MOVE_GENERATOR MOVE_GENERATOR_32
@@ -59,7 +59,7 @@
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_AVX512
 	#elif defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2)
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_SSE
-	#elif defined(__aarch64__) || defined(_M_ARM64) || defined(__arm__) || defined(_M_ARM)
+	#elif defined(__aarch64__) || defined(_M_ARM64)
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_BITSCAN
 	#else
 		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_32

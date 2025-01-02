@@ -25,6 +25,8 @@
  * 
  */
 
+#include "bit.h"
+
 /** precomputed count flip array */
 const unsigned char COUNT_FLIP[8][256] = {
 	{
@@ -200,7 +202,7 @@ int board_score_1(const unsigned long long player, const int alpha, const int x)
 {
 	int score, score2, n_flips;
 
-	score = 2 * bit_count(player) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+	score = 2 * bit_count(player) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 
 	n_flips = last_flip(x, player);
 	score += n_flips;

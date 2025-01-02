@@ -6,7 +6,7 @@
  *
  * Bitboard and empty list are kept in SSE registers.
  *
- * @date 1998 - 2024
+ * @date 1998 - 2025
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -36,10 +36,6 @@
 #else
 	static inline int vectorcall TESTZ_FLIP(__m128i X) { return !_mm_cvtsi128_si32(_mm_packs_epi16(X, X)); }
 #endif
-
-// in count_last_flip_sse.c
-extern const uint8_t COUNT_FLIP[8][256];
-extern const V4DI mask_dvhd[64];
 
 /**
  * @brief Compute a board resulting of a move played on a previous board.

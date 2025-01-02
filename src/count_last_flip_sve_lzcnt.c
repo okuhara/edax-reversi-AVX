@@ -7,7 +7,7 @@
  * For optimization purpose, the value returned is twice the number of flipped
  * disc, to facilitate the computation of disc difference.
  *
- * @date 2024
+ * @date 2024 - 25
  * @author Toshihiko Okuhara
  * @version 4.5
  * 
@@ -128,7 +128,11 @@ int board_score_1(unsigned long long P, int alpha, int pos)
 	po_score = svsub_n_u64_m(svorr_b_z(svptrue_pat_b64(SV_VL1), svcmplt_n_u64(pg, po_score, 32), po_nopass), po_score, 1);
 	score = svlastb_u64(svorr_b_z(pg, po_nopass, svptrue_pat_b64(SV_VL1)), po_score);	// use o_score if p_pass
 	(void) alpha;	// no lazy cut-off
-	return score * 2 - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+	return score * 2 - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+}
+
+int board_score_neon_1(uint64x1_t P, int alpha, int pos) {
+	return board_score_1(vget_lane_u64(P, 0), alpha, pos);
 }
 
 #else
@@ -136,7 +140,7 @@ int board_score_1(unsigned long long player, int alpha, int x)
 {
 	int score, score2, n_flips;
 
-	score = 2 * bit_count(player) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+	score = 2 * bit_count(player) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 
 	n_flips = last_flip(x, player);
 	score += n_flips;
@@ -153,8 +157,26 @@ int board_score_1(unsigned long long player, int alpha, int x)
 
 	return score;
 }
-#endif
 
-int board_score_neon_1(uint64x1_t P, int alpha, int pos) {
-	board_score_1(vget_lane_u64(P, 0), alpha, pos);
+int board_score_neon_1(uint64x1_t P, int alpha, int pos)
+{
+	int score, score2, n_flips;
+
+	score = 2 * vaddv_u8(vcnt_u8(vreinterpret_u8_u64(P))) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+
+	n_flips = last_flip(x, vget_lane_u64(P, 0));
+	score += n_flips;
+
+	if (n_flips == 0) {	// (23%)
+		score2 = score - 2;	// empty for opponent
+		if (score <= 0)
+			score = score2;
+		if (score > alpha) {	// lazy cut-off (40%)
+			if ((n_flips = last_flip(x, ~vget_lane_u64(P, 0))) != 0)	// (98%)
+				score = score2 - n_flips;
+		}
+	}
+
+	return score;
 }
+#endif
