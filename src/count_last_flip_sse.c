@@ -783,17 +783,14 @@ int last_flip(int pos, unsigned long long P)
 	const uint16_t *COUNT_FLIP_X = COUNT_FLIP + ((pos & 7) * 256);
 	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + ((pos & 0x38) << 5);
   #ifdef AVXLASTFLIP	// no gain
-	__m256i PP = _mm256_set1_epi64x(P);
-
 	n_flips  = (uint8_t) COUNT_FLIP_X[(P >> (pos & 0x38)) & 0xFF];
-	t = TEST_EPI8_MASK32(PP, mask_vdhd[pos].v4);
+	t = TEST_EPI8_MASK32(_mm256_set1_epi64x(P), mask_vdhd[pos].v4);
 	n_flips += (uint8_t) COUNT_FLIP_Y[t & 0xFF];
 	t >>= 16;
 
   #else
 	__m128i PP = _mm_set1_epi64x(P);
 	__m128i II = _mm_sad_epu8(_mm_and_si128(PP, mask_vdhd[pos].v2[0]), _mm_setzero_si128());
-
 	n_flips  = (uint8_t) COUNT_FLIP_X[_mm_extract_epi16(II, 4)];
 	n_flips += (uint8_t) COUNT_FLIP_X[_mm_cvtsi128_si32(II)];
 	t = TEST_EPI8_MASK16(PP, mask_vdhd[pos].v2[1]);
@@ -895,54 +892,35 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 // COUNT_LAST_FLIP_SSE - reasonably fast on all platforms (2.61s on skylake, 2.16s on Zen4)
 inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 {
-	int	op_flip, p_flips, o_flips, score2;
+	uint_fast16_t	op_flip;
+	int	p_flips, o_flips, score2;
 	unsigned int	t;
   #ifdef AVXLASTFLIP	// no gain
-	__m256i M = mask_vdhd[pos].v4;
-	__m256i P4 = _mm256_broadcastq_epi64(OP);
 	unsigned long long P = _mm_cvtsi128_si64(OP);
 	int score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 
-	t = TEST_EPI8_MASK32(P4, M);
+	t = TEST_EPI8_MASK32(_mm256_broadcastq_epi64(OP), mask_vdhd[pos].v4);
 	op_flip  = COUNT_FLIP[cf_ofs_d[0][pos] + (t & 0xFF)];
 	op_flip += COUNT_FLIP[(pos & 7) * 256 + ((P >> (pos & 0x38)) & 0xFF)];
 	t >>= 16;
 
   #else
-	__m128i M0 = mask_vdhd[pos].v2[0];
-	__m128i M1 = mask_vdhd[pos].v2[1];
 	__m128i P2 = _mm_unpacklo_epi64(OP, OP);
-	__m128i II = _mm_sad_epu8(_mm_and_si128(P2, M0), _mm_setzero_si128());
+	__m128i II = _mm_sad_epu8(_mm_and_si128(P2, mask_vdhd[pos].v2[0]), _mm_setzero_si128());
 	int score = 2 * bit_count_si64(OP) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 
 	op_flip  = COUNT_FLIP[cf_ofs_d[0][pos] + _mm_cvtsi128_si32(II)];
 	op_flip += COUNT_FLIP[(pos & 7) * 256 + _mm_extract_epi16(II, 4)];
-	t = TEST_EPI8_MASK16(P2, M1);
+	t = TEST_EPI8_MASK16(P2, mask_vdhd[pos].v2[1]);
   #endif
 	op_flip += COUNT_FLIP[((pos & 0x38) << 5) + (t >> 8)];
 	op_flip += COUNT_FLIP[cf_ofs_d[1][pos] + (t & 0xFF)];
 
 	p_flips = op_flip & 0xFF;
 	o_flips = op_flip >> 8;
-  #ifdef SIMULLASTFLIP
 	score2 = score - o_flips - (int)((-o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
 	score += p_flips;
 	return p_flips ? score : score2;
-
-  #else
-	score += p_flips;
-
-	if (p_flips == 0) {
-		score2 = score - 2;	// empty for player
-		if (score <= 0)
-			score = score2;
-		if (score > alpha) {	// lazy cut-off
-			if (o_flips != 0)
-				score = score2 - o_flips;
-		}
-	}
-	return score;
-  #endif
 }
 #endif
 

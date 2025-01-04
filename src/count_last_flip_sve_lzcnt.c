@@ -83,7 +83,53 @@ int last_flip(int pos, unsigned long long P)
  * @param x      Last empty square to play.
  * @return       The final score, as a disc difference.
  */
-#ifdef SIMULLASTFLIP
+#ifdef LASTFLIP_LOWCUT
+
+int board_score_1(unsigned long long player, int alpha, int x)
+{
+	int score, score2, n_flips;
+
+	score = 2 * bit_count(player) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+
+	n_flips = last_flip(x, player);
+	score += n_flips;
+
+	if (n_flips == 0) {	// (23%)
+		score2 = score - 2;	// empty for opponent
+		if (score <= 0)
+			score = score2;
+		if (score > alpha) {	// lazy cut-off (40%)
+			if ((n_flips = last_flip(x, ~player)) != 0)	// (98%)
+				score = score2 - n_flips;
+		}
+	}
+
+	return score;
+}
+
+int board_score_neon_1(uint64x1_t P, int alpha, int pos)
+{
+	int score, score2, n_flips;
+
+	score = 2 * vaddv_u8(vcnt_u8(vreinterpret_u8_u64(P))) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+
+	n_flips = last_flip(x, vget_lane_u64(P, 0));
+	score += n_flips;
+
+	if (n_flips == 0) {	// (23%)
+		score2 = score - 2;	// empty for opponent
+		if (score <= 0)
+			score = score2;
+		if (score > alpha) {	// lazy cut-off (40%)
+			if ((n_flips = last_flip(x, ~vget_lane_u64(P, 0))) != 0)	// (98%)
+				score = score2 - n_flips;
+		}
+	}
+
+	return score;
+}
+
+#else
 int board_score_1(unsigned long long P, int alpha, int pos)
 {
 	int	score;
@@ -133,50 +179,5 @@ int board_score_1(unsigned long long P, int alpha, int pos)
 
 int board_score_neon_1(uint64x1_t P, int alpha, int pos) {
 	return board_score_1(vget_lane_u64(P, 0), alpha, pos);
-}
-
-#else
-int board_score_1(unsigned long long player, int alpha, int x)
-{
-	int score, score2, n_flips;
-
-	score = 2 * bit_count(player) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
-
-	n_flips = last_flip(x, player);
-	score += n_flips;
-
-	if (n_flips == 0) {	// (23%)
-		score2 = score - 2;	// empty for opponent
-		if (score <= 0)
-			score = score2;
-		if (score > alpha) {	// lazy cut-off (40%)
-			if ((n_flips = last_flip(x, ~player)) != 0)	// (98%)
-				score = score2 - n_flips;
-		}
-	}
-
-	return score;
-}
-
-int board_score_neon_1(uint64x1_t P, int alpha, int pos)
-{
-	int score, score2, n_flips;
-
-	score = 2 * vaddv_u8(vcnt_u8(vreinterpret_u8_u64(P))) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
-
-	n_flips = last_flip(x, vget_lane_u64(P, 0));
-	score += n_flips;
-
-	if (n_flips == 0) {	// (23%)
-		score2 = score - 2;	// empty for opponent
-		if (score <= 0)
-			score = score2;
-		if (score > alpha) {	// lazy cut-off (40%)
-			if ((n_flips = last_flip(x, ~vget_lane_u64(P, 0))) != 0)	// (98%)
-				score = score2 - n_flips;
-		}
-	}
-
-	return score;
 }
 #endif

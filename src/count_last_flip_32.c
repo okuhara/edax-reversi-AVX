@@ -1588,49 +1588,18 @@ int board_score_1(unsigned long long P, int alpha, int pos)
 		case 18: case 19: case 20: case 21: case 26: case 27: case 28: case 29:	// (0%)
 		case 34: case 35: case 36: case 37: case 42: case 43: case 44: case 45:	// (0%)
 			p_flips = (*count_last_flip[pos])(P);
-  #ifdef SIMULLASTFLIP
 			o_flips = (*count_last_flip[pos])(~P);
 			score2 = score - o_flips - (int)((-o_flips | (score - 1)) < 0) * 2;
 			score += p_flips;
 			return p_flips ? score : score2;
 
-  #else
-			score += p_flips;
-
-			if (p_flips == 0) {	// (23%)
-				score2 = score - 2;	// empty for opponent
-				if (score <= 0)
-					score = score2;
-				if (score > alpha) {	// lazy cut-off (40%)
-					if ((o_flips = (*count_last_flip[pos])(~P)) != 0)	// (98%)
-						score = score2 - o_flips;
-				}
-			}
-			return score;
-  #endif
 		default:
 			UNREACHABLE;
 	}
 
 	p_flips = op_flip & 0xff;
 	o_flips = op_flip >> 8;
-  #ifdef SIMULLASTFLIP
 	score2 = score - o_flips - (int)((-o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
 	score += p_flips;
 	return p_flips ? score : score2;
-
-  #else
-	score += p_flips;
-
-	if (p_flips == 0) {
-		score2 = score - 2;	// empty for opponent
-		if (score <= 0)
-			score = score2;
-		if (score > alpha) {	// lazy cut-off
-			if (o_flips != 0)
-				score = score2 - o_flips;
-		}
-	}
-	return score;
-  #endif
 }
