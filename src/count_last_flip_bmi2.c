@@ -497,7 +497,7 @@ inline int last_flip(int pos, unsigned long long P)
  */
 int board_score_1(unsigned long long P, int alpha, int pos)
 {
-	uint_fast16_t	opflip;
+	uint_fast16_t	op_flip;
 	int p_flips, o_flips, score2;
 	int score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 	int x = pos & 7;
