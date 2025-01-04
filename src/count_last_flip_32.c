@@ -1587,9 +1587,9 @@ int board_score_1(unsigned long long P, int alpha, int pos)
 		case 33: case 38: case 41: case 46: case 50: case 51: case 52: case 53: // (2.3%)
 		case 18: case 19: case 20: case 21: case 26: case 27: case 28: case 29:	// (0%)
 		case 34: case 35: case 36: case 37: case 42: case 43: case 44: case 45:	// (0%)
-			p_flips = last_flip(pos, P);
+			p_flips = (*count_last_flip[pos])(P);
   #ifdef SIMULLASTFLIP
-			o_flips = last_flip(pos, ~P);
+			o_flips = (*count_last_flip[pos])(~P);
 			score2 = score - o_flips - (int)((-o_flips | (score - 1)) < 0) * 2;
 			score += p_flips;
 			return p_flips ? score : score2;
@@ -1602,7 +1602,7 @@ int board_score_1(unsigned long long P, int alpha, int pos)
 				if (score <= 0)
 					score = score2;
 				if (score > alpha) {	// lazy cut-off (40%)
-					if ((o_flips = last_flip(pos, ~P)) != 0)	// (98%)
+					if ((o_flips = (*count_last_flip[pos])(~P)) != 0)	// (98%)
 						score = score2 - o_flips;
 				}
 			}

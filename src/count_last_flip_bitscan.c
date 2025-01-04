@@ -1132,7 +1132,7 @@ int board_score_1(unsigned long long player, int alpha, int x)
 
 	score = 2 * bit_count(player) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 
-	n_flips = last_flip(x, player);
+	n_flips = (*count_last_flip[x])(player);
 	score += n_flips;
 
 	if (n_flips == 0) {	// (23%)
@@ -1140,7 +1140,7 @@ int board_score_1(unsigned long long player, int alpha, int x)
 		if (score <= 0)
 			score = score2;
 		if (score > alpha) {	// lazy cut-off (40%)
-			if ((n_flips = last_flip(x, ~player)) != 0)	// (98%)
+			if ((n_flips = (*count_last_flip[x])(~player)) != 0)	// (98%)
 				score = score2 - n_flips;
 		}
 	}
