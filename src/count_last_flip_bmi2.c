@@ -464,7 +464,7 @@ inline int last_flip(int pos, unsigned long long P)
 int board_score_1(unsigned long long P, int alpha, int pos)
 {
 	uint_fast16_t	op_flip;
-	int p_flips, o_flips, score2;
+	int p_flips, o_flips;
 	int score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 	int x = pos & 7;
 
@@ -474,12 +474,12 @@ int board_score_1(unsigned long long P, int alpha, int pos)
 	op_flip += COUNT_FLIP[cf_ofs_d[1][pos] + _pext_u64(P, cf_mask_d[1][pos])];
 	op_flip += COUNT_FLIP[((pos & 0x38) << 5) + _pext_u64(P, 0x0101010101010101 << x)];
 
-	p_flips = op_flip & 0xFF;
 	o_flips = op_flip >> 8;
-	score2 = score - o_flips - (int)((-o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
-	score += p_flips;
+	p_flips = op_flip & 0xFF;
+	if (p_flips == 0)	// (23%)
+		score -= o_flips + (int)((-o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
 	(void) alpha;	// no lazy cut-off
-	return p_flips ? score : score2;
+	return score + p_flips;
 }
 
 inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int x) {

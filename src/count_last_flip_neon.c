@@ -738,7 +738,7 @@ int last_flip(int pos, unsigned long long P)
 int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 {
 	uint_fast16_t	op_flip;
-	int	p_flips, o_flips, score2;
+	int	p_flips, o_flips;
 	int	score = 2 * vaddv_u8(vcnt_u8(vreinterpret_u8_u64(P))) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 	uint64x2_t	PP = vdupq_lane_u64(P, 0);
 	uint64x2_t	I0, I1;
@@ -768,12 +768,12 @@ int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 	op_flip += COUNT_FLIP[((pos & 0x38) << 5) + vgetq_lane_u8(vreinterpretq_u8_u64(I1), 3)];
 	op_flip += COUNT_FLIP[cf_ofs_d[1][pos] + vgetq_lane_u8(vreinterpretq_u8_u64(I1), 11)];
   #endif
-	p_flips = op_flip & 0xFF;
 	o_flips = op_flip >> 8;
-	score2 = score - o_flips - (int)((-o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
-	score += p_flips;
+	p_flips = op_flip & 0xFF;
+	if (p_flips == 0)	// (23%)
+		score -= o_flips + (int)((-o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
 	(void) alpha;	// no lazy cut-off
-	return p_flips ? score : score2;
+	return score + p_flips;
 }
 
 int board_score_1(unsigned long long player, int alpha, int x) {

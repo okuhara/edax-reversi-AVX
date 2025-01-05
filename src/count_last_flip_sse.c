@@ -754,7 +754,7 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 {
 	uint_fast16_t	op_flip;
-	int	p_flips, o_flips, score2;
+	int	p_flips, o_flips;
 	unsigned int	t;
   #ifdef AVXLASTFLIP	// no gain
 	unsigned long long P = _mm_cvtsi128_si64(OP);
@@ -777,12 +777,12 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 	op_flip += COUNT_FLIP[((pos & 0x38) << 5) + (t >> 8)];
 	op_flip += COUNT_FLIP[cf_ofs_d[1][pos] + (t & 0xFF)];
 
-	p_flips = op_flip & 0xFF;
 	o_flips = op_flip >> 8;
-	score2 = score - o_flips - (int)((-o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
-	score += p_flips;
+	p_flips = op_flip & 0xFF;
+	if (p_flips == 0)	// (23%)
+		score -= o_flips + (int)((-o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
 	(void) alpha;	// no lazy cut-off
-	return p_flips ? score : score2;
+	return score + p_flips;
 }
 #endif
 
