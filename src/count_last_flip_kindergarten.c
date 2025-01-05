@@ -1599,5 +1599,6 @@ int board_score_1(unsigned long long P, int alpha, int pos)
 	o_flips = op_flip >> 8;
 	score2 = score - o_flips - (int)((-o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
 	score += p_flips;
+	(void) alpha;	// no lazy cut-off
 	return p_flips ? score : score2;
 }
