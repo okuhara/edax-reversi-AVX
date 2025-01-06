@@ -1588,19 +1588,21 @@ int board_score_1(unsigned long long P, int alpha, int pos)
 		case 18: case 19: case 20: case 21: case 26: case 27: case 28: case 29:	// (0%)
 		case 34: case 35: case 36: case 37: case 42: case 43: case 44: case 45:	// (0%)
 			p_flips = (*count_last_flip[pos])(P);
-			o_flips = (*count_last_flip[pos])(~P);
-			score2 = score - o_flips - (int)((-o_flips | (score - 1)) < 0) * 2;
-			score += p_flips;
-			return p_flips ? score : score2;
+			if (p_flips)	// (77%)
+				return score + p_flips;
+
+			o_flips = -(*count_last_flip[pos])(~P);
+			return score + o_flips - (int)((o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
 
 		default:
 			UNREACHABLE;
 	}
 
-	o_flips = op_flip >> 8;
 	p_flips = op_flip & 0xFF;
-	if (p_flips == 0)	// (23%)
-		score -= o_flips + (int)((-o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
+	if (p_flips)
+		return score + p_flips;
+
+	o_flips = -(op_flip >> 8);
 	(void) alpha;	// no lazy cut-off
-	return score + p_flips;
+	return score + o_flips - (int)((o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
 }
