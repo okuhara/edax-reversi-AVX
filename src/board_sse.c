@@ -368,20 +368,20 @@ unsigned long long get_moves(const unsigned long long P, const unsigned long lon
 	mO = O & 0x7e7e7e7e7e7e7e7eULL;
 	PP  = _mm_set_epi64x(vertical_mirror(P), P);
 	mOO = _mm_set_epi64x(vertical_mirror(mO), mO);
-		/* shift=-9:+7 */								/* shift=+8 */			/* shift=+1 */
-	flip = _mm_and_si128(mOO, _mm_slli_epi64(PP, 7));				flip8  = O & (P << 8);		flip1  = mO & (P << 1);
-	flip = _mm_or_si128(flip, _mm_and_si128(mOO, _mm_slli_epi64(flip, 7)));		flip8 |= O & (flip8 << 8);	moves  = mO + flip1;
-	pre  = _mm_and_si128(mOO, _mm_slli_epi64(mOO, 7));				pre8   = O & (O << 8);
+	    /* shift=-9:+7 */                                                   	    /* shift=+8 */            	    /* shift=+1 */
+	flip = _mm_and_si128(mOO, _mm_slli_epi64(PP, 7));                       	flip8  = O & (P << 8);        	flip1  = mO & (P << 1);
+	flip = _mm_or_si128(flip, _mm_and_si128(mOO, _mm_slli_epi64(flip, 7))); 	flip8 |= O & (flip8 << 8);    	moves  = mO + flip1;
+	pre  = _mm_and_si128(mOO, _mm_slli_epi64(mOO, 7));                      	pre8   = O & (O << 8);
 	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_slli_epi64(flip, 14)));	flip8 |= pre8 & (flip8 << 16);
 	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_slli_epi64(flip, 14)));	flip8 |= pre8 & (flip8 << 16);
-	MM = _mm_slli_epi64(flip, 7);							moves |= flip8 << 8;
-		/* shift=+9:-7 */								/* shift=-8 */			/* shift=-1 */
-	flip = _mm_and_si128(mOO, _mm_srli_epi64(PP, 7));				flip8  = O & (P >> 8);		flip1  = mO & (P >> 1);
-	flip = _mm_or_si128(flip, _mm_and_si128(mOO, _mm_srli_epi64(flip, 7)));		flip8 |= O & (flip8 >> 8);	flip1 |= mO & (flip1 >> 1);
-	pre = _mm_srli_epi64(pre, 7);							pre8 >>= 8;			pre1   = mO & (mO >> 1);
+	MM = _mm_slli_epi64(flip, 7);                                           	moves |= flip8 << 8;
+	    /* shift=+9:-7 */                                                   	    /* shift=-8 */            	    /* shift=-1 */
+	flip = _mm_and_si128(mOO, _mm_srli_epi64(PP, 7));                       	flip8  = O & (P >> 8);        	flip1  = mO & (P >> 1);
+	flip = _mm_or_si128(flip, _mm_and_si128(mOO, _mm_srli_epi64(flip, 7))); 	flip8 |= O & (flip8 >> 8);    	flip1 |= mO & (flip1 >> 1);
+	pre = _mm_srli_epi64(pre, 7);                                           	pre8 >>= 8;                   	pre1   = mO & (mO >> 1);
 	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_srli_epi64(flip, 14)));	flip8 |= pre8 & (flip8 >> 16);	flip1 |= pre1 & (flip1 >> 2);
 	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_srli_epi64(flip, 14)));	flip8 |= pre8 & (flip8 >> 16);	flip1 |= pre1 & (flip1 >> 2);
-	MM = _mm_or_si128(MM, _mm_srli_epi64(flip, 7));					moves |= flip8 >> 8;		moves |= flip1 >> 1;
+	MM = _mm_or_si128(MM, _mm_srli_epi64(flip, 7));                         	moves |= flip8 >> 8;          	moves |= flip1 >> 1;
 
 	moves |= _mm_cvtsi128_si64(MM) | vertical_mirror(_mm_cvtsi128_si64(_mm_unpackhi_epi64(MM, MM)));
 	return moves & ~(P|O);	// mask with empties
@@ -395,18 +395,18 @@ unsigned long long get_moves(const unsigned long long P, const unsigned long lon
 	unsigned long long flip1, flip7, flip9, flip8, pre1, pre7, pre9, pre8;
 
 	mO = O & 0x7e7e7e7e7e7e7e7eULL;
-	flip7  = mO & (P << 7);		flip9  = mO & (P << 9);		flip8  = O & (P << 8);		flip1  = mO & (P << 1);
-	flip7 |= mO & (flip7 << 7);	flip9 |= mO & (flip9 << 9);	flip8 |= O & (flip8 << 8);	moves  = mO + flip1;
-	pre7 = mO & (mO << 7);		pre9 = mO & (mO << 9);		pre8 = O & (O << 8);
+	flip7  = mO & (P << 7);       	flip9  = mO & (P << 9);       	flip8  = O & (P << 8);        	flip1  = mO & (P << 1);
+	flip7 |= mO & (flip7 << 7);   	flip9 |= mO & (flip9 << 9);   	flip8 |= O & (flip8 << 8);    	moves  = mO + flip1;
+	pre7 = mO & (mO << 7);        	pre9 = mO & (mO << 9);        	pre8 = O & (O << 8);
 	flip7 |= pre7 & (flip7 << 14);	flip9 |= pre9 & (flip9 << 18);	flip8 |= pre8 & (flip8 << 16);
 	flip7 |= pre7 & (flip7 << 14);	flip9 |= pre9 & (flip9 << 18);	flip8 |= pre8 & (flip8 << 16);
-	moves |= flip7 << 7;		moves |= flip9 << 9;		moves |= flip8 << 8;
-	flip7  = mO & (P >> 7);		flip9  = mO & (P >> 9);		flip8  = O & (P >> 8);		flip1  = mO & (P >> 1);
-	flip7 |= mO & (flip7 >> 7);	flip9 |= mO & (flip9 >> 9);	flip8 |= O & (flip8 >> 8);	flip1 |= mO & (flip1 >> 1);
-	pre7 >>= 7;			pre9 >>= 9;			pre8 >>= 8;			pre1 = mO & (mO >> 1);
+	moves |= flip7 << 7;          	moves |= flip9 << 9;          	moves |= flip8 << 8;
+	flip7  = mO & (P >> 7);       	flip9  = mO & (P >> 9);       	flip8  = O & (P >> 8);        	flip1  = mO & (P >> 1);
+	flip7 |= mO & (flip7 >> 7);   	flip9 |= mO & (flip9 >> 9);   	flip8 |= O & (flip8 >> 8);    	flip1 |= mO & (flip1 >> 1);
+	pre7 >>= 7;                   	pre9 >>= 9;                   	pre8 >>= 8;                   	pre1 = mO & (mO >> 1);
 	flip7 |= pre7 & (flip7 >> 14);	flip9 |= pre9 & (flip9 >> 18);	flip8 |= pre8 & (flip8 >> 16);	flip1 |= pre1 & (flip1 >> 2);
 	flip7 |= pre7 & (flip7 >> 14);	flip9 |= pre9 & (flip9 >> 18);	flip8 |= pre8 & (flip8 >> 16);	flip1 |= pre1 & (flip1 >> 2);
-	moves |= flip7 >> 7;		moves |= flip9 >> 9;		moves |= flip8 >> 8;		moves |= flip1 >> 1;
+	moves |= flip7 >> 7;          	moves |= flip9 >> 9;          	moves |= flip8 >> 8;          	moves |= flip1 >> 1;
 
 	return moves & ~(P|O);	// mask with empties
 }
@@ -424,32 +424,32 @@ unsigned long long get_moves_sse(unsigned long long P, unsigned long long O)
 	uint64x2_t	PP, OO, MM, flip, pre;
 
 		/* vertical_mirror in PP[1], OO[1] */
-	rP = vreinterpret_u64_u8(vrev64_u8(vcreate_u8(P)));			mO = (unsigned int) O & 0x7e7e7e7e;
-	PP = vcombine_u64(vcreate_u64(P), rP);					flip1  = mO & ((unsigned int) P << 1);
-	rO = vreinterpret_u64_u8(vrev64_u8(vcreate_u8(O)));			movesL = mO + flip1;
+	rP = vreinterpret_u64_u8(vrev64_u8(vcreate_u8(P)));           		mO = (unsigned int) O & 0x7e7e7e7e;
+	PP = vcombine_u64(vcreate_u64(P), rP);                        		flip1  = mO & ((unsigned int) P << 1);
+	rO = vreinterpret_u64_u8(vrev64_u8(vcreate_u8(O)));           		movesL = mO + flip1;
 	OO = vcombine_u64(vcreate_u64(O), rO);
 
-	flip = vandq_u64(OO, vshlq_n_u64(PP, 8));				flip1  = mO & ((unsigned int) P >> 1);
-	flip = vorrq_u64(flip, vandq_u64(OO, vshlq_n_u64(flip, 8)));		flip1 |= mO & (flip1 >> 1);
-	pre  = vandq_u64(OO, vshlq_n_u64(OO, 8));				pre1   = mO & (mO >> 1);
+	flip = vandq_u64(OO, vshlq_n_u64(PP, 8));                     		flip1  = mO & ((unsigned int) P >> 1);
+	flip = vorrq_u64(flip, vandq_u64(OO, vshlq_n_u64(flip, 8)));  		flip1 |= mO & (flip1 >> 1);
+	pre  = vandq_u64(OO, vshlq_n_u64(OO, 8));                     		pre1   = mO & (mO >> 1);
 	flip = vorrq_u64(flip, vandq_u64(pre, vshlq_n_u64(flip, 16)));		flip1 |= pre1 & (flip1 >> 2);
 	flip = vorrq_u64(flip, vandq_u64(pre, vshlq_n_u64(flip, 16)));		flip1 |= pre1 & (flip1 >> 2);
-	MM = vshlq_n_u64(flip, 8);						movesL |= flip1 >> 1;
+	MM = vshlq_n_u64(flip, 8);                                    		movesL |= flip1 >> 1;
 
-	OO = vandq_u64(OO, vdupq_n_u64(0x7e7e7e7e7e7e7e7e));			mO = (unsigned int) (O >> 32) & 0x7e7e7e7e;
-	flip = vandq_u64(OO, vshlq_n_u64(PP, 7));				flip1  = mO & ((unsigned int) (P >> 32) << 1);
-	flip = vorrq_u64(flip, vandq_u64(OO, vshlq_n_u64(flip, 7)));		movesH = mO + flip1;
+	OO = vandq_u64(OO, vdupq_n_u64(0x7e7e7e7e7e7e7e7e));          		mO = (unsigned int) (O >> 32) & 0x7e7e7e7e;
+	flip = vandq_u64(OO, vshlq_n_u64(PP, 7));                     		flip1  = mO & ((unsigned int) (P >> 32) << 1);
+	flip = vorrq_u64(flip, vandq_u64(OO, vshlq_n_u64(flip, 7)));  		movesH = mO + flip1;
 	pre  = vandq_u64(OO, vshlq_n_u64(OO, 7));
 	flip = vorrq_u64(flip, vandq_u64(pre, vshlq_n_u64(flip, 14)));
 	flip = vorrq_u64(flip, vandq_u64(pre, vshlq_n_u64(flip, 14)));
 	MM = vorrq_u64(MM, vshlq_n_u64(flip, 7));
 
-	flip = vandq_u64(OO, vshrq_n_u64(PP, 7));				flip1  = mO & ((unsigned int) (P >> 32) >> 1);
-	flip = vorrq_u64(flip, vandq_u64(OO, vshrq_n_u64(flip, 7)));		flip1 |= mO & (flip1 >> 1);
-	pre  = vshrq_n_u64(pre, 7);						pre1   = mO & (mO >> 1);
+	flip = vandq_u64(OO, vshrq_n_u64(PP, 7));                     		flip1  = mO & ((unsigned int) (P >> 32) >> 1);
+	flip = vorrq_u64(flip, vandq_u64(OO, vshrq_n_u64(flip, 7)));  		flip1 |= mO & (flip1 >> 1);
+	pre  = vshrq_n_u64(pre, 7);                                   		pre1   = mO & (mO >> 1);
 	flip = vorrq_u64(flip, vandq_u64(pre, vshrq_n_u64(flip, 14)));		flip1 |= pre1 & (flip1 >> 2);
 	flip = vorrq_u64(flip, vandq_u64(pre, vshrq_n_u64(flip, 14)));		flip1 |= pre1 & (flip1 >> 2);
-	MM = vorrq_u64(MM, vshrq_n_u64(flip, 7));				movesH |= flip1 >> 1;
+	MM = vorrq_u64(MM, vshrq_n_u64(flip, 7));                     		movesH |= flip1 >> 1;
 
 	movesL |= vgetq_lane_u32(vreinterpretq_u32_u64(MM), 0) | bswap_int(vgetq_lane_u32(vreinterpretq_u32_u64(MM), 3));
 	movesH |= vgetq_lane_u32(vreinterpretq_u32_u64(MM), 1) | bswap_int(vgetq_lane_u32(vreinterpretq_u32_u64(MM), 2));
@@ -473,34 +473,34 @@ unsigned long long get_moves_sse(const unsigned long long P, const unsigned long
 	__m128i	OP, rOP, PP, OO, MM, flip, pre;
 
 		// vertical_mirror in PP[1], OO[1]
-	OP  = _mm_unpacklo_epi64(_mm_cvtsi64_si128(P), _mm_cvtsi64_si128(O));		mO = (unsigned int) O & 0x7e7e7e7eU;
-	rOP = _mm_shufflelo_epi16(OP, 0x1B);						flip1  = mO & ((unsigned int) P << 1);
-	rOP = _mm_shufflehi_epi16(rOP, 0x1B);						movesL = mO + flip1;
+	OP  = _mm_unpacklo_epi64(_mm_cvtsi64_si128(P), _mm_cvtsi64_si128(O));   	mO = (unsigned int) O & 0x7e7e7e7eU;
+	rOP = _mm_shufflelo_epi16(OP, 0x1B);                                    	flip1  = mO & ((unsigned int) P << 1);
+	rOP = _mm_shufflehi_epi16(rOP, 0x1B);                                   	movesL = mO + flip1;
 	rOP = _mm_or_si128(_mm_srli_epi16(rOP, 8), _mm_slli_epi16(rOP, 8));
 	PP  = _mm_unpacklo_epi64(OP, rOP);
 	OO  = _mm_unpackhi_epi64(OP, rOP);
 
-	flip = _mm_and_si128(OO, _mm_slli_epi64(PP, 8));				flip1  = mO & ((unsigned int) P >> 1);
-	flip = _mm_or_si128(flip, _mm_and_si128(OO, _mm_slli_epi64(flip, 8)));		flip1 |= mO & (flip1 >> 1);
-	pre = _mm_and_si128(OO, _mm_slli_epi64(OO, 8));					pre1   = mO & (mO >> 1);
+	flip = _mm_and_si128(OO, _mm_slli_epi64(PP, 8));                        	flip1  = mO & ((unsigned int) P >> 1);
+	flip = _mm_or_si128(flip, _mm_and_si128(OO, _mm_slli_epi64(flip, 8)));  	flip1 |= mO & (flip1 >> 1);
+	pre = _mm_and_si128(OO, _mm_slli_epi64(OO, 8));                         	pre1   = mO & (mO >> 1);
 	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_slli_epi64(flip, 16)));	flip1 |= pre1 & (flip1 >> 2);
 	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_slli_epi64(flip, 16)));	flip1 |= pre1 & (flip1 >> 2);
-	MM = _mm_slli_epi64(flip, 8);							movesL |= flip1 >> 1;
+	MM = _mm_slli_epi64(flip, 8);                                           	movesL |= flip1 >> 1;
 
-	OO = _mm_and_si128(OO, _mm_set1_epi8(0x7e));					mO = (unsigned int) (O >> 32) & 0x7e7e7e7eU;
-	flip = _mm_and_si128(OO, _mm_slli_epi64(PP, 7));				flip1  = mO & ((unsigned int) (P >> 32) << 1);
-	flip = _mm_or_si128(flip, _mm_and_si128(OO, _mm_slli_epi64(flip, 7)));		movesH = mO + flip1;
+	OO = _mm_and_si128(OO, _mm_set1_epi8(0x7e));                            	mO = (unsigned int) (O >> 32) & 0x7e7e7e7eU;
+	flip = _mm_and_si128(OO, _mm_slli_epi64(PP, 7));                        	flip1  = mO & ((unsigned int) (P >> 32) << 1);
+	flip = _mm_or_si128(flip, _mm_and_si128(OO, _mm_slli_epi64(flip, 7)));  	movesH = mO + flip1;
 	pre = _mm_and_si128(OO, _mm_slli_epi64(OO, 7));
 	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_slli_epi64(flip, 14)));
 	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_slli_epi64(flip, 14)));
 	MM = _mm_or_si128(MM, _mm_slli_epi64(flip, 7));
 
-	flip = _mm_and_si128(OO, _mm_srli_epi64(PP, 7));				flip1  = mO & ((unsigned int) (P >> 32) >> 1);
-	flip = _mm_or_si128(flip, _mm_and_si128(OO, _mm_srli_epi64(flip, 7)));		flip1 |= mO & (flip1 >> 1);
-	pre = _mm_srli_epi64(pre, 7);							pre1   = mO & (mO >> 1);
+	flip = _mm_and_si128(OO, _mm_srli_epi64(PP, 7));                        	flip1  = mO & ((unsigned int) (P >> 32) >> 1);
+	flip = _mm_or_si128(flip, _mm_and_si128(OO, _mm_srli_epi64(flip, 7)));  	flip1 |= mO & (flip1 >> 1);
+	pre = _mm_srli_epi64(pre, 7);                                           	pre1   = mO & (mO >> 1);
 	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_srli_epi64(flip, 14)));	flip1 |= pre1 & (flip1 >> 2);
 	flip = _mm_or_si128(flip, _mm_and_si128(pre, _mm_srli_epi64(flip, 14)));	flip1 |= pre1 & (flip1 >> 2);
-	MM = _mm_or_si128(MM, _mm_srli_epi64(flip, 7));					movesH |= flip1 >> 1;
+	MM = _mm_or_si128(MM, _mm_srli_epi64(flip, 7));                         	movesH |= flip1 >> 1;
 
 	movesL |= _mm_cvtsi128_si32(MM);	MM = _mm_srli_si128(MM, 4);
 	movesH |= _mm_cvtsi128_si32(MM);	MM = _mm_srli_si128(MM, 4);
@@ -522,93 +522,93 @@ unsigned long long get_moves_sse(const unsigned long long P, const unsigned long
 		"andl	$0x7e7e7e7e, %%edi\n\t"
 				/* shift=-1 */			/* vertical mirror in PP[1], OO[1] */
 		"movl	%%ebx, %%eax\n\t"	"movd	%1, %%xmm4\n\t"		// (movd for store-forwarding)
-		"shrl	$1, %%eax\n\t"		"movd	%2, %%xmm0\n\t"
+		"shrl	$1, %%eax\n\t"   	"movd	%2, %%xmm0\n\t"
 		"andl	%%edi, %%eax\n\t"	"movd	%3, %%xmm5\n\t"
 		"movl	%%eax, %%edx\n\t"	"movd	%4, %%xmm1\n\t"
-		"shrl	$1, %%eax\n\t"		"punpckldq %%xmm0, %%xmm4\n\t"		// P
+		"shrl	$1, %%eax\n\t"   	"punpckldq %%xmm0, %%xmm4\n\t"		// P
 		"movl	%%edi, %%ecx\n\t"	"punpckldq %%xmm1, %%xmm5\n\t"		// O
 		"andl	%%edi, %%eax\n\t"	"punpcklqdq %%xmm5, %%xmm4\n\t"		// OP
-		"shrl	$1, %%ecx\n\t"		"pshuflw $0x1b, %%xmm4, %%xmm0\n\t"
+		"shrl	$1, %%ecx\n\t"   	"pshuflw $0x1b, %%xmm4, %%xmm0\n\t"
 		"orl	%%edx, %%eax\n\t"	"pshufhw $0x1b, %%xmm0, %%xmm0\n\t"
 		"andl	%%edi, %%ecx\n\t"	"movdqa	%%xmm0, %%xmm1\n\t"
 		"movl	%%eax, %%edx\n\t"	"psllw	$8, %%xmm0\n\t"
-		"shrl	$2, %%eax\n\t"		"psrlw	$8, %%xmm1\n\t"
+		"shrl	$2, %%eax\n\t"   	"psrlw	$8, %%xmm1\n\t"
 		"andl	%%ecx, %%eax\n\t"	"por	%%xmm1, %%xmm0\n\t"		// rOP
 		"orl	%%eax, %%edx\n\t"
-		"shrl	$2, %%eax\n\t"		"movdqa	%%xmm4, %%xmm5\n\t"
+		"shrl	$2, %%eax\n\t"   	"movdqa	%%xmm4, %%xmm5\n\t"
 		"andl	%%ecx, %%eax\n\t"	"punpcklqdq %%xmm0, %%xmm4\n\t"		// PP
 		"orl	%%edx, %%eax\n\t"	"punpckhqdq %%xmm0, %%xmm5\n\t"		// OO
 		"shrl	$1, %%eax\n\t"
-				/* shift=+1 */			/* shift=-8:+8 */
-						"movdqa	%%xmm4, %%xmm0\n\t"
+		           /* shift=+1 */	           /* shift=-8:+8 */
+		                         	"movdqa	%%xmm4, %%xmm0\n\t"
 		"addl	%%ebx, %%ebx\n\t"	"psllq	$8, %%xmm0\n\t"
 		"andl	%%edi, %%ebx\n\t"	"pand	%%xmm5, %%xmm0\n\t"	// 0 m7&o6 m6&o5 .. m1&o0
-						"movdqa	%%xmm0, %%xmm1\n\t"
+		                         	"movdqa	%%xmm0, %%xmm1\n\t"
 		"addl	%%edi, %%ebx\n\t"	"psllq	$8, %%xmm0\n\t"
 		"orl	%%eax, %%ebx\n\t"	"movdqa	%%xmm5, %%xmm3\n\t"
-						"pand	%%xmm5, %%xmm0\n\t"	// 0 0 m7&o6&o5 .. m2&o1&o0
-						"psllq	$8, %%xmm3\n\t"
-						"por	%%xmm1, %%xmm0\n\t"	// 0 m7&o6 (m6&o5)|(m7&o6&o5) .. (m1&o0)
-						"pand	%%xmm5, %%xmm3\n\t"	// 0 o7&o6 o6&o5 o5&o4 o4&o3 ..
-						"movdqa	%%xmm0, %%xmm2\n\t"
-						"psllq	$16, %%xmm0\n\t"
-						"pand	%%xmm3, %%xmm0\n\t"	// 0 0 0 m7&o6&o5&o4 (m6&o5&o4&o3)|(m7&o6&o5&o4&o3) ..
-						"por	%%xmm0, %%xmm2\n\t"
-							"psllq	$16, %%xmm0\n\t"
-						"pand	%%xmm3, %%xmm0\n\t"	// 0 0 0 0 0 m7&o6&..&o2 (m6&o5&..&o1)|(m7&o6&..&o1) ..
+		                         	"pand	%%xmm5, %%xmm0\n\t"	// 0 0 m7&o6&o5 .. m2&o1&o0
+		                         	"psllq	$8, %%xmm3\n\t"
+		                         	"por	%%xmm1, %%xmm0\n\t"	// 0 m7&o6 (m6&o5)|(m7&o6&o5) .. (m1&o0)
+		                         	"pand	%%xmm5, %%xmm3\n\t"	// 0 o7&o6 o6&o5 o5&o4 o4&o3 ..
+		                         	"movdqa	%%xmm0, %%xmm2\n\t"
+		                         	"psllq	$16, %%xmm0\n\t"
+		                         	"pand	%%xmm3, %%xmm0\n\t"	// 0 0 0 m7&o6&o5&o4 (m6&o5&o4&o3)|(m7&o6&o5&o4&o3) ..
+		                         	"por	%%xmm0, %%xmm2\n\t"
+		                         		"psllq	$16, %%xmm0\n\t"
+		                         	"pand	%%xmm3, %%xmm0\n\t"	// 0 0 0 0 0 m7&o6&..&o2 (m6&o5&..&o1)|(m7&o6&..&o1) ..
 		"movl	%2, %%esi\n\t"		"por	%%xmm0, %%xmm2\n\t"
 		"movl	%4, %%edi\n\t"		"psllq	$8, %%xmm2\n\t"
 
-				/* shift=-1 */			/* shift=-9:+7 */
+		           /* shift=-1 */	           /* shift=-9:+7 */
 		"andl	$0x7e7e7e7e,%%edi\n\t"	"pand	%5, %%xmm5\n\t"
 		"movl	%%esi, %%eax\n\t"	"movdqa	%%xmm4, %%xmm0\n\t"
-		"shrl	$1, %%eax\n\t"		"psllq	$7, %%xmm0\n\t"
+		"shrl	$1, %%eax\n\t"   	"psllq	$7, %%xmm0\n\t"
 		"andl	%%edi, %%eax\n\t"	"pand	%%xmm5, %%xmm0\n\t"
 		"movl	%%eax, %%edx\n\t"	"movdqa	%%xmm0, %%xmm1\n\t"
-		"shrl	$1, %%eax\n\t"		"psllq	$7, %%xmm0\n\t"
+		"shrl	$1, %%eax\n\t"   	"psllq	$7, %%xmm0\n\t"
 		"andl	%%edi, %%eax\n\t"	"pand	%%xmm5, %%xmm0\n\t"
 		"movl	%%edi, %%ecx\n\t"	"movdqa	%%xmm5, %%xmm3\n\t"
 		"orl	%%edx, %%eax\n\t"	"por	%%xmm1, %%xmm0\n\t"
-		"shrl	$1, %%ecx\n\t"		"psllq	$7, %%xmm3\n\t"
+		"shrl	$1, %%ecx\n\t"   	"psllq	$7, %%xmm3\n\t"
 		"movl	%%eax, %%edx\n\t"	"movdqa	%%xmm0, %%xmm1\n\t"
 		"andl	%%edi, %%ecx\n\t"	"pand	%%xmm5, %%xmm3\n\t"
-		"shrl	$2, %%eax\n\t"		"psllq	$14, %%xmm0\n\t"
+		"shrl	$2, %%eax\n\t"   	"psllq	$14, %%xmm0\n\t"
 		"andl	%%ecx, %%eax\n\t"	"pand	%%xmm3, %%xmm0\n\t"
 		"orl	%%eax, %%edx\n\t"	"por	%%xmm0, %%xmm1\n\t"
-		"shrl	$2, %%eax\n\t"		"psllq	$14, %%xmm0\n\t"
+		"shrl	$2, %%eax\n\t"   	"psllq	$14, %%xmm0\n\t"
 		"andl	%%ecx, %%eax\n\t"	"pand	%%xmm3, %%xmm0\n\t"
 		"orl	%%edx, %%eax\n\t"	"por	%%xmm1, %%xmm0\n\t"
-		"shrl	$1, %%eax\n\t"		"psllq	$7, %%xmm0\n\t"
-						"por	%%xmm0, %%xmm2\n\t"
-				/* shift=+1 */			/* shift=-7:+9 */
-						"movdqa	%%xmm4, %%xmm0\n\t"
+		"shrl	$1, %%eax\n\t"   	"psllq	$7, %%xmm0\n\t"
+		                         	"por	%%xmm0, %%xmm2\n\t"
+		           /* shift=+1 */	           /* shift=-7:+9 */
+		                         	"movdqa	%%xmm4, %%xmm0\n\t"
 		"addl	%%esi, %%esi\n\t"	"psllq	$9, %%xmm0\n\t"
 		"andl	%%edi, %%esi\n\t"	"pand	%%xmm5, %%xmm0\n\t"
-						"movdqa	%%xmm0, %%xmm1\n\t"
+		                         	"movdqa	%%xmm0, %%xmm1\n\t"
 		"addl	%%edi, %%esi\n\t"	"psllq	$9, %%xmm0\n\t"
 		"orl	%%eax, %%esi\n\t"	"pand	%%xmm5, %%xmm0\n\t"
-						"movdqa	%%xmm5, %%xmm3\n\t"
-						"por	%%xmm1, %%xmm0\n\t"
-						"psllq	$9, %%xmm3\n\t"
-						"movdqa	%%xmm0, %%xmm1\n\t"
-						"pand	%%xmm5, %%xmm3\n\t"
-						"psllq	$18, %%xmm0\n\t"
-						"pand	%%xmm3, %%xmm0\n\t"
-						"por	%%xmm0, %%xmm1\n\t"
-							"psllq	$18, %%xmm0\n\t"
-						"pand	%%xmm3, %%xmm0\n\t"
-						"por	%%xmm1, %%xmm0\n\t"
-						"psllq	$9, %%xmm0\n\t"
-						"por	%%xmm0, %%xmm2\n\t"
+		                         	"movdqa	%%xmm5, %%xmm3\n\t"
+		                         	"por	%%xmm1, %%xmm0\n\t"
+		                         	"psllq	$9, %%xmm3\n\t"
+		                         	"movdqa	%%xmm0, %%xmm1\n\t"
+		                         	"pand	%%xmm5, %%xmm3\n\t"
+		                         	"psllq	$18, %%xmm0\n\t"
+		                         	"pand	%%xmm3, %%xmm0\n\t"
+		                         	"por	%%xmm0, %%xmm1\n\t"
+		                         		"psllq	$18, %%xmm0\n\t"
+		                         	"pand	%%xmm3, %%xmm0\n\t"
+		                         	"por	%%xmm1, %%xmm0\n\t"
+		                         	"psllq	$9, %%xmm0\n\t"
+		                         	"por	%%xmm0, %%xmm2\n\t"
 
-		"movl	%1, %%eax\n\t"		"movhlps %%xmm2, %%xmm3\n\t"
-		"movl	%2, %%edx\n\t"		"movd	%%xmm3, %%edi\n\t"	"movd	%%xmm2, %%ecx\n\t"
-						"psrlq	$32, %%xmm3\n\t"	"psrlq	$32, %%xmm2\n\t"
-						"bswapl	%%edi\n\t"		"orl	%%ecx, %%ebx\n\t"
-		"orl	%3, %%eax\n\t"		"orl	%%edi, %%esi\n\t"
-		"orl	%4, %%edx\n\t"		"movd	%%xmm3, %%edi\n\t"	"movd	%%xmm2, %%ecx\n\t"
-		"notl	%%eax\n\t"		"bswapl	%%edi\n\t"
-		"notl	%%edx\n\t"		"orl	%%edi, %%ebx\n\t"	"orl	%%ecx, %%esi\n\t"
+		"movl	%1, %%eax\n\t"   	"movhlps %%xmm2, %%xmm3\n\t"
+		"movl	%2, %%edx\n\t"   	"movd	%%xmm3, %%edi\n\t"	"movd	%%xmm2, %%ecx\n\t"
+		                         	"psrlq	$32, %%xmm3\n\t"  	"psrlq	$32, %%xmm2\n\t"
+		                         	"bswapl	%%edi\n\t"        	"orl	%%ecx, %%ebx\n\t"
+		"orl	%3, %%eax\n\t"   	"orl	%%edi, %%esi\n\t"
+		"orl	%4, %%edx\n\t"   	"movd	%%xmm3, %%edi\n\t"	"movd	%%xmm2, %%ecx\n\t"
+		"notl	%%eax\n\t"       	"bswapl	%%edi\n\t"
+		"notl	%%edx\n\t"       	"orl	%%edi, %%ebx\n\t" 	"orl	%%ecx, %%esi\n\t"
 		"andl	%%esi, %%edx\n\t"
 		"andl	%%ebx, %%eax"
 	: "=&A" (moves)
@@ -763,10 +763,10 @@ static __m256i vectorcall get_full_lines(const unsigned long long disc)
 	static const V4DI m794 = {{ 0x0080402010080402, 0x0001020408102040, 0x4020100804020100, 0x0204081020408000 }};
 	static const V2DI m795 = {{ 0x8040201008040201, 0x0102040810204080 }};
 
-	l81 = _mm_cvtsi64_si128(disc);				v4_disc = _mm256_broadcastq_epi64(l81);
-	l81 = _mm_cmpeq_epi8(kff, l81);				lr79 = _mm256_and_si256(_mm256_cmpeq_epi32(_mm256_and_si256(v4_disc, m791.v4), m791.v4), m791.v4);
-								lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi64(_mm256_and_si256(v4_disc, m792.v4), m792.v4), m792.v4));
-	l8 = _mm256_castsi256_si128(v4_disc);			lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi64(_mm256_and_si256(v4_disc, m793.v4), m793.v4), m793.v4));
+	l81 = _mm_cvtsi64_si128(disc);                     	v4_disc = _mm256_broadcastq_epi64(l81);
+	l81 = _mm_cmpeq_epi8(kff, l81);                    	lr79 = _mm256_and_si256(_mm256_cmpeq_epi32(_mm256_and_si256(v4_disc, m791.v4), m791.v4), m791.v4);
+	                                                   	lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi64(_mm256_and_si256(v4_disc, m792.v4), m792.v4), m792.v4));
+	l8 = _mm256_castsi256_si128(v4_disc);              	lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi64(_mm256_and_si256(v4_disc, m793.v4), m793.v4), m793.v4));
 	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 1));	lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi64(_mm256_and_si256(v4_disc, m794.v4), m794.v4), m794.v4));
 	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 2));	l79 = _mm_and_si128(_mm_cmpeq_epi64(_mm_and_si128(_mm256_castsi256_si128(v4_disc), m795.v2), m795.v2), m795.v2);
 	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 4));	l79 = _mm_or_si128(l79, _mm_or_si128(_mm256_extracti128_si256(lr79, 1), _mm256_castsi256_si128(lr79)));
@@ -778,14 +778,14 @@ static __m256i vectorcall get_full_lines(const unsigned long long disc)
 	static const V4DI m792 = {{ 0x2010884440201088, 0x0408112202040811, 0x2211080411080402, 0x4488102088102040 }};	// V8SI
 	static const V4DI m793 = {{ 0x8844221110884422, 0x1122448808112244, 0x0000000044221108, 0x0000000022448810 }};	// V8SI
 
-	l81 = _mm_cvtsi64_si128(disc);				v4_disc = _mm256_broadcastq_epi64(l81);
-	l81 = _mm_cmpeq_epi8(kff, l81);				lm79 = _mm256_and_si256(v4_disc, m790.v4);
-								lm79 = _mm256_or_si256(lm79, _mm256_shuffle_epi32(lm79, 0xb1));
-	l8 = _mm256_castsi256_si128(v4_disc);			lr79 = _mm256_and_si256(_mm256_cmpeq_epi32(_mm256_and_si256(lm79, m792.v4), m792.v4), m792.v4);
+	l81 = _mm_cvtsi64_si128(disc);                     	v4_disc = _mm256_broadcastq_epi64(l81);
+	l81 = _mm_cmpeq_epi8(kff, l81);                    	lm79 = _mm256_and_si256(v4_disc, m790.v4);
+	                                                   	lm79 = _mm256_or_si256(lm79, _mm256_shuffle_epi32(lm79, 0xb1));
+	l8 = _mm256_castsi256_si128(v4_disc);              	lr79 = _mm256_and_si256(_mm256_cmpeq_epi32(_mm256_and_si256(lm79, m792.v4), m792.v4), m792.v4);
 	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 1));	lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi32(_mm256_and_si256(lm79, m793.v4), m793.v4), m793.v4));
 	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 2));	lr79 = _mm256_and_si256(_mm256_or_si256(lr79, _mm256_shuffle_epi32(lr79, 0xb1)), m790.v4);
 	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 4));	lr79 = _mm256_or_si256(lr79, _mm256_and_si256(_mm256_cmpeq_epi32(_mm256_and_si256(v4_disc, m791.v4), m791.v4), m791.v4));
-								l79 = _mm_or_si128(_mm256_extracti128_si256(lr79, 1), _mm256_castsi256_si128(lr79));
+	                                                   	l79 = _mm_or_si128(_mm256_extracti128_si256(lr79, 1), _mm256_castsi256_si128(lr79));
 
     #else // Kogge-Stone
 	const __m128i mcpyswap = _mm_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 7, 6, 5, 4, 3, 2, 1, 0);
@@ -795,10 +795,10 @@ static __m256i vectorcall get_full_lines(const unsigned long long disc)
 	static const V4DI e791 = {{ 0xffffc0c0c0c0c0c0, 0xffff030303030303, 0xffff030303030303, 0xffffc0c0c0c0c0c0 }};
 	static const V4DI e792 = {{ 0xfffffffff0f0f0f0, 0xffffffff0f0f0f0f, 0xffffffff0f0f0f0f, 0xfffffffff0f0f0f0 }};
 
-	l81 = _mm_cvtsi64_si128(disc);				v4_disc = _mm256_castsi128_si256(_mm_shuffle_epi8(l81, mcpyswap));
-	l81 = _mm_cmpeq_epi8(kff, l81);				v4_disc = _mm256_permute4x64_epi64(v4_disc, 0x50);	// disc, disc, rdisc, rdisc
-								lr79 = _mm256_and_si256(v4_disc, _mm256_or_si256(e790.v4, _mm256_srlv_epi64(v4_disc, shiftlr[0].v4)));
-	l8 = _mm256_castsi256_si128(v4_disc);			lr79 = _mm256_and_si256(lr79, _mm256_or_si256(e791.v4, _mm256_srlv_epi64(lr79, shiftlr[1].v4)));
+	l81 = _mm_cvtsi64_si128(disc);                     	v4_disc = _mm256_castsi128_si256(_mm_shuffle_epi8(l81, mcpyswap));
+	l81 = _mm_cmpeq_epi8(kff, l81);                    	v4_disc = _mm256_permute4x64_epi64(v4_disc, 0x50);	// disc, disc, rdisc, rdisc
+	                                                   	lr79 = _mm256_and_si256(v4_disc, _mm256_or_si256(e790.v4, _mm256_srlv_epi64(v4_disc, shiftlr[0].v4)));
+	l8 = _mm256_castsi256_si128(v4_disc);              	lr79 = _mm256_and_si256(lr79, _mm256_or_si256(e791.v4, _mm256_srlv_epi64(lr79, shiftlr[1].v4)));
 	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 1));	lr79 = _mm256_and_si256(lr79, _mm256_or_si256(e792.v4, _mm256_srlv_epi64(lr79, shiftlr[2].v4)));
 	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 2));	l79 = _mm_shuffle_epi8(_mm256_extracti128_si256(lr79, 1), mbswapll);
 	l8 = _mm_and_si128(l8, _mm_alignr_epi8(l8, l8, 4));	l79 = _mm_and_si128(l79, _mm256_castsi256_si128(lr79));
@@ -819,15 +819,15 @@ void get_full_lines(const unsigned long long disc, unsigned long long full[4])
 	const uint64x2_t e792 = vdupq_n_u64(0x00003f3f3f3f3f3f);
 	const uint64x2_t e793 = vdupq_n_u64(0x0f0f0f0ff0f0f0f0);
 
-	l01 = vcreate_u8(disc);			l79 = r79 = vreinterpretq_u64_u8(vcombine_u8(l01, vrev64_u8(l01)));
+	l01 = vcreate_u8(disc);             	l79 = r79 = vreinterpretq_u64_u8(vcombine_u8(l01, vrev64_u8(l01)));
 	l01 = vceq_u8(l01, vdup_n_u8(0xff));	l79 = vandq_u64(l79, vornq_u64(vshrq_n_u64(l79, 9), e790));
 	full[0] = vget_lane_u64(vreinterpret_u64_u8(l01), 0);
-						r79 = vandq_u64(r79, vornq_u64(vshlq_n_u64(r79, 9), e791));
-	l8 = disc;				l79 = vbicq_u64(l79, vbicq_u64(e792, vshrq_n_u64(l79, 18)));	// De Morgan
-	l8 &= (l8 >> 8) | (l8 << 56);		r79 = vbicq_u64(r79, vshlq_n_u64(vbicq_u64(e792, r79), 18));
-	l8 &= (l8 >> 16) | (l8 << 48);		l79 = vandq_u64(vandq_u64(l79, r79), vorrq_u64(e793, vsliq_n_u64(vshrq_n_u64(l79, 36), r79, 36)));
-	l8 &= (l8 >> 32) | (l8 << 32);		full[2] = vgetq_lane_u64(l79, 0);
-	full[1] = l8;				full[3] = vertical_mirror(vgetq_lane_u64(l79, 1));
+	                                    	r79 = vandq_u64(r79, vornq_u64(vshlq_n_u64(r79, 9), e791));
+	l8 = disc;                          	l79 = vbicq_u64(l79, vbicq_u64(e792, vshrq_n_u64(l79, 18)));	// De Morgan
+	l8 &= (l8 >> 8) | (l8 << 56);       	r79 = vbicq_u64(r79, vshlq_n_u64(vbicq_u64(e792, r79), 18));
+	l8 &= (l8 >> 16) | (l8 << 48);      	l79 = vandq_u64(vandq_u64(l79, r79), vorrq_u64(e793, vsliq_n_u64(vshrq_n_u64(l79, 36), r79, 36)));
+	l8 &= (l8 >> 32) | (l8 << 32);      	full[2] = vgetq_lane_u64(l79, 0);
+	full[1] = l8;                       	full[3] = vertical_mirror(vgetq_lane_u64(l79, 1));
 }
 
   #else	// 1 CPU, 3 SSE
@@ -844,14 +844,14 @@ void get_full_lines(const unsigned long long disc, unsigned long long full[4])
 	const __m128i e793 = _mm_set1_epi64x(0x0f0f0f0ff0f0f0f0);
 
 	l01 = l79 = _mm_cvtsi64_si128(disc);	l79 = r79 = _mm_unpacklo_epi64(l79, _mm_cvtsi64_si128(rdisc));
-	l01 = _mm_cmpeq_epi8(kff, l01);		l79 = _mm_and_si128(l79, _mm_or_si128(e790, _mm_srli_epi64(l79, 9)));
+	l01 = _mm_cmpeq_epi8(kff, l01);     	l79 = _mm_and_si128(l79, _mm_or_si128(e790, _mm_srli_epi64(l79, 9)));
 	_mm_storel_epi64((__m128i*) &full[0], l01);
-						r79 = _mm_and_si128(r79, _mm_or_si128(e791, _mm_slli_epi64(r79, 9)));
-	l8 = disc;				l79 = _mm_andnot_si128(_mm_andnot_si128(_mm_srli_epi64(l79, 18), e792), l79);	// De Morgan
-	l8 &= (l8 >> 8) | (l8 << 56);		r79 = _mm_andnot_si128(_mm_slli_epi64(_mm_andnot_si128(r79, e792), 18), r79);
-	l8 &= (l8 >> 16) | (l8 << 48);		l79 = _mm_and_si128(_mm_and_si128(l79, r79), _mm_or_si128(e793, _mm_or_si128(_mm_srli_epi64(l79, 36), _mm_slli_epi64(r79, 36))));
-	l8 &= (l8 >> 32) | (l8 << 32);		_mm_storel_epi64((__m128i *) &full[2], l79);
-	full[1] = l8;				full[3] = vertical_mirror(_mm_cvtsi128_si64(_mm_unpackhi_epi64(l79, l79)));
+	                                    	r79 = _mm_and_si128(r79, _mm_or_si128(e791, _mm_slli_epi64(r79, 9)));
+	l8 = disc;                          	l79 = _mm_andnot_si128(_mm_andnot_si128(_mm_srli_epi64(l79, 18), e792), l79);	// De Morgan
+	l8 &= (l8 >> 8) | (l8 << 56);       	r79 = _mm_andnot_si128(_mm_slli_epi64(_mm_andnot_si128(r79, e792), 18), r79);
+	l8 &= (l8 >> 16) | (l8 << 48);      	l79 = _mm_and_si128(_mm_and_si128(l79, r79), _mm_or_si128(e793, _mm_or_si128(_mm_srli_epi64(l79, 36), _mm_slli_epi64(r79, 36))));
+	l8 &= (l8 >> 32) | (l8 << 32);      	_mm_storel_epi64((__m128i *) &full[2], l79);
+	full[1] = l8;                       	full[3] = vertical_mirror(_mm_cvtsi128_si64(_mm_unpackhi_epi64(l79, l79)));
 }
 
   #endif
