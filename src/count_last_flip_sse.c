@@ -498,7 +498,7 @@ enum {
 const unsigned short cf_ofs_d[2][64] = {{
   #ifdef AVXLASTFLIP
 	   0,    0, RF30, RF40, RF50, RF60, RF70, CF80,
-           0,    0, RF41, RF51, RF61, RF71, CF81, CF81,
+	   0,    0, RF41, RF51, RF61, RF71, CF81, CF81,
 	CF82, CF82, RF52, RF62, RF72, CF82, CF82, CF82,
 	CF83, CF83, RF63, RF73, CF83, LF72, CF83, CF83,
 	CF84, CF84, RF74, CF84, LF73, LF62, CF84, CF84,
@@ -507,7 +507,7 @@ const unsigned short cf_ofs_d[2][64] = {{
 	CF87, LF76, LF65, LF54, LF43, LF32,    0,    0
   #else
 	   0,    0, CF82, CF83, CF84, CF85, CF86, CF87,
-           0,    0, CF82, CF83, CF84, CF85, CF86, LF76,
+	   0,    0, CF82, CF83, CF84, CF85, CF86, LF76,
 	RF30, RF41, RF52, RF63, RF74, CF85, LF75, LF65,
 	RF40, RF51, RF62, RF73, CF84, LF74, LF64, LF54,
 	RF50, RF61, RF72, CF83, LF73, LF63, LF53, LF43,
