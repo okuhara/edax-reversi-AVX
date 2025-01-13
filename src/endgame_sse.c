@@ -227,11 +227,7 @@ static int search_solve_4(Search *search, int alpha)
 		/*0222*/  3, /*0223*/  5, /*0232*/  7, /*0233*/  8, /*0322*/  8, /*0323*/  7, /*0332*/  5, /*0333*/  3
 	};
 #if defined(__SSSE3__) || defined(__AVX__)
-	union V4SI {
-		unsigned int	ui[4];
-		__m128i	v4;
-	};
-	static const union V4SI shuf_mask[] = {	// make search order identical to 4.4.0
+	static const V4SI shuf_mask[] = {	// make search order identical to 4.4.0
 		{{ 0x03020100, 0x02030100, 0x01030200, 0x00030201 }},	//  0: 1(x1) 3(x2 x3 x4), 1(x1) 1(x2) 2(x3 x4), 1 1 1 1, 4
 		{{ 0x03020100, 0x02030100, 0x01020300, 0x00020301 }},	//  1: 1(x2) 3(x1 x3 x4)
 		{{ 0x03010200, 0x02010300, 0x01030200, 0x00010302 }},	//  2: 1(x3) 3(x1 x2 x4)

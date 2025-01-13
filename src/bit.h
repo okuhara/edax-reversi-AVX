@@ -186,6 +186,13 @@ typedef union {
   #endif
 } V8DI;
 
+#ifdef hasSSE2
+typedef union V4SI {
+	unsigned int	ui[4];
+	__m128i	v4;
+} V4SI;
+#endif
+
 /* Define function attributes directive when available */
 
 #if (defined(_MSC_VER) || defined(__clang__)) && defined(hasSSE2)

@@ -494,26 +494,6 @@ enum {
 	LF32 = 3063
 };
 
-const unsigned short cf_ofs_d[2][64] = {{
-	   0,    0, RF32, RF43, RF54, RF65, CF86, CF87,	// RF76 -> CF86
-           0,    0, RF32, RF43, RF54, RF65, CF86, LF76,	// RF31 -> 0, RF42..RF75 -> RF32..RF65
-	RF30, RF41, RF52, RF63, RF74, CF85, LF75, LF65,
-	RF40, RF51, RF62, RF73, CF84, LF74, LF64, LF54,
-	RF50, RF61, RF72, CF83, LF73, LF63, LF53, LF43,
-	RF60, RF71, CF82, LF72, LF62, LF52, LF42, LF32,
-	RF70, CF81, LF60, LF50, LF40, LF30,    0,    0,	// LF71..LF41 -> LF60..LF30, LF31 -> 0
-	CF80, CF81, LF60, LF50, LF40, LF30,    0,    0	// LF70 -> CF81
-}, {
-	CF80, RF70, RF60, RF50, RF40, RF30,    0,    0, 
-	CF81, CF81, RF71, RF61, RF51, RF41,    0,    0,	// LF70 -> CF81, RF31 -> 0
-	LF60, LF60, CF82, RF72, RF62, RF52, RF32, RF32,	// LF71 -> LF60, RF42 -> RF32
-	LF50, LF50, LF72, CF83, RF73, RF63, RF43, RF43,	// LF61 -> LF50, RF53 -> RF43
-	LF40, LF40, LF62, LF73, CF84, RF74, RF54, RF54,	// LF51 -> LF40, RF64 -> RF54
-	LF30, LF30, LF52, LF63, LF74, CF85, RF65, RF65,	// LF41 -> LF30, RF75 -> RF65
-	   0,    0, LF42, LF53, LF64, LF75, CF86, CF86,	// LF31 -> 0,    RF76 -> CF86
-	   0,    0, LF32, LF43, LF54, LF65, LF76, CF87
-}};
-
 #ifdef HAS_CPU_64
 /* bit masks for diagonal lines (interleaved) */
 const uint64x2_t mask_dvhd[64][2] = {
@@ -676,23 +656,22 @@ int last_flip(int pos, unsigned long long P)
 	const uint64x2_t dmask = { 0x0808040402020101, 0x8080404020201010 };
 
 	PP = vreinterpretq_u64_u8(vzip1q_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(PP)));
-	II = vandq_u64(PP, mask_dvhd[pos][0]);	// 2 dirs interleaved
-	t = vaddvq_u16(vreinterpretq_u16_u64(II));
+	t = vaddvq_u16(vreinterpretq_u16_u64(vandq_u64(PP, mask_dvhd[pos][0])));	// 2 dirs interleaved
 	n_flips  = (uint8_t) COUNT_FLIP_X[t & 0xFF];
-	n_flips += COUNT_FLIP_X[t >> 8];
+	n_flips += (uint8_t) COUNT_FLIP_X[t >> 8];
 	II = vandq_u64(vreinterpretq_u64_u8(vtstq_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(mask_dvhd[pos][1]))), dmask);
 	t = vaddvq_u16(vreinterpretq_u16_u64(II));
-	n_flips += COUNT_FLIP_Y[t & 0xFF];
+	n_flips += (uint8_t) COUNT_FLIP_Y[t & 0xFF];
 	n_flips += (uint8_t) COUNT_FLIP_Y[t >> 8];
 
 #else // Neon kindergarten
-	const uint64x2_t dmask = { 0x1020408001020408, 0x1020408001020408 };
+	const uint32x4_t dmask = { 0x01020408, 0x10204080, 0x01020408, 0x10204080 };
 
 	II = vpaddlq_u32(vpaddlq_u16(vpaddlq_u8(vreinterpretq_u8_u64(vandq_u64(PP, mask_dvhd[pos][0])))));
 	n_flips  = (uint8_t) COUNT_FLIP_X[vgetq_lane_u32(vreinterpretq_u32_u64(II), 0)];
 	n_flips += (uint8_t) COUNT_FLIP_X[vgetq_lane_u32(vreinterpretq_u32_u64(II), 2)];
 	II = vreinterpretq_u64_s8(vnegq_s8(vreinterpretq_s8_u8(vtstq_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(mask_dvhd[pos][1])))));
-	II = vpaddlq_u32(vmulq_u32(vreinterpretq_u32_u64(dmask), vreinterpretq_u32_u64(II)));
+	II = vpaddlq_u32(vmulq_u32(dmask, vreinterpretq_u32_u64(II)));
 	n_flips += (uint8_t) COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(II), 3)];
 	n_flips += (uint8_t) COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(II), 11)];
 #endif
@@ -715,12 +694,13 @@ int last_flip(int pos, unsigned long long P)
 int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 {
 	int	score = 2 * vaddv_u8(vcnt_u8(vreinterpret_u8_u64(P))) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
-	uint_fast8_t	n_flips:
+	unsigned int t0, t1;
+	uint_fast8_t	n_flips;
 	uint_fast16_t	op_flip, m;
 	const uint16_t *COUNT_FLIP_X = COUNT_FLIP + (pos & 7) * 256;
 	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + (pos >> 3) * 256;
 	uint64x2_t	PP = vdupq_lane_u64(P, 0);
-	uint64x2_t	I0, I1;
+	uint64x2_t	II;
 	static const uint16_t o_mask[64] = {
 		0xff01, 0x7f03, 0x3f07, 0x1f0f, 0x0f1f, 0x073f, 0x037f, 0x01ff,
 		0xfe03, 0xff07, 0x7f0f, 0x3f1f, 0x1f3f, 0x0f7f, 0x07ff, 0x03fe,
@@ -731,32 +711,28 @@ int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 		0xc07f, 0xe0ff, 0xf0fe, 0xf8fc, 0xfcf8, 0xfef0, 0xffe0, 0x7fc0,
 		0x80ff, 0xc0fe, 0xe0fc, 0xf0f8, 0xf8f0, 0xfce0, 0xfec0, 0xff80
 	};
-
-	// n_flips = last_flip(pos, P);
   #ifdef HAS_CPU_64	// vaddvq
-	unsigned int t0, t1;
 	const uint64x2_t dmask = { 0x0808040402020101, 0x8080404020201010 };
 
 	PP = vreinterpretq_u64_u8(vzip1q_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(PP)));
-	I0 = vandq_u64(PP, mask_dvhd[pos][0]);	// 2 dirs interleaved
-	t0 = vaddvq_u16(vreinterpretq_u16_u64(I0));
+	t0 = vaddvq_u16(vreinterpretq_u16_u64(vandq_u64(PP, mask_dvhd[pos][0])));	// 2 dirs interleaved
 	n_flips  = (uint8_t) COUNT_FLIP_X[t0 & 0xFF];
-	op_flip  = (uint8_t) COUNT_FLIP_X[t0 >> 8];
-	I1 = vandq_u64(vreinterpretq_u64_u8(vtstq_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(mask_dvhd[pos][1]))), dmask);
-	t1 = vaddvq_u16(vreinterpretq_u16_u64(I1));
-	op_flip += (uint8_t) COUNT_FLIP_Y[t1 & 0xFF];
-	n_flips += (uint8_t) COUNT_FLIP_Y[t1 >> 8];
+	op_flip  = COUNT_FLIP_X[t0 >> 8];
+	II = vandq_u64(vreinterpretq_u64_u8(vtstq_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(mask_dvhd[pos][1]))), dmask);
+	t1 = vaddvq_u16(vreinterpretq_u16_u64(II));
+	op_flip += COUNT_FLIP_Y[t1 & 0xFF];
+	n_flips += (uint8_t) COUNT_FLIP_Y[t1 >>= 8];
 
   #else // Neon kindergarten
-	const uint64x2_t dmask = { 0x1020408001020408, 0x1020408001020408 };
+	const uint32x4_t dmask = { 0x01020408, 0x10204080, 0x01020408, 0x10204080 };
 
-	I0 = vpaddlq_u32(vpaddlq_u16(vpaddlq_u8(vreinterpretq_u8_u64(vandq_u64(PP, mask_dvhd[pos][0])))));
-	n_flips  = (uint8_t) COUNT_FLIP_X[vgetq_lane_u32(vreinterpretq_u32_u64(I0), 0)];
-	op_flip  = (uint8_t) COUNT_FLIP_X[vgetq_lane_u32(vreinterpretq_u32_u64(I0), 2)];
-	I1 = vreinterpretq_u64_s8(vnegq_s8(vreinterpretq_s8_u8(vtstq_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(mask_dvhd[pos][1])))));
-	I1 = vpaddlq_u32(vmulq_u32(vreinterpretq_u32_u64(dmask), vreinterpretq_u32_u64(I1)));
-	op_flip += (uint8_t) COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(I1), 3)];
-	n_flips += (uint8_t) COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(I1), 11)];
+	II = vpaddlq_u32(vpaddlq_u16(vpaddlq_u8(vreinterpretq_u8_u64(vandq_u64(PP, mask_dvhd[pos][0])))));
+	n_flips  = (uint8_t) COUNT_FLIP_X[t0 = vgetq_lane_u32(vreinterpretq_u32_u64(II), 0)];
+	op_flip  = COUNT_FLIP_X[vgetq_lane_u32(vreinterpretq_u32_u64(II), 2)];
+	II = vreinterpretq_u64_s8(vnegq_s8(vreinterpretq_s8_u8(vtstq_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(mask_dvhd[pos][1])))));
+	II = vpaddlq_u32(vmulq_u32(dmask, vreinterpretq_u32_u64(II)));
+	op_flip += COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(II), 3)];
+	n_flips += (uint8_t) COUNT_FLIP_Y[t1 = vgetq_lane_u8(vreinterpretq_u8_u64(II), 11)];
   #endif
 	n_flips += (uint8_t) op_flip;
 	score += n_flips;
@@ -770,13 +746,9 @@ int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 			// n_flips = last_flip(pos, O);
 			m = o_mask[pos];	// valid diagonal bits
 			n_flips  = op_flip >> 8;
-  #ifdef HAS_CPU_64
 			n_flips += (uint8_t) COUNT_FLIP_X[(t0 ^ m) & 0xFF];
-			n_flips += (uint8_t) COUNT_FLIP_Y[(t1 ^ m) >> 8];
-  #else
-			n_flips  = (uint8_t) COUNT_FLIP_X[vgetq_lane_u32(vreinterpretq_u32_u64(I0), 0) ^ (m & 0xFF)];
-			n_flips += (uint8_t) COUNT_FLIP_Y[vgetq_lane_u8(vreinterpretq_u8_u64(I1), 11) ^ (m >> 8)];
-  #endif
+			n_flips += (uint8_t) COUNT_FLIP_Y[t1 ^ (m >> 8)];
+
 			if (n_flips != 0)
 				score = score2 - n_flips;
 		}
@@ -786,39 +758,76 @@ int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 }
 
 #else // simul COUNT_FLIP TLU
+
+  #ifdef HAS_CPU_64
+const unsigned short cf_ofs_d[64][2] = {
+	{    0, CF80 }, {    0, RF70 }, { CF82, RF60 }, { CF83, RF50 }, { CF84, RF40 }, { CF85, RF30 }, { CF86,    0 }, { CF87,    0 },
+	{    0, CF81 }, {    0, CF81 }, { CF82, RF71 }, { CF83, RF61 }, { CF84, RF51 }, { CF85, RF41 }, { CF86,    0 }, { LF76,    0 },
+	{ RF30, CF82 }, { RF41, CF82 }, { RF52, CF82 }, { RF63, RF72 }, { RF74, RF62 }, { CF85, RF52 }, { LF75, CF82 }, { LF65, CF82 },
+	{ RF40, CF83 }, { RF51, CF83 }, { RF62, LF72 }, { RF73, CF83 }, { CF84, RF73 }, { LF74, RF63 }, { LF64, CF83 }, { LF54, CF83 },
+	{ RF50, CF84 }, { RF61, CF84 }, { RF72, LF62 }, { CF83, LF73 }, { LF73, CF84 }, { LF63, RF74 }, { LF53, CF84 }, { LF43, CF84 },
+	{ RF60, CF85 }, { RF71, CF85 }, { CF82, LF52 }, { LF72, LF63 }, { LF62, LF74 }, { LF52, CF85 }, { LF42, CF85 }, { LF32, CF85 },
+	{ RF70,    0 }, { CF81,    0 }, { CF82, LF42 }, { CF83, LF53 }, { CF84, LF64 }, { CF85, LF75 }, {    0, CF86 }, {    0, CF86 },
+	{ CF80,    0 }, { CF81,    0 }, { CF82, LF32 }, { CF83, LF43 }, { CF84, LF54 }, { CF85, LF65 }, {    0, LF76 }, {    0, CF87 }
+};
+
+  #else
+const uint32x4_t cf_ofs[64] = {
+	{    0, CF80, CF80, CF80 }, {    0, CF80, CF81, RF70 }, { CF82, CF80, CF82, RF60 }, { CF83, CF80, CF83, RF50 }, 
+	{ CF84, CF80, CF84, RF40 }, { CF85, CF80, CF85, RF30 }, { CF86, CF80, CF86,    0 }, { CF87, CF80, CF87,    0 }, 
+	{    0, CF81, CF80, CF81 }, {    0, CF81, CF81, CF81 }, { CF82, CF81, CF82, RF71 }, { CF83, CF81, CF83, RF61 }, 
+	{ CF84, CF81, CF84, RF51 }, { CF85, CF81, CF85, RF41 }, { CF86, CF81, CF86,    0 }, { LF76, CF81, CF87,    0 }, 
+	{ RF30, CF82, CF80, CF82 }, { RF41, CF82, CF81, CF82 }, { RF52, CF82, CF82, CF82 }, { RF63, CF82, CF83, RF72 }, 
+	{ RF74, CF82, CF84, RF62 }, { CF85, CF82, CF85, RF52 }, { LF75, CF82, CF86, CF82 }, { LF65, CF82, CF87, CF82 }, 
+	{ RF40, CF83, CF80, CF83 }, { RF51, CF83, CF81, CF83 }, { RF62, CF83, CF82, LF72 }, { RF73, CF83, CF83, CF83 }, 
+	{ CF84, CF83, CF84, RF73 }, { LF74, CF83, CF85, RF63 }, { LF64, CF83, CF86, CF83 }, { LF54, CF83, CF87, CF83 }, 
+	{ RF50, CF84, CF80, CF84 }, { RF61, CF84, CF81, CF84 }, { RF72, CF84, CF82, LF62 }, { CF83, CF84, CF83, LF73 }, 
+	{ LF73, CF84, CF84, CF84 }, { LF63, CF84, CF85, RF74 }, { LF53, CF84, CF86, CF84 }, { LF43, CF84, CF87, CF84 }, 
+	{ RF60, CF85, CF80, CF85 }, { RF71, CF85, CF81, CF85 }, { CF82, CF85, CF82, LF52 }, { LF72, CF85, CF83, LF63 }, 
+	{ LF62, CF85, CF84, LF74 }, { LF52, CF85, CF85, CF85 }, { LF42, CF85, CF86, CF85 }, { LF32, CF85, CF87, CF85 }, 
+	{ RF70, CF86, CF80,    0 }, { CF81, CF86, CF81,    0 }, { CF82, CF86, CF82, LF42 }, { CF83, CF86, CF83, LF53 }, 
+	{ CF84, CF86, CF84, LF64 }, { CF85, CF86, CF85, LF75 }, {    0, CF86, CF86, CF86 }, {    0, CF86, CF87, CF86 }, 
+	{ CF80, CF87, CF80,    0 }, { CF81, CF87, CF81,    0 }, { CF82, CF87, CF82, LF32 }, { CF83, CF87, CF83, LF43 }, 
+	{ CF84, CF87, CF84, LF54 }, { CF85, CF87, CF85, LF65 }, {    0, CF87, CF86, LF76 }, {    0, CF87, CF87, CF87 }  
+};
+  #endif
+
 int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 {
 	uint_fast16_t	op_flip;
 	int	p_flips, o_flips;
 	int	score = 2 * vaddv_u8(vcnt_u8(vreinterpret_u8_u64(P))) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 	uint64x2_t	PP = vdupq_lane_u64(P, 0);
-	uint64x2_t	I0, I1;
-
   #ifdef HAS_CPU_64	// vaddvq
 	unsigned int t0, t1;
 	const uint64x2_t dmask = { 0x0808040402020101, 0x8080404020201010 };
+	uint64x2_t	II;
 
 	PP = vreinterpretq_u64_u8(vzip1q_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(PP)));
-	I0 = vandq_u64(PP, mask_dvhd[pos][0]);	// 2 dirs interleaved
-	t0 = vaddvq_u16(vreinterpretq_u16_u64(I0));
-	op_flip  = COUNT_FLIP[cf_ofs_d[0][pos] + (t0 & 0xFF)];
+	t0 = vaddvq_u16(vreinterpretq_u16_u64(vandq_u64(PP, mask_dvhd[pos][0])));	// 2 dirs interleaved
+	op_flip  = COUNT_FLIP[cf_ofs_d[pos][0] + (t0 & 0xFF)];
 	op_flip += COUNT_FLIP[((pos & 7) * 256) + (t0 >> 8)];
-	I1 = vandq_u64(vreinterpretq_u64_u8(vtstq_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(mask_dvhd[pos][1]))), dmask);
-	t1 = vaddvq_u16(vreinterpretq_u16_u64(I1));
+	II = vandq_u64(vreinterpretq_u64_u8(vtstq_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(mask_dvhd[pos][1]))), dmask);
+	t1 = vaddvq_u16(vreinterpretq_u16_u64(II));
 	op_flip += COUNT_FLIP[((pos & 0x38) << 5) + (t1 & 0xFF)];
-	op_flip += COUNT_FLIP[cf_ofs_d[1][pos] + (t1 >> 8)];
+	op_flip += COUNT_FLIP[cf_ofs_d[pos][1] + (t1 >> 8)];
 
   #else // Neon kindergarten
-	const uint64x2_t dmask = { 0x1020408001020408, 0x1020408001020408 };
+	const uint32x4_t dmask = { 0x01020408, 0x10204080, 0x01020408, 0x10204080 };
+	uint32x4_t	cf_ofs_pos = cf_ofs[pos];
+	uint32x4_t	II;
 
-	I0 = vpaddlq_u32(vpaddlq_u16(vpaddlq_u8(vreinterpretq_u8_u64(vandq_u64(PP, mask_dvhd[pos][0])))));
-	op_flip  = COUNT_FLIP[cf_ofs_d[0][pos] + vgetq_lane_u32(vreinterpretq_u32_u64(I0), 0)];
-	op_flip += COUNT_FLIP[((pos & 7) * 256) + vgetq_lane_u32(vreinterpretq_u32_u64(I0), 2)];
-	I1 = vreinterpretq_u64_s8(vnegq_s8(vreinterpretq_s8_u8(vtstq_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(mask_dvhd[pos][1])))));
-	I1 = vpaddlq_u32(vmulq_u32(vreinterpretq_u32_u64(dmask), vreinterpretq_u32_u64(I1)));
-	op_flip += COUNT_FLIP[((pos & 0x38) << 5) + vgetq_lane_u8(vreinterpretq_u8_u64(I1), 3)];
-	op_flip += COUNT_FLIP[cf_ofs_d[1][pos] + vgetq_lane_u8(vreinterpretq_u8_u64(I1), 11)];
+	II = vreinterpretq_u32_u64(vpaddlq_u32(vpaddlq_u16(vpaddlq_u8(vreinterpretq_u8_u64(vandq_u64(PP, mask_dvhd[pos][0]))))));
+	II = vaddq_u32(II, cf_ofs_pos);
+	op_flip  = COUNT_FLIP[vgetq_lane_u32(II, 0)];
+	op_flip += COUNT_FLIP[vgetq_lane_u32(II, 2)];
+	II = vreinterpretq_u32_s8(vnegq_s8(vreinterpretq_s8_u8(vtstq_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(mask_dvhd[pos][1])))));
+	II = vreinterpretq_u32_u64(vshlq_n_u64(vpaddlq_u32(vmulq_u32(dmask, II)), 8));	// 000000dd******00 000000vv******00
+	II = vaddq_u32(II, cf_ofs_pos);
+	op_flip += COUNT_FLIP[vgetq_lane_u32(II, 1)];
+	op_flip += COUNT_FLIP[vgetq_lane_u32(II, 3)];
   #endif
+
 	p_flips = op_flip & 0xFF;
 	if (p_flips)
 		return score + p_flips;

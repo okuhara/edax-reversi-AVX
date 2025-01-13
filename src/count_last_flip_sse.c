@@ -495,37 +495,6 @@ enum {
 	LF32 = 3063
 };
 
-const unsigned short cf_ofs_d[2][64] = {{
-  #ifdef AVXLASTFLIP
-	   0,    0, RF30, RF40, RF50, RF60, RF70, CF80,
-	   0,    0, RF41, RF51, RF61, RF71, CF81, CF81,
-	CF82, CF82, RF52, RF62, RF72, CF82, CF82, CF82,
-	CF83, CF83, RF63, RF73, CF83, LF72, CF83, CF83,
-	CF84, CF84, RF74, CF84, LF73, LF62, CF84, CF84,
-	CF85, CF85, CF85, LF74, LF63, LF52, CF85, CF85,
-	CF86, CF86, LF75, LF64, LF53, LF42,    0,    0,
-	CF87, LF76, LF65, LF54, LF43, LF32,    0,    0
-  #else
-	   0,    0, CF82, CF83, CF84, CF85, CF86, CF87,
-	   0,    0, CF82, CF83, CF84, CF85, CF86, LF76,
-	RF30, RF41, RF52, RF63, RF74, CF85, LF75, LF65,
-	RF40, RF51, RF62, RF73, CF84, LF74, LF64, LF54,
-	RF50, RF61, RF72, CF83, LF73, LF63, LF53, LF43,
-	RF60, RF71, CF82, LF72, LF62, LF52, LF42, LF32,
-	RF70, CF81, CF82, CF83, CF84, CF85,    0,    0,
-	CF80, CF81, CF82, CF83, CF84, CF85,    0,    0
-  #endif
-}, {
-	CF80, RF70, RF60, RF50, RF40, RF30,    0,    0,
-	CF81, CF81, RF71, RF61, RF51, RF41,    0,    0,
-	CF82, CF82, CF82, RF72, RF62, RF52, CF82, CF82,
-	CF83, CF83, LF72, CF83, RF73, RF63, CF83, CF83,
-	CF84, CF84, LF62, LF73, CF84, RF74, CF84, CF84,
-	CF85, CF85, LF52, LF63, LF74, CF85, CF85, CF85,
-	   0,    0, LF42, LF53, LF64, LF75, CF86, CF86,
-	   0,    0, LF32, LF43, LF54, LF65, LF76, CF87
-}};
-
 /* bit masks for diagonal lines */
 const V4DI mask_vdhd[64] = {
 	{{ 0x0000000000000000, 0x00000000000000ff, 0x8040201008040201, 0x0101010101010101 }},
@@ -789,6 +758,40 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 }
 
 #else
+
+  #ifdef AVXLASTFLIP
+const unsigned short cf_ofs_d[64][2] = {
+	{    0, CF80 }, {    0, RF70 }, { RF30, RF60 }, { RF40, RF50 }, { RF50, RF40 }, { RF60, RF30 }, { RF70,    0 }, { CF80,    0 },
+	{    0, CF81 }, {    0, CF81 }, { RF41, RF71 }, { RF51, RF61 }, { RF61, RF51 }, { RF71, RF41 }, { CF81,    0 }, { CF81,    0 },
+	{ CF82, CF82 }, { CF82, CF82 }, { RF52, CF82 }, { RF62, RF72 }, { RF72, RF62 }, { CF82, RF52 }, { CF82, CF82 }, { CF82, CF82 },
+	{ CF83, CF83 }, { CF83, CF83 }, { RF63, LF72 }, { RF73, CF83 }, { CF83, RF73 }, { LF72, RF63 }, { CF83, CF83 }, { CF83, CF83 },
+	{ CF84, CF84 }, { CF84, CF84 }, { RF74, LF62 }, { CF84, LF73 }, { LF73, CF84 }, { LF62, RF74 }, { CF84, CF84 }, { CF84, CF84 },
+	{ CF85, CF85 }, { CF85, CF85 }, { CF85, LF52 }, { LF74, LF63 }, { LF63, LF74 }, { LF52, CF85 }, { CF85, CF85 }, { CF85, CF85 },
+	{ CF86,    0 }, { CF86,    0 }, { LF75, LF42 }, { LF64, LF53 }, { LF53, LF64 }, { LF42, LF75 }, {    0, CF86 }, {    0, CF86 },
+	{ CF87,    0 }, { LF76,    0 }, { LF65, LF32 }, { LF54, LF43 }, { LF43, LF54 }, { LF32, LF65 }, {    0, LF76 }, {    0, CF87 }
+};
+
+  #else
+const V4SI cf_ofs[64] = {
+	{    0, CF80, CF80, CF80 }, {    0, RF70, CF81, CF80 }, { CF82, RF60, CF82, CF80 }, { CF83, RF50, CF83, CF80 }, 
+	{ CF84, RF40, CF84, CF80 }, { CF85, RF30, CF85, CF80 }, { CF86,    0, CF86, CF80 }, { CF87,    0, CF87, CF80 }, 
+	{    0, CF81, CF80, CF81 }, {    0, CF81, CF81, CF81 }, { CF82, RF71, CF82, CF81 }, { CF83, RF61, CF83, CF81 }, 
+	{ CF84, RF51, CF84, CF81 }, { CF85, RF41, CF85, CF81 }, { CF86,    0, CF86, CF81 }, { LF76,    0, CF87, CF81 }, 
+	{ RF30, CF82, CF80, CF82 }, { RF41, CF82, CF81, CF82 }, { RF52, CF82, CF82, CF82 }, { RF63, RF72, CF83, CF82 }, 
+	{ RF74, RF62, CF84, CF82 }, { CF85, RF52, CF85, CF82 }, { LF75, CF82, CF86, CF82 }, { LF65, CF82, CF87, CF82 }, 
+	{ RF40, CF83, CF80, CF83 }, { RF51, CF83, CF81, CF83 }, { RF62, LF72, CF82, CF83 }, { RF73, CF83, CF83, CF83 }, 
+	{ CF84, RF73, CF84, CF83 }, { LF74, RF63, CF85, CF83 }, { LF64, CF83, CF86, CF83 }, { LF54, CF83, CF87, CF83 }, 
+	{ RF50, CF84, CF80, CF84 }, { RF61, CF84, CF81, CF84 }, { RF72, LF62, CF82, CF84 }, { CF83, LF73, CF83, CF84 }, 
+	{ LF73, CF84, CF84, CF84 }, { LF63, RF74, CF85, CF84 }, { LF53, CF84, CF86, CF84 }, { LF43, CF84, CF87, CF84 }, 
+	{ RF60, CF85, CF80, CF85 }, { RF71, CF85, CF81, CF85 }, { CF82, LF52, CF82, CF85 }, { LF72, LF63, CF83, CF85 }, 
+	{ LF62, LF74, CF84, CF85 }, { LF52, CF85, CF85, CF85 }, { LF42, CF85, CF86, CF85 }, { LF32, CF85, CF87, CF85 }, 
+	{ RF70,    0, CF80, CF86 }, { CF81,    0, CF81, CF86 }, { CF82, LF42, CF82, CF86 }, { CF83, LF53, CF83, CF86 }, 
+	{ CF84, LF64, CF84, CF86 }, { CF85, LF75, CF85, CF86 }, {    0, CF86, CF86, CF86 }, {    0, CF86, CF87, CF86 }, 
+	{ CF80,    0, CF80, CF87 }, { CF81,    0, CF81, CF87 }, { CF82, LF32, CF82, CF87 }, { CF83, LF43, CF83, CF87 }, 
+	{ CF84, LF54, CF84, CF87 }, { CF85, LF65, CF85, CF87 }, {    0, LF76, CF86, CF87 }, {    0, CF87, CF87, CF87 }  
+};
+  #endif
+
 // COUNT_LAST_FLIP_SSE - reasonably fast on all platforms
 inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 {
@@ -800,21 +803,24 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 	int score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 
 	t = TEST_EPI8_MASK32(_mm256_broadcastq_epi64(OP), mask_vdhd[pos].v4);
-	op_flip  = COUNT_FLIP[cf_ofs_d[0][pos] + (t & 0xFF)];
+	op_flip  = COUNT_FLIP[cf_ofs_d[pos][0] + (t & 0xFF)];
 	op_flip += COUNT_FLIP[(pos & 7) * 256 + ((P >> (pos & 0x38)) & 0xFF)];
-	t >>= 16;
+	op_flip += COUNT_FLIP[cf_ofs_d[pos][1] + ((t >> 16) & 0xFF)];
+	op_flip += COUNT_FLIP[((pos & 0x38) << 5) + (t >> 24)];
 
   #else
 	int score = 2 * bit_count_si64(OP) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 	__m128i P2 = _mm_unpacklo_epi64(OP, OP);
 	__m128i II = _mm_sad_epu8(_mm_and_si128(P2, mask_vdhd[pos].v2[0]), _mm_setzero_si128());
 
-	op_flip  = COUNT_FLIP[cf_ofs_d[0][pos] + _mm_cvtsi128_si32(II)];
-	op_flip += COUNT_FLIP[(pos & 7) * 256 + _mm_extract_epi16(II, 4)];
+	II = _mm_add_epi32(II, cf_ofs[pos].v4);
+	op_flip  = COUNT_FLIP[_mm_cvtsi128_si32(II)];
+	op_flip += COUNT_FLIP[_mm_extract_epi16(II, 4)];
 	t = TEST_EPI8_MASK16(P2, mask_vdhd[pos].v2[1]);
-  #endif
-	op_flip += COUNT_FLIP[cf_ofs_d[1][pos] + (t & 0xFF)];
+	op_flip += COUNT_FLIP[cf_ofs[pos].ui[1] + (t & 0xFF)];
+	// op_flip += COUNT_FLIP[cf_ofs[pos].ui[3] + (t >> 8)];
 	op_flip += COUNT_FLIP[((pos & 0x38) << 5) + (t >> 8)];
+  #endif
 
 	p_flips = op_flip & 0xFF;
 	if (p_flips)
