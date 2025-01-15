@@ -760,15 +760,15 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 #else
 
   #ifdef AVXLASTFLIP
-const unsigned short cf_ofs_d[64][2] = {
-	{    0, CF80 }, {    0, RF70 }, { RF30, RF60 }, { RF40, RF50 }, { RF50, RF40 }, { RF60, RF30 }, { RF70,    0 }, { CF80,    0 },
-	{    0, CF81 }, {    0, CF81 }, { RF41, RF71 }, { RF51, RF61 }, { RF61, RF51 }, { RF71, RF41 }, { CF81,    0 }, { CF81,    0 },
-	{ CF82, CF82 }, { CF82, CF82 }, { RF52, CF82 }, { RF62, RF72 }, { RF72, RF62 }, { CF82, RF52 }, { CF82, CF82 }, { CF82, CF82 },
-	{ CF83, CF83 }, { CF83, CF83 }, { RF63, LF72 }, { RF73, CF83 }, { CF83, RF73 }, { LF72, RF63 }, { CF83, CF83 }, { CF83, CF83 },
-	{ CF84, CF84 }, { CF84, CF84 }, { RF74, LF62 }, { CF84, LF73 }, { LF73, CF84 }, { LF62, RF74 }, { CF84, CF84 }, { CF84, CF84 },
-	{ CF85, CF85 }, { CF85, CF85 }, { CF85, LF52 }, { LF74, LF63 }, { LF63, LF74 }, { LF52, CF85 }, { CF85, CF85 }, { CF85, CF85 },
-	{ CF86,    0 }, { CF86,    0 }, { LF75, LF42 }, { LF64, LF53 }, { LF53, LF64 }, { LF42, LF75 }, {    0, CF86 }, {    0, CF86 },
-	{ CF87,    0 }, { LF76,    0 }, { LF65, LF32 }, { LF54, LF43 }, { LF43, LF54 }, { LF32, LF65 }, {    0, LF76 }, {    0, CF87 }
+const uint32_t cf_ofs_d[64] = {
+	(CF80<<16)|   0, (RF70<<16)|   0, (RF60<<16)|RF30, (RF50<<16)|RF40, (RF40<<16)|RF50, (RF30<<16)|RF60, (   0<<16)|RF70, (   0<<16)|CF80,
+	(CF81<<16)|   0, (CF81<<16)|   0, (RF71<<16)|RF41, (RF61<<16)|RF51, (RF51<<16)|RF61, (RF41<<16)|RF71, (   0<<16)|CF81, (   0<<16)|CF81,
+	(CF82<<16)|CF82, (CF82<<16)|CF82, (CF82<<16)|RF52, (RF72<<16)|RF62, (RF62<<16)|RF72, (RF52<<16)|CF82, (CF82<<16)|CF82, (CF82<<16)|CF82,
+	(CF83<<16)|CF83, (CF83<<16)|CF83, (LF72<<16)|RF63, (CF83<<16)|RF73, (RF73<<16)|CF83, (RF63<<16)|LF72, (CF83<<16)|CF83, (CF83<<16)|CF83,
+	(CF84<<16)|CF84, (CF84<<16)|CF84, (LF62<<16)|RF74, (LF73<<16)|CF84, (CF84<<16)|LF73, (RF74<<16)|LF62, (CF84<<16)|CF84, (CF84<<16)|CF84,
+	(CF85<<16)|CF85, (CF85<<16)|CF85, (LF52<<16)|CF85, (LF63<<16)|LF74, (LF74<<16)|LF63, (CF85<<16)|LF52, (CF85<<16)|CF85, (CF85<<16)|CF85,
+	(   0<<16)|CF86, (   0<<16)|CF86, (LF42<<16)|LF75, (LF53<<16)|LF64, (LF64<<16)|LF53, (LF75<<16)|LF42, (CF86<<16)|   0, (CF86<<16)|   0,
+	(   0<<16)|CF87, (   0<<16)|LF76, (LF32<<16)|LF65, (LF43<<16)|LF54, (LF54<<16)|LF43, (LF65<<16)|LF32, (LF76<<16)|   0, (CF87<<16)|   0
 };
 
   #else
@@ -798,25 +798,26 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 	uint_fast16_t	op_flip;
 	int	p_flips, o_flips;
 	unsigned int	t;
-  #ifdef AVXLASTFLIP
+  #ifdef AVXLASTFLIP	// no gain
 	unsigned long long P = _mm_cvtsi128_si64(OP);
 	int score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 
 	t = TEST_EPI8_MASK32(_mm256_broadcastq_epi64(OP), mask_vdhd[pos].v4);
-	op_flip  = COUNT_FLIP[cf_ofs_d[pos][0] + (t & 0xFF)];
-	op_flip += COUNT_FLIP[(pos & 7) * 256 + ((P >> (pos & 0x38)) & 0xFF)];
-	op_flip += COUNT_FLIP[cf_ofs_d[pos][1] + ((t >> 16) & 0xFF)];
-	op_flip += COUNT_FLIP[((pos & 0x38) << 5) + (t >> 24)];
+	op_flip  = COUNT_FLIP[(pos & 7) * 256 + ((P >> (pos & 0x38)) & 0xFF)];	// h
+	op_flip += COUNT_FLIP[((pos & 0x38) << 5) + (t >> 24)];	// v
+	t = cf_ofs_d[pos] + (t & 0x00FF00FF);	// 0d0d
+	op_flip += COUNT_FLIP[t & 0xFFFF];
+	op_flip += COUNT_FLIP[t >> 16];
 
   #else
 	int score = 2 * bit_count_si64(OP) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 	__m128i P2 = _mm_unpacklo_epi64(OP, OP);
-	__m128i II = _mm_sad_epu8(_mm_and_si128(P2, mask_vdhd[pos].v2[0]), _mm_setzero_si128());
+	__m128i II = _mm_sad_epu8(_mm_and_si128(P2, mask_vdhd[pos].v2[0]), _mm_setzero_si128());	// hd
 
 	II = _mm_add_epi32(II, cf_ofs[pos].v4);
 	op_flip  = COUNT_FLIP[_mm_cvtsi128_si32(II)];
 	op_flip += COUNT_FLIP[_mm_extract_epi16(II, 4)];
-	t = TEST_EPI8_MASK16(P2, mask_vdhd[pos].v2[1]);
+	t = TEST_EPI8_MASK16(P2, mask_vdhd[pos].v2[1]);	// vd
 	op_flip += COUNT_FLIP[cf_ofs[pos].ui[1] + (t & 0xFF)];
 	// op_flip += COUNT_FLIP[cf_ofs[pos].ui[3] + (t >> 8)];
 	op_flip += COUNT_FLIP[((pos & 0x38) << 5) + (t >> 8)];
