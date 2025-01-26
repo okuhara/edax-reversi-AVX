@@ -178,7 +178,7 @@ static inline int _tzcnt_u64(unsigned long long x) {
   #if __ARM_ACLE >= 110
 	#define	lzcnt_u32(x)	__clz(x)
 	#define	lzcnt_u64(x)	__clzll(x)
-  #else // strictly-incorrect patch
+  #else // assuming CLZ will be used
 	#define	lzcnt_u32(x)	__builtin_clz(x)
 	#define	lzcnt_u64(x)	__builtin_clzll(x)
   #endif

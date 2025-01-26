@@ -43,26 +43,26 @@ int last_flip(int pos, unsigned long long P)
 	pmask = &lrmask[pos];
 	pg = svwhilelt_b64(0, 4);
 
-	mask = svld1_u64(pg, *pmask + 4);	// right: clear all bits lower than outflank
+	mask = svld1_u64(pg, *pmask + 0);	// right: clear all bits lower than outflank
 	p_oflank = svand_x(pg, mask, PP);
 	p_oflank = svand_x(pg, svclz_z(pg, p_oflank), 63);
 	p_eraser = svlsr_x(pg, svdup_u64(-1), p_oflank);
 	p_flip = svbic_x(pg, mask, p_eraser);
 
-	mask = svld1_u64(pg, *pmask + 0);	// left: look for player LS1B
+	mask = svld1_u64(pg, *pmask + 4);	// left: look for player LS1B
 	p_oflank = svand_x(pg, mask, PP);
 		// set all bits lower than oflank, using satulation if oflank = 0
 	p_cap = svbic_x(pg, svqsub(p_oflank, 1), p_oflank);
 	p_flip = svbsl_u64(p_cap, p_flip, mask);
 
 	if (svcntd() == 2) {	// sve128 only
-		mask = svld1_u64(pg, *pmask + 6);	// right: set all bits higher than outflank
+		mask = svld1_u64(pg, *pmask + 2);	// right: set all bits higher than outflank
 		p_oflank = svand_x(pg, mask, PP);
 		p_oflank = svand_x(pg, svclz_z(pg, p_oflank), 63);
 		p_eraser = svlsr_x(pg, svdup_u64(-1), p_oflank);
 		p_flip = svbsl1n_u64(p_eraser, p_flip, mask);
 
-		mask = svld1_u64(pg, *pmask + 2);	// left: look for player LS1B
+		mask = svld1_u64(pg, *pmask + 6);	// left: look for player LS1B
 		p_oflank = svand_x(pg, mask, PP);
 			// set all bits lower than oflank, using satulation if oflank = 0
 		p_cap = svbic_x(pg, svqsub(p_oflank, 1), p_oflank);
@@ -141,26 +141,26 @@ int board_score_1(unsigned long long P, int alpha, int pos)
 	pmask = &lrmask[pos];
 	pg = svwhilelt_b64(0, 4);
 
-	mask = svld1_u64(pg, *pmask + 4);	// right: clear all bits lower than outflank
+	mask = svld1_u64(pg, *pmask + 0);	// right: clear all bits lower than outflank
 	p_oflank = svand_x(pg, mask, PP);			o_oflank = svbic_x(pg, mask, PP);
 	p_oflank = svand_x(pg, svclz_z(pg, p_oflank), 63);	o_oflank = svand_x(pg, svclz_z(pg, o_oflank), 63);
 	p_eraser = svlsr_x(pg, svdup_u64(-1), p_oflank);	o_eraser = svlsr_x(pg, svdup_u64(-1), o_oflank);
 	p_flip = svbic_x(pg, mask, p_eraser);			o_flip = svbic_x(pg, mask, o_eraser);
 
-	mask = svld1_u64(pg, *pmask + 0);	// left: look for player LS1B
+	mask = svld1_u64(pg, *pmask + 4);	// left: look for player LS1B
 	p_oflank = svand_x(pg, mask, PP);			o_oflank = svbic_x(pg, mask, PP);
 		// set all bits lower than oflank, using satulation if oflank = 0
 	p_cap = svbic_x(pg, svqsub(p_oflank, 1), p_oflank);	o_cap = svbic_x(pg, svqsub(o_oflank, 1), o_oflank);
 	p_flip = svbsl_u64(p_cap, p_flip, mask);		o_flip = svbsl_u64(o_cap, o_flip, mask);
 
 	if (svcntd() == 2) {	// sve128 only
-		mask = svld1_u64(pg, *pmask + 6);	// right: set all bits higher than outflank
+		mask = svld1_u64(pg, *pmask + 2);	// right: set all bits higher than outflank
 		p_oflank = svand_x(pg, mask, PP);			o_oflank = svbic_x(pg, mask, PP);
 		p_oflank = svand_x(pg, svclz_z(pg, p_oflank), 63);	o_oflank = svand_x(pg, svclz_z(pg, o_oflank), 63);
 		p_eraser = svlsr_x(pg, svdup_u64(-1), p_oflank);	o_eraser = svlsr_x(pg, svdup_u64(-1), o_oflank);
 		p_flip = svbsl1n_u64(p_eraser, p_flip, mask);		o_flip = svbsl1n_u64(o_eraser, o_flip, mask);
 
-		mask = svld1_u64(pg, *pmask + 2);	// left: look for player LS1B
+		mask = svld1_u64(pg, *pmask + 6);	// left: look for player LS1B
 		p_oflank = svand_x(pg, mask, PP);			o_oflank = svbic_x(pg, mask, PP);
 			// set all bits lower than oflank, using satulation if oflank = 0
 		p_cap = svbic_x(pg, svqsub(p_oflank, 1), p_oflank);	o_cap = svbic_x(pg, svqsub(o_oflank, 1), o_oflank);
@@ -177,7 +177,8 @@ int board_score_1(unsigned long long P, int alpha, int pos)
 	return score * 2 - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 }
 
-int board_score_neon_1(uint64x1_t P, int alpha, int pos) {
+int board_score_neon_1(uint64x1_t P, int alpha, int pos)
+{
 	return board_score_1(vget_lane_u64(P, 0), alpha, pos);
 }
 #endif

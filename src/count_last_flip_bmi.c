@@ -18,7 +18,7 @@
 
 /** precomputed count flip array */
 /** lower byte for P, upper byte for O */
-const unsigned short COUNT_FLIP[8][256] = {{
+static const unsigned short COUNT_FLIP[8][256] = {{
 	000000, 000000, 0x0200, 0x0200, 0x0002, 0x0002, 0x0400, 0x0400,
 	0x0004, 0x0004, 0x0200, 0x0200, 0x0002, 0x0002, 0x0600, 0x0600,
 	0x0006, 0x0006, 0x0200, 0x0200, 0x0002, 0x0002, 0x0400, 0x0400,
@@ -414,6 +414,7 @@ int board_score_1(unsigned long long P, int alpha, int pos)
 	return score;
 }
 
-inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int x) {
+inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int x)
+{
 	return board_score_1(_mm_cvtsi128_si64(OP), alpha, x);
 }

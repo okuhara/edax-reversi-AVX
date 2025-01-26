@@ -2018,7 +2018,6 @@ static unsigned long long flip_pass(const unsigned long long P, const unsigned l
 	return 0;
 }
 
-
 /** Array of functions to compute flipped discs */
 unsigned long long (*flip[])(const unsigned long long, const unsigned long long) = {
 	flip_A1, flip_B1, flip_C1, flip_D1, flip_E1, flip_F1, flip_G1, flip_H1,
@@ -2031,4 +2030,3 @@ unsigned long long (*flip[])(const unsigned long long, const unsigned long long)
 	flip_A8, flip_B8, flip_C8, flip_D8, flip_E8, flip_F8, flip_G8, flip_H8,
 	flip_pass, flip_pass
 };
-

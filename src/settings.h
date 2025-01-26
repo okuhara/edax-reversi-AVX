@@ -14,56 +14,60 @@
 
 #include <stdbool.h>
 
-#define MOVE_GENERATOR_CARRY 1		// 32.6Mnps
-#define MOVE_GENERATOR_KINDERGARTEN 2	// 31.1Mnps
-#define MOVE_GENERATOR_SSE 3		// 34.4Mnps	// best for generic X64
-#define MOVE_GENERATOR_BITSCAN 4	// 32.7Mnps	// 40.7Mnps@armv8
-#define MOVE_GENERATOR_ROXANE 5		// 29.0Mnps
-#define MOVE_GENERATOR_32 6		// 31.3Mnps	// best for 32bit X86
+#define MOVE_GENERATOR_KINDERGARTEN 1	// 31.1Mnps
+#define MOVE_GENERATOR_32 2		// 31.3Mnps	// best for 32bit X86
+#define MOVE_GENERATOR_ROXANE 3		// 29.0Mnps
+#define MOVE_GENERATOR_CARRY 4		// 32.6Mnps
+#define MOVE_GENERATOR_BITSCAN 5	// 32.7Mnps	// 40.7Mnps@armv8
+#define MOVE_GENERATOR_SSE 6		// 34.4Mnps	// best for generic X64
 #define MOVE_GENERATOR_SSE_ACEPCK 7
 #define MOVE_GENERATOR_AVX 8		// 34.7Mnps	// best for modern X64
 #define MOVE_GENERATOR_AVX512 9
 #define MOVE_GENERATOR_NEON 10				// 31.0Mnps@armv8
 #define MOVE_GENERATOR_SVE 11
 
-#define COUNT_LAST_FLIP_CARRY 1		// SIMULLASTFLIP	// 33.8Mnps
-#define COUNT_LAST_FLIP_KINDERGARTEN 2	// SIMULLASTFLIP	// 33.5Mnps
-#define COUNT_LAST_FLIP_SSE 3		// SIMULLASTFLIP	// 34.7Mnps
+#define COUNT_LAST_FLIP_KINDERGARTEN 1	// SIMULLASTFLIP	// 33.5Mnps
+#define COUNT_LAST_FLIP_32 2		// SIMULLASTFLIP	// 33.1Mnps
+#define COUNT_LAST_FLIP_CARRY 3		// SIMULLASTFLIP	// 33.8Mnps
 #define COUNT_LAST_FLIP_BITSCAN 4	// LASTFLIP_LOWCUT	// 33.9Mnps	// 36.7Mnps@armv8
-#define COUNT_LAST_FLIP_PLAIN 5		// LASTFLIP_LOWCUT	// 33.3Mnps
-#define COUNT_LAST_FLIP_32 6		// SIMULLASTFLIP	// 33.1Mnps
+#define COUNT_LAST_FLIP_PLAIN 5		// SIMULLASTFLIP	// 33.3Mnps
+#define COUNT_LAST_FLIP_SSE 6		// SIMULLASTFLIP [LASTFLIP_HIGHCUT] [LASTFLIP_LOWCUT] [AVX512_PREFER512]	// 34.7Mnps
 #define COUNT_LAST_FLIP_BMI2 7		// SIMULLASTFLIP	// 34.7Mnps	// slow on AMD
-#define COUNT_LAST_FLIP_AVX_PPFILL 8	// LASTFLIP_LOWCUT / LASTFLIP_HIGHCUT
-#define COUNT_LAST_FLIP_AVX512 9	// SIMULLASTFLIP / SIMULLASTFLIP512 / LASTFLIP_HIGHCUT / LASTFLIP_LOWCUT
+#define COUNT_LAST_FLIP_AVX_PPFILL 8	// LASTFLIP_LOWCUT [LASTFLIP_HIGHCUT]
+#define COUNT_LAST_FLIP_AVX512 9	// SIMULLASTFLIP [LASTFLIP_HIGHCUT] [LASTFLIP_LOWCUT] [AVX512_PREFER512]
 #define COUNT_LAST_FLIP_NEON 10		// SIMULLASTFLIP			// 31.0Mnps@armv8
-#define COUNT_LAST_FLIP_SVE 11		// SIMULLASTFLIP / LASTFLIP_LOWCUT
+#define COUNT_LAST_FLIP_SVE 11		// SIMULLASTFLIP [LASTFLIP_LOWCUT]
 
 /**move generation. */
 #ifndef MOVE_GENERATOR
-	#if defined(__AVX512VL__) || defined(__AVX10_1__)
-		#define MOVE_GENERATOR MOVE_GENERATOR_AVX512
-	#elif defined(__AVX2__)
-		#define MOVE_GENERATOR MOVE_GENERATOR_AVX
-	#elif defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2)
-		#define MOVE_GENERATOR MOVE_GENERATOR_SSE
-	#elif defined(__ARM_FEATURE_SVE) && (__ARM_FEATURE_SVE_BITS > 128)
-		#define MOVE_GENERATOR MOVE_GENERATOR_SVE
-	#elif defined(__aarch64__) || defined(_M_ARM64)
-		#define MOVE_GENERATOR MOVE_GENERATOR_BITSCAN
-	#else
-		#define MOVE_GENERATOR MOVE_GENERATOR_32
-	#endif
+  #if defined(__AVX512VL__) || defined(__AVX10_1__)
+	#define MOVE_GENERATOR MOVE_GENERATOR_AVX512
+  #elif defined(__AVX2__)
+	#define MOVE_GENERATOR MOVE_GENERATOR_AVX
+  #elif defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2)
+	#define MOVE_GENERATOR MOVE_GENERATOR_SSE
+  #elif defined(__ARM_FEATURE_SVE) && (__ARM_FEATURE_SVE_BITS > 128)
+	#define MOVE_GENERATOR MOVE_GENERATOR_SVE
+  #elif defined(__aarch64__) || defined(_M_ARM64)
+	#define MOVE_GENERATOR MOVE_GENERATOR_BITSCAN
+  #else
+	#define MOVE_GENERATOR MOVE_GENERATOR_32
+  #endif
 #endif
-#ifndef LAST_FLIP_COUNTER
-	#if (defined(__AVX512VL__) || defined(__AVX10_1__)) && (defined(SIMULLASTFLIP512) || defined(LASTFLIP_HIGHCUT) || defined(LASTFLIP_LOWCUT))
-		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_AVX512
-	#elif defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2)
-		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_SSE
-	#elif defined(__aarch64__) || defined(_M_ARM64)
-		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_BITSCAN
-	#else
-		#define LAST_FLIP_COUNTER COUNT_LAST_FLIP_32
-	#endif
+#ifndef COUNT_LAST_FLIP
+  #if defined(__AVX512VL__) || defined(__AVX10_1__) 
+    #if (defined(LASTFLIP_HIGHCUT) || defined(LASTFLIP_LOWCUT)
+	#define COUNT_LAST_FLIP COUNT_LAST_FLIP_AVX512
+    #else
+	#define COUNT_LAST_FLIP COUNT_LAST_FLIP_BMI2
+    #endif
+  #elif defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2)
+	#define COUNT_LAST_FLIP COUNT_LAST_FLIP_SSE
+  #elif defined(__aarch64__) || defined(_M_ARM64)
+	#define COUNT_LAST_FLIP COUNT_LAST_FLIP_BITSCAN
+  #else
+	#define COUNT_LAST_FLIP COUNT_LAST_FLIP_32
+  #endif
 #endif
 
 /** transposition cutoff usage. */

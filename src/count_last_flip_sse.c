@@ -29,7 +29,7 @@
 
 /** precomputed count flip array */
 /** lower byte for P, upper byte for O */
-const uint16_t COUNT_FLIP[] = {
+static const uint16_t COUNT_FLIP[] = {
 	// CF80: 0
 	0x0000, 0x0000, 0x0200, 0x0200, 0x0002, 0x0002, 0x0400, 0x0400,
 	0x0004, 0x0004, 0x0200, 0x0200, 0x0002, 0x0002, 0x0600, 0x0600,
@@ -496,7 +496,7 @@ enum {
 };
 
 /* bit masks for diagonal lines */
-const V4DI mask_vdhd[64] = {
+static const V4DI mask_vdhd[64] = {
 	{{ 0x0000000000000000, 0x00000000000000ff, 0x8040201008040201, 0x0101010101010101 }},
 	{{ 0x0000000000000000, 0x00000000000000ff, 0x0080402010080400, 0x0202020202020202 }},
 	{{ 0x0000000000010200, 0x00000000000000ff, 0x0000804020100800, 0x0404040404040404 }},
@@ -580,16 +580,17 @@ const V4DI mask_vdhd[64] = {
  */
 int last_flip(int pos, unsigned long long P)
 {
-	uint_fast8_t	n_flips;
-	unsigned int	t;
-	int x = pos & 7;
-	const uint16_t *COUNT_FLIP_X = COUNT_FLIP + ((pos & 7) * 256);
-	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + ((pos & 0x38) << 5);
+	uint_fast8_t n_flips;
+	unsigned int t;
+	int x = pos & 0x07;
+	int y8 = pos & 0x38;
+	const uint16_t *COUNT_FLIP_X = COUNT_FLIP + x * 256;
+	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + y8 * 32;
 
   #ifdef AVXLASTFLIP	// no gain
+	n_flips  = (uint8_t) COUNT_FLIP_X[(P >> y8) & 0xFF];
 	t = TEST_EPI8_MASK32(_mm256_set1_epi64x(P), mask_vdhd[pos].v4);
-	n_flips  = (uint8_t) COUNT_FLIP_Y[t & 0xFF];
-	n_flips += (uint8_t) COUNT_FLIP_X[(P >> (pos & 0x38)) & 0xFF];
+	n_flips += (uint8_t) COUNT_FLIP_Y[t & 0xFF];
 	t >>= 16;
 
   #else
@@ -623,10 +624,12 @@ int last_flip(int pos, unsigned long long P)
 // lazy high cut-off idea was in Zebra by Gunnar Anderson (http://radagast.se/othello/zebra.html),
 // but commented out because mobility check was no faster than counting flips.
 // Now using AVX2, mobility check can be faster than counting flips.
-inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
+int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 {
 	int_fast8_t n_flips;
 	uint32_t t;
+	int x = pos & 0x07;
+	int y8 = pos & 0x38;
 	unsigned long long P = _mm_cvtsi128_si64(OP);
 	int score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 		// if player can move, final score > this score.
@@ -634,11 +637,12 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 		// if both pass, score - 1 (cancel P) - 1 (empty for O) <= final score <= score (empty for P).
 
 	if (score > alpha) {	// if player can move, high cut-off will occur regardress of n_flips.
-  #if 0 // def __AVX512VL__	// may trigger license base downclocking, wrong fingerprint on MSVC
+  #ifdef AVX512_PREFER512	// may trigger license base downclocking
 		__m512i P8 = _mm512_broadcastq_epi64(OP);
 		__m512i M = lrmask[pos].v8;
 		__m512i mO = _mm512_andnot_epi64(P8, M);
-		if (!_mm512_mask_test_epi64_mask(_mm512_test_epi64_mask(P8, M), mO, _mm512_set1_epi64(NEIGHBOUR[pos]))) {	// pass (16%)
+		__mmask8 fO = _mm512_test_epi64_mask(mO, _mm512_broadcastq_epi64(_mm_cvtsi64_si128(NEIGHBOUR[pos])));	// MSVC fails to use BCST for _mm512_set1_epi64
+		if (_ktestz_mask8_u8(_mm512_test_epi64_mask(P8, M), fO)) {	// pass (16%)
 			// n_flips = last_flip(pos, ~P);
 			t = _cvtmask32_u32(_mm256_cmpneq_epi8_mask(_mm512_castsi512_si256(mO), _mm512_extracti64x4_epi64(mO, 1)));	// eq only if l = r = 0
 
@@ -657,32 +661,32 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
   #else	// AVX2
 		__m256i P4 = _mm256_broadcastq_epi64(OP);
 		__m256i M = lrmask[pos].v4[0];
-		__m256i lmO = _mm256_andnot_si256(P4, M);
-		__m256i F = _mm256_andnot_si256(_mm256_cmpeq_epi64(lmO, M), lmO);	// clear if all O
-		M = lrmask[pos].v4[1];
 		__m256i rmO = _mm256_andnot_si256(P4, M);
-		F = _mm256_or_si256(F, _mm256_andnot_si256(_mm256_cmpeq_epi64(rmO, M), rmO));
+		__m256i F = _mm256_andnot_si256(_mm256_cmpeq_epi64(rmO, M), rmO);	// clear if all O
+		M = lrmask[pos].v4[1];
+		__m256i lmO = _mm256_andnot_si256(P4, M);
+		F = _mm256_or_si256(F, _mm256_andnot_si256(_mm256_cmpeq_epi64(lmO, M), lmO));
 		if (_mm256_testz_si256(F, _mm256_set1_epi64x(NEIGHBOUR[pos]))) {	// pass (16%)
 			// n_flips = last_flip(pos, ~P);
 			t = ~_mm256_movemask_epi8(_mm256_cmpeq_epi8(lmO, rmO));	// eq only if l = r = 0
   #endif
-			const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + ((pos & 0x38) << 5);
+			const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + y8 * 32;
 
-			n_flips = -(uint8_t) COUNT_FLIP[(pos & 7) * 256 + ((~P >> (pos & 0x38)) & 0xFF)];	// h
-			n_flips -= (uint8_t) COUNT_FLIP_Y[(t >> 8) & 0xFF];	// v
-			n_flips -= (uint8_t) COUNT_FLIP_Y[(t >> 16) & 0xFF];	// d
-			n_flips -= (uint8_t) COUNT_FLIP_Y[t >> 24];	// d
+			n_flips  = (uint8_t) COUNT_FLIP[x * 256 + ((~P >> y8) & 0xFF)];	// h
+			n_flips += (uint8_t) COUNT_FLIP_Y[(t >> 8) & 0xFF];	// v
+			n_flips += (uint8_t) COUNT_FLIP_Y[(t >> 16) & 0xFF];	// d
+			n_flips += (uint8_t) COUNT_FLIP_Y[t >> 24];	// d
 				// last square for O if O can move or score <= 0
-			score += n_flips - (int)((n_flips | (score - 1)) < 0) * 2;
+			score -= n_flips + (int)((-n_flips | (score - 1)) < 0) * 2;
 		} else	score += 2;	// min flip
 
 	} else {	// if player cannot move, low cut-off will occur whether opponent can move.
-		const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + ((pos & 0x38) << 5);
+		const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + y8 * 32;
 
 		// n_flips = last_flip(pos, P);
 		t = TEST_EPI8_MASK32(_mm256_broadcastq_epi64(OP), mask_vdhd[pos].v4);
 		n_flips  = (uint8_t) COUNT_FLIP_Y[t & 0xFF];	// d
-		n_flips += (uint8_t) COUNT_FLIP[(pos & 7) * 256 + ((P >> (pos & 0x38)) & 0xFF)];	// h
+		n_flips += (uint8_t) COUNT_FLIP[x * 256 + ((P >> y8) & 0xFF)];	// h
 		n_flips += (uint8_t) COUNT_FLIP_Y[(t >> 16) & 0xFF];	// d
 		n_flips += (uint8_t) COUNT_FLIP_Y[t >> 24];	// v
 		score += n_flips;
@@ -695,13 +699,15 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 
 #elif defined(LASTFLIP_LOWCUT)
 // Old COUNT_LAST_FLIP_SSE (2.61s on skylake, 2.16s on Zen4)
-inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
+int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 {
-	uint_fast8_t	n_flips;
-	int	score2;
-	unsigned int	t, op_flip;
-	const uint16_t *COUNT_FLIP_X = COUNT_FLIP + (pos & 7) * 256;
-	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + (pos >> 3) * 256;
+	uint_fast8_t n_flips;
+	int score2;
+	unsigned int t, op_flip;
+	int x = pos & 0x07;
+	int y8 = pos & 0x38;
+	const uint16_t *COUNT_FLIP_X = COUNT_FLIP + x * 256;
+	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + y8 * 32;
 
 	// n_flips = last_flip(pos, P);
   #ifdef AVXLASTFLIP	// no gain
@@ -710,9 +716,9 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 	__m256i M = mask_vdhd[pos].v4;
 	__m256i P4 = _mm256_broadcastq_epi64(OP);
 
+	op_flip  = COUNT_FLIP_X[(P >> y8) & 0xFF];
 	t = TEST_EPI8_MASK32(P4, M);
 	n_flips  = (uint8_t) COUNT_FLIP_Y[t & 0xFF];
-	op_flip  = COUNT_FLIP_X[(P >> (pos & 0x38)) & 0xFF];
 	t >>= 16;
 
   #else
@@ -760,7 +766,7 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 #else
 
   #ifdef AVXLASTFLIP
-const uint32_t cf_ofs_d[64] = {
+static const uint32_t cf_ofs_d[64] = {
 	(CF80<<16)|   0, (RF70<<16)|   0, (RF60<<16)|RF30, (RF50<<16)|RF40, (RF40<<16)|RF50, (RF30<<16)|RF60, (   0<<16)|RF70, (   0<<16)|CF80,
 	(CF81<<16)|   0, (CF81<<16)|   0, (RF71<<16)|RF41, (RF61<<16)|RF51, (RF51<<16)|RF61, (RF41<<16)|RF71, (   0<<16)|CF81, (   0<<16)|CF81,
 	(CF82<<16)|CF82, (CF82<<16)|CF82, (CF82<<16)|RF52, (RF72<<16)|RF62, (RF62<<16)|RF72, (RF52<<16)|CF82, (CF82<<16)|CF82, (CF82<<16)|CF82,
@@ -772,39 +778,41 @@ const uint32_t cf_ofs_d[64] = {
 };
 
   #else
-const V4SI cf_ofs[64] = {
-	{    0, CF80, CF80, CF80 }, {    0, RF70, CF81, CF80 }, { CF82, RF60, CF82, CF80 }, { CF83, RF50, CF83, CF80 }, 
-	{ CF84, RF40, CF84, CF80 }, { CF85, RF30, CF85, CF80 }, { CF86,    0, CF86, CF80 }, { CF87,    0, CF87, CF80 }, 
-	{    0, CF81, CF80, CF81 }, {    0, CF81, CF81, CF81 }, { CF82, RF71, CF82, CF81 }, { CF83, RF61, CF83, CF81 }, 
-	{ CF84, RF51, CF84, CF81 }, { CF85, RF41, CF85, CF81 }, { CF86,    0, CF86, CF81 }, { LF76,    0, CF87, CF81 }, 
-	{ RF30, CF82, CF80, CF82 }, { RF41, CF82, CF81, CF82 }, { RF52, CF82, CF82, CF82 }, { RF63, RF72, CF83, CF82 }, 
-	{ RF74, RF62, CF84, CF82 }, { CF85, RF52, CF85, CF82 }, { LF75, CF82, CF86, CF82 }, { LF65, CF82, CF87, CF82 }, 
-	{ RF40, CF83, CF80, CF83 }, { RF51, CF83, CF81, CF83 }, { RF62, LF72, CF82, CF83 }, { RF73, CF83, CF83, CF83 }, 
-	{ CF84, RF73, CF84, CF83 }, { LF74, RF63, CF85, CF83 }, { LF64, CF83, CF86, CF83 }, { LF54, CF83, CF87, CF83 }, 
-	{ RF50, CF84, CF80, CF84 }, { RF61, CF84, CF81, CF84 }, { RF72, LF62, CF82, CF84 }, { CF83, LF73, CF83, CF84 }, 
-	{ LF73, CF84, CF84, CF84 }, { LF63, RF74, CF85, CF84 }, { LF53, CF84, CF86, CF84 }, { LF43, CF84, CF87, CF84 }, 
-	{ RF60, CF85, CF80, CF85 }, { RF71, CF85, CF81, CF85 }, { CF82, LF52, CF82, CF85 }, { LF72, LF63, CF83, CF85 }, 
-	{ LF62, LF74, CF84, CF85 }, { LF52, CF85, CF85, CF85 }, { LF42, CF85, CF86, CF85 }, { LF32, CF85, CF87, CF85 }, 
-	{ RF70,    0, CF80, CF86 }, { CF81,    0, CF81, CF86 }, { CF82, LF42, CF82, CF86 }, { CF83, LF53, CF83, CF86 }, 
-	{ CF84, LF64, CF84, CF86 }, { CF85, LF75, CF85, CF86 }, {    0, CF86, CF86, CF86 }, {    0, CF86, CF87, CF86 }, 
-	{ CF80,    0, CF80, CF87 }, { CF81,    0, CF81, CF87 }, { CF82, LF32, CF82, CF87 }, { CF83, LF43, CF83, CF87 }, 
-	{ CF84, LF54, CF84, CF87 }, { CF85, LF65, CF85, CF87 }, {    0, LF76, CF86, CF87 }, {    0, CF87, CF87, CF87 }  
+static const V4SI cf_ofs[64] = {
+	{{    0, CF80, CF80, CF80 }}, {{    0, RF70, CF81, CF80 }}, {{ CF82, RF60, CF82, CF80 }}, {{ CF83, RF50, CF83, CF80 }},
+	{{ CF84, RF40, CF84, CF80 }}, {{ CF85, RF30, CF85, CF80 }}, {{ CF86,    0, CF86, CF80 }}, {{ CF87,    0, CF87, CF80 }},
+	{{    0, CF81, CF80, CF81 }}, {{    0, CF81, CF81, CF81 }}, {{ CF82, RF71, CF82, CF81 }}, {{ CF83, RF61, CF83, CF81 }},
+	{{ CF84, RF51, CF84, CF81 }}, {{ CF85, RF41, CF85, CF81 }}, {{ CF86,    0, CF86, CF81 }}, {{ LF76,    0, CF87, CF81 }},
+	{{ RF30, CF82, CF80, CF82 }}, {{ RF41, CF82, CF81, CF82 }}, {{ RF52, CF82, CF82, CF82 }}, {{ RF63, RF72, CF83, CF82 }},
+	{{ RF74, RF62, CF84, CF82 }}, {{ CF85, RF52, CF85, CF82 }}, {{ LF75, CF82, CF86, CF82 }}, {{ LF65, CF82, CF87, CF82 }},
+	{{ RF40, CF83, CF80, CF83 }}, {{ RF51, CF83, CF81, CF83 }}, {{ RF62, LF72, CF82, CF83 }}, {{ RF73, CF83, CF83, CF83 }},
+	{{ CF84, RF73, CF84, CF83 }}, {{ LF74, RF63, CF85, CF83 }}, {{ LF64, CF83, CF86, CF83 }}, {{ LF54, CF83, CF87, CF83 }},
+	{{ RF50, CF84, CF80, CF84 }}, {{ RF61, CF84, CF81, CF84 }}, {{ RF72, LF62, CF82, CF84 }}, {{ CF83, LF73, CF83, CF84 }},
+	{{ LF73, CF84, CF84, CF84 }}, {{ LF63, RF74, CF85, CF84 }}, {{ LF53, CF84, CF86, CF84 }}, {{ LF43, CF84, CF87, CF84 }},
+	{{ RF60, CF85, CF80, CF85 }}, {{ RF71, CF85, CF81, CF85 }}, {{ CF82, LF52, CF82, CF85 }}, {{ LF72, LF63, CF83, CF85 }},
+	{{ LF62, LF74, CF84, CF85 }}, {{ LF52, CF85, CF85, CF85 }}, {{ LF42, CF85, CF86, CF85 }}, {{ LF32, CF85, CF87, CF85 }},
+	{{ RF70,    0, CF80, CF86 }}, {{ CF81,    0, CF81, CF86 }}, {{ CF82, LF42, CF82, CF86 }}, {{ CF83, LF53, CF83, CF86 }},
+	{{ CF84, LF64, CF84, CF86 }}, {{ CF85, LF75, CF85, CF86 }}, {{    0, CF86, CF86, CF86 }}, {{    0, CF86, CF87, CF86 }},
+	{{ CF80,    0, CF80, CF87 }}, {{ CF81,    0, CF81, CF87 }}, {{ CF82, LF32, CF82, CF87 }}, {{ CF83, LF43, CF83, CF87 }},
+	{{ CF84, LF54, CF84, CF87 }}, {{ CF85, LF65, CF85, CF87 }}, {{    0, LF76, CF86, CF87 }}, {{    0, CF87, CF87, CF87 }}
 };
   #endif
 
 // COUNT_LAST_FLIP_SSE - reasonably fast on all platforms
-inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
+int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 {
-	uint_fast16_t	op_flip;
-	int	p_flips, o_flips;
-	unsigned int	t;
+	uint_fast16_t op_flip;
+	int p_flips, o_flips;
+	unsigned int t;
   #ifdef AVXLASTFLIP	// no gain
+	int x = pos & 0x07;
+	int y8 = pos & 0x38;
 	unsigned long long P = _mm_cvtsi128_si64(OP);
 	int score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 
+	op_flip  = COUNT_FLIP[x * 256 + ((P >> y8) & 0xFF)];	// h
 	t = TEST_EPI8_MASK32(_mm256_broadcastq_epi64(OP), mask_vdhd[pos].v4);
-	op_flip  = COUNT_FLIP[(pos & 7) * 256 + ((P >> (pos & 0x38)) & 0xFF)];	// h
-	op_flip += COUNT_FLIP[((pos & 0x38) << 5) + (t >> 24)];	// v
+	op_flip += COUNT_FLIP[y8 * 32 + (t >> 24)];	// v
 	t = cf_ofs_d[pos] + (t & 0x00FF00FF);	// 0d0d
 	op_flip += COUNT_FLIP[t & 0xFFFF];
 	op_flip += COUNT_FLIP[t >> 16];
@@ -819,8 +827,8 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 	op_flip += COUNT_FLIP[_mm_extract_epi16(II, 4)];
 	t = TEST_EPI8_MASK16(P2, mask_vdhd[pos].v2[1]);	// vd
 	op_flip += COUNT_FLIP[cf_ofs[pos].ui[1] + (t & 0xFF)];
-	// op_flip += COUNT_FLIP[cf_ofs[pos].ui[3] + (t >> 8)];
-	op_flip += COUNT_FLIP[((pos & 0x38) << 5) + (t >> 8)];
+	op_flip += COUNT_FLIP[cf_ofs[pos].ui[3] + (t >> 8)];
+	// op_flip += COUNT_FLIP[((pos & 0x38) << 5) + (t >> 8)];
   #endif
 
 	p_flips = op_flip & 0xFF;
@@ -833,6 +841,7 @@ inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int p
 }
 #endif
 
-int board_score_1(unsigned long long player, int alpha, int x) {
+int board_score_1(unsigned long long player, int alpha, int x)
+{
 	return board_score_sse_1(_mm_cvtsi64_si128(player), alpha, x);
 }

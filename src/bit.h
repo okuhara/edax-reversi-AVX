@@ -187,7 +187,7 @@ typedef union {
 } V8DI;
 
 #ifdef hasSSE2
-typedef union V4SI {
+typedef union {
 	unsigned int	ui[4];
 	__m128i	v4;
 } V4SI;

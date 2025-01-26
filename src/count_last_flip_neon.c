@@ -28,7 +28,7 @@
 
 /** precomputed count flip array */
 /** lower byte for P, upper byte for O */
-const uint16_t COUNT_FLIP[] = {
+static const uint16_t COUNT_FLIP[] = {
 	// CF80: 0
 	0x0000, 0x0000, 0x0200, 0x0200, 0x0002, 0x0002, 0x0400, 0x0400,
 	0x0004, 0x0004, 0x0200, 0x0200, 0x0002, 0x0002, 0x0600, 0x0600,
@@ -496,7 +496,7 @@ enum {
 
 #ifdef HAS_CPU_64
 /* bit masks for diagonal lines (interleaved) */
-const uint64x2_t mask_dvhd[64][2] = {
+static const uint64x2_t mask_dvhd[64][2] = {
 	{{ 0x000000000000ff00, 0x0000000000000000 }, { 0x0801040102010101, 0x8001400120011001 }},
 	{{ 0x000000000000ff00, 0x0000000000000000 }, { 0x1002080204020002, 0x0002800240022002 }},
 	{{ 0x000000010002ff00, 0x0000000000000000 }, { 0x2004100408040004, 0x0004000480044004 }},
@@ -564,7 +564,7 @@ const uint64x2_t mask_dvhd[64][2] = {
 };
 #else
 /* bit masks for diagonal lines */
-const uint64x2_t mask_dvhd[64][2] = {
+static const uint64x2_t mask_dvhd[64][2] = {
 	{{ 0x0000000000000000, 0x00000000000000ff }, { 0x0101010101010101, 0x8040201008040201 }},
 	{{ 0x0000000000000000, 0x00000000000000ff }, { 0x0202020202020202, 0x0080402010080400 }},
 	{{ 0x0000000000010200, 0x00000000000000ff }, { 0x0404040404040404, 0x0000804020100800 }},
@@ -646,11 +646,11 @@ const uint64x2_t mask_dvhd[64][2] = {
 
 int last_flip(int pos, unsigned long long P)
 {
-	uint_fast8_t	n_flips;
-	const uint16_t *COUNT_FLIP_X = COUNT_FLIP + ((pos & 7) * 256);
-	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + ((pos & 0x38) << 5);
-	uint64x2_t	PP = vdupq_n_u64(P);
-	uint64x2_t	II;
+	uint_fast8_t n_flips;
+	const uint16_t *COUNT_FLIP_X = COUNT_FLIP + (pos & 7) * 256;
+	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + (pos >> 3) * 256;
+	uint64x2_t PP = vdupq_n_u64(P);
+	uint64x2_t II;
 #ifdef HAS_CPU_64	// vaddvq
 	unsigned int t;
 	const uint64x2_t dmask = { 0x0808040402020101, 0x8080404020201010 };
@@ -693,14 +693,14 @@ int last_flip(int pos, unsigned long long P)
 // Old COUNT_LAST_FLIP_NEON
 int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 {
-	int	score = 2 * vaddv_u8(vcnt_u8(vreinterpret_u8_u64(P))) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+	int score = 2 * vaddv_u8(vcnt_u8(vreinterpret_u8_u64(P))) - SCORE_MAX + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 	unsigned int t0, t1;
-	uint_fast8_t	n_flips;
-	uint_fast16_t	op_flip, m;
+	uint_fast8_t n_flips;
+	uint_fast16_t op_flip, m;
 	const uint16_t *COUNT_FLIP_X = COUNT_FLIP + (pos & 7) * 256;
 	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + (pos >> 3) * 256;
-	uint64x2_t	PP = vdupq_lane_u64(P, 0);
-	uint64x2_t	II;
+	uint64x2_t PP = vdupq_lane_u64(P, 0);
+	uint64x2_t II;
 	static const uint16_t o_mask[64] = {
 		0xff01, 0x7f03, 0x3f07, 0x1f0f, 0x0f1f, 0x073f, 0x037f, 0x01ff,
 		0xfe03, 0xff07, 0x7f0f, 0x3f1f, 0x1f3f, 0x0f7f, 0x07ff, 0x03fe,
@@ -760,7 +760,7 @@ int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 #else // simul COUNT_FLIP TLU
 
   #ifdef HAS_CPU_64
-const unsigned short cf_ofs_d[64][2] = {
+static const unsigned short cf_ofs_d[64][2] = {
 	{    0, CF80 }, {    0, RF70 }, { CF82, RF60 }, { CF83, RF50 }, { CF84, RF40 }, { CF85, RF30 }, { CF86,    0 }, { CF87,    0 },
 	{    0, CF81 }, {    0, CF81 }, { CF82, RF71 }, { CF83, RF61 }, { CF84, RF51 }, { CF85, RF41 }, { CF86,    0 }, { LF76,    0 },
 	{ RF30, CF82 }, { RF41, CF82 }, { RF52, CF82 }, { RF63, RF72 }, { RF74, RF62 }, { CF85, RF52 }, { LF75, CF82 }, { LF65, CF82 },
@@ -772,7 +772,7 @@ const unsigned short cf_ofs_d[64][2] = {
 };
 
   #else
-const uint32x4_t cf_ofs[64] = {
+static const uint32x4_t cf_ofs[64] = {
 	{    0, CF80, CF80, CF80 }, {    0, CF80, CF81, RF70 }, { CF82, CF80, CF82, RF60 }, { CF83, CF80, CF83, RF50 }, 
 	{ CF84, CF80, CF84, RF40 }, { CF85, CF80, CF85, RF30 }, { CF86, CF80, CF86,    0 }, { CF87, CF80, CF87,    0 }, 
 	{    0, CF81, CF80, CF81 }, {    0, CF81, CF81, CF81 }, { CF82, CF81, CF82, RF71 }, { CF83, CF81, CF83, RF61 }, 
@@ -794,19 +794,19 @@ const uint32x4_t cf_ofs[64] = {
 
 int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 {
-	uint_fast16_t	op_flip;
-	int	p_flips, o_flips;
-	int	score = 2 * vaddv_u8(vcnt_u8(vreinterpret_u8_u64(P))) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
-	uint64x2_t	PP = vdupq_lane_u64(P, 0);
+	uint_fast16_t op_flip;
+	int p_flips, o_flips;
+	int score = 2 * vaddv_u8(vcnt_u8(vreinterpret_u8_u64(P))) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+	uint64x2_t PP = vdupq_lane_u64(P, 0);
   #ifdef HAS_CPU_64	// vaddvq
 	unsigned int t0, t1;
 	const uint64x2_t dmask = { 0x0808040402020101, 0x8080404020201010 };
-	uint64x2_t	II;
+	uint64x2_t II;
 
 	PP = vreinterpretq_u64_u8(vzip1q_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(PP)));
 	t0 = vaddvq_u16(vreinterpretq_u16_u64(vandq_u64(PP, mask_dvhd[pos][0])));	// 2 dirs interleaved
 	op_flip  = COUNT_FLIP[cf_ofs_d[pos][0] + (t0 & 0xFF)];
-	op_flip += COUNT_FLIP[((pos & 7) * 256) + (t0 >> 8)];
+	op_flip += COUNT_FLIP[(pos & 0x07) * 256 + (t0 >> 8)];
 	II = vandq_u64(vreinterpretq_u64_u8(vtstq_u8(vreinterpretq_u8_u64(PP), vreinterpretq_u8_u64(mask_dvhd[pos][1]))), dmask);
 	t1 = vaddvq_u16(vreinterpretq_u16_u64(II));
 	op_flip += COUNT_FLIP[((pos & 0x38) << 5) + (t1 & 0xFF)];
@@ -814,8 +814,8 @@ int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 
   #else // Neon kindergarten
 	const uint32x4_t dmask = { 0x01020408, 0x10204080, 0x01020408, 0x10204080 };
-	uint32x4_t	cf_ofs_pos = cf_ofs[pos];
-	uint32x4_t	II;
+	uint32x4_t cf_ofs_pos = cf_ofs[pos];
+	uint32x4_t II;
 
 	II = vreinterpretq_u32_u64(vpaddlq_u32(vpaddlq_u16(vpaddlq_u8(vreinterpretq_u8_u64(vandq_u64(PP, mask_dvhd[pos][0]))))));
 	II = vaddq_u32(II, cf_ofs_pos);
@@ -838,6 +838,7 @@ int board_score_neon_1(uint64x1_t P, int alpha, int pos)
 }
 #endif
 
-int board_score_1(unsigned long long player, int alpha, int x) {
+int board_score_1(unsigned long long player, int alpha, int x)
+{
 	return board_score_neon_1(vcreate_u64(player), alpha, x);
 }

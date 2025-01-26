@@ -29,10 +29,12 @@
 #include <assert.h>
 
 
-#if MOVE_GENERATOR == MOVE_GENERATOR_CARRY
+#if MOVE_GENERATOR == MOVE_GENERATOR_32
+	#include "flip_carry_sse_32.c"
+#elif MOVE_GENERATOR == MOVE_GENERATOR_ROXANE
+	#include "flip_roxane.c"
+#elif MOVE_GENERATOR == MOVE_GENERATOR_CARRY
 	#include "flip_carry_64.c"
-#elif MOVE_GENERATOR == MOVE_GENERATOR_SSE
-	#include "flip_sse.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_BITSCAN
   #ifdef __ARM_NEON
 	#define	flip_neon	flip
@@ -40,10 +42,8 @@
   #else
 	#include "flip_bitscan.c"
   #endif
-#elif MOVE_GENERATOR == MOVE_GENERATOR_ROXANE
-	#include "flip_roxane.c"
-#elif MOVE_GENERATOR == MOVE_GENERATOR_32
-	#include "flip_carry_sse_32.c"
+#elif MOVE_GENERATOR == MOVE_GENERATOR_SSE
+	#include "flip_sse.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_SSE_ACEPCK
 	#include "flip_sse_acepck.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_AVX

@@ -18,27 +18,27 @@
 
 #include <assert.h>
 
-#if LAST_FLIP_COUNTER == COUNT_LAST_FLIP_CARRY
-	#include "count_last_flip_carry_64.c"
-#elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE
-	#include "count_last_flip_sse.c"
-#elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BITSCAN
-	#include "count_last_flip_bitscan.c"
-#elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_PLAIN
-	#include "count_last_flip_plain.c"
-#elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_32
+#if COUNT_LAST_FLIP == COUNT_LAST_FLIP_32
 	#include "count_last_flip_32.c"
-#elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_BMI2
+#elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_CARRY
+	#include "count_last_flip_carry_64.c"
+#elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_BITSCAN
+	#include "count_last_flip_bitscan.c"
+#elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_PLAIN
+	#include "count_last_flip_plain.c"
+#elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_SSE
+	#include "count_last_flip_sse.c"
+#elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_BMI2
 	#include "count_last_flip_bmi2.c"
-#elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_AVX_PPFILL
+#elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_AVX_PPFILL
 	#include "count_last_flip_avx_ppfill.c"
-#elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_AVX512
+#elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_AVX512
 	#include "count_last_flip_avx512cd.c"
-#elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_NEON
+#elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_NEON
 	#include "count_last_flip_neon.c"
-#elif LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SVE
+#elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_SVE
 	#include "count_last_flip_sve_lzcnt.c"
-#else // LAST_FLIP_COUNTER == COUNT_LAST_FLIP_KINDERGARTEN
+#else // COUNT_LAST_FLIP == COUNT_LAST_FLIP_KINDERGARTEN
 	#include "count_last_flip_kindergarten.c"
 #endif
 
@@ -93,9 +93,9 @@ int search_solve_0(const Search *search)
 	return 2 * bit_count(search->board.player) - SCORE_MAX;
 }
 
-#if ((MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)) && ((LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SSE) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_AVX_PPFILL) || (LAST_FLIP_COUNTER >= COUNT_LAST_FLIP_BMI2))
+#if (MOVE_GENERATOR >= MOVE_GENERATOR_SSE) && (MOVE_GENERATOR <= MOVE_GENERATOR_AVX512) && (COUNT_LAST_FLIP >= COUNT_LAST_FLIP_SSE) && (COUNT_LAST_FLIP <= COUNT_LAST_FLIP_AVX512)
 	#include "endgame_sse.c"	// vectorcall version
-#elif ((MOVE_GENERATOR == MOVE_GENERATOR_NEON) || (MOVE_GENERATOR == MOVE_GENERATOR_SVE)) && ((LAST_FLIP_COUNTER == COUNT_LAST_FLIP_NEON) || (LAST_FLIP_COUNTER == COUNT_LAST_FLIP_SVE))
+#elif (MOVE_GENERATOR >= MOVE_GENERATOR_NEON) && (MOVE_GENERATOR <= MOVE_GENERATOR_SVE) && (COUNT_LAST_FLIP >= COUNT_LAST_FLIP_NEON) && (COUNT_LAST_FLIP <= COUNT_LAST_FLIP_SVE)
 	#include "endgame_neon.c"
 #else
 /**

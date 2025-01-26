@@ -2636,25 +2636,15 @@ static unsigned long long flip_pass(const unsigned long long P, const unsigned l
 	return 0;
 }
 
-
 /** Array of functions to compute flipped discs */
 unsigned long long (*flip[])(const unsigned long long, const unsigned long long) = {
-	flip_A1, flip_B1, flip_C1, flip_D1,
-	flip_E1, flip_F1, flip_G1, flip_H1,
-	flip_A2, flip_B2, flip_C2, flip_D2,
-	flip_E2, flip_F2, flip_G2, flip_H2,
-	flip_A3, flip_B3, flip_C3, flip_D3,
-	flip_E3, flip_F3, flip_G3, flip_H3,
-	flip_A4, flip_B4, flip_C4, flip_D4,
-	flip_E4, flip_F4, flip_G4, flip_H4,
-	flip_A5, flip_B5, flip_C5, flip_D5,
-	flip_E5, flip_F5, flip_G5, flip_H5,
-	flip_A6, flip_B6, flip_C6, flip_D6,
-	flip_E6, flip_F6, flip_G6, flip_H6,
-	flip_A7, flip_B7, flip_C7, flip_D7,
-	flip_E7, flip_F7, flip_G7, flip_H7,
-	flip_A8, flip_B8, flip_C8, flip_D8,
-	flip_E8, flip_F8, flip_G8, flip_H8,
+	flip_A1, flip_B1, flip_C1, flip_D1, flip_E1, flip_F1, flip_G1, flip_H1,
+	flip_A2, flip_B2, flip_C2, flip_D2, flip_E2, flip_F2, flip_G2, flip_H2,
+	flip_A3, flip_B3, flip_C3, flip_D3, flip_E3, flip_F3, flip_G3, flip_H3,
+	flip_A4, flip_B4, flip_C4, flip_D4, flip_E4, flip_F4, flip_G4, flip_H4,
+	flip_A5, flip_B5, flip_C5, flip_D5, flip_E5, flip_F5, flip_G5, flip_H5,
+	flip_A6, flip_B6, flip_C6, flip_D6, flip_E6, flip_F6, flip_G6, flip_H6,
+	flip_A7, flip_B7, flip_C7, flip_D7, flip_E7, flip_F7, flip_G7, flip_H7,
+	flip_A8, flip_B8, flip_C8, flip_D8, flip_E8, flip_F8, flip_G8, flip_H8,
 	flip_pass, flip_pass
 };
-

@@ -29,7 +29,7 @@
 
 /** precomputed count flip array */
 /** lower byte for P, upper byte for O */
-const uint16_t COUNT_FLIP[] = {
+static const uint16_t COUNT_FLIP[] = {
 	// 8[0]: 0
 	0x0000, 0x0000, 0x0200, 0x0200, 0x0002, 0x0002, 0x0400, 0x0400,
 	0x0004, 0x0004, 0x0200, 0x0200, 0x0002, 0x0002, 0x0600, 0x0600,
@@ -380,28 +380,19 @@ enum {
 	CF30 = 2440
 };
 
-const unsigned short cf_ofs_d[2][64] = {{
-	   0,    0, CF30, CF40, CF50, CF60, CF70, CF80,
-	   0,    0, CF30, CF40, CF50, CF60, CF81, CF70,
-	CF82, CF82, CF52, CF62, CF72, CF82, CF60, CF60,
-	CF83, CF83, CF63, CF73, CF83, CF72, CF50, CF50,
-	CF84, CF84, CF74, CF84, CF73, CF62, CF40, CF40,
-	CF85, CF85, CF85, CF74, CF63, CF52, CF30, CF30,
-	CF86, CF86, CF85, CF84, CF83, CF82,    0,    0,
-	CF87, CF86, CF85, CF84, CF83, CF82,    0,    0
-}, {
-	CF80, CF70, CF60, CF50, CF40, CF30,    0,    0,
-	CF70, CF81, CF60, CF50, CF40, CF30,    0,    0,
-	CF60, CF60, CF82, CF72, CF62, CF52, CF82, CF82,
-	CF50, CF50, CF72, CF83, CF73, CF63, CF83, CF83,
-	CF40, CF40, CF62, CF73, CF84, CF74, CF84, CF84,
-	CF30, CF30, CF52, CF63, CF74, CF85, CF85, CF85,
-	   0,    0, CF82, CF83, CF84, CF85, CF86, CF86,
-	   0,    0, CF82, CF83, CF84, CF85, CF86, CF87
-}};
+static const unsigned short cf_ofs_d[64][2] = {
+	{    0, CF80 }, {    0, CF70 }, { CF30, CF60 }, { CF40, CF50 }, { CF50, CF40 }, { CF60, CF30 }, { CF70,    0 }, { CF80,    0 },
+	{    0, CF70 }, {    0, CF81 }, { CF30, CF60 }, { CF40, CF50 }, { CF50, CF40 }, { CF60, CF30 }, { CF81,    0 }, { CF70,    0 },
+	{ CF82, CF60 }, { CF82, CF60 }, { CF52, CF82 }, { CF62, CF72 }, { CF72, CF62 }, { CF82, CF52 }, { CF60, CF82 }, { CF60, CF82 },
+	{ CF83, CF50 }, { CF83, CF50 }, { CF63, CF72 }, { CF73, CF83 }, { CF83, CF73 }, { CF72, CF63 }, { CF50, CF83 }, { CF50, CF83 },
+	{ CF84, CF40 }, { CF84, CF40 }, { CF74, CF62 }, { CF84, CF73 }, { CF73, CF84 }, { CF62, CF74 }, { CF40, CF84 }, { CF40, CF84 },
+	{ CF85, CF30 }, { CF85, CF30 }, { CF85, CF52 }, { CF74, CF63 }, { CF63, CF74 }, { CF52, CF85 }, { CF30, CF85 }, { CF30, CF85 },
+	{ CF86,    0 }, { CF86,    0 }, { CF85, CF82 }, { CF84, CF83 }, { CF83, CF84 }, { CF82, CF85 }, {    0, CF86 }, {    0, CF86 },
+	{ CF87,    0 }, { CF86,    0 }, { CF85, CF82 }, { CF84, CF83 }, { CF83, CF84 }, { CF82, CF85 }, {    0, CF86 }, {    0, CF87 }
+};
 
 /* bit masks for diagonal lines */
-const unsigned long long cf_mask_d[2][64] = {{
+static const unsigned long long cf_mask_d[2][64] = {{
 	0x0000000000000000, 0x0000000000000000, 0x0000000000010200, 0x0000000001020400, 0x0000000102040800, 0x0000010204081000, 0x0001020408102000, 0x0102040810204080,
 	0x0000000000000000, 0x0000000000000000, 0x0000000001020000, 0x0000000102040000, 0x0000010204080000, 0x0001020408100000, 0x0102040810204080, 0x0204081020400000,
 	0x0000000000000204, 0x0000000000000408, 0x0000000102000810, 0x0000010204001020, 0x0001020408002040, 0x0102040810204080, 0x0204081020000000, 0x0408102040000000,
@@ -429,18 +420,19 @@ const unsigned long long cf_mask_d[2][64] = {{
  * @return flipped disc count.
  */
 
-inline int last_flip(int pos, unsigned long long P)
+int last_flip(int pos, unsigned long long P)
 {
-	uint_fast8_t n_flipped;
-	int x = pos & 7;
+	uint_fast8_t n_flips;
+	int x = pos & 0x07;
+	int y8 = pos & 0x38;
 
 	// n_flipped = (uint8_t) COUNT_FLIP[x * 256 + _bextr_u64(P, pos & 0x38, 8)];
-	n_flipped  = (uint8_t) COUNT_FLIP[x * 256 + ((P >> (pos & 0x38)) & 0xFF)];
-	n_flipped += (uint8_t) COUNT_FLIP[cf_ofs_d[0][pos] + _pext_u64(P, cf_mask_d[0][pos])];
-	n_flipped += (uint8_t) COUNT_FLIP[cf_ofs_d[1][pos] + _pext_u64(P, cf_mask_d[1][pos])];
-	n_flipped += (uint8_t) COUNT_FLIP[((pos & 0x38) << 5) + _pext_u64(P, 0x0101010101010101 << x)];
+	n_flips  = (uint8_t) COUNT_FLIP[x * 256 + ((P >> y8) & 0xFF)];
+	n_flips += (uint8_t) COUNT_FLIP[cf_ofs_d[pos][0] + _pext_u64(P, cf_mask_d[0][pos])];
+	n_flips += (uint8_t) COUNT_FLIP[cf_ofs_d[pos][1] + _pext_u64(P, cf_mask_d[1][pos])];
+	n_flips += (uint8_t) COUNT_FLIP[y8 * 32 + _pext_u64(P, 0x0101010101010101 << x)];
 
-	return n_flipped;
+	return n_flips;
 }
 
 /**
@@ -456,16 +448,17 @@ inline int last_flip(int pos, unsigned long long P)
  */
 int board_score_1(unsigned long long P, int alpha, int pos)
 {
-	uint_fast16_t	op_flip;
+	uint_fast16_t op_flip;
 	int p_flips, o_flips;
 	int score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
-	int x = pos & 7;
+	int x = pos & 0x07;
+	int y8 = pos & 0x38;
 
 	// op_flip = COUNT_FLIP[x * 256 + _bextr_u64(P, pos & 0x38, 8)];
-	op_flip  = COUNT_FLIP[x * 256 + ((P >> (pos & 0x38)) & 0xFF)];
-	op_flip += COUNT_FLIP[cf_ofs_d[0][pos] + _pext_u64(P, cf_mask_d[0][pos])];
-	op_flip += COUNT_FLIP[cf_ofs_d[1][pos] + _pext_u64(P, cf_mask_d[1][pos])];
-	op_flip += COUNT_FLIP[((pos & 0x38) << 5) + _pext_u64(P, 0x0101010101010101 << x)];
+	op_flip  = COUNT_FLIP[x * 256 + ((P >> y8) & 0xFF)];
+	op_flip += COUNT_FLIP[cf_ofs_d[pos][0] + _pext_u64(P, cf_mask_d[0][pos])];
+	op_flip += COUNT_FLIP[cf_ofs_d[pos][1] + _pext_u64(P, cf_mask_d[1][pos])];
+	op_flip += COUNT_FLIP[y8 * 32 + _pext_u64(P, 0x0101010101010101 << x)];
 
 	p_flips = op_flip & 0xFF;
 	if (p_flips)
@@ -476,6 +469,7 @@ int board_score_1(unsigned long long P, int alpha, int pos)
 	return score + o_flips - (int)((o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
 }
 
-inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int x) {
+int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int x)
+{
 	return board_score_1(_mm_cvtsi128_si64(OP), alpha, x);
 }
