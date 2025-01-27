@@ -111,8 +111,10 @@ extern unsigned char edge_stability[256 * 256];
 extern int board_score_1(const unsigned long long player, const int alpha, const int x);
 #if COUNT_LAST_FLIP >= COUNT_LAST_FLIP_NEON
 	extern int board_score_neon_1(uint64x1_t P, int alpha, int pos);
-#elif COUNT_LAST_FLIP >= COUNT_LAST_FLIP_SSE
+#elif (COUNT_LAST_FLIP >= COUNT_LAST_FLIP_SSE) && (COUNT_LAST_FLIP != COUNT_LAST_FLIP_BMI2)
 	extern int vectorcall board_score_sse_1(__m128i OP, int alpha, int pos);
+#else
+	#define board_score_sse_1(OP,alpha,pos)	board_score_1(_mm_cvtsi128_si64(OP), (alpha), (pos))
 #endif
 
 #if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE_ACEPCK)

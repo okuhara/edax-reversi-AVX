@@ -582,13 +582,11 @@ int last_flip(int pos, unsigned long long P)
 {
 	uint_fast8_t n_flips;
 	unsigned int t;
-	int x = pos & 0x07;
-	int y8 = pos & 0x38;
-	const uint16_t *COUNT_FLIP_X = COUNT_FLIP + x * 256;
-	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + y8 * 32;
+	const uint16_t *COUNT_FLIP_X = COUNT_FLIP + (pos & 0x07) * 256;
+	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + (pos & 0x38) * 32;
 
   #ifdef AVXLASTFLIP	// no gain
-	n_flips  = (uint8_t) COUNT_FLIP_X[(P >> y8) & 0xFF];
+	n_flips  = (uint8_t) COUNT_FLIP_X[(P >> (pos & 0x38)) & 0xFF];
 	t = TEST_EPI8_MASK32(_mm256_set1_epi64x(P), mask_vdhd[pos].v4);
 	n_flips += (uint8_t) COUNT_FLIP_Y[t & 0xFF];
 	t >>= 16;
@@ -628,8 +626,6 @@ int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 {
 	int_fast8_t n_flips;
 	uint32_t t;
-	int x = pos & 0x07;
-	int y8 = pos & 0x38;
 	unsigned long long P = _mm_cvtsi128_si64(OP);
 	int score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 		// if player can move, final score > this score.
@@ -670,9 +666,9 @@ int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 			// n_flips = last_flip(pos, ~P);
 			t = ~_mm256_movemask_epi8(_mm256_cmpeq_epi8(lmO, rmO));	// eq only if l = r = 0
   #endif
-			const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + y8 * 32;
+			const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + (pos & 0x38) * 32;
 
-			n_flips  = (uint8_t) COUNT_FLIP[x * 256 + ((~P >> y8) & 0xFF)];	// h
+			n_flips  = (uint8_t) COUNT_FLIP[(pos & 0x07) * 256 + ((~P >> (pos & 0x38)) & 0xFF)];	// h
 			n_flips += (uint8_t) COUNT_FLIP_Y[(t >> 8) & 0xFF];	// v
 			n_flips += (uint8_t) COUNT_FLIP_Y[(t >> 16) & 0xFF];	// d
 			n_flips += (uint8_t) COUNT_FLIP_Y[t >> 24];	// d
@@ -681,12 +677,12 @@ int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 		} else	score += 2;	// min flip
 
 	} else {	// if player cannot move, low cut-off will occur whether opponent can move.
-		const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + y8 * 32;
+		const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + (pos & 0x38) * 32;
 
 		// n_flips = last_flip(pos, P);
 		t = TEST_EPI8_MASK32(_mm256_broadcastq_epi64(OP), mask_vdhd[pos].v4);
 		n_flips  = (uint8_t) COUNT_FLIP_Y[t & 0xFF];	// d
-		n_flips += (uint8_t) COUNT_FLIP[x * 256 + ((P >> y8) & 0xFF)];	// h
+		n_flips += (uint8_t) COUNT_FLIP[(pos & 0x07) * 256 + ((P >> (pos & 0x38)) & 0xFF)];	// h
 		n_flips += (uint8_t) COUNT_FLIP_Y[(t >> 16) & 0xFF];	// d
 		n_flips += (uint8_t) COUNT_FLIP_Y[t >> 24];	// v
 		score += n_flips;
@@ -704,10 +700,8 @@ int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 	uint_fast8_t n_flips;
 	int score2;
 	unsigned int t, op_flip;
-	int x = pos & 0x07;
-	int y8 = pos & 0x38;
-	const uint16_t *COUNT_FLIP_X = COUNT_FLIP + x * 256;
-	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + y8 * 32;
+	const uint16_t *COUNT_FLIP_X = COUNT_FLIP + (pos & 0x07) * 256;
+	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + (pos & 0x38) * 32;
 
 	// n_flips = last_flip(pos, P);
   #ifdef AVXLASTFLIP	// no gain
@@ -716,7 +710,7 @@ int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 	__m256i M = mask_vdhd[pos].v4;
 	__m256i P4 = _mm256_broadcastq_epi64(OP);
 
-	op_flip  = COUNT_FLIP_X[(P >> y8) & 0xFF];
+	op_flip  = COUNT_FLIP_X[(P >> (pos & 0x38)) & 0xFF];
 	t = TEST_EPI8_MASK32(P4, M);
 	n_flips  = (uint8_t) COUNT_FLIP_Y[t & 0xFF];
 	t >>= 16;
@@ -805,14 +799,12 @@ int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 	int p_flips, o_flips;
 	unsigned int t;
   #ifdef AVXLASTFLIP	// no gain
-	int x = pos & 0x07;
-	int y8 = pos & 0x38;
 	unsigned long long P = _mm_cvtsi128_si64(OP);
 	int score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 
-	op_flip  = COUNT_FLIP[x * 256 + ((P >> y8) & 0xFF)];	// h
+	op_flip  = COUNT_FLIP[(pos & 0x07) * 256 + ((P >> (pos & 0x38)) & 0xFF)];	// h
 	t = TEST_EPI8_MASK32(_mm256_broadcastq_epi64(OP), mask_vdhd[pos].v4);
-	op_flip += COUNT_FLIP[y8 * 32 + (t >> 24)];	// v
+	op_flip += COUNT_FLIP[(pos & 0x38) * 32 + (t >> 24)];	// v
 	t = cf_ofs_d[pos] + (t & 0x00FF00FF);	// 0d0d
 	op_flip += COUNT_FLIP[t & 0xFFFF];
 	op_flip += COUNT_FLIP[t >> 16];
