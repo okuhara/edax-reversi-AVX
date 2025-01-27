@@ -56,7 +56,7 @@
 #endif
 #ifndef COUNT_LAST_FLIP
   #if defined(__AVX512VL__) || defined(__AVX10_1__) 
-    #if (defined(LASTFLIP_HIGHCUT) || defined(LASTFLIP_LOWCUT)
+    #if defined(LASTFLIP_HIGHCUT) || defined(LASTFLIP_LOWCUT)
 	#define COUNT_LAST_FLIP COUNT_LAST_FLIP_AVX512
     #else
 	#define COUNT_LAST_FLIP COUNT_LAST_FLIP_BMI2

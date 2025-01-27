@@ -54,7 +54,7 @@ ifeq ($(COMP),gcc)
 	endif
 	ifeq ($(ARCH),x86-64-v4)
 		# use -mprefer-vector-width=256 instead of -mno-evex512 for gcc-13 and earlier
-		CFLAGS += -m64 -march=x86-64-v4 -mno-evex512 -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
+		CFLAGS += -m64 -march=x86-64-v4 -mno-evex512 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x86-64-v2)
 		CFLAGS += -m64 -mpopcnt -mtune=generic -DUSE_GAS_X64 -DPOPCOUNT
@@ -144,7 +144,7 @@ ifeq ($(COMP),icc)
 		CFLAGS += -m64 -march=core-avx2 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x86-64-v4)
-		CFLAGS += -m64 -march=skylake-avx512 -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
+		CFLAGS += -m64 -march=skylake-avx512 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x86-64-v2)
 		CFLAGS += -m64 -mpopcnt -DUSE_GAS_X64 -DPOPCOUNT
@@ -179,7 +179,7 @@ ifeq ($(COMP),clang)
 	endif
 	ifeq ($(ARCH),x86-64-v4)
 		# use -mprefer-vector-width=256 instead of -mno-evex512 for clang-17 and earlier
-		CFLAGS += -m64 -march=x86-64-v4 -mno-evex512 -DUSE_GAS_X64 -DPOPCOUNT -DLASTFLIP_HIGHCUT
+		CFLAGS += -m64 -march=x86-64-v4 -mno-evex512 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x86-64-v2)
 		CFLAGS += -m64 -mpopcnt -DUSE_GAS_X64 -DPOPCOUNT

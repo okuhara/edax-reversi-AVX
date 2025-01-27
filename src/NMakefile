@@ -16,7 +16,7 @@ vc-x64-v3:
 
 vc-x64-v4:
 # remove /vlen=256 for cl earlier than 14.42
-	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /arch:AVX512 /vlen=256 /D POPCOUNT /D LASTFLIP_HIGHCUT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v4.exe /link /VERSION:4.5
+	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /arch:AVX512 /vlen=256 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v4.exe /link /VERSION:4.5
 
 vc-x64-v2:
 	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v2.exe /link /VERSION:4.5
@@ -55,7 +55,7 @@ icc-x64-v3:
 	icl $(VC_FLAGS) /GL /D HAS_CPU_64 /arch:AVX2 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v3.exe /link /VERSION:4.5
 
 icc-x64-v4:
-	icl $(VC_FLAGS) /GL /D HAS_CPU_64 /arch:CORE-AVX512 /D POPCOUNT /D LASTFLIP_HIGHCUT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v4.exe /link /VERSION:4.5
+	icl $(VC_FLAGS) /GL /D HAS_CPU_64 /arch:CORE-AVX512 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v4.exe /link /VERSION:4.5
 
 icc-x64:
 	icl $(VC_FLAGS) /GL /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-x86-64.exe /link /VERSION:4.5
@@ -67,7 +67,7 @@ clang-x64-v3:
 	clang-cl $(VC_FLAGS) /D HAS_CPU_64 /arch:AVX2 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v3.exe /link /VERSION:4.5
 
 clang-x64-v4:
-	clang-cl -mno-evex512 $(VC_FLAGS) /D HAS_CPU_64 /arch:AVX512 /D POPCOUNT /D LASTFLIP_HIGHCUT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v4.exe /link /VERSION:4.5
+	clang-cl -mno-evex512 $(VC_FLAGS) /D HAS_CPU_64 /arch:AVX512 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v4.exe /link /VERSION:4.5
 
 clang-x64:
 	clang-cl $(VC_FLAGS) /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-x86-64.exe /link /VERSION:4.5
