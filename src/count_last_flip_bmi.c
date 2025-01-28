@@ -366,7 +366,7 @@ int last_flip(int pos, unsigned long long P)
  * @param x      Last empty square to play.
  * @return       The final score, as a disc difference.
  */
-int board_score_1(unsigned long long P, int alpha, int pos)
+int solve_1(unsigned long long P, int alpha, int pos)
 {
 	unsigned long long	P8, P7, P9;
 	int	op_flip, n_flips;
@@ -412,9 +412,4 @@ int board_score_1(unsigned long long P, int alpha, int pos)
 	}
 
 	return score;
-}
-
-inline int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int x)
-{
-	return board_score_1(_mm_cvtsi128_si64(OP), alpha, x);
 }

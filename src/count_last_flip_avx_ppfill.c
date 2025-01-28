@@ -69,7 +69,7 @@ int last_flip(int pos, unsigned long long P)
 #ifdef LASTFLIP_HIGHCUT
 // experimental AVX2 lastflip with lazy high cut-off version (a little slower)
 
-int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
+int vectorcall mm_solve_1(__m128i OP, const int alpha, const int pos)
 {
 	int score = 2 * bit_count(_mm_cvtsi128_si64(OP)) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 		// if player can move, final score > this score.
@@ -136,7 +136,7 @@ int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 
 #else // LASTFLIP_LOWCUT
 
-int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
+int vectorcall mm_solve_1(__m128i OP, const int alpha, const int pos)
 {
 	int score, score2, n_flips;
 	__m256i PP = _mm256_broadcastq_epi64(OP);
@@ -202,9 +202,3 @@ int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 }
 
 #endif
-
-// from bench.c
-int board_score_1(unsigned long long player, int alpha, int x)
-{
-	return board_score_sse_1(_mm_cvtsi64_si128(player), alpha, x);
-}

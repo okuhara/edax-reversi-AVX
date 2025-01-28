@@ -582,12 +582,12 @@ int last_flip(int pos, unsigned long long P)
  * Get the final score, when 1 empty square remain.
  * The following code has been adapted from Zebra by Gunnar Anderson.
  *
- * @param player Board.player to evaluate.
+ * @param P      Board.player to evaluate.
  * @param alpha  Alpha bound. (beta - 1)
- * @param x      Last empty square to play.
+ * @param pos    Last empty square to play.
  * @return       The final score, as a disc difference.
  */
-int board_score_1(const unsigned long long P, const int alpha, const int pos)
+int solve_exact_1(const unsigned long long P, const int pos)
 {
 	unsigned long long PM;
 	int op_flip, p_flips, o_flips;
@@ -607,6 +607,5 @@ int board_score_1(const unsigned long long P, const int alpha, const int pos)
 		return score + p_flips;
 
 	o_flips = -(op_flip >> 8);
-	(void) alpha;	// no lazy cut-off
 	return score + o_flips - (int)((o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
 }

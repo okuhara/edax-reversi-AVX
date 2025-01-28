@@ -1287,7 +1287,7 @@ int (*count_last_flip[])(const unsigned long long) = {
  * @param x      Last empty square to play.
  * @return       The final score, as a disc difference.
  */
-int board_score_1(unsigned long long player, int alpha, int x)
+int solve_1(unsigned long long player, int alpha, int x)
 {
 	int score, score2, n_flips;
 

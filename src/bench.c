@@ -178,7 +178,7 @@ static void bench_count_last_flip(void)
 /*
  * @brief Scoring performance test.
  */
-static void bench_board_score_1(void)
+static void bench_solve_1(void)
 {
 	const char *b = "OOOOOOOOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOOOOOOOO O";
 	char m[4];
@@ -217,13 +217,13 @@ static void bench_board_score_1(void)
 
 		c = -click();
 		for (i = 0; i < N_WARMUP; ++i) {
-			v += board_score_1(board.player, SCORE_MAX - 1, x);
+			v += solve_1(board.player, SCORE_MAX - 1, x);
 		}
 		c += click();
 
 		c = -click();
 		for (i = 0; i < N_REPEAT; ++i) {
-			v += board_score_1(board.player, SCORE_MAX - 1, x);
+			v += solve_1(board.player, SCORE_MAX - 1, x);
 		}
 		c += click();
 
@@ -233,14 +233,14 @@ static void bench_board_score_1(void)
 		if (t < t_min) t_min = t;
 		if (t > t_max) t_max = t;
 
-		if (options.verbosity >= 2) printf("board_score_1: %s %.1f clicks;\n", move_to_string(x, WHITE, m), t);
+		if (options.verbosity >= 2) printf("solve_1: %s %.1f clicks;\n", move_to_string(x, WHITE, m), t);
 
 	}
 
 	t_mean /= x;
 	t_var = t_var / x - (t_mean * t_mean);
 
-	printf("board_score_1:  %.2f < %.2f +/- %.2f < %.2f\n", t_min, t_mean, sqrt(t_var), t_max);
+	printf("solve_1:  %.2f < %.2f +/- %.2f < %.2f\n", t_min, t_mean, sqrt(t_var), t_max);
 }
 
 /*
@@ -405,7 +405,7 @@ void bench(void)
 	printf("The unit of the results is CPU cycles\n");
 	bench_move_generator();
 	bench_count_last_flip();
-	bench_board_score_1();
+	bench_solve_1();
 	bench_mobility();
 	bench_stability();
 }

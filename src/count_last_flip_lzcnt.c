@@ -246,7 +246,7 @@ int last_flip(int pos, unsigned long long P)
  * @param x      Last empty square to play.
  * @return       The final score, as a disc difference.
  */
-int board_score_1(unsigned long long player, int alpha, int x)
+int solve_1(unsigned long long player, int alpha, int x)
 {
 	int score, score2, n_flips;
 

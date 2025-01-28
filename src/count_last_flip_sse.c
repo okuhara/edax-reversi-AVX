@@ -622,7 +622,7 @@ int last_flip(int pos, unsigned long long P)
 // lazy high cut-off idea was in Zebra by Gunnar Anderson (http://radagast.se/othello/zebra.html),
 // but commented out because mobility check was no faster than counting flips.
 // Now using AVX2, mobility check can be faster than counting flips.
-int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
+int vectorcall mm_solve_1(__m128i OP, const int alpha, const int pos)
 {
 	int_fast8_t n_flips;
 	uint32_t t;
@@ -695,7 +695,7 @@ int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 
 #elif defined(LASTFLIP_LOWCUT)
 // Old COUNT_LAST_FLIP_SSE (2.61s on skylake, 2.16s on Zen4)
-int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
+int vectorcall mm_solve_1(__m128i OP, const int alpha, const int pos)
 {
 	uint_fast8_t n_flips;
 	int score2;
@@ -793,7 +793,7 @@ static const V4SI cf_ofs[64] = {
   #endif
 
 // COUNT_LAST_FLIP_SSE - reasonably fast on all platforms
-int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
+int vectorcall mm_solve_exact_1(__m128i OP, const int pos)
 {
 	uint_fast16_t op_flip;
 	int p_flips, o_flips;
@@ -828,12 +828,6 @@ int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 		return score + p_flips;
 
 	o_flips = -(op_flip >> 8);
-	(void) alpha;	// no lazy cut-off
 	return score + o_flips - (int)((o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
 }
 #endif
-
-int board_score_1(unsigned long long player, int alpha, int x)
-{
-	return board_score_sse_1(_mm_cvtsi64_si128(player), alpha, x);
-}

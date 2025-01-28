@@ -108,13 +108,42 @@ extern unsigned char edge_stability[256 * 256];
 	#define	last_flip(x,P)	count_last_flip[x](P)
 #endif
 
-extern int board_score_1(const unsigned long long player, const int alpha, const int x);
-#if COUNT_LAST_FLIP >= COUNT_LAST_FLIP_NEON
-	extern int board_score_neon_1(uint64x1_t P, int alpha, int pos);
-#elif (COUNT_LAST_FLIP >= COUNT_LAST_FLIP_SSE) && (COUNT_LAST_FLIP != COUNT_LAST_FLIP_BMI2)
-	extern int vectorcall board_score_sse_1(__m128i OP, int alpha, int pos);
-#else
-	#define board_score_sse_1(OP,alpha,pos)	board_score_1(_mm_cvtsi128_si64(OP), (alpha), (pos))
+#if (COUNT_LAST_FLIP < COUNT_LAST_FLIP_SSE) || (COUNT_LAST_FLIP == COUNT_LAST_FLIP_BMI2)
+  #if defined(LASTFLIP_LOWCUT) || (COUNT_LAST_FLIP == COUNT_LAST_FLIP_CARRY) || (COUNT_LAST_FLIP == COUNT_LAST_FLIP_BITSCAN)
+	extern int solve_1(const unsigned long long player, const int alpha, const int x);
+	#define mm_solve_1(OP,alpha,pos)	solve_1(_mm_cvtsi128_si64(OP), (alpha), (pos))
+  #else
+	extern int solve_exact_1(const unsigned long long player, const int x);
+	#define solve_1(P,alpha,pos)	solve_exact_1((P), (pos))
+	#define mm_solve_1(OP,alpha,pos)	solve_exact_1(_mm_cvtsi128_si64(OP), (pos))
+  #endif
+#elif (COUNT_LAST_FLIP <= COUNT_LAST_FLIP_AVX512)
+  #if defined(LASTFLIP_LOWCUT) || defined(LASTFLIP_HIGHCUT) || (COUNT_LAST_FLIP == COUNT_LAST_FLIP_AVX_PPFILL)
+	extern int vectorcall mm_solve_1(__m128i OP, int alpha, int pos);
+	#define solve_1(P,alpha,pos)	mm_solve_1(_mm_cvtsi64_si128(P), (alpha), (pos))
+  #else
+	extern int vectorcall mm_solve_exact_1(__m128i OP, int pos);
+	#define solve_1(P,alpha,pos)	mm_solve_exact_1(_mm_cvtsi64_si128(P), (pos))
+	#define mm_solve_1(OP,alpha,pos)	mm_solve_exact_1((OP), (pos))
+  #endif
+#elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_NEON
+  #ifdef LASTFLIP_LOWCUT
+	extern int mm_solve_1(uint64x1_t P, int alpha, int pos);
+	#define solve_1(P,alpha,pos)	mm_solve_1(vcreate_u64(player), (alpha), (pos))
+  #else
+	extern int mm_solve_exact_1(uint64x1_t P, int pos);
+	#define mm_solve_1(P,alpha,pos)	mm_solve_exact_1((P), (pos))
+	#define solve_1(P,alpha,pos)	mm_solve_exact_1(vcreate_u64(P), (pos))
+  #endif
+#elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_SVE
+  #ifdef LASTFLIP_LOWCUT
+	extern int solve_1(unsigned long long P, int alpha, int pos);
+	#define mm_solve_1(P,alpha,pos)	solve_1(vget_lane_u64((P), 0), (alpha), (pos))
+  #else
+	extern int solve_exact_1(unsigned long long P, int pos);
+	#define solve_1(P,alpha,pos)	solve_exact_1((P), (pos))
+	#define mm_solve_1(P,alpha,pos)	solve_exact_1(vget_lane_u64((P), 0), (pos))
+  #endif
 #endif
 
 #if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE_ACEPCK)

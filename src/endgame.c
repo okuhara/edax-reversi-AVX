@@ -93,9 +93,9 @@ int search_solve_0(const Search *search)
 	return 2 * bit_count(search->board.player) - SCORE_MAX;
 }
 
-#if (MOVE_GENERATOR >= MOVE_GENERATOR_SSE) && (MOVE_GENERATOR <= MOVE_GENERATOR_AVX512) && (COUNT_LAST_FLIP >= COUNT_LAST_FLIP_SSE) && (COUNT_LAST_FLIP <= COUNT_LAST_FLIP_AVX512)
+#if (MOVE_GENERATOR >= MOVE_GENERATOR_SSE) && (MOVE_GENERATOR <= MOVE_GENERATOR_AVX512)
 	#include "endgame_sse.c"	// vectorcall version
-#elif (MOVE_GENERATOR >= MOVE_GENERATOR_NEON) && (MOVE_GENERATOR <= MOVE_GENERATOR_SVE) && (COUNT_LAST_FLIP >= COUNT_LAST_FLIP_NEON) && (COUNT_LAST_FLIP <= COUNT_LAST_FLIP_SVE)
+#elif (MOVE_GENERATOR >= MOVE_GENERATOR_NEON) && (MOVE_GENERATOR <= MOVE_GENERATOR_SVE)
 	#include "endgame_neon.c"
 #else
 /**
@@ -111,42 +111,42 @@ int search_solve_0(const Search *search)
  * @param n_nodes Node counter.
  * @return The final min score, as a disc difference.
  */
-static int board_solve_2(unsigned long long player, unsigned long long opponent, int alpha, int x1, int x2, volatile unsigned long long *n_nodes)
+static int solve_2(unsigned long long player, unsigned long long opponent, int alpha, int x1, int x2, volatile unsigned long long *n_nodes)
 {
 	unsigned long long flipped;
 	int score, bestscore, nodes;
 	// const int beta = alpha + 1;
 
-	SEARCH_STATS(++statistics.n_board_solve_2);
+	SEARCH_STATS(++statistics.n_solve_2);
 
 	if ((NEIGHBOUR[x1] & opponent) && (flipped = Flip(x1, player, opponent))) {	// (84%/84%)
-		bestscore = board_score_1(opponent ^ flipped, alpha, x2);
+		bestscore = solve_1(opponent ^ flipped, alpha, x2);
 
 		if ((bestscore > alpha) && (NEIGHBOUR[x2] & opponent) && (flipped = Flip(x2, player, opponent))) {	// (50%/93%/92%)
-			score = board_score_1(opponent ^ flipped, alpha, x1);
+			score = solve_1(opponent ^ flipped, alpha, x1);
 			if (score < bestscore)
 				bestscore = score;
 			nodes = 3;
 		} else	nodes = 2;
 
 	} else if ((NEIGHBOUR[x2] & opponent) && (flipped = Flip(x2, player, opponent))) {	// (96%/75%)
-		bestscore = board_score_1(opponent ^ flipped, alpha, x1);
+		bestscore = solve_1(opponent ^ flipped, alpha, x1);
 		nodes = 2;
 
 	} else {	// pass (17%) - NEIGHBOUR test is almost 100% true
 		alpha = ~alpha;	// = -alpha - 1
 		if ((flipped = Flip(x1, opponent, player))) {	// (95%)
-			bestscore = board_score_1(player ^ flipped, alpha, x2);
+			bestscore = solve_1(player ^ flipped, alpha, x2);
 
 			if ((bestscore > alpha) && (flipped = Flip(x2, opponent, player))) {	// (20%/100%)
-				score = board_score_1(player ^ flipped, alpha, x1);
+				score = solve_1(player ^ flipped, alpha, x1);
 				if (score < bestscore)
 					bestscore = score;
 				nodes = 3;
 			} else	nodes = 2;
 
 		} else if ((flipped = Flip(x2, opponent, player))) {	// (97%)
-			bestscore = board_score_1(player ^ flipped, alpha, x1);
+			bestscore = solve_1(player ^ flipped, alpha, x1);
 			nodes = 2;
 
 		} else {	// gameover
@@ -177,13 +177,13 @@ static int board_solve_2(unsigned long long player, unsigned long long opponent,
  * @param n_nodes Node counter.
  * @return The final max score, as a disc difference.
  */
-static int search_solve_3(unsigned long long player, unsigned long long opponent, int alpha, int sort3, int x1, int x2, int x3, volatile unsigned long long *n_nodes)
+static int solve_3(unsigned long long player, unsigned long long opponent, int alpha, int sort3, int x1, int x2, int x3, volatile unsigned long long *n_nodes)
 {
 	unsigned long long flipped, next_player, next_opponent;
 	int score, bestscore, pol, tmp;
 	// const int beta = alpha + 1;
 
-	SEARCH_STATS(++statistics.n_search_solve_3);
+	SEARCH_STATS(++statistics.n_solve_3);
 	SEARCH_UPDATE_INTERNAL_NODES(*n_nodes);
 
 	// parity based move sorting
@@ -206,14 +206,14 @@ static int search_solve_3(unsigned long long player, unsigned long long opponent
 		if ((NEIGHBOUR[x1] & opponent) && (flipped = Flip(x1, player, opponent))) {	// (89%/91%)
 			next_player = opponent ^ flipped;
 			next_opponent = player ^ (flipped | x_to_bit(x1));
-			bestscore = board_solve_2(next_player, next_opponent, alpha, x2, x3, n_nodes);
+			bestscore = solve_2(next_player, next_opponent, alpha, x2, x3, n_nodes);
 			if (bestscore > alpha) return bestscore * pol;	// (78%/63%)
 		}
 
 		if (/* (NEIGHBOUR[x2] & opponent) && */ (flipped = Flip(x2, player, opponent))) {	// (97%/78%)
 			next_player = opponent ^ flipped;
 			next_opponent = player ^ (flipped | x_to_bit(x2));
-			score = board_solve_2(next_player, next_opponent, alpha, x1, x3, n_nodes);
+			score = solve_2(next_player, next_opponent, alpha, x1, x3, n_nodes);
 			if (score > alpha) return score * pol;	// (32%/9%)
 			else if (score > bestscore) bestscore = score;
 		}
@@ -221,7 +221,7 @@ static int search_solve_3(unsigned long long player, unsigned long long opponent
 		if (/* (NEIGHBOUR[x3] & opponent) && */ (flipped = Flip(x3, player, opponent))) {	// (100%/89%)
 			next_player = opponent ^ flipped;
 			next_opponent = player ^ (flipped | x_to_bit(x3));
-			score = board_solve_2(next_player, next_opponent, alpha, x1, x2, n_nodes);
+			score = solve_2(next_player, next_opponent, alpha, x1, x2, n_nodes);
 			if (score > bestscore) bestscore = score;
 			return bestscore * pol;	// (26%)
 		}
@@ -320,14 +320,14 @@ static int search_solve_4(Search *search, int alpha)
 		if ((NEIGHBOUR[x1] & opponent) && (flipped = Flip(x1, player, opponent))) {	// (76%/77%)
 			next_player = opponent ^ flipped;
 			next_opponent = player ^ (flipped | x_to_bit(x1));
-			bestscore = search_solve_3(next_player, next_opponent, alpha, sort3 & 3, x2, x3, x4, &search->n_nodes);
+			bestscore = solve_3(next_player, next_opponent, alpha, sort3 & 3, x2, x3, x4, &search->n_nodes);
 			if (bestscore <= alpha) return bestscore * pol;	// (68%)
 		}
 
 		if ((NEIGHBOUR[x2] & opponent) && (flipped = Flip(x2, player, opponent))) {	// (87%/84%)
 			next_player = opponent ^ flipped;
 			next_opponent = player ^ (flipped | x_to_bit(x2));
-			score = search_solve_3(next_player, next_opponent, alpha, (sort3 >> 4) & 3, x1, x3, x4, &search->n_nodes);
+			score = solve_3(next_player, next_opponent, alpha, (sort3 >> 4) & 3, x1, x3, x4, &search->n_nodes);
 			if (score <= alpha) return score * pol;	// (37%)
 			else if (score < bestscore) bestscore = score;
 		}
@@ -335,7 +335,7 @@ static int search_solve_4(Search *search, int alpha)
 		if ((NEIGHBOUR[x3] & opponent) && (flipped = Flip(x3, player, opponent))) {	// (77%/80%)
 			next_player = opponent ^ flipped;
 			next_opponent = player ^ (flipped | x_to_bit(x3));
-			score = search_solve_3(next_player, next_opponent, alpha, (sort3 >> 8) & 3, x1, x2, x4, &search->n_nodes);
+			score = solve_3(next_player, next_opponent, alpha, (sort3 >> 8) & 3, x1, x2, x4, &search->n_nodes);
 			if (score <= alpha) return score * pol;	// (14%)
 			else if (score < bestscore) bestscore = score;
 		}
@@ -343,7 +343,7 @@ static int search_solve_4(Search *search, int alpha)
 		if ((NEIGHBOUR[x4] & opponent) && (flipped = Flip(x4, player, opponent))) {	// (79%/88%)
 			next_player = opponent ^ flipped;
 			next_opponent = player ^ (flipped | x_to_bit(x4));
-			score = search_solve_3(next_player, next_opponent, alpha, sort3 >> 12, x1, x2, x3, &search->n_nodes);
+			score = solve_3(next_player, next_opponent, alpha, sort3 >> 12, x1, x2, x3, &search->n_nodes);
 			if (score < bestscore) bestscore = score;
 			return bestscore * pol;	// (37%)
 		}

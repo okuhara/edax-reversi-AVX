@@ -71,7 +71,7 @@ int last_flip(int pos, unsigned long long P)
  */
 #ifdef LASTFLIP_HIGHCUT
 
-int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
+int vectorcall mm_solve_1(__m128i OP, const int alpha, const int pos)
 {
 	int score = 2 * bit_count(_mm_cvtsi128_si64(OP)) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 		// if player can move, final score > this score.
@@ -164,7 +164,7 @@ int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 
 #elif defined(LASTFLIP_LOWCUT)
 
-int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
+int vectorcall mm_solve_1(__m128i OP, const int alpha, const int pos)
 {
 	__m256i P4 = _mm256_broadcastq_epi64(OP);
 	__m256i minusone = _mm256_set1_epi64x(-1);
@@ -222,7 +222,7 @@ int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 
 #else	// P & O simul flip
 
-int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
+int vectorcall mm_solve_exact_1(__m128i OP, int pos)
 {
 	int	score;
 	__m256i p_flip, o_flip, opop_flip;
@@ -297,13 +297,7 @@ int vectorcall board_score_sse_1(__m128i OP, const int alpha, const int pos)
 		// last square for P if not P pass or (O pass and score >= 32)
 	// score += ((~op_pass & 1) | ((op_pass >> 1) & (score >= 32)));
 	score += (~op_pass | ((op_pass >> 1) & (score >> 5))) & 1;
-	(void) alpha;	// no lazy cut-off
 	return score * 2 - 64;	// = bit_count(P) - (SCORE_MAX - bit_count(P))
 }
 
 #endif
-
-int board_score_1(unsigned long long player, int alpha, int x)
-{
-	return board_score_sse_1(_mm_cvtsi64_si128(player), alpha, x);
-}
