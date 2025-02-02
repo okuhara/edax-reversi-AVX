@@ -128,28 +128,36 @@ __m128i vectorcall mm_Flip(const __m128i OP, int pos)
 
 		// right: look for player (or edge) bit with lzcnt
 	__m256i	rM = lrmask[pos].v4[0];
-  #if 1 // use prove
+  #if 1 // use mask by acepck
+	__m256i	rP = _mm256_and_si256(PP, rM);
+		// shadow mask lower than leftmost P
+	__m256i	t0 = _mm256_srlv_epi64(minusone, _mm256_lzcnt_epi64(rP));
+		// apply flip if leftmost non-opponent is P
+	// __m256i rE = _mm256_andnot_si256(_mm256_or_si256(OO, PP), rM);
+	__m256i	rE = _mm256_ternarylogic_epi64(OO, PP, rM, 0x02);	// masked empty
+	// __m256i FF = _mm256_maskz_andnot_epi64(_mm256_cmpgt_epi64_mask(rP, rE), t0, rM);
+	__m256i FF = _mm256_ternarylogic_epi64(_mm256_cmpgt_epi64(rP, rE), t0, rM, 0x20);
+
+  #else // use prove
 	__m256i msb = _mm256_slli_epi64(minusone, 63);
 		// outflank P, or 0 if leftmost non-opponent is empty
 	__m256i t0 = _mm256_and_si256(_mm256_srlv_epi64(msb, _mm256_lzcnt_epi64(_mm256_andnot_si256(OO, rM))), PP);
 		// clear masked OO lower than outflank
 	// __m256i FF = _mm256_andnot_si256(_mm256_add_epi64(t0, minusone), _mm256_and_si256(OO, rM));
 	__m256i FF = _mm256_ternarylogic_epi64(_mm256_add_epi64(t0, minusone), OO, rM, 0x08);
-
-  #else // use mask by acepck
-	__m256i	rP = _mm256_and_si256(PP, rM);
-		// shadow mask lower than leftmost P
-	__m256i	t0 = _mm256_srlv_epi64(minusone, _mm256_lzcnt_epi64(rP));
-		// apply flip if leftmost non-opponent is P
-	// __m256i rE = _mm256_andnot_si256(OO, _mm256_andnot_si256(rP, rM));
-	__m256i	rE = _mm256_ternarylogic_epi64(OO, rM, rP, 0x04);	// masked empty
-	// __m256i FF = _mm256_and_si256(_mm256_cmpgt_epi64(rP, rE), _mm256_andnot_epi64(t0, rM));
-	__m256i FF = _mm256_ternarylogic_epi64(_mm256_cmpgt_epi64(rP, rE), t0, rM, 0x20);
   #endif
 		// left: look for non-opponent LS1B
 	__m256i lM = lrmask[pos].v4[1];
 	__m256i lO = _mm256_andnot_si256(OO, lM);
-  #if 1 // LS1B
+  #if 1 // BLSMSK
+	// __m256i t2 = _mm256_xor_si256(_mm256_add_epi64(lO, minusone), lO);	// BLSMSK
+	// t2 = _mm256_and_si256(lM, t2);	// non-opponent LS1B and opponent inbetween
+	__m256i t2 = _mm256_ternarylogic_epi64(lM, _mm256_add_epi64(lO, minusone), lO, 0x60);
+		// apply flip if P is in mask, i.e. LS1B is P
+	// FF = _mm256_mask_or_epi64(FF, _mm256_test_epi64_mask(PP, t2), FF, _mm256_andnot_si256(PP, t2));
+	FF = _mm256_mask_ternarylogic_epi64(FF, _mm256_test_epi64_mask(PP, t2), PP, t2, 0xf2);
+
+  #else // LS1B
 	// lO = _mm256_and_si256(lO, _mm256_sub_epi64(_mm256_setzero_si256(), lO));	// LS1B
 	// lO = _mm256_and_si256(lO, PP);
 	lO = _mm256_ternarylogic_epi64(lO, _mm256_sub_epi64(_mm256_setzero_si256(), lO), PP, 0x80);
@@ -157,14 +165,6 @@ __m128i vectorcall mm_Flip(const __m128i OP, int pos)
 	__m256i lE = _mm256_sub_epi64(_mm256_cmpeq_epi64(lO, _mm256_setzero_si256()), lO);
 	// FF = _mm256_or_si256(FF, _mm256_andnot_si256(lE, lM));
 	FF = _mm256_ternarylogic_epi64(FF, lE, lM, 0xf2);
-
-  #else // BLSMSK
-	// __m256i t2 = _mm256_xor_si256(_mm256_add_epi64(lO, minusone), lO);	// BLSMSK
-	// t2 = _mm256_and_si256(lM, t2);	// non-opponent LS1B and opponent inbetween
-	__m256i t2 = _mm256_ternarylogic_epi64(lM, _mm256_add_epi64(lO, minusone), lO, 0x60);
-		// apply flip if P is in mask, i.e. LS1B is P
-	// FF = _mm256_mask_or_epi64(FF, _mm256_test_epi64_mask(PP, t2), FF, _mm256_andnot_si256(PP, t2));
-	FF = _mm256_mask_ternarylogic_epi64(FF, _mm256_test_epi64_mask(PP, t2), PP, t2, 0xf2);
   #endif
 
 	return _mm_or_si128(_mm256_castsi256_si128(FF), _mm256_extracti128_si256(FF, 1));
