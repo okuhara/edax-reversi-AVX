@@ -19,8 +19,10 @@ extern	const V8DI lrmask[66];	// in flip_avx512cd.c
 
 #ifdef AVX512_PREFER512
 	#define	SI256(x)	_mm512_castsi512_si256(x)
+	#define	SI128(x)	_mm512_castsi512_si128(x)
 #else
-	#define	SI256(x)	x
+	#define	SI256(x)	(x)
+	#define	SI128(x)	_mm256_castsi256_si128(x)
 #endif
 
 /**
@@ -226,7 +228,6 @@ int vectorcall mm_solve_exact_1(__m128i OP, int pos)
 {
 	int	score;
 	__m256i p_flip, o_flip, opop_flip;
-	__m128i P2;
 	__mmask8 op_pass;
   #ifdef AVX512_PREFER512
   // branchless AVX512(512) lastflip (2.71s on skylake, 2.48 on icelake, 2.15s on Zen4)
@@ -234,8 +235,8 @@ int vectorcall mm_solve_exact_1(__m128i OP, int pos)
 	__m512i one = _mm512_srli_epi64(minusone, 63);
 	__m512i mask3F = _mm512_srli_epi64(minusone, 58);
 	__m512i po_outflank, po_flip, po_eraser, mask;
-	__m512i P8 = _mm512_broadcastq_epi64(OP);
-	__m512i P4O4 = _mm512_xor_si512(P8, _mm512_zextsi256_si512(_mm512_castsi512_si256(minusone)));
+	__m512i PP = _mm512_broadcastq_epi64(OP);
+	__m512i P4O4 = _mm512_xor_si512(PP, _mm512_zextsi256_si512(_mm512_castsi512_si256(minusone)));
 
 		// left: look for player LS1B
 	mask = _mm512_broadcast_i64x4(lrmask[pos].v4[1]);
@@ -251,10 +252,8 @@ int vectorcall mm_solve_exact_1(__m128i OP, int pos)
 	po_eraser = _mm512_srlv_epi64(minusone, _mm512_and_si512(_mm512_lzcnt_epi64(po_outflank), mask3F));
 	// po_flip = _mm512_or_si512(po_flip, _mm512_andnot_si512(po_eraser, mask));
 	po_flip = _mm512_ternarylogic_epi64(po_flip, po_eraser, mask, 0xf2);
-
 	p_flip = _mm512_extracti64x4_epi64(po_flip, 1);
 	o_flip = _mm512_castsi512_si256(po_flip);
-	P2 = _mm512_castsi512_si128(P8);
 
   #else
   // branchless AVX512(256) lastflip (2.61s on skylake, 2.38 on icelake, 2.13s on Zen4)
@@ -262,11 +261,11 @@ int vectorcall mm_solve_exact_1(__m128i OP, int pos)
 	__m256i one = _mm256_srli_epi64(minusone, 63);
 	__m256i mask3F = _mm256_srli_epi64(minusone, 58);
 	__m256i p_outflank, o_outflank, p_eraser, o_eraser, mask;
-	__m256i P4 = _mm256_broadcastq_epi64(OP);
+	__m256i PP = _mm256_broadcastq_epi64(OP);
 
 		// left: look for player LS1B
 	mask = lrmask[pos].v4[1];
-	p_outflank = _mm256_and_si256(P4, mask);	o_outflank = _mm256_andnot_si256(P4, mask);
+	p_outflank = _mm256_and_si256(PP, mask);	o_outflank = _mm256_andnot_si256(PP, mask);
 		// set below LS1B if P is in lmask
 	p_flip = _mm256_sub_epi64(p_outflank, _mm256_min_epu64(p_outflank, one));
 		// set below LS1B if O is in lmask
@@ -278,20 +277,19 @@ int vectorcall mm_solve_exact_1(__m128i OP, int pos)
 
 		// right: clear all bits lower than outflank
 	mask = lrmask[pos].v4[0];
-	p_outflank = _mm256_and_si256(P4, mask);	o_outflank = _mm256_andnot_si256(P4, mask);
+	p_outflank = _mm256_and_si256(PP, mask);	o_outflank = _mm256_andnot_si256(PP, mask);
 	p_eraser = _mm256_srlv_epi64(minusone, _mm256_and_si256(_mm256_lzcnt_epi64(p_outflank), mask3F));
 	o_eraser = _mm256_srlv_epi64(minusone, _mm256_and_si256(_mm256_lzcnt_epi64(o_outflank), mask3F));
 	// p_flip = _mm256_or_si256(p_flip, _mm256_andnot_si256(p_eraser, mask));
 	p_flip = _mm256_ternarylogic_epi64(p_flip, p_eraser, mask, 0xf2);
 	// o_flip = _mm256_or_si256(o_flip, _mm256_andnot_si256(o_eraser, mask));
 	o_flip = _mm256_ternarylogic_epi64(o_flip, o_eraser, mask, 0xf2);
-
-	P2 = _mm256_castsi256_si128(P4);
   #endif
+
 	opop_flip = _mm256_or_si256(_mm256_unpacklo_epi64(p_flip, o_flip), _mm256_unpackhi_epi64(p_flip, o_flip));
-	// OP = _mm_xor_si128(_mm_or_si128(_mm256_castsi256_si128(opop_flip), _mm256_extracti128_si256(opop_flip, 1)), P2);
-	OP = _mm_ternarylogic_epi64(_mm256_castsi256_si128(opop_flip), _mm256_extracti128_si256(opop_flip, 1), P2, 0x56);
-	op_pass = _mm_cmpeq_epi64_mask(OP, P2);
+	// OP = _mm_xor_si128(_mm_or_si128(_mm256_castsi256_si128(opop_flip), _mm256_extracti128_si256(opop_flip, 1)), SI128(PP));
+	OP = _mm_ternarylogic_epi64(_mm256_castsi256_si128(opop_flip), _mm256_extracti128_si256(opop_flip, 1), SI128(PP), 0x56);
+	op_pass = _mm_cmpeq_epi64_mask(OP, SI128(PP));
 	OP = _mm_mask_unpackhi_epi64(OP, op_pass, OP, OP);	// use O if p_pass
 	score = bit_count(_mm_cvtsi128_si64(OP));
 		// last square for P if not P pass or (O pass and score >= 32)
