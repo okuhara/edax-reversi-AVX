@@ -108,14 +108,20 @@ extern unsigned char edge_stability[256 * 256];
 	#define	last_flip(x,P)	count_last_flip[x](P)
 #endif
 
+#ifdef __ARM_NEON
+	#define	EXTRACT_P(OP)	vget_lane_u64((OP), 0)
+#else
+	#define	EXTRACT_P(OP)	_mm_cvtsi128_si64(OP)
+#endif
+
 #if (COUNT_LAST_FLIP < COUNT_LAST_FLIP_SSE) || (COUNT_LAST_FLIP == COUNT_LAST_FLIP_BMI2)
   #if defined(LASTFLIP_LOWCUT) || (COUNT_LAST_FLIP == COUNT_LAST_FLIP_CARRY) || (COUNT_LAST_FLIP == COUNT_LAST_FLIP_BITSCAN)
 	extern int solve_1(const unsigned long long player, const int alpha, const int x);
-	#define mm_solve_1(OP,alpha,pos)	solve_1(_mm_cvtsi128_si64(OP), (alpha), (pos))
+	#define mm_solve_1(OP,alpha,pos)	solve_1(EXTRACT_P(OP), (alpha), (pos))
   #else
 	extern int solve_exact_1(const unsigned long long player, const int x);
 	#define solve_1(P,alpha,pos)	solve_exact_1((P), (pos))
-	#define mm_solve_1(OP,alpha,pos)	solve_exact_1(_mm_cvtsi128_si64(OP), (pos))
+	#define mm_solve_1(OP,alpha,pos)	solve_exact_1(EXTRACT_P(OP), (pos))
   #endif
 #elif (COUNT_LAST_FLIP <= COUNT_LAST_FLIP_AVX512)
   #if defined(LASTFLIP_LOWCUT) || defined(LASTFLIP_HIGHCUT) || (COUNT_LAST_FLIP == COUNT_LAST_FLIP_AVX_PPFILL)
