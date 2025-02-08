@@ -192,12 +192,17 @@ static inline int _tzcnt_u64(unsigned long long x) {
 	#define	tzcnt_u32(x)	_tzcnt_u32(x)
 	#define	tzcnt_u64(x)	_tzcnt_u64(x)
 
+#elif defined(_M_ARM64)
+	#define tzcnt_u32(x)	_CountTrailingZeros(x)
+	#define tzcnt_u64(x)	_CountTrailingZeros64(x)
+
 #elif defined(_M_ARM)
 	#define	tzcnt_u32(x)	_arm_clz(_arm_rbit(x))
 
 #elif defined(__ARM_FEATURE_CLZ)
-  #if __has_builtin(__rbit) // (__ARM_ARCH >= 6 && __ARM_ISA_THUMB >= 2) || __ARM_ARCH >= 7	// not for gcc
+  #if __ARM_ACLE >= 110
 	#define	tzcnt_u32(x)	__clz(__rbit(x))
+	#define	tzcnt_u64(x)	__clzll(__rbitll(x))
   #endif
 #endif
 

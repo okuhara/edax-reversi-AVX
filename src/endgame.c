@@ -24,12 +24,14 @@
 	#include "count_last_flip_carry_64.c"
 #elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_BITSCAN
 	#include "count_last_flip_bitscan.c"
+#elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_BMI
+	#include "count_last_flip_bmi.c"
 #elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_PLAIN
 	#include "count_last_flip_plain.c"
-#elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_SSE
-	#include "count_last_flip_sse.c"
 #elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_BMI2
 	#include "count_last_flip_bmi2.c"
+#elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_SSE
+	#include "count_last_flip_sse.c"
 #elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_AVX_PPFILL
 	#include "count_last_flip_avx_ppfill.c"
 #elif COUNT_LAST_FLIP == COUNT_LAST_FLIP_AVX512

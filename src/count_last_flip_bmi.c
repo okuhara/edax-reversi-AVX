@@ -337,20 +337,20 @@ int last_flip(int pos, unsigned long long P)
 	unsigned long long	P8, P7, P9;
 	int	n_flipped;
 	int	x = pos & 7;
-	int	y = pos & 0x38;
-	int	ry = y ^ 0x38;
+	int	y8 = pos & 0x38;
+	int	ry8 = y8 ^ 0x38;
 
-	n_flipped = (unsigned char) COUNT_FLIP[x][(unsigned char) (P >> y)];
+	n_flipped = (unsigned char) COUNT_FLIP[x][(unsigned char) (P >> y8)];
 
 	P8 = P & (0x0101010101010101ULL << x);
 	P7 = P & mask_d[0][pos];
 	P9 = P & mask_d[1][pos];
 
-	n_flipped += ((((int) __tzcnt_u64((P8 >> y) >> 8) + (int) __lzcnt64((P8 << ry) << 8)) & 0x38)
-		+ ((int) __tzcnt_u64((P7 >> y) >> 8) & 0x38)
-		+ ((int) __tzcnt_u64((P9 >> y) >> 8) & 0x38)
-		+ ((int) __lzcnt64((P7 << ry) << 8) & 0x38)
-		+ ((int) __lzcnt64((P9 << ry) << 8) & 0x38)) >> 2;
+	n_flipped += ((((int) tzcnt_u64((P8 >> y8) >> 8) + (int) lzcnt_u64((P8 << ry8) << 8)) & 0x38)
+		+ ((int) tzcnt_u64((P7 >> y8) >> 8) & 0x38)
+		+ ((int) tzcnt_u64((P9 >> y8) >> 8) & 0x38)
+		+ ((int) lzcnt_u64((P7 << ry8) << 8) & 0x38)
+		+ ((int) lzcnt_u64((P9 << ry8) << 8) & 0x38)) >> 2;
 
 	return n_flipped;
 }
@@ -371,24 +371,24 @@ int solve_1(unsigned long long P, int alpha, int pos)
 	unsigned long long	P8, P7, P9;
 	int	op_flip, n_flips;
 	int	x = pos & 7;
-	int	y = pos & 0x38;
-	int	ry = y ^ 0x38;
+	int	y8 = pos & 0x38;
+	int	ry8 = y8 ^ 0x38;
 	int	score, score2;
 
 	score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 
-	op_flip = COUNT_FLIP[x][(unsigned char) (P >> y)];
+	op_flip = COUNT_FLIP[x][(unsigned char) (P >> y8)];
 
 	P8 = P & (0x0101010101010101ULL << x);
 	P7 = P & mask_d[0][pos];
 	P9 = P & mask_d[1][pos];
 
 	n_flips = (op_flip & 0xff)
-		+ (((((int) __tzcnt_u64((P8 >> y) >> 8) + (int) __lzcnt64((P8 << ry) << 8)) & 0x38)
-		+ ((int) __tzcnt_u64((P7 >> y) >> 8) & 0x38)
-		+ ((int) __tzcnt_u64((P9 >> y) >> 8) & 0x38)
-		+ ((int) __lzcnt64((P7 << ry) << 8) & 0x38)
-		+ ((int) __lzcnt64((P9 << ry) << 8) & 0x38)) >> 2);
+		+ (((((int) tzcnt_u64((P8 >> y8) >> 8) + (int) lzcnt_u64((P8 << ry8) << 8)) & 0x38)
+		+ ((int) tzcnt_u64((P7 >> y8) >> 8) & 0x38)
+		+ ((int) tzcnt_u64((P9 >> y8) >> 8) & 0x38)
+		+ ((int) lzcnt_u64((P7 << ry8) << 8) & 0x38)
+		+ ((int) lzcnt_u64((P9 << ry8) << 8) & 0x38)) >> 2);
 	score += n_flips;
 
 	if (n_flips == 0) {	// (23%)
@@ -401,11 +401,11 @@ int solve_1(unsigned long long P, int alpha, int pos)
 			P9 = ~P & mask_d[1][pos];
 
 			n_flips = (op_flip >> 8)
-				+ (((((int) __tzcnt_u64((P8 >> y) >> 8) + (int) __lzcnt64((P8 << ry) << 8)) & 0x38)
-				+ ((int) __tzcnt_u64((P7 >> y) >> 8) & 0x38)
-				+ ((int) __tzcnt_u64((P9 >> y) >> 8) & 0x38)
-				+ ((int) __lzcnt64((P7 << ry) << 8) & 0x38)
-				+ ((int) __lzcnt64((P9 << ry) << 8) & 0x38)) >> 2);
+				+ (((((int) tzcnt_u64((P8 >> y8) >> 8) + (int) lzcnt_u64((P8 << ry8) << 8)) & 0x38)
+				+ ((int) tzcnt_u64((P7 >> y8) >> 8) & 0x38)
+				+ ((int) tzcnt_u64((P9 >> y8) >> 8) & 0x38)
+				+ ((int) lzcnt_u64((P7 << ry8) << 8) & 0x38)
+				+ ((int) lzcnt_u64((P9 << ry8) << 8) & 0x38)) >> 2);
 			if (n_flips != 0)	// (98%)
 				score = score2 - n_flips;
 		}
