@@ -13,7 +13,7 @@
  * 
  */
 
-#include "bit_intrinsics.h"
+#include "bit.h"
 #include "settings.h"
 #include "search.h"
 #include <assert.h>

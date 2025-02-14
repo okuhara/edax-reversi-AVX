@@ -44,7 +44,7 @@
  * @version 4.4
  */
 
-#include "bit_intrinsics.h"
+#include "bit.h"
 
 #define LODWORD(l) ((unsigned int)(l))
 #define HIDWORD(l) ((unsigned int)((l)>>32))

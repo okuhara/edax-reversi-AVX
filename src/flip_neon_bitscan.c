@@ -43,7 +43,7 @@
  * @version 4.5
  */
 
-#include "bit_intrinsics.h"
+#include "bit.h"
 
 // included from board.c or linked in Android Arm32 dispatch build
 #if defined(flip_neon) || defined(DISPATCH_NEON)

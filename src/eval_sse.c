@@ -10,7 +10,7 @@
 
 #include <assert.h>
 
-#include "bit_intrinsics.h"
+#include "bit.h"
 #include "board.h"
 #include "move.h"
 #include "eval.h"

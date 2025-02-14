@@ -81,8 +81,6 @@ static const char COUNT_FLIP_5[256] = {
 	 0,  8,  6,  6,  4,  4,  4,  4,  2,  2,  2,  2,  2,  2,  2,  2,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0
 };
 
-#include "bit_intrinsics.h"
-
 #ifdef lzcnt_u64
 
 static inline int count_V_flip_reverse (unsigned long long P, int ofs) {
