@@ -66,10 +66,10 @@
 /** edge stability global data */
 unsigned char edge_stability[256 * 256];
 
-#if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)) && !defined(hasSSE2)
+#if (defined(USE_GAS_X86) || defined(USE_MSVC_X86)) && !defined(hasSSE2)
 	#include "board_mmx.c"
 #endif
-#if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(hasSSE2) || defined(__ARM_NEON)) && !defined(ANDROID)
+#if (defined(USE_GAS_X86) || defined(USE_MSVC_X86) || defined(hasSSE2) || defined(__ARM_NEON)) && !defined(ANDROID)
 	#include "board_sse.c"
 #endif
 
@@ -598,11 +598,11 @@ unsigned long long get_moves(const unsigned long long P, const unsigned long lon
 {
 	unsigned long long moves, OM;
 
-	#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(DISPATCH_NEON)
+	#if defined(USE_GAS_X86) || defined(USE_MSVC_X86) || defined(DISPATCH_NEON)
 	if (hasSSE2)
 		return get_moves_sse(P, O);
 	#endif
-	#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+	#if defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 	if (hasMMX)
 		return get_moves_mmx(P, O);
 	#endif

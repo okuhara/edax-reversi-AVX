@@ -16,7 +16,7 @@
 #include "board.h"
 #include "move.h"
 
-#ifdef USE_GAS_MMX
+#ifdef USE_GAS_X86
   #ifndef hasMMX
 	#pragma GCC push_options
 	#pragma GCC target ("mmx")
@@ -307,7 +307,7 @@ unsigned long long get_moves_mmx(const unsigned long long P, const unsigned long
  *
  */
 #ifdef hasMMX
-static void get_full_lines(const unsigned long long disc_, unsigned long long full[4])
+void get_full_lines(const unsigned long long disc_, unsigned long long full[4])
 {
 	__m64	disc = *(__m64 *) &disc_;
 	__m64	full_l, full_r;
@@ -409,6 +409,6 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 }
 #endif // hasMMX
 
-#if !defined(hasMMX) && defined(USE_GAS_MMX)
+#if !defined(hasMMX) && defined(USE_GAS_X86)
 	#pragma GCC pop_options
 #endif

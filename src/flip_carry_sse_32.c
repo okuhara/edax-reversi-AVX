@@ -41,7 +41,7 @@
  * @version 4.4
  */
 
-#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 #include <string.h>	// memcpy
 #endif
 
@@ -54,7 +54,7 @@
 #define	UINT64	unsigned long long
 #endif
 
-#ifdef USE_GAS_MMX
+#ifdef USE_GAS_X86
 #define	STATIC	__attribute__((used))
 #ifdef __unix__
 #define	_
@@ -272,7 +272,16 @@ STATIC const UINT64 FLIPPED_5_V[137] = {
 /*
  * Set all bits below the sole outflank bit if outfrank != 0
  */
-#if (_MSC_VER >= 1800) && (defined(_M_IX86) || defined (_M_X64))
+#if __has_builtin(__builtin_subc)
+static inline unsigned long long OutflankToFlipmask(unsigned long long outflank) {
+	unsigned int flipmaskL, flipmaskH, cy, outflankH = outflank >> 32;
+	flipmaskL = __builtin_subc(outflank, 1, 0, &cy);
+	flipmaskH = __builtin_subc(outflankH, 0, cy, &cy);
+	flipmaskL = __builtin_addc(flipmaskL, 0, cy, &cy);
+	flipmaskH = __builtin_addc(flipmaskH, 0, cy, &cy);
+	return ULL(flipmaskH, flipmaskL);
+}
+#elif (_MSC_VER >= 1800) && (defined(_M_IX86) || defined (_M_X64))
 static inline unsigned long long OutflankToFlipmask(unsigned long long outflank) {
 	unsigned int flipmaskL, flipmaskH, outflankH = outflank >> 32;
 	unsigned char cy;
@@ -286,7 +295,7 @@ static inline unsigned long long OutflankToFlipmask(unsigned long long outflank)
 	#define OutflankToFlipmask(x)	((x) - (unsigned int) ((x) != 0))
 #endif
 
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 
 #define minusone	_mm_set1_epi32(-1)
 static const V2DI	k1e52 = {{ (1023ULL + 52) << 52, (1023ULL + 52) << 52 }};
@@ -575,7 +584,7 @@ static inline __m128i set1_by_movd (unsigned int L, unsigned int H) {
 
 #endif // hasSSE2
 
-#endif // has| USE_GAS_MMX | _P_IX86
+#endif // has| USE_GAS_X86 | _P_IX86
 
 /**
  * Compute flipped discs when playing on square A1.
@@ -602,7 +611,7 @@ static UINT64 flip_A1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_A1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask = {{ 0x0101010101010100, 0x8040201008040200 }};
@@ -639,7 +648,7 @@ static UINT64 flip_B1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_B1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask = {{ 0x0202020202020200, 0x0080402010080400 }};
@@ -678,7 +687,7 @@ static UINT64 flip_C1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_C1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask = {{ 0x0404040404040400, 0x0000804020100800 }};
@@ -717,7 +726,7 @@ static UINT64 flip_D1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_D1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask = {{ 0x0808080808080800, 0x0000008040201000 }};
@@ -758,7 +767,7 @@ static UINT64 flip_E1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_E1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask = {{ 0x1010101010101000, 0x0000000102040800 }};
@@ -800,7 +809,7 @@ static UINT64 flip_F1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_F1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask = {{ 0x2020202020202000, 0x0000010204081000 }};
@@ -838,7 +847,7 @@ static UINT64 flip_G1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_G1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x4040404040404000, 0x0001020408102000 }};
@@ -876,7 +885,7 @@ static UINT64 flip_H1(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_H1(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x8080808080808000, 0x0102040810204000 }};
@@ -914,7 +923,7 @@ static UINT64 flip_A2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_A2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask = {{ 0x0101010101010000, 0x4020100804020000 }};
@@ -951,7 +960,7 @@ static UINT64 flip_B2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_B2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask = {{ 0x0202020202020000, 0x8040201008040000 }};
@@ -990,7 +999,7 @@ static UINT64 flip_C2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_C2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask = {{ 0x0404040404040000, 0x0080402010080000 }};
@@ -1029,7 +1038,7 @@ static UINT64 flip_D2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_D2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask01 = {{ ~0x0808080808080000, ~0x0000804020100000 }};
@@ -1069,7 +1078,7 @@ static UINT64 flip_E2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_E2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask01 = {{ ~0x1010101010100000, ~0x0000010204080000 }};
@@ -1110,7 +1119,7 @@ static UINT64 flip_F2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_F2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask = {{ 0x2020202020200000, 0x0001020408100000 }};
@@ -1148,7 +1157,7 @@ static UINT64 flip_G2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_G2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x4040404040400000, 0x0102040810200000 }};
@@ -1186,7 +1195,7 @@ static UINT64 flip_H2(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_H2(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x8080808080800000, 0x0204081020400000 }};
@@ -1226,7 +1235,7 @@ static UINT64 flip_A3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_A3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask = {{ 0x0101010101000000, 0x2010080402000000 }};
@@ -1267,7 +1276,7 @@ static UINT64 flip_B3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_B3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask = {{ 0x0202020202000000, 0x4020100804000000 }};
@@ -1310,7 +1319,7 @@ static UINT64 flip_C3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_C3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask = {{ 0x0404040404000000, 0x8040201008000000 }};
@@ -1356,7 +1365,7 @@ static UINT64 flip_D3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_D3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask01 = {{ ~0x0808080808000000, ~0x0080402010000000 }};
@@ -1403,7 +1412,7 @@ static UINT64 flip_E3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_E3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask01 = {{ ~0x1010101010000000, ~0x0001020408000000 }};
@@ -1449,7 +1458,7 @@ static UINT64 flip_F3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_F3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask = {{ 0x2020202020000000, 0x0102040810000000 }};
@@ -1492,7 +1501,7 @@ static UINT64 flip_G3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_G3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x4040404040000000, 0x0204081020000000 }};
@@ -1574,7 +1583,7 @@ static UINT64 flip_H3(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_H3(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x8080808080000000, 0x0408102040000000 }};
@@ -1659,7 +1668,7 @@ static UINT64 flip_A4(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_A4(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0101010101010101, 0x1008040201020408 }};
@@ -1741,7 +1750,7 @@ static UINT64 flip_B4(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_B4(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0202020202020202, 0x2010080402040810 }};
@@ -1824,7 +1833,7 @@ static UINT64 flip_C4(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_C4(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0404040404040404, 0x4020100804081020 }};
@@ -1909,7 +1918,7 @@ static UINT64 flip_D4(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_D4(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x00000000ff000000, 0x0808080808080808 }};
@@ -2011,7 +2020,7 @@ static UINT64 flip_E4(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_E4(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x00000000ff000000, 0x1010101010101010 }};
@@ -2113,7 +2122,7 @@ static UINT64 flip_F4(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_F4(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x2020202020202020, 0x0204081020100804 }};
@@ -2197,7 +2206,7 @@ static UINT64 flip_G4(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_G4(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x4040404040404040, 0x0408102040201008 }};
@@ -2284,7 +2293,7 @@ static UINT64 flip_H4(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_H4(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x8080808080808080, 0x0810204080402010 }};
@@ -2372,7 +2381,7 @@ static UINT64 flip_A5(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_A5(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0101010101010101, 0x0804020102040810 }};
@@ -2455,7 +2464,7 @@ static UINT64 flip_B5(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_B5(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0202020202020202, 0x1008040204081020 }};
@@ -2538,7 +2547,7 @@ static UINT64 flip_C5(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_C5(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0404040404040404, 0x2010080408102040 }};
@@ -2622,7 +2631,7 @@ static UINT64 flip_D5(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_D5(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x000000ff00000000, 0x0808080808080808 }};
@@ -2724,7 +2733,7 @@ static UINT64 flip_E5(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_E5(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x000000ff00000000, 0x1010101010101010 }};
@@ -2826,7 +2835,7 @@ static UINT64 flip_F5(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_F5(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x2020202020202020, 0x0408102010080402 }};
@@ -2909,7 +2918,7 @@ static UINT64 flip_G5(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_G5(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x4040404040404040, 0x0810204020100804 }};
@@ -2996,7 +3005,7 @@ static UINT64 flip_H5(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_H5(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x8080808080808080, 0x1020408040201008 }};
@@ -3084,7 +3093,7 @@ static UINT64 flip_A6(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_A6(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0000000101010101, 0x0000000204081020 }};
@@ -3132,7 +3141,7 @@ static UINT64 flip_B6(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_B6(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0000000202020202, 0x0000000408102040 }};
@@ -3178,7 +3187,7 @@ static UINT64 flip_C6(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_C6(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0000000404040404, 0x0000000810204080 }};
@@ -3225,7 +3234,7 @@ static UINT64 flip_D6(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_D6(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0808080808080808, 0x0000081422418000 }};	// A3D6H2
@@ -3309,7 +3318,7 @@ static UINT64 flip_E6(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_E6(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x1010101010101010, 0x0000102844820100 }};	// A2E6H3
@@ -3393,7 +3402,7 @@ static UINT64 flip_F6(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_F6(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0000002020202020, 0x0000001008040201 }};
@@ -3439,7 +3448,7 @@ static UINT64 flip_G6(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_G6(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0000004040404040, 0x0000002010080402 }};
@@ -3525,7 +3534,7 @@ static UINT64 flip_H6(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_H6(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0000008080808080, 0x0000004020100804 }};
@@ -3611,7 +3620,7 @@ static UINT64 flip_A7(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return ULL(flippedH, flippedL);
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_A7(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0000010101010101, 0x0000020408102040 }};
@@ -3651,7 +3660,7 @@ static UINT64 flip_B7(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return ULL(flippedH, flippedL);
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_B7(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0000020202020202, 0x0000040810204080 }};
@@ -3690,7 +3699,7 @@ static UINT64 flip_C7(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_C7(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0000040404040404, 0x0000081020408000 }};
@@ -3733,7 +3742,7 @@ static UINT64 flip_D7(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_D7(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0000080808080808, 0x0008142241800000 }};	// A4D7H3
@@ -3812,7 +3821,7 @@ static UINT64 flip_E7(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_E7(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0000101010101010, 0x0010284482010000 }};	// A3E7H4
@@ -3891,7 +3900,7 @@ static UINT64 flip_F7(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_F7(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0000202020202020, 0x0000100804020100 }};
@@ -3935,7 +3944,7 @@ static UINT64 flip_G7(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return ULL(flippedH, flippedL);
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_G7(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0000404040404040, 0x0000201008040201 }};
@@ -4013,7 +4022,7 @@ static UINT64 flip_H7(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return ULL(flippedH, flippedL);
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_H7(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0000808080808080, 0x0000402010080402 }};
@@ -4091,7 +4100,7 @@ static UINT64 flip_A8(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return ULL(flippedH, flippedL);
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_A8(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0001010101010101, 0x0002040810204080 }};
@@ -4131,7 +4140,7 @@ static UINT64 flip_B8(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return ULL(flippedH, flippedL);
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_B8(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0002020202020202, 0x0004081020408000 }};
@@ -4170,7 +4179,7 @@ static UINT64 flip_C8(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_C8(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0004040404040404, 0x0008102040800000 }};
@@ -4213,7 +4222,7 @@ static UINT64 flip_D8(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_D8(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0008080808080808, 0x0814224180000000 }};	// A5D8H4
@@ -4292,7 +4301,7 @@ static UINT64 flip_E8(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_E8(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0010101010101010, 0x1028448201000000 }};	// A4E8H5
@@ -4371,7 +4380,7 @@ static UINT64 flip_F8(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return flipped;
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_F8(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0020202020202020, 0x0010080402010000 }};
@@ -4449,7 +4458,7 @@ static UINT64 flip_G8(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return ULL(flippedH, flippedL);
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_G8(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0040404040404040, 0x0020100804020100 }};
@@ -4528,7 +4537,7 @@ static UINT64 flip_H8(unsigned int PL, unsigned int PH, unsigned int OL, unsigne
 	return ULL(flippedH, flippedL);
 }
 #endif
-#if defined(hasSSE2) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(hasSSE2) || defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 static UINT64 flip_sse_H8(unsigned int PL, unsigned int PH, unsigned int OL, unsigned int OH)
 {
 	static const V2DI mask1 = {{ 0x0080808080808080, 0x0040201008040201 }};
@@ -4631,7 +4640,7 @@ UINT64 flip32(unsigned int pos, unsigned int bb[]) {
 }
 #endif
 
-#if !defined(hasSSE2) && (defined(USE_GAS_MMX) || defined(USE_MSVC_X86))
+#if !defined(hasSSE2) && (defined(USE_GAS_X86) || defined(USE_MSVC_X86))
 
 static UINT64 (*flip_sse[])(unsigned int, unsigned int, unsigned int, unsigned int) = {
 	flip_sse_A1, flip_sse_B1, flip_sse_C1, flip_sse_D1, flip_sse_E1, flip_sse_F1, flip_sse_G1, flip_sse_H1,
@@ -4649,6 +4658,6 @@ void init_flip_sse(void) {
 }
 #endif
 
-#ifdef USE_GAS_MMX
+#ifdef USE_GAS_X86
 #undef	_
 #endif

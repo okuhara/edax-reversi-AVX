@@ -133,7 +133,7 @@ void bit_init(void)
 		PopCnt16[n] = bit_count_32_SWAR(n);
 #endif
 
-#if (defined(USE_GAS_MMX) || defined(USE_MSVC_X86)) && !defined(hasSSE2)
+#if (defined(USE_GAS_X86) || defined(USE_MSVC_X86)) && !defined(hasSSE2)
 	init_mmx();
 #endif
 #if defined(ANDROID) && !defined(__ARM_NEON) && !defined(hasSSE2)

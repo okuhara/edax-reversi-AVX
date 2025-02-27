@@ -221,7 +221,7 @@ int search_get_pv_cost(Search*);
 void show_current_move(FILE *f, Search*, const Move*, const int, const int, const bool);
 int search_bound(const Search*, int);
 
-#if defined(hasSSE2) || defined(__ARM_NEON) || defined(USE_GAS_MMX) || defined(USE_MSVC_X86) || defined(ANDROID)
+#if defined(hasSSE2) || defined(__ARM_NEON) || defined(USE_GAS_X86) || defined(USE_MSVC_X86) || defined(ANDROID)
   #ifdef __AVX2__
 	#define	mm_malloc(s)	_mm_malloc((s), 32)
 	#define	mm_free(p)	_mm_free(p)

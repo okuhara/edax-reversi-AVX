@@ -60,6 +60,9 @@ icc-x64-v4:
 icc-x64:
 	icl $(VC_FLAGS) /GL /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-x86-64.exe /link /VERSION:4.5
 
+icc-x86-sse:
+	icl $(VC_FLAGS) /GL /D hasSSE2 /arch:SSE2 all.c ws2_32.lib /Fe..\bin\wEdax-x86-sse.exe
+
 icc-x86:
 	icl $(VC_FLAGS) /GL /arch:IA32 all.c ws2_32.lib /Fe..\bin\wEdax-x86.exe
 
@@ -72,8 +75,11 @@ clang-x64-v4:
 clang-x64:
 	clang-cl $(VC_FLAGS) /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-x86-64.exe /link /VERSION:4.5
 
+clang-x86-sse:
+	clang-cl -m32 $(VC_FLAGS) /arch:SSE2 /D hasSSE2 all.c ws2_32.lib /Fe..\bin\wEdax-x86-sse.exe
+
 clang-x86:
-	clang-cl $(VC_FLAGS) /arch:IA32 all.c ws2_32.lib /Fe..\bin\wEdax-x86.exe
+	clang-cl -m32 $(VC_FLAGS) /arch:IA32 /D USE_GAS_X86 all.c ws2_32.lib /Fe..\bin\wEdax-x86.exe
 
 clang-a64:
 #	vcvarsamd64_arm64.bat

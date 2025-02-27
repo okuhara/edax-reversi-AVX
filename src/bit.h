@@ -43,7 +43,7 @@
 	#include "arm_neon.h"
 #endif
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && (!defined(__clang__) || defined(hasSSE2))
 	#include <intrin.h>
   #ifdef _M_IX86
 	#define	USE_MSVC_X86	1
@@ -354,7 +354,7 @@ extern const unsigned long long NEIGHBOUR[];
 	#define bit_count_si64(x)	((unsigned char)(PopCnt16[_mm_extract_epi16((x), 0)] + PopCnt16[_mm_extract_epi16((x), 1)] + PopCnt16[_mm_extract_epi16((x), 2)] + PopCnt16[_mm_extract_epi16((x), 3)]))
 #endif
 
-#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(USE_GAS_X86) || defined(USE_MSVC_X86)
   #ifndef hasSSE2
 	extern bool	hasSSE2;
   #endif
@@ -382,7 +382,7 @@ typedef union {
 	__m128d	d2;	// used in flip_carry_sse_32.c
   #endif
 }
-#if defined(__GNUC__) && !defined(hasSSE2)
+#if defined(__GNUC__) || defined(__clang__)	// for USE_GAS_X86
 __attribute__ ((aligned (16)))
 #endif
 V2DI;
@@ -429,8 +429,8 @@ typedef union {
 	#define	vectorcall
 #endif
 
-// X64 compatibility sims for X86
-#if !defined(HAS_CPU_64) && (defined(hasSSE2) || defined(USE_MSVC_X86))
+// X64 compatibility sims for X86 (except clang, it has its own)
+#if !defined(HAS_CPU_64) && (defined(hasSSE2) || defined(USE_MSVC_X86)) & !defined(__clang__)
 	static inline __m128i _mm_cvtsi64_si128(const unsigned long long x) {
 		return _mm_unpacklo_epi32(_mm_cvtsi32_si128(x), _mm_cvtsi32_si128(x >> 32));
 	}

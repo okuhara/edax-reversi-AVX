@@ -80,7 +80,7 @@ char* board_to_FEN(const Board*, const int, char*);
 bool board_is_pass(const Board*);
 bool board_is_game_over(const Board*);
 int board_count_empties(const Board *board);
-#if defined(USE_GAS_MMX) || defined(USE_MSVC_X86)
+#if defined(USE_GAS_X86) || defined(USE_MSVC_X86)
 	void init_mmx (void);
 	unsigned long long get_moves_mmx(const unsigned long long, const unsigned long long);
 	unsigned long long get_moves_sse(const unsigned long long, const unsigned long long);
@@ -189,7 +189,7 @@ extern unsigned char edge_stability[256 * 256];
   #else
 	#define	board_flip(board,x)	flip[x]((unsigned int)((board)->player), ((unsigned int *) &(board)->player)[1], (unsigned int)((board)->opponent), ((unsigned int *) &(board)->opponent)[1])
   #endif
-  #if !defined(hasSSE2) && (defined(USE_GAS_MMX) || defined(USE_MSVC_X86))
+  #if !defined(hasSSE2) && (defined(USE_GAS_X86) || defined(USE_MSVC_X86))
 	extern void init_flip_sse(void);
   #endif
 
