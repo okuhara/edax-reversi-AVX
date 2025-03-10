@@ -818,6 +818,10 @@ void ui_loop_edax(UI *ui)
 				} else if (strcmp(book_cmd, "play") == 0) {
 					book_play(book, &play->board);
 
+				// add positions by expanding positions with the leaf being the best move
+				} else if (strcmp(book_cmd, "extend") == 0) {
+					book_extend(book, &play->board);
+
 				// re-evaluate all leaves with a deeper search
 				} else if (strcmp(book_cmd, "deepen") == 0) {
 					book_deepen(book);
