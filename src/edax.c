@@ -66,6 +66,8 @@
  *   -deviate <n1> <n2>   add positions by deviating with a relative error <n1> and an absolute error <n2>.
  *   -enhance <n1> <n2>   add positions by improving score accuracy with a midgame error <n1> and an endcut error <n2>.
  *   -fill [n]            add positions between existing positions.
+ *   -play                add positions by expanding positions without child positions.
+ *   -extend              add positions by expanding positions where the leaf has the best score.
  *   -prune               remove unreachable positions.
  *   -add [file]          add positions from a game base file (txt, ggf, sgf or wthor format).
  *
@@ -89,7 +91,7 @@
  *   -count shapes [d]    compute the number of shapes from the current position up\n  to depth [d].
  *
  *
- * @date 1998 - 2018
+ * @date 1998 - 2025
  * @author Richard Delorme
  * @version 4.4
  *
@@ -240,6 +242,8 @@ void help_book(void)
 		"  deviate <n1> <n2>   add positions by deviating with a relative error <n1> and\n  an absolute error <n2>.\n"
 		"  enhance <n1> <n2>   add positions by improving score accuracy with a midgame\n  error <n1> and an endcut error <n2>.\n"
 		"  fill [n]            add positions between existing positions.\n"
+		"  play                add positions by expanding leaves of positions without links\n  to next positions.\n"
+		"  extend              add positions by expanding leaves with a best score.\n"
 		"  prune               remove unreachable positions.\n"
 		"  subtree             only keep positions from the current position.\n"
 		"  add [file]          add positions from a game base file (txt, ggf, sgf or\n  wthor format).\n");
