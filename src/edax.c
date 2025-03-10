@@ -251,8 +251,8 @@ void help_book(void)
 void help_base(void)
 {
 	printf( "\nGame DataBase :\n"
-		"  convert [file_in] [file_out]     convert between different format.\n"
-		"  unique [file_in] [file_out]      remove doublons in the base.\n"
+		"  convert [file_in]$00A0[file_out]     convert between different format.\n"
+		"  unique [file_in]$00A0[file_out]      remove doublons in the base.\n"
 		"  check [file_in] [n]              check error in the last <n> moves.\n"
 		"  correct [file_in] [n]            correct error in the last <n> moves.\n"
 		"  complete [file_in]               complete a database by playing the last\n  missing moves.\n"
@@ -812,9 +812,9 @@ void ui_loop_edax(UI *ui)
 
 				// add positions by expanding positions with no-link
 				} else if (strcmp(book_cmd, "play") == 0) {
-					book_play(book);
+					book_play(book, &play->board);
 
-				// add positions by expanding positions with no-link
+				// re-evaluate all leaves with a deeper search
 				} else if (strcmp(book_cmd, "deepen") == 0) {
 					book_deepen(book);
 
