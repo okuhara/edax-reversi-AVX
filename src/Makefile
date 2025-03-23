@@ -85,13 +85,13 @@ ifeq ($(COMP),gcc)
 	endif
 	ifeq ($(ARCH),arm)
 		ifeq ($(BUILD),optimize)
-			CFLAGS += -fomit-frame-pointer
+			CFLAGS += -fomit-frame-pointer -DUSE_GCC_ARM
 		endif
 	endif
 	ifeq ($(ARCH),arm-neon)
 		CFLAGS += -march=armv7-a+simd -mfloat-abi=softfp
 		ifeq ($(BUILD),optimize)
-			CFLAGS += -fomit-frame-pointer
+			CFLAGS += -fomit-frame-pointer -DUSE_GCC_ARM
 		endif
 	endif
 	ifeq ($(ARCH),armv8)
@@ -192,11 +192,11 @@ ifeq ($(COMP),clang)
 	endif
 	ifeq ($(ARCH),arm)
 		ifeq ($(BUILD),optimize)
-			CFLAGS += -fomit-frame-pointer
+			CFLAGS += -fomit-frame-pointer -DUSE_GCC_ARM
 		endif
 	endif
 	ifeq ($(ARCH),arm-neon)
-		CFLAGS += -march=armv7-a+simd -mfloat-abi=softfp
+		CFLAGS += -march=armv7-a+simd -mfloat-abi=softfp -DUSE_GCC_ARM
 		ifeq ($(BUILD),optimize)
 			CFLAGS += -fomit-frame-pointer
 		endif

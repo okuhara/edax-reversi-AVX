@@ -198,18 +198,17 @@ static inline int _tzcnt_u64(unsigned long long x) {
 	#define	tzcnt_u32(x)	_tzcnt_u32(x)
 	#define	tzcnt_u64(x)	_tzcnt_u64(x)
 
+#elif defined(__ARM_FEATURE_CLZ) && defined(__aarch64__)
+	#include "arm_acle.h"
+	#define	tzcnt_u32(x)	lzcnt_u32(__rbit(x))
+	#define	tzcnt_u64(x)	lzcnt_u64(__rbitll(x))
+
 #elif defined(_M_ARM64)
 	#define tzcnt_u32(x)	_CountTrailingZeros(x)
 	#define tzcnt_u64(x)	_CountTrailingZeros64(x)
 
 #elif defined(_M_ARM)
 	#define	tzcnt_u32(x)	_arm_clz(_arm_rbit(x))
-
-#elif defined(__ARM_FEATURE_CLZ)
-  #if __ARM_ACLE >= 110
-	#define	tzcnt_u32(x)	__clz(__rbit(x))
-	#define	tzcnt_u64(x)	__clzll(__rbitll(x))
-  #endif
 #endif
 
 #if defined(__SSE4_2__) || defined(__AVX__)
@@ -429,8 +428,8 @@ typedef union {
 	#define	vectorcall
 #endif
 
-// X64 compatibility sims for X86 (except clang, it has its own)
-#if !defined(HAS_CPU_64) && (defined(hasSSE2) || defined(USE_MSVC_X86)) & !defined(__clang__)
+// X64 compatibility sims for X86
+#if !defined(HAS_CPU_64) && (defined(hasSSE2) || defined(USE_MSVC_X86)) // & !defined(__clang__)
 	static inline __m128i _mm_cvtsi64_si128(const unsigned long long x) {
 		return _mm_unpacklo_epi32(_mm_cvtsi32_si128(x), _mm_cvtsi32_si128(x >> 32));
 	}
