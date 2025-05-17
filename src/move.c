@@ -3,7 +3,7 @@
  *
  * @brief Move & list of moves management.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2025
  * @author Richard Delorme
  * @version 4.5
  */
@@ -121,6 +121,30 @@ void move_print(const int x, const int player, FILE *f)
 
 
 #ifdef TUNE_EDAX
+static int w_hash = 1 << 15;
+static int w_eval = 1 << 15;
+static int w_mobility = 1 << 15;
+static int w_corner_stability = 1 << 11;
+static int w_edge_stability = 1 << 11;
+static int w_potential_mobility = 1 << 5;
+static int w_low_parity = 1 << 3;
+static int w_mid_parity = 1 << 2;
+static int w_high_parity = 1 << 1;
+#else
+enum {
+	w_hash = 1 << 15,
+	w_eval = 1 << 15,
+	w_mobility = 1 << 15,
+	w_corner_stability = 1 << 11,
+	w_edge_stability = 1 << 11,
+	w_potential_mobility = 1 << 5,
+	w_low_parity = 1 << 3,
+	w_mid_parity = 1 << 2,
+	w_high_parity = 1 << 1
+};
+#endif
+
+#ifdef TUNE_EDAX
 #include "solver.h"
 
 void tune_move_evaluate(Search *search, const char *filename, const char *w_name)
@@ -163,186 +187,99 @@ void tune_move_evaluate(Search *search, const char *filename, const char *w_name
 #endif
 
 /**
- * @brief Get moves from a position.
- *
- * @param movelist movelist.
- * @param board board.
- * @return move number.
- */
-int movelist_get_moves(MoveList *movelist, const Board *board)
-{
-	Move *previous = movelist->move;
-	Move *move;
-	unsigned long long moves = board_get_moves(board);
-	int x, n;
-
-	n = 0;
-	foreach_bit (x, moves) {
-		move = previous + 1;
-		previous->next = move;
-		board_get_move_flip(board, x, move);
-		// move->score = -SCORE_INF;	// -INT_MAX?
-		previous = move;
-		++n;
-	}
-	previous->next = NULL;
-	movelist->n_moves = n;
-	return n;
-}
-
-/**
- * @brief Print out a movelist
- *
- * Print the moves, using letter case to distinguish player's color,
- * to an output stream.
- * @param movelist a list of moves.
- * @param player   player color.
- * @param f        output stream.
- */
-void movelist_print(const MoveList *movelist, const int player, FILE *f)
-{
-	Move *iter;
-
-	for (iter = movelist->move[0].next; iter != NULL; iter = iter->next) {
-		move_print(iter->x, player, f);
-		fprintf(f, "[%d] ", iter->score);
-	}
-}
-
-/**
- * @brief Return the next best move from the list.
- *
- * @param previous_best Last best move.
- * @return the following best move in the list.
- */
-#if defined(__INTEL_COMPILER) && defined(__linux__)	// ICC linux emits bogus code in NWS_endgame if inlined
-__attribute__((noinline))
-#endif
-Move* move_next_best(Move *previous_best)
-{
-	Move *move = previous_best->next;
-	if (move && move->next) {	// at least 2 elements
-		Move *best = previous_best;
-		do {
-			if (move->next->score > best->next->score)
-				best = move;
-			move = move->next;
-		} while (move->next);
-		// if (previous_best != best) {
-		move = best->next;
-		best->next = move->next;
-		move->next = previous_best->next;
-		previous_best->next = move;
-		// }
-	}
-	return previous_best->next;
-}
-
-/**
- * @brief Return the next best move from the list.
- *
- * @param previous_best Last best move.
- * @return the following best move in the list.
- */
-Move* move_next_most_expensive(Move *previous_best)
-{
-	Move *move = previous_best->next;
-	if (move && move->next) {	// at least 2 elements
-		Move *best = previous_best;
-		do {
-			if (move->next->cost > best->next->cost)
-				best = move;
-			move = move->next;
-		} while (move->next);
-		// if (previous_best != best) {
-		move = best->next;
-		best->next = move->next;
-		move->next = previous_best->next;
-		previous_best->next = move;
-		// }
-	}
-	return previous_best->next;
-}
-
-#ifdef TUNE_EDAX
-static int w_hash = 1 << 15;
-static int w_eval = 1 << 15;
-static int w_mobility = 1 << 15;
-static int w_corner_stability = 1 << 11;
-static int w_edge_stability = 1 << 11;
-static int w_potential_mobility = 1 << 5;
-static int w_low_parity = 1 << 3;
-static int w_mid_parity = 1 << 2;
-static int w_high_parity = 1 << 1;
-#else
-enum {
-	w_hash = 1 << 15,
-	w_eval = 1 << 15,
-	w_mobility = 1 << 15,
-	w_corner_stability = 1 << 11,
-	w_edge_stability = 1 << 11,
-	w_potential_mobility = 1 << 5,
-	w_low_parity = 1 << 3,
-	w_mid_parity = 1 << 2,
-	w_high_parity = 1 << 1
-};
-#endif
-
-/**
  * @brief Evaluate a list of move in order to sort it with depth 0.
  * (called from NWS_endgame and movelist_evaluate)
+ * Only wipeout and hash moves are initially evaluated and sorted.
+ * cf. https://eukaryote.hateblo.jp/entry/2020/04/27/110543
  *
  * @param movelist List of moves to sort.
  * @param search Position to evaluate.
  * @param hash_data   Position (maybe) stored in the hashtable.
  */
-void movelist_evaluate_fast(MoveList *movelist, Search *search, const HashData *hash_data)
+void movelist_evaluate_endgame(MoveList *movelist, Search *search, const HashData *hash_data)
+{
+	Move	*move, *prev, *evaluated, *hashmove0, *hashmove1;
+
+	hashmove0 = hashmove1 = NULL;
+	evaluated = prev = &movelist->move[0];
+	while ((move = prev->next)) {
+		if (move_wipeout(move, &search->board)) {
+			move->score = (1 << 30);
+			if (prev == evaluated) {	// already head
+				evaluated = move;
+			} else {	// move to head
+				prev->next = move->next;
+				move->next = evaluated->next;
+				evaluated = evaluated->next = move;
+				continue;	// keep prev
+			}
+
+		} else if (move->x == hash_data->move[0]) {
+			move->score = (1 << 29);
+			hashmove0 = move;
+			prev->next = move->next;
+			continue;
+
+		} else if (move->x == hash_data->move[1]) {
+			move->score = (1 << 28);
+			hashmove1 = move;
+			prev->next = move->next;
+			continue;
+		}
+		prev = move;
+	}
+
+	if (hashmove0) {
+		hashmove0->next = evaluated->next;
+		evaluated = evaluated->next = hashmove0;
+	}
+	if (hashmove1) {
+		hashmove1->next = evaluated->next;
+		evaluated = evaluated->next = hashmove1;
+	}
+
+	movelist->last_evaluated = evaluated;
+}
+
+static void movelist_evaluate_phase2(MoveList *movelist, Search *search)
 {
 	Move	*move;
 	int	score, parity_weight;
 
-	// if (search->eval.n_empties < 21)	// mostly true
-		parity_weight = (search->eval.n_empties < 12) ? w_low_parity : w_mid_parity;
-	// else	parity_weight = (search->eval.n_empties < 30) ? w_high_parity : 0;
-
-	move = movelist->move[0].next;
-	do {
-		// move_evaluate(move, search, hash_data, sort_alpha, -1);
-		if (move_wipeout(move, &search->board)) score = (1 << 30);
-		else if (move->x == hash_data->move[0]) score = (1 << 29);
-		else if (move->x == hash_data->move[1]) score = (1 << 28);
-		else {
+	parity_weight = (search->eval.n_empties < 12) ? w_low_parity : w_mid_parity;
+	move = movelist->last_evaluated;
+	while ((move = move->next)) {
 #ifdef __AVX2__
-			__m128i PO = _mm_xor_si128(*(__m128i *) &search->board,
-				_mm_or_si128(_mm_set1_epi64x(move->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x])));
-			score  = get_corner_stability(_mm_cvtsi128_si64(PO)) * w_corner_stability; // corner stability
-			__m128i MM = get_moves_and_potential(_mm256_broadcastq_epi64(_mm_unpackhi_epi64(PO, PO)), _mm256_broadcastq_epi64(PO));
-			score += (36 - bit_weighted_count(_mm_extract_epi64(MM, 1))) * w_potential_mobility; // potential mobility
-			score += (36 - bit_weighted_count(_mm_cvtsi128_si64(MM))) * w_mobility; // real mobility
+		__m128i PO = _mm_xor_si128(*(__m128i *) &search->board,
+			_mm_or_si128(_mm_set1_epi64x(move->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x])));
+		score  = get_corner_stability(_mm_cvtsi128_si64(PO)) * w_corner_stability; // corner stability
+		__m128i MM = get_moves_and_potential(_mm256_broadcastq_epi64(_mm_unpackhi_epi64(PO, PO)), _mm256_broadcastq_epi64(PO));
+		score += (36 - bit_weighted_count(_mm_extract_epi64(MM, 1))) * w_potential_mobility; // potential mobility
+		score += (36 - bit_weighted_count(_mm_cvtsi128_si64(MM))) * w_mobility; // real mobility
 
 #else
-			unsigned long long O = search->board.player ^ (move->flipped | x_to_bit(move->x));
-			unsigned long long P = search->board.opponent ^ move->flipped;
-			score  = get_corner_stability(O) * w_corner_stability; // corner stability
+		unsigned long long O = search->board.player ^ (move->flipped | x_to_bit(move->x));
+		unsigned long long P = search->board.opponent ^ move->flipped;
+		score  = get_corner_stability(O) * w_corner_stability; // corner stability
   #if defined(hasSSE2) && !defined(POPCOUNT)
-			__m128i MM = bit_weighted_count_sse(get_moves(P, O), get_potential_moves(P, O));
-			score += (36 - _mm_extract_epi16(MM, 4)) * w_potential_mobility; // potential mobility
-			score += (36 - _mm_cvtsi128_si32(MM)) * w_mobility; // real mobility
+		__m128i MM = bit_weighted_count_sse(get_moves(P, O), get_potential_moves(P, O));
+		score += (36 - _mm_extract_epi16(MM, 4)) * w_potential_mobility; // potential mobility
+		score += (36 - _mm_cvtsi128_si32(MM)) * w_mobility; // real mobility
   #elif defined(__ARM_NEON)
-			uint64x2_t MM = bit_weighted_count_neon(get_moves(P, O), get_potential_moves(P, O));
-			score += (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 2)) * w_potential_mobility; // potential mobility
-			score += (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 0)) * w_mobility; // real mobility
+		uint64x2_t MM = bit_weighted_count_neon(get_moves(P, O), get_potential_moves(P, O));
+		score += (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 2)) * w_potential_mobility; // potential mobility
+		score += (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 0)) * w_mobility; // real mobility
   #else
-			score += (36 - bit_weighted_count(get_potential_moves(P, O))) * w_potential_mobility; // potential mobility
-			score += (36 - bit_weighted_count(get_moves(P, O))) * w_mobility; // real mobility
+		score += (36 - bit_weighted_count(get_potential_moves(P, O))) * w_potential_mobility; // potential mobility
+		score += (36 - bit_weighted_count(get_moves(P, O))) * w_mobility; // real mobility
   #endif
 #endif
-			score += SQUARE_VALUE[move->x]; // square type
-			score += (search->eval.parity & QUADRANT_ID[move->x]) ? parity_weight : 0; // parity
-			SEARCH_UPDATE_ALL_NODES(search->n_nodes);
-		}
+		score += SQUARE_VALUE[move->x]; // square type
+		score += (search->eval.parity & QUADRANT_ID[move->x]) ? parity_weight : 0; // parity
+		SEARCH_UPDATE_ALL_NODES(search->n_nodes);
 		move->score = score;
-	} while ((move = move->next));
+	}
+	movelist->last_evaluated = NULL;
 }
 
 /**
@@ -462,8 +399,146 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 			move->score = score;
 		} while ((move = move->next));
 
-	} else	// sort_depth = -1
-		movelist_evaluate_fast(movelist, search, hash_data);
+	} else {	// sort_depth = -1
+		movelist_evaluate_endgame(movelist, search, hash_data);
+		movelist_evaluate_phase2(movelist, search);
+	}
+}
+
+/**
+ * @brief Get moves from a position.
+ *
+ * @param movelist movelist.
+ * @param board board.
+ * @return move number.
+ */
+int movelist_get_moves(MoveList *movelist, const Board *board)
+{
+	Move *previous = movelist->move;
+	Move *move;
+	unsigned long long moves = board_get_moves(board);
+	int x, n;
+
+	n = 0;
+	foreach_bit (x, moves) {
+		move = previous + 1;
+		previous->next = move;
+		board_get_move_flip(board, x, move);
+		// move->score = -SCORE_INF;	// -INT_MAX?
+		previous = move;
+		++n;
+	}
+	previous->next = NULL;
+	movelist->last_evaluated = NULL;
+	movelist->n_moves = n;
+	return n;
+}
+
+/**
+ * @brief Print out a movelist
+ *
+ * Print the moves, using letter case to distinguish player's color,
+ * to an output stream.
+ * @param movelist a list of moves.
+ * @param player   player color.
+ * @param f        output stream.
+ */
+void movelist_print(const MoveList *movelist, const int player, FILE *f)
+{
+	Move *iter;
+
+	for (iter = movelist->move[0].next; iter != NULL; iter = iter->next) {
+		move_print(iter->x, player, f);
+		fprintf(f, "[%d] ", iter->score);
+	}
+}
+
+/**
+ * @brief Return the next best move from the list.
+ *
+ * @param previous_best Last best move.
+ * @return the following best move in the list.
+ */
+Move* move_next_best(Move *previous_best)
+{
+	Move *move = previous_best->next;
+	if (move && move->next) {	// at least 2 elements
+		Move *best = previous_best;
+		do {
+			if (move->next->score > best->next->score)
+				best = move;
+			move = move->next;
+		} while (move->next);
+		// if (previous_best != best) {
+		move = best->next;
+		best->next = move->next;
+		move->next = previous_best->next;
+		previous_best->next = move;
+		// }
+	}
+	return previous_best->next;
+}
+
+/**
+ * @brief Return the next best move from the list.
+ *
+ * @param previous_best Last best move.
+ * @return the following best move in the list.
+ */
+static Move* move_next_most_expensive(Move *previous_best)
+{
+	Move *move = previous_best->next;
+	if (move && move->next) {	// at least 2 elements
+		Move *best = previous_best;
+		do {
+			if (move->next->cost > best->next->cost)
+				best = move;
+			move = move->next;
+		} while (move->next);
+		// if (previous_best != best) {
+		move = best->next;
+		best->next = move->next;
+		move->next = previous_best->next;
+		previous_best->next = move;
+		// }
+	}
+	return previous_best->next;
+}
+
+/**
+ * @brief Return the next best move from the list, with delayed movelist_evaluate for endgame.
+ *
+ * @param previous_best Last best move.
+ * @return the following best move in the list.
+ */
+Move* move_next_best_endgame(MoveList *movelist, Move *previous_best, Search *search)
+{
+	Move *move, *best;
+
+	move = previous_best->next;
+	if ((move == NULL) || (move->next == NULL))	// no need to sort if only 1 element left
+		return move;
+
+	if (movelist->last_evaluated) {
+		if (previous_best != movelist->last_evaluated)
+			return move;
+
+		movelist_evaluate_phase2(movelist, search);
+	}
+
+	best = previous_best;
+	move = best->next;
+	do {
+		if (move->next->score > best->next->score)
+			best = move;
+		move = move->next;
+	} while (move->next);
+
+	move = best->next;
+	best->next = move->next;
+	move->next = previous_best->next;
+	previous_best->next = move;
+	return move;
 }
 
 /**
@@ -501,26 +576,33 @@ void movelist_sort_cost(MoveList *movelist, const HashData *hash_data)
 	Move *iter, *prev, *m, *hashmove0, *hashmove1;
 
 	hashmove0 = hashmove1 = NULL;
-	for (prev = iter = &movelist->move[0]; (m = prev->next); prev = m) {
-		if (m->x == hash_data->move[0])
-			hashmove0 = prev;
-		if (m->x == hash_data->move[1])
-			hashmove1 = prev;
-	}
-	if (hashmove0) {
-		m = hashmove0->next;
-		hashmove0->next = m->next;
-		m->next = iter->next;
-		if (hashmove1 == iter)
+	prev = &movelist->move[0];
+	while ((m = prev->next)) {
+		if (m->x == hash_data->move[0]) {
+			hashmove0 = m;
+			prev->next = m->next;
+			if (hashmove1)
+				break;
+
+		} else if (m->x == hash_data->move[1]) {
 			hashmove1 = m;
-		iter = iter->next = m;
+			prev->next = m->next;
+			if (hashmove0)
+				break;
+		} else
+			prev = m;
+	}
+
+	iter = &movelist->move[0];
+	if (hashmove0) {
+		hashmove0->next = iter->next;
+		iter = iter->next = hashmove0;
 	}
 	if (hashmove1) {
-		m = hashmove1->next;
-		hashmove1->next = m->next;
-		m->next = iter->next;
-		iter = iter->next = m;
+		hashmove1->next = iter->next;
+		iter = iter->next = hashmove1;
 	}
+
 	while ((iter = move_next_most_expensive(iter)))
 		;
 }
