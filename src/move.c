@@ -187,103 +187,9 @@ void tune_move_evaluate(Search *search, const char *filename, const char *w_name
 #endif
 
 /**
- * @brief Evaluate a list of move in order to sort it with depth 0.
- * (called from NWS_endgame and movelist_evaluate)
+ * @brief Evaluate a list of move in order to sort it.
  * Only wipeout and hash moves are initially evaluated and sorted.
  * cf. https://eukaryote.hateblo.jp/entry/2020/04/27/110543
- *
- * @param movelist List of moves to sort.
- * @param search Position to evaluate.
- * @param hash_data   Position (maybe) stored in the hashtable.
- */
-void movelist_evaluate_endgame(MoveList *movelist, Search *search, const HashData *hash_data)
-{
-	Move	*move, *prev, *evaluated, *hashmove0, *hashmove1;
-
-	hashmove0 = hashmove1 = NULL;
-	evaluated = prev = &movelist->move[0];
-	while ((move = prev->next)) {
-		if (move_wipeout(move, &search->board)) {
-			move->score = (1 << 30);
-			if (prev == evaluated) {	// already head
-				evaluated = move;
-			} else {	// move to head
-				prev->next = move->next;
-				move->next = evaluated->next;
-				evaluated = evaluated->next = move;
-				continue;	// keep prev
-			}
-
-		} else if (move->x == hash_data->move[0]) {
-			move->score = (1 << 29);
-			hashmove0 = move;
-			prev->next = move->next;
-			continue;
-
-		} else if (move->x == hash_data->move[1]) {
-			move->score = (1 << 28);
-			hashmove1 = move;
-			prev->next = move->next;
-			continue;
-		}
-		prev = move;
-	}
-
-	if (hashmove0) {
-		hashmove0->next = evaluated->next;
-		evaluated = evaluated->next = hashmove0;
-	}
-	if (hashmove1) {
-		hashmove1->next = evaluated->next;
-		evaluated = evaluated->next = hashmove1;
-	}
-
-	movelist->last_evaluated = evaluated;
-}
-
-static void movelist_evaluate_phase2(MoveList *movelist, Search *search)
-{
-	Move	*move;
-	int	score, parity_weight;
-
-	parity_weight = (search->eval.n_empties < 12) ? w_low_parity : w_mid_parity;
-	move = movelist->last_evaluated;
-	while ((move = move->next)) {
-#ifdef __AVX2__
-		__m128i PO = _mm_xor_si128(*(__m128i *) &search->board,
-			_mm_or_si128(_mm_set1_epi64x(move->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x])));
-		score  = get_corner_stability(_mm_cvtsi128_si64(PO)) * w_corner_stability; // corner stability
-		__m128i MM = get_moves_and_potential(_mm256_broadcastq_epi64(_mm_unpackhi_epi64(PO, PO)), _mm256_broadcastq_epi64(PO));
-		score += (36 - bit_weighted_count(_mm_extract_epi64(MM, 1))) * w_potential_mobility; // potential mobility
-		score += (36 - bit_weighted_count(_mm_cvtsi128_si64(MM))) * w_mobility; // real mobility
-
-#else
-		unsigned long long O = search->board.player ^ (move->flipped | x_to_bit(move->x));
-		unsigned long long P = search->board.opponent ^ move->flipped;
-		score  = get_corner_stability(O) * w_corner_stability; // corner stability
-  #if defined(hasSSE2) && !defined(POPCOUNT)
-		__m128i MM = bit_weighted_count_sse(get_moves(P, O), get_potential_moves(P, O));
-		score += (36 - _mm_extract_epi16(MM, 4)) * w_potential_mobility; // potential mobility
-		score += (36 - _mm_cvtsi128_si32(MM)) * w_mobility; // real mobility
-  #elif defined(__ARM_NEON)
-		uint64x2_t MM = bit_weighted_count_neon(get_moves(P, O), get_potential_moves(P, O));
-		score += (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 2)) * w_potential_mobility; // potential mobility
-		score += (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 0)) * w_mobility; // real mobility
-  #else
-		score += (36 - bit_weighted_count(get_potential_moves(P, O))) * w_potential_mobility; // potential mobility
-		score += (36 - bit_weighted_count(get_moves(P, O))) * w_mobility; // real mobility
-  #endif
-#endif
-		score += SQUARE_VALUE[move->x]; // square type
-		score += (search->eval.parity & QUADRANT_ID[move->x]) ? parity_weight : 0; // parity
-		SEARCH_UPDATE_ALL_NODES(search->n_nodes);
-		move->score = score;
-	}
-	movelist->last_evaluated = NULL;
-}
-
-/**
- * @brief Evaluate a list of move in order to sort it.
  *
  * Evaluate the moves to sort them. Evaluation is based on, in order of importance:
  *   - wipeout move    : 1 << 30
@@ -302,8 +208,10 @@ static void movelist_evaluate_phase2(MoveList *movelist, Search *search)
  * @param alpha   Alpha bound to evaluate moves.
  * @param depth   depth for the shallow search
  */
-void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_data, const int alpha, const int depth)
+void movelist_evaluate_partial(MoveList *movelist, Search *search, const HashData *hash_data, const int alpha, const int depth)
 {
+	// min_depth = 9;
+	// if (empties <= 27) min_depth += (30 - empties) / 3;
 	static const char min_depth_table[64] = {
 		19, 18, 18, 18, 17, 17, 17, 16,	// (Never for empties < 14)
 		16, 16, 15, 15, 15, 14, 14, 14,
@@ -314,95 +222,216 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 		 9,  9,  9,  9,  9,  9,  9,  9,
 		 9,  9,  9,  9,  9,  9,  9,  9
 	};
-	Move *move;
-	int	sort_depth, min_depth, sort_alpha, score, empties, parity_weight;
-	unsigned long long moves;
+	Move	*move, *prev, *evaluated, *hashmove0, *hashmove1;
+	int	sort_depth = -1;
+
+	if (depth >= min_depth_table[search->eval.n_empties]) {
+		sort_depth = (depth - 15) / 3;
+		if (hash_data->upper < alpha) sort_depth -= 2;
+		if (search->eval.n_empties >= 27) ++sort_depth;
+		if (sort_depth < 0) sort_depth = 0;
+		else if (sort_depth > 6) sort_depth = 6;
+	}
+
+	movelist->sort_depth = sort_depth;
+	movelist->sort_alpha = MAX(SCORE_MIN, alpha - SORT_ALPHA_DELTA);
+
+	hashmove0 = hashmove1 = NULL;
+	evaluated = prev = &movelist->move[0];
+	while ((move = prev->next)) {
+		if (move_wipeout(move, &search->board)) {
+			move->score = (1 << 30);
+			if (prev == evaluated) {	// already head
+				evaluated = move;
+			} else {	// move to head
+				prev->next = move->next;
+				move->next = evaluated->next;
+				evaluated = evaluated->next = move;
+				continue;	// keep prev
+			}
+
+		} else if (hash_data->wl.c.depth > sort_depth - 3) {
+			if (move->x == hash_data->move[0]) {
+				move->score = (1 << 29);
+				hashmove0 = move;
+				prev->next = move->next;
+				continue;
+
+			} else if (move->x == hash_data->move[1]) {
+				move->score = (1 << 28);
+				hashmove1 = move;
+				prev->next = move->next;
+				continue;
+			}
+		}
+		prev = move;
+	}
+
+	if (hashmove0) {
+		hashmove0->next = evaluated->next;
+		evaluated = evaluated->next = hashmove0;
+	}
+	if (hashmove1) {
+		hashmove1->next = evaluated->next;
+		evaluated = evaluated->next = hashmove1;
+	}
+	movelist->last_evaluated = evaluated;
+}
+
+/**
+ * @brief Evaluate a list of move in order to sort it with depth 0.
+ * (called from NWS_endgame and movelist_evaluate)
+ *
+ * @param movelist List of moves to sort.
+ * @param search Position to evaluate.
+ * @param hash_data   Position (maybe) stored in the hashtable.
+ */
+void movelist_evaluate_endgame(MoveList *movelist, Search *search, const HashData *hash_data)
+{
+	Move	*move, *prev, *evaluated, *hashmove0, *hashmove1;
+
+	movelist->sort_depth = -1;
+	hashmove0 = hashmove1 = NULL;
+	evaluated = prev = &movelist->move[0];
+	while ((move = prev->next)) {
+		if (move_wipeout(move, &search->board)) {
+			// move->score = (1 << 30);
+			if (prev == evaluated) {	// already head
+				evaluated = move;
+			} else {	// move to head
+				prev->next = move->next;
+				move->next = evaluated->next;
+				evaluated = evaluated->next = move;
+				continue;	// keep prev
+			}
+
+		} else if (move->x == hash_data->move[0]) {
+			// move->score = (1 << 29);
+			hashmove0 = move;
+			prev->next = move->next;
+			continue;
+
+		} else if (move->x == hash_data->move[1]) {
+			// move->score = (1 << 28);
+			hashmove1 = move;
+			prev->next = move->next;
+			continue;
+		}
+		prev = move;
+	}
+
+	if (hashmove0) {
+		hashmove0->next = evaluated->next;
+		evaluated = evaluated->next = hashmove0;
+	}
+	if (hashmove1) {
+		hashmove1->next = evaluated->next;
+		evaluated = evaluated->next = hashmove1;
+	}
+	movelist->last_evaluated = evaluated;
+}
+
+#ifndef __AVX2__
+static int movelist_mobility_score(unsigned long long P, unsigned long long O, unsigned long long *moves)
+{
+  #if defined(hasSSE2) && !defined(POPCOUNT)
+	__m128i MM = bit_weighted_count_sse((*moves = get_moves(P, O)), get_potential_moves(P, O));
+	int score = (36 - _mm_extract_epi16(MM, 4)) * w_potential_mobility; // potential mobility
+	return score + (36 - _mm_cvtsi128_si32(MM)) * w_mobility; // real mobility
+  #elif defined(__ARM_NEON)
+	uint64x2_t MM = bit_weighted_count_neon((*moves = get_moves(P, O)), get_potential_moves(P, O));
+	int score = (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 2)) * w_potential_mobility; // potential mobility
+	return score + (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 0)) * w_mobility; // real mobility
+  #else
+	int score = (36 - bit_weighted_count(get_potential_moves(P, O))) * w_potential_mobility; // potential mobility
+	return score + (36 - bit_weighted_count(*moves = get_moves(P, O))) * w_mobility; // real mobility
+  #endif
+}
+#endif
+
+static void movelist_evaluate_phase2(MoveList *movelist, Search *search)
+{
+	Move	*move = movelist->last_evaluated;
+	int	score, parity_weight;
+	unsigned long long moves, O;
 	HashData dummy;
 	Eval eval0;
 	Board board0;
 
-	empties = search->eval.n_empties;
-	// min_depth = 9;
-	// if (empties <= 27) min_depth += (30 - empties) / 3;
-	min_depth = min_depth_table[empties];
-
-	if (depth >= min_depth) {
-		if (empties < 21)
-			parity_weight = (empties < 12) ? w_low_parity : w_mid_parity;
-		else	parity_weight = (empties < 30) ? w_high_parity : 0;
-
-		sort_depth = (depth - 15) / 3;
-		if (hash_data->upper < alpha) sort_depth -= 2;
-		if (empties >= 27) ++sort_depth;
-		if (sort_depth < 0) sort_depth = 0;
-		else if (sort_depth > 6) sort_depth = 6;
+	parity_weight = (search->eval.n_empties < 12) ? w_low_parity : w_mid_parity;
+	if (movelist->sort_depth >= 0) {
+		if (search->eval.n_empties >= 21)
+			parity_weight = (search->eval.n_empties < 30) ? w_high_parity : 0;
 
 		board0 = search->board;
 		eval0 = search->eval;
-		sort_alpha = MAX(SCORE_MIN, alpha - SORT_ALPHA_DELTA);
 
-		move = movelist->move[0].next;
-		do {
-			// move_evaluate(move, search, hash_data, sort_alpha, sort_depth);
-			if (move_wipeout(move, &search->board)) score = (1 << 30);
-			else if (move->x == hash_data->move[0] && hash_data->wl.c.depth > sort_depth - 3) score = (1 << 29);	// https://github.com/eukaryo/edax-reversi-AVX-v446mod2
-			else if (move->x == hash_data->move[1] && hash_data->wl.c.depth > sort_depth - 3) score = (1 << 28);
-			else {
-				score = SQUARE_VALUE[move->x]; // square type
-				score += (search->eval.parity & QUADRANT_ID[move->x]) ? parity_weight : 0; // parity
-
-				search_update_midgame(search, move);
-
-				SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
+		while ((move = move->next)) {
+			search_update_midgame(search, move);
 #ifdef __AVX2__
-				__m128i MM =  get_moves_and_potential(_mm256_set1_epi64x(search->board.player), _mm256_set1_epi64x(search->board.opponent));
-				score += (36 - bit_weighted_count(_mm_extract_epi64(MM, 1))) * w_potential_mobility; // potential mobility
-				score += (36 - bit_weighted_count(moves = _mm_cvtsi128_si64(MM))) * w_mobility; // real mobility
+			__m128i MM = get_moves_and_potential(_mm256_set1_epi64x(search->board.player), _mm256_set1_epi64x(search->board.opponent));
+			score  = (36 - bit_weighted_count(_mm_extract_epi64(MM, 1))) * w_potential_mobility; // potential mobility
+			score += (36 - bit_weighted_count(moves = _mm_cvtsi128_si64(MM))) * w_mobility; // real mobility
 #else
-				moves = board_get_moves(&search->board);
-  #if defined(hasSSE2) && !defined(POPCOUNT)
-				__m128i MM = bit_weighted_count_sse(moves, get_potential_moves(search->board.player, search->board.opponent));
-				score += (36 - _mm_extract_epi16(MM, 4)) * w_potential_mobility; // potential mobility
-				score += (36 - _mm_cvtsi128_si32(MM)) * w_mobility; // real mobility
-  #elif defined(__ARM_NEON)
-				uint64x2_t MM = bit_weighted_count_neon(moves, get_potential_moves(search->board.player, search->board.opponent));
-				score += (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 2)) * w_potential_mobility; // potential mobility
-				score += (36 - vgetq_lane_u32(vreinterpretq_u32_u64(MM), 0)) * w_mobility; // real mobility
-  #else
-				score += (36 - bit_weighted_count(get_potential_moves(search->board.player, search->board.opponent))) * w_potential_mobility; // potential mobility
-				score += (36 - bit_weighted_count(moves)) * w_mobility; // real mobility
-  #endif
+			score  = movelist_mobility_score(search->board.player, search->board.opponent, &moves);
 #endif
-				score += get_edge_stability(search->board.opponent, search->board.player) * w_edge_stability; // edge stability
-				switch (sort_depth) {
-				case 0:
-					score += (SCORE_MAX - search_eval_0(search)) * (w_eval >> 2);	// 1 level score bonus
-					break;
-				case 1:
-					score += (SCORE_MAX + search_eval_1(search, sort_alpha, SCORE_MAX, moves)) * (w_eval >> 1);	// 2 level score bonus
-					break;
-				case 2:
-					score += (SCORE_MAX - search_eval_2(search, SCORE_MIN, -sort_alpha, moves)) * (w_eval >> 1);	// 3 level score bonus
-					break;
-				default:	// 3 to 6
-					if (hash_get_from_board(&search->hash_table, &search->board, &dummy)) score += w_hash;	// bonus if the position leads to a position stored in the hash-table
-					// org_selectivity = search->selectivity;
-					// search->selectivity = NO_SELECTIVITY;	// No probcut in PVS_shallow
-					score += ((SCORE_MAX - PVS_shallow(search, SCORE_MIN, -sort_alpha, sort_depth))) * w_eval;	// > 3 level bonus
-					// search->selectivity = org_selectivity;
-					break;
-				}
-
-				search_restore_midgame(search, move->x, &eval0);
-				search->board = board0;
+			score += get_edge_stability(search->board.opponent, search->board.player) * w_edge_stability; // edge stability
+			switch (movelist->sort_depth) {
+			case 0:
+				score += (SCORE_MAX - search_eval_0(search)) * (w_eval >> 2);	// 1 level score bonus
+				break;
+			case 1:
+				score += (SCORE_MAX + search_eval_1(search, movelist->sort_alpha, SCORE_MAX, moves)) * (w_eval >> 1);	// 2 level score bonus
+				break;
+			case 2:
+				score += (SCORE_MAX - search_eval_2(search, SCORE_MIN, -movelist->sort_alpha, moves)) * (w_eval >> 1);	// 3 level score bonus
+				break;
+			default:	// 3 to 6
+				if (hash_get_from_board(&search->hash_table, &search->board, &dummy)) score += w_hash;	// bonus if the position leads to a position stored in the hash-table
+				// org_selectivity = search->selectivity;
+				// search->selectivity = NO_SELECTIVITY;	// No probcut in PVS_shallow
+				score += ((SCORE_MAX - PVS_shallow(search, SCORE_MIN, -movelist->sort_alpha, movelist->sort_depth))) * w_eval;	// > 3 level bonus
+				// search->selectivity = org_selectivity;
+				break;
 			}
-			move->score = score;
-		} while ((move = move->next));
 
-	} else {	// sort_depth = -1
-		movelist_evaluate_endgame(movelist, search, hash_data);
-		movelist_evaluate_phase2(movelist, search);
+			search_restore_midgame(search, move->x, &eval0);
+			search->board = board0;
+
+			score += SQUARE_VALUE[move->x]; // square type
+			score += (search->eval.parity & QUADRANT_ID[move->x]) ? parity_weight : 0; // parity
+			SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
+			move->score = score;
+		}
+
+	} else {
+		while ((move = move->next)) {
+#ifdef __AVX2__
+			__m128i PO = _mm_xor_si128(*(__m128i *) &search->board,
+				_mm_or_si128(_mm_set1_epi64x(move->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x])));
+			__m128i MM = get_moves_and_potential(_mm256_broadcastq_epi64(_mm_unpackhi_epi64(PO, PO)), _mm256_broadcastq_epi64(PO));
+			score  = (36 - bit_weighted_count(_mm_extract_epi64(MM, 1))) * w_potential_mobility; // potential mobility
+			score += (36 - bit_weighted_count(_mm_cvtsi128_si64(MM))) * w_mobility; // real mobility
+			O = _mm_cvtsi128_si64(PO);
+#else
+			unsigned long long P = search->board.opponent ^ move->flipped;
+			O = search->board.player ^ (move->flipped | x_to_bit(move->x));
+			score  = movelist_mobility_score(P, O, &moves);
+#endif
+			score += get_corner_stability(O) * w_corner_stability; // corner stability
+			score += SQUARE_VALUE[move->x]; // square type
+			score += (search->eval.parity & QUADRANT_ID[move->x]) ? parity_weight : 0; // parity
+			SEARCH_UPDATE_ALL_NODES(search->n_nodes);
+			move->score = score;
+		}
 	}
+	movelist->last_evaluated = NULL;
+}
+
+void movelist_evaluate_all(MoveList *movelist, Search *search, const HashData *hash_data, const int alpha, const int depth)
+{
+	movelist_evaluate_partial(movelist, search, hash_data, alpha, depth);
+	movelist_evaluate_phase2(movelist, search);
 }
 
 /**
@@ -506,38 +535,35 @@ static Move* move_next_most_expensive(Move *previous_best)
 }
 
 /**
- * @brief Return the next best move from the list, with delayed movelist_evaluate for endgame.
+ * @brief Return the next best move from the list, with delayed movelist_evaluate.
  *
  * @param previous_best Last best move.
  * @return the following best move in the list.
  */
-Move* move_next_best_endgame(MoveList *movelist, Move *previous_best, Search *search)
+Move* move_next_best_partially_evaluated(MoveList *movelist, Move *previous_best, Search *search)
 {
-	Move *move, *best;
+	Move *move = previous_best->next, *best;
+	if (move && move->next) {	// at least 2 elements
+		if (movelist->last_evaluated) {
+			if (previous_best != movelist->last_evaluated)
+				return move;
 
-	move = previous_best->next;
-	if ((move == NULL) || (move->next == NULL))	// no need to sort if only 1 element left
-		return move;
+			movelist_evaluate_phase2(movelist, search);
+		}
 
-	if (movelist->last_evaluated) {
-		if (previous_best != movelist->last_evaluated)
-			return move;
+		best = previous_best;
+		move = best->next;
+		do {
+			if (move->next->score > best->next->score)
+				best = move;
+			move = move->next;
+		} while (move->next);
 
-		movelist_evaluate_phase2(movelist, search);
+		move = best->next;
+		best->next = move->next;
+		move->next = previous_best->next;
+		previous_best->next = move;
 	}
-
-	best = previous_best;
-	move = best->next;
-	do {
-		if (move->next->score > best->next->score)
-			best = move;
-		move = move->next;
-	} while (move->next);
-
-	move = best->next;
-	best->next = move->next;
-	move->next = previous_best->next;
-	previous_best->next = move;
 	return move;
 }
 

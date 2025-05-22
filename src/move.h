@@ -28,6 +28,7 @@ typedef struct Move {
 /** (simple) list of a legal moves */
 typedef struct MoveList {
 	int n_moves;
+	int sort_depth, sort_alpha;
 	Move *last_evaluated;
 	Move move[MAX_MOVE + 1];   /**< array of legal moves */
 } MoveList;
@@ -58,11 +59,12 @@ void tune_move_evaluate(struct Search*, const char*, const char*);
 
 int movelist_get_moves(MoveList*, const struct Board*);
 void movelist_print(const MoveList*, const int, FILE*);
+void movelist_evaluate_partial(MoveList*, struct Search*, const struct HashData*, const int, const int);
 void movelist_evaluate_endgame(MoveList*, struct Search*, const struct HashData*);
-void movelist_evaluate(MoveList*, struct Search*, const struct HashData*, const int, const int);
+void movelist_evaluate_all(MoveList*, struct Search*, const struct HashData*, const int, const int);
 
 Move* move_next_best(Move*);
-Move* move_next_best_endgame(MoveList*, Move*, struct Search*);
+Move* move_next_best_partially_evaluated(MoveList*, Move*, struct Search*);
 Move* movelist_sort_bestmove(MoveList*, const int);
 
 // bool move_wipeout(const Move*, const struct Board*);	// Check if a move wins 64-0.
