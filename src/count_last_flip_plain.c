@@ -566,12 +566,12 @@ int last_flip(int pos, unsigned long long P)
 	int y8 = pos & 0x38;
 	const unsigned short *COUNT_FLIP_X = COUNT_FLIP + x * 256;
 
-	n_flips  = (unsigned char) COUNT_FLIP[y8 * 32 + packV(P, x)];
-	n_flips += (unsigned char) COUNT_FLIP_X[(P >> y8) & 0xFF];
+	n_flips  = COUNT_FLIP[y8 * 32 + packV(P, x)] & 0xFF;
+	n_flips += COUNT_FLIP_X[(P >> y8) & 0xFF] & 0xFF;
 	PM = P & mask_d[0][pos];
-	n_flips += (unsigned char) COUNT_FLIP_X[packD(PM)];
+	n_flips += COUNT_FLIP_X[packD(PM)] & 0xFF;
 	PM = P & mask_d[1][pos];
-	n_flips += (unsigned char) COUNT_FLIP_X[packD(PM)];
+	n_flips += COUNT_FLIP_X[packD(PM)] & 0xFF;
 
 	return n_flips;
 }
@@ -580,17 +580,16 @@ int last_flip(int pos, unsigned long long P)
  * @brief Get the final score.
  *
  * Get the final score, when 1 empty square remain.
- * The following code has been adapted from Zebra by Gunnar Anderson.
  *
- * @param P      Board.player to evaluate.
- * @param alpha  Alpha bound. (beta - 1)
- * @param pos    Last empty square to play.
- * @return       The final score, as a disc difference.
+ * @param P Board.player to evaluate.
+ * @param pos Last empty square to play.
+ * @return The final score, as a disc difference.
  */
 int solve_exact_1(const unsigned long long P, const int pos)
 {
 	unsigned long long PM;
-	int op_flip, p_flips, o_flips;
+	unsigned short op_flip;
+	int p_flips, o_flips;
 	int x = pos & 0x07;
 	int y8 = pos & 0x38;
 	int score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))

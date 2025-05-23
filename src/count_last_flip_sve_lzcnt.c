@@ -17,7 +17,7 @@
 
 /** precomputed count flip array */
 extern const unsigned char COUNT_FLIP[8][256];
-extern	const uint64_t lrmask[66][8];	// in flip_sve_lzcnt.c
+extern const uint64_t lrmask[66][8];	// in flip_sve_lzcnt.c
 
 /**
  * Count last flipped discs when playing on the last empty.

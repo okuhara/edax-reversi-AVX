@@ -422,11 +422,13 @@ static const uint64_t cf_mask_d[2][64] = {{
 
 int last_flip(int pos, unsigned long long P)
 {
-	uint_fast8_t n_flips;
+	uint8_t n_flips;
+	int x = pos & 0x07;
+	int y8 = pos & 0x38;
 
-	// n_flipped = (uint8_t) COUNT_FLIP[(pos & 0x07) * 256 + _bextr_u64(P, pos & 0x38, 8)];
-	n_flips  = (uint8_t) COUNT_FLIP[(pos & 0x07) * 256 + ((P >> (pos & 0x38)) & 0xFF)];
-	n_flips += (uint8_t) COUNT_FLIP[(pos & 0x38) * 32 + _pext_u64(P, 0x0101010101010101 << (pos & 0x07))];
+	// n_flipped = (uint8_t) COUNT_FLIP[x * 256 + _bextr_u64(P, y8, 8)];
+	n_flips  = (uint8_t) COUNT_FLIP[x * 256 + ((P >> y8) & 0xFF)];
+	n_flips += (uint8_t) COUNT_FLIP[y8 * 32 + _pext_u64(P, 0x0101010101010101 << x)];
 	n_flips += (uint8_t) COUNT_FLIP[cf_ofs_d[pos][0] + _pext_u64(P, cf_mask_d[0][pos])];
 	n_flips += (uint8_t) COUNT_FLIP[cf_ofs_d[pos][1] + _pext_u64(P, cf_mask_d[1][pos])];
 
@@ -437,25 +439,26 @@ int last_flip(int pos, unsigned long long P)
  * @brief Get the final score.
  *
  * Get the final score, when 1 empty square remain.
- * The following code has been adapted from Zebra by Gunnar Anderson.
  *
- * @param player Board.player to evaluate.
- * @param x      Last empty square to play.
- * @return       The final score, as a disc difference.
+ * @param P Board.player to evaluate.
+ * @param pos Last empty square to play.
+ * @return The final score, as a disc difference.
  */
 int solve_exact_1(unsigned long long P, int pos)
 {
-	uint_fast16_t op_flip;
+	unsigned short op_flip;	// better than uint_fast16_t on MSVC 2022 (4.5.5)
 	int score, p_flips, o_flips;
+	int x = pos & 0x07;
+	int y8 = pos & 0x38;
 
-	// op_flip = COUNT_FLIP[(pos & 0x07) * 256 + _bextr_u64(P, pos & 0x38, 8)];
-	op_flip  = COUNT_FLIP[(pos & 0x07) * 256 + ((P >> (pos & 0x38)) & 0xFF)];
-	op_flip += COUNT_FLIP[(pos & 0x38) * 32 + _pext_u64(P, 0x0101010101010101 << (pos & 0x07))];
+	// op_flip = COUNT_FLIP[x * 256 + _bextr_u64(P, y8, 8)];
+	op_flip  = COUNT_FLIP[x * 256 + ((P >> y8) & 0xFF)];
+	op_flip += COUNT_FLIP[y8 * 32 + _pext_u64(P, 0x0101010101010101 << x)];
 	op_flip += COUNT_FLIP[cf_ofs_d[pos][0] + _pext_u64(P, cf_mask_d[0][pos])];
 	op_flip += COUNT_FLIP[cf_ofs_d[pos][1] + _pext_u64(P, cf_mask_d[1][pos])];
 
 	score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
-	p_flips = op_flip & 0xFF;
+	p_flips = (uint8_t) op_flip;
 	if (p_flips)
 		return score + p_flips;
 

@@ -363,7 +363,7 @@ int last_flip(int pos, unsigned long long P)
  *
  * @param player Board.player to evaluate.
  * @param alpha  Alpha bound. (beta - 1)
- * @param x      Last empty square to play.
+ * @param pos    Last empty square to play.
  * @return       The final score, as a disc difference.
  */
 int solve_1(unsigned long long P, int alpha, int pos)

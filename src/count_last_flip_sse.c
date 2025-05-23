@@ -582,11 +582,12 @@ int last_flip(int pos, unsigned long long P)
 {
 	uint_fast8_t n_flips;
 	unsigned int t;
+	int y8 = pos & 0x38;
 	const uint16_t *COUNT_FLIP_X = COUNT_FLIP + (pos & 0x07) * 256;
-	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + (pos & 0x38) * 32;
+	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + y8 * 32;
 
   #ifdef AVXLASTFLIP	// no gain
-	n_flips  = (uint8_t) COUNT_FLIP_X[(P >> (pos & 0x38)) & 0xFF];
+	n_flips  = (uint8_t) COUNT_FLIP_X[(P >> y8) & 0xFF];
 	t = TEST_EPI8_MASK32(_mm256_set1_epi64x(P), mask_vdhd[pos].v4);
 	n_flips += (uint8_t) COUNT_FLIP_Y[t & 0xFF];
 	t >>= 16;
@@ -700,8 +701,9 @@ int vectorcall mm_solve_1(__m128i OP, const int alpha, const int pos)
 	uint_fast8_t n_flips;
 	int score2;
 	unsigned int t, op_flip;
+	int y8 = pos & 0x38;
 	const uint16_t *COUNT_FLIP_X = COUNT_FLIP + (pos & 0x07) * 256;
-	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + (pos & 0x38) * 32;
+	const uint16_t *COUNT_FLIP_Y = COUNT_FLIP + y8 * 32;
 
 	// n_flips = last_flip(pos, P);
   #ifdef AVXLASTFLIP	// no gain
@@ -710,7 +712,7 @@ int vectorcall mm_solve_1(__m128i OP, const int alpha, const int pos)
 	__m256i M = mask_vdhd[pos].v4;
 	__m256i P4 = _mm256_broadcastq_epi64(OP);
 
-	op_flip  = COUNT_FLIP_X[(P >> (pos & 0x38)) & 0xFF];
+	op_flip  = COUNT_FLIP_X[(P >> y8) & 0xFF];
 	t = TEST_EPI8_MASK32(P4, M);
 	n_flips  = (uint8_t) COUNT_FLIP_Y[t & 0xFF];
 	t >>= 16;
@@ -759,71 +761,69 @@ int vectorcall mm_solve_1(__m128i OP, const int alpha, const int pos)
 
 #else
 
-  #ifdef AVXLASTFLIP
-static const uint32_t cf_ofs_d[64] = {
-	(CF80<<16)|   0, (RF70<<16)|   0, (RF60<<16)|RF30, (RF50<<16)|RF40, (RF40<<16)|RF50, (RF30<<16)|RF60, (   0<<16)|RF70, (   0<<16)|CF80,
-	(CF81<<16)|   0, (CF81<<16)|   0, (RF71<<16)|RF41, (RF61<<16)|RF51, (RF51<<16)|RF61, (RF41<<16)|RF71, (   0<<16)|CF81, (   0<<16)|CF81,
-	(CF82<<16)|CF82, (CF82<<16)|CF82, (CF82<<16)|RF52, (RF72<<16)|RF62, (RF62<<16)|RF72, (RF52<<16)|CF82, (CF82<<16)|CF82, (CF82<<16)|CF82,
-	(CF83<<16)|CF83, (CF83<<16)|CF83, (LF72<<16)|RF63, (CF83<<16)|RF73, (RF73<<16)|CF83, (RF63<<16)|LF72, (CF83<<16)|CF83, (CF83<<16)|CF83,
-	(CF84<<16)|CF84, (CF84<<16)|CF84, (LF62<<16)|RF74, (LF73<<16)|CF84, (CF84<<16)|LF73, (RF74<<16)|LF62, (CF84<<16)|CF84, (CF84<<16)|CF84,
-	(CF85<<16)|CF85, (CF85<<16)|CF85, (LF52<<16)|CF85, (LF63<<16)|LF74, (LF74<<16)|LF63, (CF85<<16)|LF52, (CF85<<16)|CF85, (CF85<<16)|CF85,
-	(   0<<16)|CF86, (   0<<16)|CF86, (LF42<<16)|LF75, (LF53<<16)|LF64, (LF64<<16)|LF53, (LF75<<16)|LF42, (CF86<<16)|   0, (CF86<<16)|   0,
-	(   0<<16)|CF87, (   0<<16)|LF76, (LF32<<16)|LF65, (LF43<<16)|LF54, (LF54<<16)|LF43, (LF65<<16)|LF32, (LF76<<16)|   0, (CF87<<16)|   0
-};
-
-  #else
-static const V4SI cf_ofs[64] = {
-	{{    0, CF80, CF80, CF80 }}, {{    0, RF70, CF81, CF80 }}, {{ CF82, RF60, CF82, CF80 }}, {{ CF83, RF50, CF83, CF80 }},
-	{{ CF84, RF40, CF84, CF80 }}, {{ CF85, RF30, CF85, CF80 }}, {{ CF86,    0, CF86, CF80 }}, {{ CF87,    0, CF87, CF80 }},
-	{{    0, CF81, CF80, CF81 }}, {{    0, CF81, CF81, CF81 }}, {{ CF82, RF71, CF82, CF81 }}, {{ CF83, RF61, CF83, CF81 }},
-	{{ CF84, RF51, CF84, CF81 }}, {{ CF85, RF41, CF85, CF81 }}, {{ CF86,    0, CF86, CF81 }}, {{ LF76,    0, CF87, CF81 }},
-	{{ RF30, CF82, CF80, CF82 }}, {{ RF41, CF82, CF81, CF82 }}, {{ RF52, CF82, CF82, CF82 }}, {{ RF63, RF72, CF83, CF82 }},
-	{{ RF74, RF62, CF84, CF82 }}, {{ CF85, RF52, CF85, CF82 }}, {{ LF75, CF82, CF86, CF82 }}, {{ LF65, CF82, CF87, CF82 }},
-	{{ RF40, CF83, CF80, CF83 }}, {{ RF51, CF83, CF81, CF83 }}, {{ RF62, LF72, CF82, CF83 }}, {{ RF73, CF83, CF83, CF83 }},
-	{{ CF84, RF73, CF84, CF83 }}, {{ LF74, RF63, CF85, CF83 }}, {{ LF64, CF83, CF86, CF83 }}, {{ LF54, CF83, CF87, CF83 }},
-	{{ RF50, CF84, CF80, CF84 }}, {{ RF61, CF84, CF81, CF84 }}, {{ RF72, LF62, CF82, CF84 }}, {{ CF83, LF73, CF83, CF84 }},
-	{{ LF73, CF84, CF84, CF84 }}, {{ LF63, RF74, CF85, CF84 }}, {{ LF53, CF84, CF86, CF84 }}, {{ LF43, CF84, CF87, CF84 }},
-	{{ RF60, CF85, CF80, CF85 }}, {{ RF71, CF85, CF81, CF85 }}, {{ CF82, LF52, CF82, CF85 }}, {{ LF72, LF63, CF83, CF85 }},
-	{{ LF62, LF74, CF84, CF85 }}, {{ LF52, CF85, CF85, CF85 }}, {{ LF42, CF85, CF86, CF85 }}, {{ LF32, CF85, CF87, CF85 }},
-	{{ RF70,    0, CF80, CF86 }}, {{ CF81,    0, CF81, CF86 }}, {{ CF82, LF42, CF82, CF86 }}, {{ CF83, LF53, CF83, CF86 }},
-	{{ CF84, LF64, CF84, CF86 }}, {{ CF85, LF75, CF85, CF86 }}, {{    0, CF86, CF86, CF86 }}, {{    0, CF86, CF87, CF86 }},
-	{{ CF80,    0, CF80, CF87 }}, {{ CF81,    0, CF81, CF87 }}, {{ CF82, LF32, CF82, CF87 }}, {{ CF83, LF43, CF83, CF87 }},
-	{{ CF84, LF54, CF84, CF87 }}, {{ CF85, LF65, CF85, CF87 }}, {{    0, LF76, CF86, CF87 }}, {{    0, CF87, CF87, CF87 }}
-};
-  #endif
-
 // COUNT_LAST_FLIP_SSE - reasonably fast on all platforms
 int vectorcall mm_solve_exact_1(__m128i OP, const int pos)
 {
-	uint_fast16_t op_flip;
+	unsigned short op_flip;	// better than uint_fast16_t on MSVC 2022 (4.5.5)
 	int p_flips, o_flips;
 	unsigned int t;
   #ifdef AVXLASTFLIP	// no gain
+	static const uint32_t cf_ofs_d[64] = {
+		(CF80<<16)|   0, (RF70<<16)|   0, (RF60<<16)|RF30, (RF50<<16)|RF40, (RF40<<16)|RF50, (RF30<<16)|RF60, (   0<<16)|RF70, (   0<<16)|CF80,
+		(CF81<<16)|   0, (CF81<<16)|   0, (RF71<<16)|RF41, (RF61<<16)|RF51, (RF51<<16)|RF61, (RF41<<16)|RF71, (   0<<16)|CF81, (   0<<16)|CF81,
+		(CF82<<16)|CF82, (CF82<<16)|CF82, (CF82<<16)|RF52, (RF72<<16)|RF62, (RF62<<16)|RF72, (RF52<<16)|CF82, (CF82<<16)|CF82, (CF82<<16)|CF82,
+		(CF83<<16)|CF83, (CF83<<16)|CF83, (LF72<<16)|RF63, (CF83<<16)|RF73, (RF73<<16)|CF83, (RF63<<16)|LF72, (CF83<<16)|CF83, (CF83<<16)|CF83,
+		(CF84<<16)|CF84, (CF84<<16)|CF84, (LF62<<16)|RF74, (LF73<<16)|CF84, (CF84<<16)|LF73, (RF74<<16)|LF62, (CF84<<16)|CF84, (CF84<<16)|CF84,
+		(CF85<<16)|CF85, (CF85<<16)|CF85, (LF52<<16)|CF85, (LF63<<16)|LF74, (LF74<<16)|LF63, (CF85<<16)|LF52, (CF85<<16)|CF85, (CF85<<16)|CF85,
+		(   0<<16)|CF86, (   0<<16)|CF86, (LF42<<16)|LF75, (LF53<<16)|LF64, (LF64<<16)|LF53, (LF75<<16)|LF42, (CF86<<16)|   0, (CF86<<16)|   0,
+		(   0<<16)|CF87, (   0<<16)|LF76, (LF32<<16)|LF65, (LF43<<16)|LF54, (LF54<<16)|LF43, (LF65<<16)|LF32, (LF76<<16)|   0, (CF87<<16)|   0
+	};
 	unsigned long long P = _mm_cvtsi128_si64(OP);
 	int score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
+	int y8 = pos & 0x38;
 
-	op_flip  = COUNT_FLIP[(pos & 0x07) * 256 + ((P >> (pos & 0x38)) & 0xFF)];	// h
+	op_flip  = COUNT_FLIP[(pos & 0x07) * 256 + ((P >> y8) & 0xFF)];	// h
 	t = TEST_EPI8_MASK32(_mm256_broadcastq_epi64(OP), mask_vdhd[pos].v4);
-	op_flip += COUNT_FLIP[(pos & 0x38) * 32 + (t >> 24)];	// v
+	op_flip += COUNT_FLIP[y8 * 32 + (t >> 24)];	// v
 	t = cf_ofs_d[pos] + (t & 0x00FF00FF);	// 0d0d
 	op_flip += COUNT_FLIP[t & 0xFFFF];
 	op_flip += COUNT_FLIP[t >> 16];
 
   #else
+	static const V4SI cf_ofs[64] = {
+		{{    0, CF80, CF80, CF80 }}, {{    0, RF70, CF81, CF80 }}, {{ CF82, RF60, CF82, CF80 }}, {{ CF83, RF50, CF83, CF80 }},
+		{{ CF84, RF40, CF84, CF80 }}, {{ CF85, RF30, CF85, CF80 }}, {{ CF86,    0, CF86, CF80 }}, {{ CF87,    0, CF87, CF80 }},
+		{{    0, CF81, CF80, CF81 }}, {{    0, CF81, CF81, CF81 }}, {{ CF82, RF71, CF82, CF81 }}, {{ CF83, RF61, CF83, CF81 }},
+		{{ CF84, RF51, CF84, CF81 }}, {{ CF85, RF41, CF85, CF81 }}, {{ CF86,    0, CF86, CF81 }}, {{ LF76,    0, CF87, CF81 }},
+		{{ RF30, CF82, CF80, CF82 }}, {{ RF41, CF82, CF81, CF82 }}, {{ RF52, CF82, CF82, CF82 }}, {{ RF63, RF72, CF83, CF82 }},
+		{{ RF74, RF62, CF84, CF82 }}, {{ CF85, RF52, CF85, CF82 }}, {{ LF75, CF82, CF86, CF82 }}, {{ LF65, CF82, CF87, CF82 }},
+		{{ RF40, CF83, CF80, CF83 }}, {{ RF51, CF83, CF81, CF83 }}, {{ RF62, LF72, CF82, CF83 }}, {{ RF73, CF83, CF83, CF83 }},
+		{{ CF84, RF73, CF84, CF83 }}, {{ LF74, RF63, CF85, CF83 }}, {{ LF64, CF83, CF86, CF83 }}, {{ LF54, CF83, CF87, CF83 }},
+		{{ RF50, CF84, CF80, CF84 }}, {{ RF61, CF84, CF81, CF84 }}, {{ RF72, LF62, CF82, CF84 }}, {{ CF83, LF73, CF83, CF84 }},
+		{{ LF73, CF84, CF84, CF84 }}, {{ LF63, RF74, CF85, CF84 }}, {{ LF53, CF84, CF86, CF84 }}, {{ LF43, CF84, CF87, CF84 }},
+		{{ RF60, CF85, CF80, CF85 }}, {{ RF71, CF85, CF81, CF85 }}, {{ CF82, LF52, CF82, CF85 }}, {{ LF72, LF63, CF83, CF85 }},
+		{{ LF62, LF74, CF84, CF85 }}, {{ LF52, CF85, CF85, CF85 }}, {{ LF42, CF85, CF86, CF85 }}, {{ LF32, CF85, CF87, CF85 }},
+		{{ RF70,    0, CF80, CF86 }}, {{ CF81,    0, CF81, CF86 }}, {{ CF82, LF42, CF82, CF86 }}, {{ CF83, LF53, CF83, CF86 }},
+		{{ CF84, LF64, CF84, CF86 }}, {{ CF85, LF75, CF85, CF86 }}, {{    0, CF86, CF86, CF86 }}, {{    0, CF86, CF87, CF86 }},
+		{{ CF80,    0, CF80, CF87 }}, {{ CF81,    0, CF81, CF87 }}, {{ CF82, LF32, CF82, CF87 }}, {{ CF83, LF43, CF83, CF87 }},
+		{{ CF84, LF54, CF84, CF87 }}, {{ CF85, LF65, CF85, CF87 }}, {{    0, LF76, CF86, CF87 }}, {{    0, CF87, CF87, CF87 }}
+	};
 	int score = 2 * bit_count_si64(OP) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 	__m128i P2 = _mm_unpacklo_epi64(OP, OP);
 	__m128i II = _mm_sad_epu8(_mm_and_si128(P2, mask_vdhd[pos].v2[0]), _mm_setzero_si128());	// hd
 
 	II = _mm_add_epi32(II, cf_ofs[pos].v4);
-	op_flip  = COUNT_FLIP[_mm_cvtsi128_si32(II)];
+	op_flip  = COUNT_FLIP[(unsigned int) _mm_cvtsi128_si32(II)];
 	op_flip += COUNT_FLIP[_mm_extract_epi16(II, 4)];
 	t = TEST_EPI8_MASK16(P2, mask_vdhd[pos].v2[1]);	// vd
-	op_flip += COUNT_FLIP[cf_ofs[pos].ui[1] + (t & 0xFF)];
-	op_flip += COUNT_FLIP[cf_ofs[pos].ui[3] + (t >> 8)];
+	// op_flip += COUNT_FLIP[cf_ofs[pos].ui[1] + (t & 0xFF)];
+	op_flip += COUNT_FLIP[_mm_extract_epi16(II, 2) + (t & 0xFF)];
 	// op_flip += COUNT_FLIP[((pos & 0x38) << 5) + (t >> 8)];
+	// op_flip += COUNT_FLIP[cf_ofs[pos].ui[3] + (t >> 8)];		// (4.5.4)
+	op_flip += COUNT_FLIP[_mm_extract_epi16(II, 6) + (t >> 8)];	// (4.5.5) longer latency but less reg pressure
   #endif
 
-	p_flips = op_flip & 0xFF;
+	p_flips = (uint8_t) op_flip;	// better code on MSVC 2022
 	if (p_flips)
 		return score + p_flips;
 
