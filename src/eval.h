@@ -45,13 +45,13 @@ struct Move;
 /** unpacked weights */
 // enum { EVAL_N_WEIGHT = 226315 };
 typedef struct Eval_weight {
-	short	S0;		// also acts as guard for VGATHERDD access
 	short	C9[19683];
 	short	C10[59049];
 	short	S100[59049];
 	short	S101[59049];
 	short	S8x4[6561*4];
 	short	S7654[2187+729+243+81];
+	short	S0;
 } Eval_weight;
 
 /** number of plies */
