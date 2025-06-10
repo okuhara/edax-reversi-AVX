@@ -117,6 +117,9 @@ inline void hash_prefetch(HashTable *hashtable, unsigned long long hashcode) {
   #elif defined(__GNUC__)
 	__builtin_prefetch(p);
 	__builtin_prefetch(p + HASH_N_WAY - 1);
+  #elif defined(_M_ARM) || defined(_M_ARM64)
+  	__prefetch(p);
+  	__prefetch(p + HASH_N_WAY - 1);
   #endif
 }
 
