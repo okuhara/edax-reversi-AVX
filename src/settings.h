@@ -24,6 +24,7 @@
 #define MOVE_GENERATOR_AVX 8		// 34.7Mnps	// best for modern X64
 #define MOVE_GENERATOR_AVX512 9
 #define MOVE_GENERATOR_NEON 10				// 31.0Mnps@armv8
+#define MOVE_GENERATOR_SVE 11
 
 #define COUNT_LAST_FLIP_CARRY 1		// 33.8Mnps
 #define COUNT_LAST_FLIP_KINDERGARTEN 2	// 33.5Mnps
@@ -32,6 +33,7 @@
 #define COUNT_LAST_FLIP_PLAIN 5		// 33.3Mnps
 #define COUNT_LAST_FLIP_32 6		// 33.1Mnps
 #define COUNT_LAST_FLIP_BMI2 7		// 34.7Mnps	// slow on AMD
+#define COUNT_LAST_FLIP_AVX_PPFILL 8
 #define COUNT_LAST_FLIP_AVX512 9
 #define COUNT_LAST_FLIP_NEON 10				// 31.0Mnps@armv8
 #define COUNT_LAST_FLIP_SVE 11
@@ -44,7 +46,7 @@
 		#define MOVE_GENERATOR MOVE_GENERATOR_AVX
 	#elif defined(__SSE2__) || defined(_M_X64) || defined(hasSSE2)
 		#define MOVE_GENERATOR MOVE_GENERATOR_SSE
-	#elif defined(__ARM_FEATURE_SVE)
+	#elif defined(__ARM_FEATURE_SVE) && (__ARM_FEATURE_SVE_BITS > 128)
 		#define MOVE_GENERATOR MOVE_GENERATOR_SVE
 	#elif defined(__aarch64__) || defined(_M_ARM64) || defined(__arm__) || defined(_M_ARM)
 		#define MOVE_GENERATOR MOVE_GENERATOR_BITSCAN
