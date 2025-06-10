@@ -138,7 +138,7 @@ extern unsigned char edge_stability[256 * 256];
   #else
 	#define	board_flip(board,x)	flip[x]((unsigned int)((board)->player), ((unsigned int *) &(board)->player)[1], (unsigned int)((board)->opponent), ((unsigned int *) &(board)->opponent)[1])
   #endif
-  #if defined(USE_GAS_MMX) && !defined(hasSSE2)
+  #if !defined(hasSSE2) && (defined(USE_GAS_MMX) || defined(USE_MSVC_X86))
 	extern void init_flip_sse(void);
   #endif
 
@@ -179,7 +179,7 @@ extern unsigned char edge_stability[256 * 256];
 #endif
 
 // Pass vboard to get_moves if vectorcall available, otherwise board
-#if defined(__AVX2__) && (defined(_MSC_VER) || defined(__linux__))
+#ifdef __AVX2__
 	unsigned long long vectorcall get_moves_avx(__m256i PP, __m256i OO);
 	#define	get_moves(P,O)	get_moves_avx(_mm256_set1_epi64x(P), _mm256_set1_epi64x(O))
 	#define	board_get_moves(board)	get_moves_avx(_mm256_set1_epi64x((board)->player), _mm256_set1_epi64x((board)->opponent))
