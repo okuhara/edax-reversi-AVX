@@ -185,6 +185,7 @@ bool search_ETC_NWS(Search*, MoveList*, unsigned long long, const int, const int
 
 NodeType next_node_type(const NodeType parent, const bool first_move);
 
+int board_solve(const unsigned long long, const int);
 int search_solve(const Search*);
 int search_solve_0(const Search*);
 extern int board_score_1(const unsigned long long, const int, const int);
