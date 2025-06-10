@@ -706,7 +706,7 @@ static int count_last_flip_A6(const unsigned long long P)
 {
 	int n_flipped;
 
-#ifdef __ARM_FEATURE_CLZ // shorter on arm
+#if defined(__ARM_FEATURE_CLZ) || defined(_M_ARM64) // shorter on arm
 	n_flipped  = count_V_flip_reverse((P & 0x0000000101010101), 31);
 	n_flipped += count_V_flip_reverse((P & 0x0000000204081020), 24);
 	n_flipped += (((P >> 56) & ~(P >> 48) & 1) + ((P >> 58) & ~(P >> 49) & 1)) * 2;
@@ -733,7 +733,7 @@ static int count_last_flip_B6(const unsigned long long P)
 {
 	int n_flipped;
 
-#ifdef __ARM_FEATURE_CLZ
+#if defined(__ARM_FEATURE_CLZ) || defined(_M_ARM64)
 	n_flipped  = count_V_flip_reverse((P & 0x0000000202020202), 30);
 	n_flipped += count_V_flip_reverse((P & 0x0000000408102040), 23);
 	n_flipped += (((P >> 57) & ~(P >> 49) & 1) + ((P >> 59) & ~(P >> 50) & 1)) * 2;
@@ -800,7 +800,7 @@ static int count_last_flip_G6(const unsigned long long P)
 {
 	int n_flipped;
 
-#ifdef __ARM_FEATURE_CLZ
+#if defined(__ARM_FEATURE_CLZ) || defined(_M_ARM64)
 	n_flipped  = count_V_flip_reverse((P & 0x0000004040404040), 23);
 	n_flipped += count_V_flip_reverse((P & 0x0000002010080402), 24);
 	n_flipped += (((P >> 62) & ~(P >> 54) & 1) + ((P >> 60) & ~(P >> 53) & 1)) * 2;
@@ -827,7 +827,7 @@ static int count_last_flip_H6(const unsigned long long P)
 {
 	int n_flipped;
 
-#ifdef __ARM_FEATURE_CLZ
+#if defined(__ARM_FEATURE_CLZ) || defined(_M_ARM64)
 	n_flipped  = count_V_flip_reverse((P & 0x0000008080808080), 24);
 	n_flipped += count_V_flip_reverse((P & 0x0000004020100804), 25);
 	n_flipped += (((P >> 63) & ~(P >> 55) & 1) + ((P >> 61) & ~(P >> 54) & 1)) * 2;
