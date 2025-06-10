@@ -20,7 +20,7 @@
 #define MOVE_GENERATOR_BITSCAN 4	// 32.7Mnps	// best for AMD K10/FX	// 7.21Mnps (neon_bitscan)
 #define MOVE_GENERATOR_ROXANE 5		// 29.0Mnps
 #define MOVE_GENERATOR_32 6		// 31.3Mnps	// best for 32bit X86
-#define MOVE_GENERATOR_SSE_BSWAP 7	// 30.6Mnps
+#define MOVE_GENERATOR_SSE_ACEPCK 7
 #define MOVE_GENERATOR_AVX 8		// 34.7Mnps	// best for modern X64
 #define MOVE_GENERATOR_AVX512 9
 #define MOVE_GENERATOR_NEON 10		// 6.71Mnps (neon_rbit), 6.51Mnps (neon_lzcnt), 6.17Mnps (neon_ppfill)
