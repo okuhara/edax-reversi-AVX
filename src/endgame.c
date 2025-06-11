@@ -172,34 +172,22 @@ static int solve_2(unsigned long long player, unsigned long long opponent, int a
  * @param player Board.player to evaluate.
  * @param opponent Board.opponent to evaluate.
  * @param alpha Alpha bound.
- * @param sort3 Parity flags.
- * @param x1 First empty square coordinate.
- * @param x2 Second empty square coordinate.
- * @param x3 Third empty square coordinate.
+ * @param shuf3 Parity flags.
+ * @param empties Packed empty square coordinates.
  * @param n_nodes Node counter.
  * @return The final max score, as a disc difference.
  */
-static int solve_3(unsigned long long player, unsigned long long opponent, int alpha, int sort3, int x1, int x2, int x3, volatile unsigned long long *n_nodes)
+static int solve_3(unsigned long long player, unsigned long long opponent, int alpha, unsigned int shuf3, unsigned int empties3, volatile unsigned long long *n_nodes)
 {
 	unsigned long long flipped, next_player, next_opponent;
-	int score, bestscore, pol, tmp;
+	int score, bestscore, pol;
 	// const int beta = alpha + 1;
+	int x1 = (empties3 >> ((shuf3 & 0x30) >> 1)) & 0xFF;
+	int x2 = (empties3 >> ((shuf3 & 0x0C) << 1)) & 0xFF;
+	int x3 = (empties3 >> ((shuf3 & 0x03) * 8)) & 0xFF;
 
 	SEARCH_STATS(++statistics.n_solve_3);
 	SEARCH_UPDATE_INTERNAL_NODES(*n_nodes);
-
-	// parity based move sorting
-	switch (sort3) {
-		case 1:
-			tmp = x1; x1 = x2; x2 = tmp;	// case 1(x2) 2(x1 x3)
-			break;
-		case 2:
-			tmp = x1; x1 = x3; x3 = x2; x2 = tmp;	// case 1(x3) 2(x1 x2)
-			break;
-		case 3:
-			tmp = x2; x2 = x3; x3 = tmp;
-			break;
-	}
 
 	bestscore = -SCORE_INF;
 	pol = 1;
@@ -250,7 +238,7 @@ static int solve_3(unsigned long long player, unsigned long long opponent, int a
 static int search_solve_4(Search *search, int alpha)
 {
 	unsigned long long player, opponent, flipped, next_player, next_opponent;
-	int x1, x2, x3, x4, tmp, paritysort, score, bestscore, pol;
+	int x1, x2, x3, x4, paritysort, score, bestscore, pol;
 	// const int beta = alpha + 1;
 	static const unsigned char parity_case[64] = {	/* x4x3x2x1 = */
 		/*0000*/  0, /*0001*/  0, /*0010*/  1, /*0011*/  9, /*0100*/  2, /*0101*/ 10, /*0110*/ 11, /*0111*/  3,
@@ -262,20 +250,20 @@ static int search_solve_4(Search *search, int alpha)
 		/*0220*/ 11, /*0221*/  5, /*0230*/  6, /*0231*/  0, /*0320*/  6, /*0321*/  0, /*0330*/ 11, /*0331*/  5,
 		/*0222*/  3, /*0223*/  5, /*0232*/  7, /*0233*/  8, /*0322*/  8, /*0323*/  7, /*0332*/  5, /*0333*/  3
 	};
-	int sort3;	// for move sorting on 3 empties
-	static const short sort3_shuf[] = {
-		0x0000,	//  0: 1(x1) 3(x2 x3 x4), 1(x1) 1(x2) 2(x3 x4), 1 1 1 1, 4		x4x1x2x3-x3x1x2x4-x2x1x3x4-x1x2x3x4
-		0x1100,	//  1: 1(x2) 3(x1 x3 x4)	x4x2x1x3-x3x2x1x4-x2x1x3x4-x1x2x3x4
-		0x2011,	//  2: 1(x3) 3(x1 x2 x4)	x4x3x1x2-x3x1x2x4-x2x3x1x4-x1x3x2x4
-		0x0222,	//  3: 1(x4) 3(x1 x2 x3)	x4x1x2x3-x3x4x1x2-x2x4x1x3-x1x4x2x3
-		0x3000,	//  4: 1(x1) 1(x3) 2(x2 x4)	x4x1x2x3-x2x1x3x4-x3x1x2x4-x1x3x2x4 <- x4x1x3x2-x2x1x3x4-x3x1x2x4-x1x3x2x4
-		0x3300,	//  5: 1(x1) 1(x4) 2(x2 x3)	x3x1x2x4-x2x1x3x4-x4x1x2x3-x1x4x2x3 <- x3x1x4x2-x2x1x4x3-x4x1x2x3-x1x4x2x3
-		0x2000,	//  6: 1(x2) 1(x3) 2(x1 x4)	x4x1x2x3-x1x2x3x4-x3x2x1x4-x2x3x1x4 <- x4x2x3x1-x1x2x3x4-x3x2x1x4-x2x3x1x4
-		0x2300,	//  7: 1(x2) 1(x4) 2(x1 x3)	x3x1x2x4-x1x2x3x4-x4x2x1x3-x2x4x1x3 <- x3x2x4x1-x1x2x4x3-x4x2x1x3-x2x4x1x3
-		0x2200,	//  8: 1(x3) 1(x4) 2(x1 x2)	x2x1x3x4-x1x2x3x4-x4x3x1x2-x3x4x1x2 <- x2x3x4x1-x1x3x4x2-x4x3x1x2-x3x4x1x2
-		0x2200,	//  9: 2(x1 x2) 2(x3 x4)	x4x3x1x2-x3x4x1x2-x2x1x3x4-x1x2x3x4
-		0x1021,	// 10: 2(x1 x3) 2(x2 x4)	x4x2x1x3-x3x1x2x4-x2x4x1x3-x1x3x2x4
-		0x0112	// 11: 2(x1 x4) 2(x2 x3)	x4x1x2x3-x3x2x1x4-x2x3x1x4-x1x4x2x3
+	unsigned int empties_series, shuf4;
+	static const unsigned int sort4_shuf[] = {	// 4.5.5: use shuffle mask in non-simd version too.
+		0x3978b4e4,	//  0: 1(x1) 3(x2 x3 x4), 1(x1) 1(x2) 2(x3 x4), 1 1 1 1, 4		x4x1x2x3-x3x1x2x4-x2x1x3x4-x1x2x3x4
+		0x3978e4b4,	//  1: 1(x2) 3(x1 x3 x4)	x4x1x2x3-x3x1x2x4-x1x2x3x4-x2x1x3x4
+		0x39b4e478,	//  2: 1(x3) 3(x1 x2 x4)	x4x1x2x3-x2x1x3x4-x1x2x3x4-x3x1x2x4
+		0x78b4e439,	//  3: 1(x4) 3(x1 x2 x3)	x3x1x2x4-x2x1x3x4-x1x2x3x4-x4x1x2x3
+		0x39b478d8,	//  4: 1(x1) 1(x3) 2(x2 x4)	x4x1x2x3-x2x1x3x4-x3x1x2x4-x1x3x2x4
+		0x78b439c9,	//  5: 1(x1) 1(x4) 2(x2 x3)	x3x1x2x4-x2x1x3x4-x4x1x2x3-x1x4x2x3
+		0x39e46c9c,	//  6: 1(x2) 1(x3) 2(x1 x4)	x4x1x2x3-x1x2x3x4-x3x2x1x4-x2x3x1x4
+		0x78e42d8d,	//  7: 1(x2) 1(x4) 2(x1 x3)	x3x1x2x4-x1x2x3x4-x4x2x1x3-x2x4x1x3
+		0xb4e41e4e,	//  8: 1(x3) 1(x4) 2(x1 x2)	x2x1x3x4-x1x2x3x4-x4x3x1x2-x3x4x1x2
+		0x1e4eb4e4,	//  9: 2(x1 x2) 2(x3 x4)	x4x3x1x2-x3x4x1x2-x2x1x3x4-x1x2x3x4
+		0x2d788dd8,	// 10: 2(x1 x3) 2(x2 x4)	x4x2x1x3-x3x1x2x4-x2x4x1x3-x1x3x2x4
+		0x396c9cc9	// 11: 2(x1 x4) 2(x2 x3)	x4x1x2x3-x3x2x1x4-x2x3x1x4-x1x4x2x3
 	};
 
 	SEARCH_STATS(++statistics.n_search_solve_4);
@@ -295,57 +283,46 @@ static int search_solve_4(Search *search, int alpha)
 	// The following hole sizes are possible:
 	//    4 - 1 3 - 2 2 - 1 1 2 - 1 1 1 1
 	// Only the 1 1 2 case needs move sorting on this ply.
+	// 4.5.5: prefer 1 empty over 3 empties, 1 3 case also needs sorting.
 	paritysort = parity_case[((x3 ^ x4) & 0x24) + ((((x2 ^ x4) & 0x24) * 2 + ((x1 ^ x4) & 0x24)) >> 2)];
-	switch (paritysort) {
-		case 4: // case 1(x1) 1(x3) 2(x2 x4)
-			tmp = x2; x2 = x3; x3 = tmp;
-			break;
-		case 5: // case 1(x1) 1(x4) 2(x2 x3)
-			tmp = x2; x2 = x4; x4 = x3; x3 = tmp;
-			break;
-		case 6:	// case 1(x2) 1(x3) 2(x1 x4)
-			tmp = x1; x1 = x2; x2 = x3; x3 = tmp;
-			break;
-		case 7: // case 1(x2) 1(x4) 2(x1 x3)
-			tmp = x1; x1 = x2; x2 = x4; x4 = x3; x3 = tmp;
-			break;
-		case 8:	// case 1(x3) 1(x4) 2(x1 x2)
-			tmp = x1; x1 = x3; x3 = tmp; tmp = x2; x2 = x4; x4 = tmp;
-			break;
-	}
-	sort3 = sort3_shuf[paritysort];
+	shuf4 = sort4_shuf[paritysort];
+	empties_series = (x1 << 24) | (x2 << 16) | (x3 << 8) | x4;
 
 	bestscore = SCORE_INF;	// min stage
 	pol = 1;
 	do {
 		// best move alphabeta search
+		x1 = (empties_series >> ((shuf4 >> (6 - 3)) & 0x18)) & 0xFF;
 		if ((NEIGHBOUR[x1] & opponent) && (flipped = Flip(x1, player, opponent))) {	// (76%/77%)
 			next_player = opponent ^ flipped;
 			next_opponent = player ^ (flipped | x_to_bit(x1));
-			bestscore = solve_3(next_player, next_opponent, alpha, sort3 & 3, x2, x3, x4, &search->n_nodes);
+			bestscore = solve_3(next_player, next_opponent, alpha, shuf4, empties_series, &search->n_nodes);
 			if (bestscore <= alpha) return bestscore * pol;	// (68%)
 		}
 
+		x2 = (empties_series >> ((shuf4 >> (14 - 3)) & 0x18)) & 0xFF;
 		if ((NEIGHBOUR[x2] & opponent) && (flipped = Flip(x2, player, opponent))) {	// (87%/84%)
 			next_player = opponent ^ flipped;
 			next_opponent = player ^ (flipped | x_to_bit(x2));
-			score = solve_3(next_player, next_opponent, alpha, (sort3 >> 4) & 3, x1, x3, x4, &search->n_nodes);
+			score = solve_3(next_player, next_opponent, alpha, shuf4 >> 8, empties_series, &search->n_nodes);
 			if (score <= alpha) return score * pol;	// (37%)
 			else if (score < bestscore) bestscore = score;
 		}
 
+		x3 = (empties_series >> ((shuf4 >> (22 - 3)) & 0x18)) & 0xFF;
 		if ((NEIGHBOUR[x3] & opponent) && (flipped = Flip(x3, player, opponent))) {	// (77%/80%)
 			next_player = opponent ^ flipped;
 			next_opponent = player ^ (flipped | x_to_bit(x3));
-			score = solve_3(next_player, next_opponent, alpha, (sort3 >> 8) & 3, x1, x2, x4, &search->n_nodes);
+			score = solve_3(next_player, next_opponent, alpha, shuf4 >> 16, empties_series, &search->n_nodes);
 			if (score <= alpha) return score * pol;	// (14%)
 			else if (score < bestscore) bestscore = score;
 		}
 
+		x4 = (empties_series >> ((shuf4 >> 30) * 8)) & 0xFF;
 		if ((NEIGHBOUR[x4] & opponent) && (flipped = Flip(x4, player, opponent))) {	// (79%/88%)
 			next_player = opponent ^ flipped;
 			next_opponent = player ^ (flipped | x_to_bit(x4));
-			score = solve_3(next_player, next_opponent, alpha, sort3 >> 12, x1, x2, x3, &search->n_nodes);
+			score = solve_3(next_player, next_opponent, alpha, shuf4 >> 24, empties_series, &search->n_nodes);
 			if (score < bestscore) bestscore = score;
 			return bestscore * pol;	// (37%)
 		}

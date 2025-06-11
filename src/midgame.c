@@ -53,6 +53,8 @@ static int accumlate_eval(int ply, Eval *eval)
 		W_S100 = offsetof(Eval_weight, S100) / sizeof(short),
 		W_S101 = offsetof(Eval_weight, S101) / sizeof(short)
 	};
+  #if 1 // ALIGNED_GATHER
+	assert((offsetof(Eval_weight, S8x4) & 3) == 0 && (offsetof(Eval_weight, S7654) & 3) == 0);
 	const __m256i one = _mm256_set1_epi32(1);
 
 	__m256i FF = _mm256_add_epi32(_mm256_cvtepu16_epi32(eval->feature.v8[0]),
@@ -85,8 +87,32 @@ static int accumlate_eval(int ply, Eval *eval)
 
 	__m128i F = _mm_cvtepu16_epi32(eval->feature.v8[3]);
 	__m128i B = _mm_slli_epi32(_mm_andnot_si128(F, _mm256_castsi256_si128(one)), 4);
-	__m128i D = _mm_i32gather_epi32((int *) w->S8x4, _mm_andnot_si128(_mm256_castsi256_si128(one), F), 2);
-	S = _mm_add_epi32(S, _mm_srai_epi32(_mm_sllv_epi32(D, B), 16));
+	__m128i D = _mm_sllv_epi32(_mm_i32gather_epi32((int *) w->S8x4, _mm_andnot_si128(_mm256_castsi256_si128(one), F), 2), B);
+
+  #else
+	__m256i FF = _mm256_add_epi32(_mm256_cvtepu16_epi32(eval->feature.v8[0]),	// -1 to load the data into hi-word
+		_mm256_set_epi32(W_C10 - 1, W_C10 - 1, W_C10 - 1, W_C10 - 1, W_C9 - 1, W_C9 - 1, W_C9 - 1, W_C9 - 1));
+	__m256i DD = _mm256_i32gather_epi32((int *) w, FF, 2);
+	__m256i SS = _mm256_srai_epi32(DD, 16);	// sign extend
+
+	FF = _mm256_add_epi32(_mm256_cvtepu16_epi32(eval->feature.v8[1]),
+		_mm256_set_epi32(W_S101 - 1, W_S101 - 1, W_S101 - 1, W_S101 - 1, W_S100 - 1, W_S100 - 1, W_S100 - 1, W_S100 - 1));
+	DD = _mm256_i32gather_epi32((int *) w, FF, 2);
+	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(DD, 16));
+
+	DD = _mm256_i32gather_epi32((int *)((short *) w->S8x4 - 1), _mm256_cvtepu16_epi32(eval->feature.v8[2]), 2);
+	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(DD, 16));
+
+	DD = _mm256_i32gather_epi32((int *)((short *) w->S7654 - 1), _mm256_cvtepu16_epi32(*(__m128i *) &f[30]), 2);
+	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(DD, 16));
+
+	DD = _mm256_i32gather_epi32((int *)((short *) w->S7654 - 1), _mm256_cvtepu16_epi32(*(__m128i *) &f[38]), 2);
+	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(DD, 16));
+	__m128i S = _mm_add_epi32(_mm256_castsi256_si128(SS), _mm256_extracti128_si256(SS, 1));
+
+	__m128i D = _mm_i32gather_epi32((int *)((short *) w->S8x4 - 1), _mm_cvtepu16_epi32(eval->feature.v8[3]), 2);
+  #endif
+	S = _mm_add_epi32(S, _mm_srai_epi32(D, 16));
 	S = _mm_hadd_epi32(S, S);
 	sum = _mm_cvtsi128_si32(S) + _mm_extract_epi32(S, 1);
 

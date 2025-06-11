@@ -83,11 +83,11 @@ clang-x86:
 
 clang-a64:
 #	vcvarsamd64_arm64.bat
-	clang-cl --target=aarch64-win32-msvc $(VC_FLAGS) /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-arm64.exe /link /VERSION:4.6
+	clang-cl --target=aarch64-win32-msvc $(VC_FLAGS) /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-arm64.exe /link /VERSION:4.5
 
 clang-a64+crc:
 #	vcvarsamd64_arm64.bat
-	clang-cl --target=aarch64-win32-msvc -mcrc $(VC_FLAGS) /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-armv8.1-a.exe /link /VERSION:4.6
+	clang-cl --target=aarch64-win32-msvc -mcrc $(VC_FLAGS) /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-armv8.1-a.exe /link /VERSION:4.5
 
 vc-pgo-x64-v3:
 	set VCPROFILE_PATH=..\src
