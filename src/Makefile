@@ -44,7 +44,7 @@ ifeq ($(COMP),gcc)
 
 	ifeq ($(BUILD),optimize)
 		CFLAGS += -Ofast -fwhole-program -DNDEBUG
-		LTOFLAG = -flto
+		LTOFLAG = -flto=auto
 	else
 		CFLAGS += -O1 -g -DDEBUG
 	endif
