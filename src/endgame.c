@@ -520,7 +520,7 @@ int NWS_endgame(Search *search, const int alpha)
 		// else if (ofssolid)	// slows down
 		//	hash_get_from_board(&search->hash_table, HBOARD_V(board0), &hash_data.data);
 
-		movelist_evaluate_endgame(&movelist, search, &hash_data.data);
+		movelist_evaluate_fast(&movelist, search, &hash_data.data);
 
 		nodes_org = search->n_nodes;
 		parity0 = search->eval.parity;
@@ -528,7 +528,7 @@ int NWS_endgame(Search *search, const int alpha)
 		// loop over all moves
 		move = &movelist.move[0];
 		if (--search->eval.n_empties <= DEPTH_TO_SHALLOW_SEARCH)	// for next move (44%)
-			while ((move = move_next_best_partially_evaluated(&movelist, move, search))) {	// (72%)
+			while ((move = move_next_best(move))) {	// (72%)
 				search->eval.parity = parity0 ^ QUADRANT_ID[move->x];
 				search->empties[search->empties[move->x].previous].next = search->empties[move->x].next;	// remove - maintain single link only
 				vboard_update(&search->board, board0, move);
@@ -543,7 +543,7 @@ int NWS_endgame(Search *search, const int alpha)
 				}
 			}
 		else
-			while ((move = move_next_best_partially_evaluated(&movelist, move, search))) {	// (76%)
+			while ((move = move_next_best(move))) {	// (76%)
 				search->eval.parity = parity0 ^ QUADRANT_ID[move->x];
 				empty_remove(search->empties, move->x);
 				vboard_update(&search->board, board0, move);

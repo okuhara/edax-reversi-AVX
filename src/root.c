@@ -3,7 +3,7 @@
  *
  * Search near the end of the game.
  *
- * @date 1998 - 2025
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.5
  */
@@ -740,7 +740,7 @@ void iterative_deepening(Search *search, int alpha, int beta)
 			foreach_move(move, *movelist) move->score = (random_get(&search->random) & 0x7fffffff);
 			// randomness is not perfect as several moves may share the same value, but this should be rare enough not to care about it.
 		} else { // sort the moves
-			movelist_evaluate_all(movelist, search, &hash_data, alpha, start);
+			movelist_evaluate(movelist, search, &hash_data, alpha, start);
 		}
 		movelist_sort(movelist);
 		bestmove = movelist_first(movelist); bestmove->score = score;

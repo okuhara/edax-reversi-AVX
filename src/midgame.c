@@ -441,12 +441,11 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 
 		// sort the list of moves
 		nodes_org = search->n_nodes;
-		movelist_evaluate_partial(&movelist, search, &hash_data.data, alpha, depth);
+		movelist_evaluate(&movelist, search, &hash_data.data, alpha, depth);
 
 		// loop over all moves
 		bestscore = -SCORE_INF;
-		move = &movelist.move[0];
-		while ((move = move_next_best_partially_evaluated(&movelist, move, search))) {
+		foreach_best_move(move, movelist) {
 			search_update_midgame(search, move);
 			score = -NWS_shallow(search, ~alpha, depth - 1, hash_table);
 			search_restore_midgame(search, move->x, &eval0);
@@ -545,7 +544,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 
 		// sort the list of moves
 		nodes_org = search->n_nodes;
-		movelist_evaluate_all(&movelist, search, &HASH_DATA_INIT, alpha, depth);
+		movelist_evaluate(&movelist, search, &HASH_DATA_INIT, alpha, depth);
 
 		// loop over all moves
 		move = movelist_best(&movelist);
@@ -681,7 +680,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		// sort the list of moves
 		if (movelist.n_moves > 1) {
 			if (hash_data.data.move[0] == NOMOVE) hash_get(&search->hash_table, &search->board, hash_code, &hash_data.data);
-			movelist_evaluate_all(&movelist, search, &hash_data.data, alpha, depth + options.inc_sort_depth[search->node_type[search->height]]);
+			movelist_evaluate(&movelist, search, &hash_data.data, alpha, depth + options.inc_sort_depth[search->node_type[search->height]]);
 			movelist_sort(&movelist);
 		}
 
@@ -825,7 +824,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 			}
 
 			// Evaluate moves for sorting. For a better ordering, the depth is artificially increased
-			movelist_evaluate_all(&movelist, search, &hash_data.data, node.alpha, depth + options.inc_sort_depth[PV_NODE]);
+			movelist_evaluate(&movelist, search, &hash_data.data, node.alpha, depth + options.inc_sort_depth[PV_NODE]);
 			movelist_sort(&movelist);
 		}
 

@@ -13,7 +13,7 @@
  *  - With "-follow-cassio" Edax will follow more closely Cassio's search request. By default, it
  * searches with settings that make it better in tournament mode against Roxane, Cassio, etc.
  *
- * @date 1998 - 2025
+ * @date 1998 - 2023
  * @author Richard Delorme
  * @version 4.5
  */
@@ -308,7 +308,7 @@ static int engine_open(Search *search, const Board *board, const int player, con
 			else score = (hash_data.upper + hash_data.lower) / 2;
 		}
 		if (!movelist_is_empty(&search->movelist)) {
-			movelist_evaluate_all(&search->movelist, search, &hash_data, options.alpha, depth);
+			movelist_evaluate(&search->movelist, search, &hash_data, options.alpha, depth);
 			movelist_sort(&search->movelist);
 		}
 	}
