@@ -74,12 +74,12 @@ static int accumlate_eval(int ply, Eval *eval)
 	DD = _mm256_i32gather_epi32((int *) w->S8x4, _mm256_andnot_si256(one, FF), 2);
 	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(_mm256_sllv_epi32(DD, B0), 16));
 
-	FF = _mm256_cvtepu16_epi32(*(__m128i *) &f[30]);
+	FF = _mm256_cvtepu16_epi32(eval->feature.v8[4]);
 	B0 = _mm256_slli_epi32(_mm256_andnot_si256(FF, one), 4);
 	DD = _mm256_i32gather_epi32((int *) w->S7654, _mm256_andnot_si256(one, FF), 2);
 	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(_mm256_sllv_epi32(DD, B0), 16));
 
-	FF = _mm256_cvtepu16_epi32(*(__m128i *) &f[38]);
+	FF = _mm256_cvtepu16_epi32(_mm_alignr_epi8(eval->feature.v8[5], eval->feature.v8[3], 12));	// f[45]..f[40] f[31] f[30]
 	B0 = _mm256_slli_epi32(_mm256_andnot_si256(FF, one), 4);
 	DD = _mm256_i32gather_epi32((int *) w->S7654, _mm256_andnot_si256(one, FF), 2);
 	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(_mm256_sllv_epi32(DD, B0), 16));
