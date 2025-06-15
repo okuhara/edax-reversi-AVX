@@ -44,20 +44,21 @@ struct Move;
 
 /** unpacked weights */
 // enum { EVAL_N_WEIGHT = 226315 };
+// [0] for even ply, [1] for odd, interleaved for aligned VPGATHERDD access (4.5.5)
 typedef struct Eval_weight {
-	int	S0;		// also acts as guard for unaligned VGATHERDD access
-	short	C9[19683];
-	short	C10[59049];
-	short	S100[59049];
-	short	S101[59049];
-	short	S8x4[6561*4];		// align(4)
-	short	S7654[2187+729+243+81];	// align(4)
+	short	S0[2];
+	short	C9[19683][2];
+	short	C10[59049][2];
+	short	S100[59049][2];
+	short	S101[59049][2];
+	short	S8x4[6561*4][2];
+	short	S7654[2187+729+243+81][2];
 } Eval_weight;
 
 /** number of plies */
-enum { EVAL_N_PLY = 54 };	// decreased from 60 in 4.5.1
+enum { EVAL_N_2PLY = 54 / 2 };	// decreased from 60 in 4.5.1
 
-extern Eval_weight (*EVAL_WEIGHT)[EVAL_N_PLY - 2];	// for 2..53
+extern Eval_weight (*EVAL_WEIGHT)[EVAL_N_2PLY - 1];	// for 2..53, interleaved
 
 /* function declaration */
 void eval_open(const char*);

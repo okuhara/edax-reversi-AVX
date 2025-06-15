@@ -37,99 +37,67 @@ static int accumlate_eval(int ply, Eval *eval)
 {
 	unsigned short *f = eval->feature.us;
 	const Eval_weight *w;
-	int sum;
+	int b0, sum;
 
-	if (ply >= EVAL_N_PLY)
-		ply = EVAL_N_PLY - 2 + (ply & 1);
+	b0 = ply & 1;	// even/odd ply interleaved for aligned VPGATHERDD access (4.5.5)
 	ply -= 2;
 	if (ply < 0)
-		ply &= 1;
-	w = &(*EVAL_WEIGHT)[ply];
+		ply = 0;
+	ply >>= 1;
+	if (ply >= EVAL_N_2PLY - 1)
+		ply = EVAL_N_2PLY - 2;
 
 #if defined(__AVX2__) && !defined(__bdver4__) && !defined(__znver1__) && !defined(__znver2__)
 	enum {
-		W_C9 = offsetof(Eval_weight, C9) / sizeof(short),
-		W_C10 = offsetof(Eval_weight, C10) / sizeof(short),
-		W_S100 = offsetof(Eval_weight, S100) / sizeof(short),
-		W_S101 = offsetof(Eval_weight, S101) / sizeof(short)
+		W_C9 = offsetof(Eval_weight, C9) / 4,
+		W_C10 = offsetof(Eval_weight, C10) / 4,
+		W_S100 = offsetof(Eval_weight, S100) / 4,
+		W_S101 = offsetof(Eval_weight, S101) / 4
 	};
-  #if 1 // ALIGNED_GATHER
-	assert((offsetof(Eval_weight, S8x4) & 3) == 0 && (offsetof(Eval_weight, S7654) & 3) == 0);
-	const __m256i one = _mm256_set1_epi32(1);
-
+	w = *EVAL_WEIGHT + ply;
+	__m128i SW = _mm_cvtsi32_si128((b0 ^ 1) * 16);	// 16 for even, 0 for odd
 	__m256i FF = _mm256_add_epi32(_mm256_cvtepu16_epi32(eval->feature.v8[0]),
 		_mm256_set_epi32(W_C10, W_C10, W_C10, W_C10, W_C9, W_C9, W_C9, W_C9));
-	__m256i B0 = _mm256_slli_epi32(_mm256_andnot_si256(FF, one), 4);	// 16 for even, 0 for odd
-	__m256i DD = _mm256_i32gather_epi32((int *) w, _mm256_andnot_si256(one, FF), 2);
-	__m256i SS = _mm256_srai_epi32(_mm256_sllv_epi32(DD, B0), 16);	// select word and sign extend
+	__m256i DD = _mm256_i32gather_epi32((int *) w, FF, 4);
+	__m256i SS = _mm256_srai_epi32(_mm256_sll_epi32(DD, SW), 16);	// select word and sign extend
 
 	FF = _mm256_add_epi32(_mm256_cvtepu16_epi32(eval->feature.v8[1]),
 		_mm256_set_epi32(W_S101, W_S101, W_S101, W_S101, W_S100, W_S100, W_S100, W_S100));
-	B0 = _mm256_slli_epi32(_mm256_andnot_si256(FF, one), 4);
-	DD = _mm256_i32gather_epi32((int *) w, _mm256_andnot_si256(one, FF), 2);
-	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(_mm256_sllv_epi32(DD, B0), 16));
+	DD = _mm256_i32gather_epi32((int *) w, FF, 4);
+	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(_mm256_sll_epi32(DD, SW), 16));
 
-	FF = _mm256_cvtepu16_epi32(eval->feature.v8[2]);
-	B0 = _mm256_slli_epi32(_mm256_andnot_si256(FF, one), 4);
-	DD = _mm256_i32gather_epi32((int *) w->S8x4, _mm256_andnot_si256(one, FF), 2);
-	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(_mm256_sllv_epi32(DD, B0), 16));
+	DD = _mm256_i32gather_epi32((int *) w->S8x4, _mm256_cvtepu16_epi32(eval->feature.v8[2]), 4);
+	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(_mm256_sll_epi32(DD, SW), 16));
 
-	FF = _mm256_cvtepu16_epi32(eval->feature.v8[4]);
-	B0 = _mm256_slli_epi32(_mm256_andnot_si256(FF, one), 4);
-	DD = _mm256_i32gather_epi32((int *) w->S7654, _mm256_andnot_si256(one, FF), 2);
-	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(_mm256_sllv_epi32(DD, B0), 16));
+	DD = _mm256_i32gather_epi32((int *) w->S7654, _mm256_cvtepu16_epi32(*(__m128i *) &eval->feature.us[30]), 4);
+	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(_mm256_sll_epi32(DD, SW), 16));
 
-	FF = _mm256_cvtepu16_epi32(_mm_alignr_epi8(eval->feature.v8[5], eval->feature.v8[3], 12));	// f[45]..f[40] f[31] f[30]
-	B0 = _mm256_slli_epi32(_mm256_andnot_si256(FF, one), 4);
-	DD = _mm256_i32gather_epi32((int *) w->S7654, _mm256_andnot_si256(one, FF), 2);
-	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(_mm256_sllv_epi32(DD, B0), 16));
+	DD = _mm256_i32gather_epi32((int *) w->S7654, _mm256_cvtepu16_epi32(*(__m128i *) &eval->feature.us[38]), 4);
+	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(_mm256_sll_epi32(DD, SW), 16));
 	__m128i S = _mm_add_epi32(_mm256_castsi256_si128(SS), _mm256_extracti128_si256(SS, 1));
 
-	__m128i F = _mm_cvtepu16_epi32(eval->feature.v8[3]);
-	__m128i B = _mm_slli_epi32(_mm_andnot_si128(F, _mm256_castsi256_si128(one)), 4);
-	__m128i D = _mm_sllv_epi32(_mm_i32gather_epi32((int *) w->S8x4, _mm_andnot_si128(_mm256_castsi256_si128(one), F), 2), B);
-
-  #else
-	__m256i FF = _mm256_add_epi32(_mm256_cvtepu16_epi32(eval->feature.v8[0]),	// -1 to load the data into hi-word
-		_mm256_set_epi32(W_C10 - 1, W_C10 - 1, W_C10 - 1, W_C10 - 1, W_C9 - 1, W_C9 - 1, W_C9 - 1, W_C9 - 1));
-	__m256i DD = _mm256_i32gather_epi32((int *) w, FF, 2);
-	__m256i SS = _mm256_srai_epi32(DD, 16);	// sign extend
-
-	FF = _mm256_add_epi32(_mm256_cvtepu16_epi32(eval->feature.v8[1]),
-		_mm256_set_epi32(W_S101 - 1, W_S101 - 1, W_S101 - 1, W_S101 - 1, W_S100 - 1, W_S100 - 1, W_S100 - 1, W_S100 - 1));
-	DD = _mm256_i32gather_epi32((int *) w, FF, 2);
-	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(DD, 16));
-
-	DD = _mm256_i32gather_epi32((int *)((short *) w->S8x4 - 1), _mm256_cvtepu16_epi32(eval->feature.v8[2]), 2);
-	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(DD, 16));
-
-	DD = _mm256_i32gather_epi32((int *)((short *) w->S7654 - 1), _mm256_cvtepu16_epi32(*(__m128i *) &f[30]), 2);
-	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(DD, 16));
-
-	DD = _mm256_i32gather_epi32((int *)((short *) w->S7654 - 1), _mm256_cvtepu16_epi32(*(__m128i *) &f[38]), 2);
-	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(DD, 16));
-	__m128i S = _mm_add_epi32(_mm256_castsi256_si128(SS), _mm256_extracti128_si256(SS, 1));
-
-	__m128i D = _mm_i32gather_epi32((int *)((short *) w->S8x4 - 1), _mm_cvtepu16_epi32(eval->feature.v8[3]), 2);
-  #endif
-	S = _mm_add_epi32(S, _mm_srai_epi32(D, 16));
-	S = _mm_hadd_epi32(S, S);
-	sum = _mm_cvtsi128_si32(S) + _mm_extract_epi32(S, 1);
+	__m128i D = _mm_i32gather_epi32((int *) w->S8x4, _mm_cvtepu16_epi32(eval->feature.v8[3]), 4);
+	S = _mm_add_epi32(S, _mm_srai_epi32(_mm_sll_epi32(D, SW), 16));
+		// https://stackoverflow.com/questions/6996764/fastest-way-to-do-horizontal-sse-vector-sum-or-other-reduction
+	S = _mm_add_epi32(S, _mm_unpackhi_epi64(S, S));
+	sum = _mm_cvtsi128_si32(_mm_add_epi32(S, _mm_shufflelo_epi16(S, 0x4e)));
+	w = (Eval_weight *)(w->S0 + b0);
 
 #else
-	sum = w->C9[f[ 0]] + w->C9[f[ 1]] + w->C9[f[ 2]] + w->C9[f[ 3]]
-	  + w->C10[f[ 4]] + w->C10[f[ 5]] + w->C10[f[ 6]] + w->C10[f[ 7]]
-	  + w->S100[f[ 8]] + w->S100[f[ 9]] + w->S100[f[10]] + w->S100[f[11]]
-	  + w->S101[f[12]] + w->S101[f[13]] + w->S101[f[14]] + w->S101[f[15]]
-	  + w->S8x4[f[16]] + w->S8x4[f[17]] + w->S8x4[f[18]] + w->S8x4[f[19]]
-	  + w->S8x4[f[20]] + w->S8x4[f[21]] + w->S8x4[f[22]] + w->S8x4[f[23]]
-	  + w->S8x4[f[24]] + w->S8x4[f[25]] + w->S8x4[f[26]] + w->S8x4[f[27]]
-	  + w->S7654[f[30]] + w->S7654[f[31]] + w->S7654[f[32]] + w->S7654[f[33]]
-	  + w->S7654[f[34]] + w->S7654[f[35]] + w->S7654[f[36]] + w->S7654[f[37]]
-	  + w->S7654[f[38]] + w->S7654[f[39]] + w->S7654[f[40]] + w->S7654[f[41]]
-	  + w->S7654[f[42]] + w->S7654[f[43]] + w->S7654[f[44]] + w->S7654[f[45]];
+	w = (Eval_weight *)((*EVAL_WEIGHT)[ply].S0 + b0);
+	sum = *(w->C9[f[0]]) + *(w->C9[f[1]]) + *(w->C9[f[2]]) + *(w->C9[f[3]])
+	  + *(w->C10[f[4]]) + *(w->C10[f[5]]) + *(w->C10[f[6]]) + *(w->C10[f[7]])
+	  + *(w->S100[f[8]]) + *(w->S100[f[9]]) + *(w->S100[f[10]]) + *(w->S100[f[11]])
+	  + *(w->S101[f[12]]) + *(w->S101[f[13]]) + *(w->S101[f[14]]) + *(w->S101[f[15]])
+	  + *(w->S8x4[f[16]]) + *(w->S8x4[f[17]]) + *(w->S8x4[f[18]]) + *(w->S8x4[f[19]])
+	  + *(w->S8x4[f[20]]) + *(w->S8x4[f[21]]) + *(w->S8x4[f[22]]) + *(w->S8x4[f[23]])
+	  + *(w->S8x4[f[24]]) + *(w->S8x4[f[25]]) + *(w->S8x4[f[26]]) + *(w->S8x4[f[27]])
+	  + *(w->S7654[f[30]]) + *(w->S7654[f[31]]) + *(w->S7654[f[32]]) + *(w->S7654[f[33]])
+	  + *(w->S7654[f[34]]) + *(w->S7654[f[35]]) + *(w->S7654[f[36]]) + *(w->S7654[f[37]])
+	  + *(w->S7654[f[38]]) + *(w->S7654[f[39]]) + *(w->S7654[f[40]]) + *(w->S7654[f[41]])
+	  + *(w->S7654[f[42]]) + *(w->S7654[f[43]]) + *(w->S7654[f[44]]) + *(w->S7654[f[45]]);
 #endif
-	return sum + w->S8x4[f[28]] + w->S8x4[f[29]] + w->S0;
+	return sum + *(w->S8x4[f[28]]) + *(w->S8x4[f[29]]) + *(w->S0);
 }
 
 /**

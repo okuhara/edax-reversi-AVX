@@ -475,7 +475,7 @@ typedef struct {
 static int EVAL_LOADED = 0;
 
 /** eval weights */
-Eval_weight (*EVAL_WEIGHT)[EVAL_N_PLY - 2];	// for 2..53
+Eval_weight (*EVAL_WEIGHT)[EVAL_N_2PLY - 1];	// for 2..53
 
 /** opponent feature */
 static unsigned short *OPPONENT_FEATURE;
@@ -631,7 +631,7 @@ void eval_open(const char* file)
 	free(T);
 
 	// allocation
-	EVAL_WEIGHT = (Eval_weight(*)[EVAL_N_PLY - 2]) malloc(sizeof(*EVAL_WEIGHT));
+	EVAL_WEIGHT = (Eval_weight(*)[EVAL_N_2PLY - 1]) malloc(sizeof(*EVAL_WEIGHT));
 	if (EVAL_WEIGHT == NULL) fatal_error("Cannot allocate evaluation weights.\n");
 
 	// data reading
@@ -656,45 +656,45 @@ void eval_open(const char* file)
 		release = bswap_int(release);
 		build = bswap_int(build);
 	}
-	// Weights : read & unpacked them
-	for (ply = 0; ply < EVAL_N_PLY; ply++) {
+	// Weights : read & unpack them
+	for (ply = 0; ply < EVAL_N_2PLY * 2; ply++) {
 		r = fread(w, sizeof (short), n_w, f);
 		if (r != n_w) fatal_error("Cannot read evaluation weight from %s\n", file);
 		if (ply < 2) continue;	// skip ply 1 & 2
 
 		if (edax_header == XADE) for (i = 0; i < n_w; ++i) w[i] = bswap_short(w[i]);
 
-		pe = *EVAL_WEIGHT + ply - 2;
+		pe = (Eval_weight *)((*EVAL_WEIGHT)[(ply - 2) >> 1].S0 + (ply & 1));
 		pp = *P + (ply & 1);
 		for (k = 0; k < 19683; k++) {
-			pe->C9[k] = w[pp->EVAL_C9[k] + EVAL_PACKED_OFS[0]];
+			*(pe->C9[k]) = w[pp->EVAL_C9[k] + EVAL_PACKED_OFS[0]];
 		}
 		for (k = 0; k < 59049; k++) {
-			pe->C10[k] = w[pp->EVAL_C10[k] + EVAL_PACKED_OFS[1]];
+			*(pe->C10[k]) = w[pp->EVAL_C10[k] + EVAL_PACKED_OFS[1]];
 			i = pp->EVAL_S10[k];
-			pe->S100[k] = w[i + EVAL_PACKED_OFS[2]];
-			pe->S101[k] = w[i + EVAL_PACKED_OFS[3]];
+			*(pe->S100[k]) = w[i + EVAL_PACKED_OFS[2]];
+			*(pe->S101[k]) = w[i + EVAL_PACKED_OFS[3]];
 		}
 		for (k = 0; k < 6561; k++) {
 			i = pp->EVAL_S8[k];
-			pe->S8x4[k] = w[i + EVAL_PACKED_OFS[4]];
-			pe->S8x4[k + 6561] = w[i + EVAL_PACKED_OFS[5]];
-			pe->S8x4[k + 13122] = w[i + EVAL_PACKED_OFS[6]];
-			pe->S8x4[k + 19683] = w[i + EVAL_PACKED_OFS[7]];
+			*(pe->S8x4[k]) = w[i + EVAL_PACKED_OFS[4]];
+			*(pe->S8x4[k + 6561]) = w[i + EVAL_PACKED_OFS[5]];
+			*(pe->S8x4[k + 13122]) = w[i + EVAL_PACKED_OFS[6]];
+			*(pe->S8x4[k + 19683]) = w[i + EVAL_PACKED_OFS[7]];
 		}
 		for (k = 0; k < 2187; k++) {
-			pe->S7654[k] = w[pp->EVAL_S7[k] + EVAL_PACKED_OFS[8]];
+			*(pe->S7654[k]) = w[pp->EVAL_S7[k] + EVAL_PACKED_OFS[8]];
 		}
 		for (k = 0; k < 729; k++) {
-			pe->S7654[k + 2187] = w[pp->EVAL_S6[k] + EVAL_PACKED_OFS[9]];
+			*(pe->S7654[k + 2187]) = w[pp->EVAL_S6[k] + EVAL_PACKED_OFS[9]];
 		}
 		for (k = 0; k < 243; k++) {
-			pe->S7654[k + 2916] = w[pp->EVAL_S5[k] + EVAL_PACKED_OFS[10]];
+			*(pe->S7654[k + 2916]) = w[pp->EVAL_S5[k] + EVAL_PACKED_OFS[10]];
 		}
 		for (k = 0; k < 81; k++) {
-			pe->S7654[k + 3159] = w[pp->EVAL_S4[k] + EVAL_PACKED_OFS[11]];
+			*(pe->S7654[k + 3159]) = w[pp->EVAL_S4[k] + EVAL_PACKED_OFS[11]];
 		}
-		pe->S0 = w[EVAL_PACKED_OFS[12]];
+		*(pe->S0) = w[EVAL_PACKED_OFS[12]];
 	}
 
 	fclose(f);
