@@ -707,3 +707,56 @@ void hash_print(const HashData *data, FILE *f)
 	fprintf(f, "score = [%+02d, %+02d] ; ", data->lower, data->upper);
 	fprintf(f, "level = %2d:%2d:%2d@%3d%%", data->wl.c.date, data->wl.c.cost, data->wl.c.depth, selectivity_table[data->wl.c.selectivity].percent);
 }
+
+/**
+ * @brief Thead local (lockfree), 1-way version of hash_store
+ *
+ * @param hash_table Hash table to update.
+ * @param board Bitboard.
+ * @param hash_code  Hash code of an othello board.
+ * @param storedata.alpha      Alpha bound when calling the alphabeta function.
+ * @param storedata.beta       Beta bound when calling the alphabeta function.
+ * @param storedata.score      Best score found.
+ * @param storedata.move       Best move found.
+ */
+void hash_store_local(HashTable *hash_table, const Board *board, const unsigned long long hash_code, HashStoreData *storedata)
+{
+	Hash *hash = hash_table->hash + (hash_code & hash_table->hash_mask);
+	HashData *data = &hash->data;
+	int score = storedata->score;
+	if (board_equal(&hash->board, board)) {	// data_update
+		if (score < storedata->beta && score < data->upper) data->upper = score;
+		if (score > storedata->alpha && score > data->lower) data->lower = score;
+		// if (storedata->data.wl.c.cost > data->wl.c.cost)
+		//	data->wl.c.cost = storedata->data.wl.c.cost;
+	} else {	// data_new
+		hash->board = *board;
+		if (score < storedata->beta) data->upper = score; else data->upper = SCORE_MAX;
+		if (score > storedata->alpha) data->lower = score; else data->lower = SCORE_MIN;
+		data->wl = storedata->data.wl;
+		data->move[0] = NOMOVE;
+	}
+	if (score > storedata->alpha || score == SCORE_MIN)
+		data->move[0] = storedata->data.move[0];
+}
+
+/**
+ * @brief Thead local (lockfree), 1-way version of hash_get
+ *
+ * @param hash_table Hash table.
+ * @param board Bitboard.
+ * @param hash_code Hash code of an othello board.
+ * @param data Output hash data.
+ * @return True the board was found, false otherwise.
+ */
+bool hash_get_local(HashTable *hash_table, const Board *board, const unsigned long long hash_code, HashData *data)
+{
+	Hash *hash = hash_table->hash + (hash_code & hash_table->hash_mask);
+	if (board_equal(&hash->board, board)) {
+		*data = hash->data;
+		return true;
+	} else {
+		*data = HASH_DATA_INIT;
+		return false;
+	}
+}

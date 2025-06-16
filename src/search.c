@@ -114,8 +114,8 @@ const Selectivity selectivity_table [] = {
 /** threshold values to try stability cutoff during NWS search */
 // TODO: better values may exist.
 const signed char NWS_STABILITY_THRESHOLD[] = { // 99 = unused value...
-	 99, 99, 99, 99,  6,  8, 10, 12,
-	  8, 10, 20, 22, 24, 26, 28, 30, // 8 & 9 lowered to work best with solid stone
+	 99, 99, 99, 99,  6,  8,  8,  8,
+	  8, 10, 20, 22, 24, 26, 28, 30, // 6..9 lowered to work best with solid stone
 	 32, 34, 36, 38, 40, 42, 44, 46,
 	 48, 48, 50, 50, 52, 52, 54, 54,
 	 56, 56, 58, 58, 60, 60, 62, 62,
@@ -380,6 +380,12 @@ void search_init(Search *search)
 	search->shallow_table.hash = NULL;
 	search->shallow_table.hash_mask = 0;
 	search_resize_hashtable(search);
+	search->thread_hash.hash = mm_malloc(((1 << THREAD_LOCAL_HASH_SIZE) + HASH_N_WAY) * sizeof (Hash));
+	if (search->thread_hash.hash == NULL) {
+		fatal_error("Cannot allocate a thread hash\n");
+	}
+	search->thread_hash.hash_mask = (1 << THREAD_LOCAL_HASH_SIZE) - 1;
+	hash_cleanup(&search->thread_hash);
 
 	/* board */
 	search->board.player = search->board.opponent = 0;
@@ -460,7 +466,8 @@ void search_free(Search *search)
 	hash_free(&search->pv_table);
 	hash_free(&search->shallow_table);
 	// eval_free(search->eval);
-	
+	mm_free(search->thread_hash.hash);
+
 	task_stack_free(search->tasks);
 	free(search->tasks);
 	spin_free(search);

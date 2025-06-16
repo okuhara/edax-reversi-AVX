@@ -122,11 +122,17 @@
 /** hash align */
 #define HASH_ALIGNED 1
 
+/** Thread local hash size per thread (in number of bits) */
+#define THREAD_LOCAL_HASH_SIZE 11
+
 /** PV extension (solve PV alone sooner) */
 #define USE_PV_EXTENSION true
 
 /** Swith from endgame to shallow search (faster but less node efficient) at this depth. */
-#define DEPTH_TO_SHALLOW_SEARCH 7
+#define DEPTH_TO_SHALLOW_SEARCH 6
+
+/** Use lock-free thread local hash (before DEPTH_TO_SHALLOW_SEARCH) */
+#define DEPTH_TO_USE_LOCAL_HASH 9
 
 /** Switch from midgame to endgame search (faster but less node efficient) at this depth. */
 #define DEPTH_MIDGAME_TO_ENDGAME 15
@@ -139,9 +145,6 @@
 
 /** Try ETC down to this depth. */
 #define ETC_MIN_DEPTH 5
-
-/** Dogaishi hash reduction Depth (before DEPTH_TO_SHALLOW_SEARCH) */
-#define MASK_SOLID_DEPTH 9
 
 /** bound for usefull move sorting */
 #define SORT_ALPHA_DELTA 8

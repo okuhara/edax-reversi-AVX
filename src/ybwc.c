@@ -127,7 +127,7 @@ static bool get_helper(Node *master, Node *node, Move *move)
 				search_clone(task->search, node->search);
 				lock(node);
 					node->slave[node->n_slave++] = task->search;
-				unlock(node);			
+				unlock(node);
 				task->run = true;
 				found = true;
 
@@ -491,6 +491,13 @@ static Search* task_search_create(Task *task)
 	if (search == NULL) {
 		fatal_error("task_init: cannot allocate the search position.\n");
 	}
+	search->thread_hash.hash = mm_malloc(((1 << THREAD_LOCAL_HASH_SIZE) + HASH_N_WAY) * sizeof (Hash));
+	if (search->thread_hash.hash == NULL) {
+		fatal_error("task_init: Cannot allocate a thread hash\n");
+	}
+	search->thread_hash.hash_mask = (1 << THREAD_LOCAL_HASH_SIZE) - 1;
+	hash_cleanup(&search->thread_hash);
+
 	search->n_nodes = 0;
 	search->n_child = 0;
 	search->parent = NULL;
@@ -509,6 +516,7 @@ static Search* task_search_create(Task *task)
  */
 static void task_search_destroy(Search *search)
 {
+	mm_free(search->thread_hash.hash);
 	// eval_free(search->eval);
 	spin_free(search);
 	mm_free(search);

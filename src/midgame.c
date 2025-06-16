@@ -841,7 +841,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 		hash_store(&search->pv_table, &search->board, hash_code, &hash_data);
 
 		// store solid-normalized for endgame TC
-		if (search->eval.n_empties <= depth && depth <= MASK_SOLID_DEPTH && depth > DEPTH_TO_SHALLOW_SEARCH) {
+		if (search->eval.n_empties <= depth && depth <= DEPTH_TO_USE_LOCAL_HASH && depth > DEPTH_TO_SHALLOW_SEARCH) {
 			solid_opp = get_all_full_lines(search->board.player | search->board.opponent) & search->board.opponent;
 			if (solid_opp) {
 				hashboard.player = search->board.player ^ solid_opp;	// normalize solid to player
@@ -850,7 +850,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 				hash_data.alpha += ofssolid;
 				hash_data.beta += ofssolid;
 				hash_data.score += ofssolid;
-				hash_store(&search->hash_table, &hashboard, board_get_hash_code(&hashboard), &hash_data);
+				hash_store_local(&search->thread_hash, &hashboard, board_get_hash_code(&hashboard), &hash_data);
 			}
 		}
 

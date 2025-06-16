@@ -100,25 +100,28 @@ bool hash_get_from_board(HashTable*, const Board *, HashData *);
 void hash_exclude_move(HashTable*, const Board *, const unsigned long long, const int);
 void hash_copy(const HashTable*, HashTable*);
 void hash_print(const HashData*, FILE*);
+void hash_store_local(HashTable *, const Board *, const unsigned long long, HashStoreData *);
+bool hash_get_local(HashTable*, const Board *, const unsigned long long, HashData *);
 extern unsigned int writeable_level(HashData *data);
 
 extern const HashData HASH_DATA_INIT;
 
+#ifdef hasSSE2
+	#define	PREFETCH(P)	_mm_prefetch((char const *)(P), _MM_HINT_T0)
+#elif defined(__ARM_ACLE)
+	#define	PREFETCH(P)	__pld(P)
+#elif defined(__GNUC__)
+	#define	PREFETCH(P)	__builtin_prefetch(P)
+#elif defined(_M_ARM) || defined(_M_ARM64)
+  	#define	PREFETCH(P)	__prefetch(P)
+#else
+	#define	PREFETCH(P)
+#endif
+
 inline void hash_prefetch(HashTable *hashtable, unsigned long long hashcode) {
 	Hash *p = hashtable->hash + (hashcode & hashtable->hash_mask);
-  #ifdef hasSSE2
-	_mm_prefetch((char const *) p, _MM_HINT_T0);
-	_mm_prefetch((char const *)(p + HASH_N_WAY - 1), _MM_HINT_T0);
-  #elif defined(__ARM_ACLE)
-	__pld(p);
-	__pld(p + HASH_N_WAY - 1);
-  #elif defined(__GNUC__)
-	__builtin_prefetch(p);
-	__builtin_prefetch(p + HASH_N_WAY - 1);
-  #elif defined(_M_ARM) || defined(_M_ARM64)
-  	__prefetch(p);
-  	__prefetch(p + HASH_N_WAY - 1);
-  #endif
+	PREFETCH(p);
+	PREFETCH(p + HASH_N_WAY - 1);
 }
 
 #endif

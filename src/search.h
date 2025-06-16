@@ -77,6 +77,7 @@ typedef struct Search {
 	HashTable hash_table;                         /**< hashtable */
 	HashTable pv_table;                           /**< hashtable for the pv */
 	HashTable shallow_table;                      /**< hashtable for short search */
+	HashTable thread_hash;                        /**< thread local hash */
 	Random random;                                /**< random generator */
 
 	struct TaskStack *tasks;                      /**< available task queue */

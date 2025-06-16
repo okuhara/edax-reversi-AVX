@@ -20,7 +20,7 @@
 
 /** global options with default value */
 Options options = {
-	22, // hash table size (2^22 * 24 * 1.125 = 113MB)
+	21, // hash table size (2^21 * 24 * 1.125 = 57MB)
 
 	{0,-2,-3}, // inc_sort_depth
 
