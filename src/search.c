@@ -52,7 +52,7 @@
  * -# Reinsfeld A. (1983) An Improvement Of the Scout Tree-Search Algorithm. ICCA
  *     journal, 6(4), pp. 4-14.
  *
- * @date 1998 - 2024
+ * @date 1998 - 2025
  * @author Richard Delorme
  * @version 4.5
  */
@@ -345,7 +345,8 @@ void search_global_init(void)
 	search_log->f = NULL;
 }
 
-void search_resize_hashtable(Search *search) {
+void search_resize_hashtable(Search *search)
+{
 	if (search->options.hash_size != options.hash_table_size) {
 		const int hash_size = 1u << options.hash_table_size;
 		const int pv_shallow_size = hash_size > 16 ? hash_size >> 4 : 1;
@@ -355,6 +356,17 @@ void search_resize_hashtable(Search *search) {
 		hash_init(&search->shallow_table, pv_shallow_size);
 		search->options.hash_size = options.hash_table_size;
 	}
+}
+
+void search_alloc_thread_hash(Search *search)
+{
+	search->thread_hash.hash = mm_malloc((1 << THREAD_LOCAL_HASH_SIZE) * sizeof (Hash));
+	if (search->thread_hash.hash == NULL) {
+		fatal_error("Cannot allocate a thread hash\n");
+	}
+	search->thread_hash.hash_mask = (1 << THREAD_LOCAL_HASH_SIZE) - 1;
+	search->thread_hash.n_hash = 1 << THREAD_LOCAL_HASH_SIZE;
+	hash_cleanup(&search->thread_hash);
 }
 
 /**
@@ -380,12 +392,7 @@ void search_init(Search *search)
 	search->shallow_table.hash = NULL;
 	search->shallow_table.hash_mask = 0;
 	search_resize_hashtable(search);
-	search->thread_hash.hash = mm_malloc(((1 << THREAD_LOCAL_HASH_SIZE) + HASH_N_WAY) * sizeof (Hash));
-	if (search->thread_hash.hash == NULL) {
-		fatal_error("Cannot allocate a thread hash\n");
-	}
-	search->thread_hash.hash_mask = (1 << THREAD_LOCAL_HASH_SIZE) - 1;
-	hash_cleanup(&search->thread_hash);
+	search_alloc_thread_hash(search);
 
 	/* board */
 	search->board.player = search->board.opponent = 0;

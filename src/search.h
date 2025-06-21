@@ -3,7 +3,7 @@
  *
  * Search's header file.
  *
- * @date 1998 - 2024
+ * @date 1998 - 2025
  * @author Richard Delorme
  * @version 4.5
  */
@@ -147,6 +147,7 @@ void search_set_board(Search*, const Board*, const int);
 void search_set_level(Search*, const int, const int);
 void search_set_ponder_level(Search*, const int, const int);
 void search_resize_hashtable(Search*);
+void search_alloc_thread_hash(Search*);
 
 void search_set_game_time(Search*, const long long);
 void search_set_move_time(Search*, const long long);

@@ -59,7 +59,7 @@ void tune_move_evaluate(struct Search*, const char*, const char*);
 int movelist_get_moves(MoveList*, const struct Board*);
 void movelist_print(const MoveList*, const int, FILE*);
 Move* movelist_sort_bestmove(MoveList*, const int);
-void movelist_evaluate_fast(MoveList*, struct Search*, const struct HashData*);
+void movelist_evaluate_fast(MoveList*, struct Search*, const unsigned char [2]);
 void movelist_evaluate(MoveList*, struct Search*, const struct HashData*, const int, const int);
 
 // bool move_wipeout(const Move*, const struct Board*);	// Check if a move wins 64-0.

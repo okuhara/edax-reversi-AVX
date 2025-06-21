@@ -14,7 +14,7 @@
  * When doing parallel search with a shared hashtable, a locked implementation
  * avoid concurrency collisions.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2025
  * @author Richard Delorme
  * @version 4.5
  */
@@ -68,6 +68,7 @@ void hash_init(HashTable *hash_table, const unsigned long long size)
 		hash_table->hash_mask = size - 1;
 	}
 
+	hash_table->n_hash = hash_table->hash_mask + HASH_N_WAY;	// (4.5.5)
 	hash_cleanup(hash_table);
 
 	hash_table->n_lock = 1 << (31 - lzcnt_u32(get_cpu_number() | 1) + 8);	// round down to 2 ^ n, then * 256
@@ -86,7 +87,7 @@ void hash_init(HashTable *hash_table, const unsigned long long size)
  */
 void hash_cleanup(HashTable *hash_table)
 {
-	unsigned int i = 0, imax = hash_table->hash_mask + HASH_N_WAY;
+	unsigned int i = 0, imax = hash_table->n_hash;
 	Hash *pHash = hash_table->hash;
 
 	assert(hash_table != NULL && hash_table->hash != NULL);
@@ -94,7 +95,7 @@ void hash_cleanup(HashTable *hash_table)
 	info("< cleaning hashtable >\n");
 
   #if defined(hasSSE2) || defined(USE_MSVC_X86)
-	if (hasSSE2 && (sizeof(Hash) == 24) && (((size_t) pHash & 0x1f) == 0) && (imax >= 7)) {
+	if (hasSSE2 && (sizeof(Hash) == 24) && (((size_t) pHash & 0x1f) == 0) && (imax > 7)) {
 		for (; i < 4; ++i, ++pHash) {
 			HASH_COLLISIONS(pHash->key = 0;)
 			pHash->board.player = pHash->board.opponent = 0;
@@ -104,7 +105,7 @@ void hash_cleanup(HashTable *hash_table)
 		__m256i d0 = _mm256_load_si256((__m256i *)(pHash - 4));
 		__m256i d1 = _mm256_load_si256((__m256i *)(pHash - 4) + 1);
 		__m256i d2 = _mm256_load_si256((__m256i *)(pHash - 4) + 2);
-		for (i = 4; i <= imax - 3; i += 4, pHash += 4) {
+		for (i = 4; i < imax - 3; i += 4, pHash += 4) {
 			_mm256_stream_si256((__m256i *) pHash, d0);
 			_mm256_stream_si256((__m256i *) pHash + 1, d1);
 			_mm256_stream_si256((__m256i *) pHash + 2, d2);
@@ -113,7 +114,7 @@ void hash_cleanup(HashTable *hash_table)
 		__m128i d0 = _mm_load_si128((__m128i *)(pHash - 4));
 		__m128i d1 = _mm_load_si128((__m128i *)(pHash - 4) + 1);
 		__m128i d2 = _mm_load_si128((__m128i *)(pHash - 4) + 2);
-		for (i = 4; i <= imax - 1; i += 2, pHash += 2) {
+		for (i = 4; i < imax - 1; i += 2, pHash += 2) {
 			_mm_stream_si128((__m128i *) pHash, d0);
 			_mm_stream_si128((__m128i *) pHash + 1, d1);
 			_mm_stream_si128((__m128i *) pHash + 2, d2);
@@ -122,7 +123,7 @@ void hash_cleanup(HashTable *hash_table)
 		_mm_sfence();
 	}
   #endif
-	for (; i <= imax; ++i, ++pHash) {
+	for (; i < imax; ++i, ++pHash) {
 		HASH_COLLISIONS(pHash->key = 0;)
 		pHash->board.player = pHash->board.opponent = 0; 
 		pHash->data = HASH_DATA_INIT;
@@ -538,6 +539,41 @@ void hash_store(HashTable *hash_table, const Board *board, const unsigned long l
 }
 
 /**
+ * @brief Thead local (lockfree), 1-way version of hash_store
+ * http://www.amy.hi-ho.ne.jp/okuhara/edaxopt.htm#localhash
+ * https://github.com/Nyanyan/Egaroucid/pull/294
+ *
+ * @param hash Hash table entry to update.
+ * @param board Bitboard.
+ * @param alpha      Alpha bound when calling the alphabeta function.
+ * @param beta       Beta bound when calling the alphabeta function.
+ * @param score      Best score found.
+ * @param move       Best move found.
+ */
+void hash_store_local(Hash *hash, V2DI vboard, int alpha, int beta, int score, int move)
+{
+	if (vboard_equal(vboard, &hash->board)) {	// data_update
+		if (score < beta && score < hash->data.upper) hash->data.upper = score;
+		if (score > alpha) {
+			if (score > hash->data.lower) hash->data.lower = score;
+			hash->data.move[0] = move;
+		}
+
+	} else {	// data_new
+		int upper = SCORE_MAX;
+		if (score < beta) upper = score;
+		if (score <= alpha) {
+			score = SCORE_MIN;
+			move = NOMOVE;
+		}
+		hash->board = vboard.board;
+		hash->data.upper = upper;
+		hash->data.lower = score;
+		hash->data.move[0] = move;
+	}
+}
+
+/**
  * @brief Store an hashtable item.
  *
  * Does the same as hash_store() except it always store the current search state
@@ -706,57 +742,4 @@ void hash_print(const HashData *data, FILE *f)
 	fprintf(f, "%s ; ", move_to_string(data->move[1], WHITE, s_move));
 	fprintf(f, "score = [%+02d, %+02d] ; ", data->lower, data->upper);
 	fprintf(f, "level = %2d:%2d:%2d@%3d%%", data->wl.c.date, data->wl.c.cost, data->wl.c.depth, selectivity_table[data->wl.c.selectivity].percent);
-}
-
-/**
- * @brief Thead local (lockfree), 1-way version of hash_store
- *
- * @param hash_table Hash table to update.
- * @param board Bitboard.
- * @param hash_code  Hash code of an othello board.
- * @param storedata.alpha      Alpha bound when calling the alphabeta function.
- * @param storedata.beta       Beta bound when calling the alphabeta function.
- * @param storedata.score      Best score found.
- * @param storedata.move       Best move found.
- */
-void hash_store_local(HashTable *hash_table, const Board *board, const unsigned long long hash_code, HashStoreData *storedata)
-{
-	Hash *hash = hash_table->hash + (hash_code & hash_table->hash_mask);
-	HashData *data = &hash->data;
-	int score = storedata->score;
-	if (board_equal(&hash->board, board)) {	// data_update
-		if (score < storedata->beta && score < data->upper) data->upper = score;
-		if (score > storedata->alpha && score > data->lower) data->lower = score;
-		// if (storedata->data.wl.c.cost > data->wl.c.cost)
-		//	data->wl.c.cost = storedata->data.wl.c.cost;
-	} else {	// data_new
-		hash->board = *board;
-		if (score < storedata->beta) data->upper = score; else data->upper = SCORE_MAX;
-		if (score > storedata->alpha) data->lower = score; else data->lower = SCORE_MIN;
-		data->wl = storedata->data.wl;
-		data->move[0] = NOMOVE;
-	}
-	if (score > storedata->alpha || score == SCORE_MIN)
-		data->move[0] = storedata->data.move[0];
-}
-
-/**
- * @brief Thead local (lockfree), 1-way version of hash_get
- *
- * @param hash_table Hash table.
- * @param board Bitboard.
- * @param hash_code Hash code of an othello board.
- * @param data Output hash data.
- * @return True the board was found, false otherwise.
- */
-bool hash_get_local(HashTable *hash_table, const Board *board, const unsigned long long hash_code, HashData *data)
-{
-	Hash *hash = hash_table->hash + (hash_code & hash_table->hash_mask);
-	if (board_equal(&hash->board, board)) {
-		*data = hash->data;
-		return true;
-	} else {
-		*data = HASH_DATA_INIT;
-		return false;
-	}
 }

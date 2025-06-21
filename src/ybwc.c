@@ -22,7 +22,7 @@
  * ICCA Journal, Vol. 12, No. 2, pp. 65-73.
  * -# Feldmann R. (1993) Game-Tree Search on Massively Parallel System - PhD Thesis, Paderborn (English version).
  *
- * @date 1998 - 2023
+ * @date 1998 - 2025
  * @author Richard Delorme
  * @version 4.5
  */
@@ -491,12 +491,7 @@ static Search* task_search_create(Task *task)
 	if (search == NULL) {
 		fatal_error("task_init: cannot allocate the search position.\n");
 	}
-	search->thread_hash.hash = mm_malloc(((1 << THREAD_LOCAL_HASH_SIZE) + HASH_N_WAY) * sizeof (Hash));
-	if (search->thread_hash.hash == NULL) {
-		fatal_error("task_init: Cannot allocate a thread hash\n");
-	}
-	search->thread_hash.hash_mask = (1 << THREAD_LOCAL_HASH_SIZE) - 1;
-	hash_cleanup(&search->thread_hash);
+	search_alloc_thread_hash(search);
 
 	search->n_nodes = 0;
 	search->n_child = 0;

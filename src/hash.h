@@ -3,7 +3,7 @@
  *
  * Hash table's header.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2025
  * @author Richard Delorme
  * @version 4.5
  */
@@ -71,7 +71,7 @@ typedef struct HashTable {
 	HashLock *lock;               /*!< table with locks */
 	unsigned long long hash_mask; /*!< a bit mask for hash entries */
 	unsigned int lock_mask;       /*!< a bit mask for lock entries */
-	int n_hash;                   /*!< hash table size */
+	unsigned int n_hash;          /*!< hash table size */
 	int n_lock;                   /*!< number of locks */
 	unsigned char date;           /*!< date */
 } HashTable;
@@ -94,14 +94,13 @@ void hash_clear(HashTable*);
 void hash_free(HashTable*);
 void hash_feed(HashTable*, const Board *, const unsigned long long, HashStoreData *);
 void hash_store(HashTable*, const Board *, const unsigned long long, HashStoreData *);
+void hash_store_local(Hash*, V2DI, int, int, int, int);
 void hash_force(HashTable*, const Board *, const unsigned long long, HashStoreData *);
 bool hash_get(HashTable*, const Board *, const unsigned long long, HashData *);
 bool hash_get_from_board(HashTable*, const Board *, HashData *);
 void hash_exclude_move(HashTable*, const Board *, const unsigned long long, const int);
 void hash_copy(const HashTable*, HashTable*);
 void hash_print(const HashData*, FILE*);
-void hash_store_local(HashTable *, const Board *, const unsigned long long, HashStoreData *);
-bool hash_get_local(HashTable*, const Board *, const unsigned long long, HashData *);
 extern unsigned int writeable_level(HashData *data);
 
 extern const HashData HASH_DATA_INIT;

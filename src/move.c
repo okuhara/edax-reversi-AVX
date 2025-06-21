@@ -293,7 +293,7 @@ static Move* move_next_most_expensive(Move *previous_best)
  *
  * @param movelist List of moves to sort.
  * @param search Position to evaluate.
- * @param hash_data   Position (maybe) stored in the hashtable.
+ * @param hashmove Position (maybe) stored in the hashtable.
  */
 #ifndef __AVX2__
 static int movelist_mobility_score(unsigned long long P, unsigned long long O, unsigned long long *moves)
@@ -313,7 +313,7 @@ static int movelist_mobility_score(unsigned long long P, unsigned long long O, u
 }
 #endif
 
-void movelist_evaluate_fast(MoveList *movelist, Search *search, const HashData *hash_data)
+void movelist_evaluate_fast(MoveList *movelist, Search *search, const unsigned char hashmove[2])
 {
 	Move	*move;
 	int	score, parity_weight;
@@ -326,8 +326,8 @@ void movelist_evaluate_fast(MoveList *movelist, Search *search, const HashData *
 	do {
 		// move_evaluate(move, search, hash_data, sort_alpha, -1);
 		if (move_wipeout(move, &search->board)) score = (1 << 30);
-		else if (move->x == hash_data->move[0]) score = (1 << 29);
-		else if (move->x == hash_data->move[1]) score = (1 << 28);
+		else if (move->x == hashmove[0]) score = (1 << 29);
+		else if (move->x == hashmove[1]) score = (1 << 28);
 		else {
 #ifdef __AVX2__
 			__m128i PO = _mm_xor_si128(*(__m128i *) &search->board,
@@ -339,8 +339,8 @@ void movelist_evaluate_fast(MoveList *movelist, Search *search, const HashData *
 #else
 			unsigned long long O = search->board.player ^ (move->flipped | x_to_bit(move->x));
 			unsigned long long P = search->board.opponent ^ move->flipped;
-			unsigned long long moves;
-			score  = movelist_mobility_score(P, O, &moves);
+			unsigned long long dummy;
+			score  = movelist_mobility_score(P, O, &dummy);
 #endif
 			score += get_corner_stability(O) * w_corner_stability; // corner stability
 			score += SQUARE_VALUE[move->x]; // square type
@@ -418,13 +418,13 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 			else if (move->x == hash_data->move[1] && hash_data->wl.c.depth > sort_depth - 3) score = (1 << 28);
 			else {
 				search_update_midgame(search, move);
-	#ifdef __AVX2__
+#ifdef __AVX2__
 				__m128i MM =  get_moves_and_potential(_mm256_set1_epi64x(search->board.player), _mm256_set1_epi64x(search->board.opponent));
 				score  = (36 - bit_weighted_count(_mm_extract_epi64(MM, 1))) * w_potential_mobility; // potential mobility
 				score += (36 - bit_weighted_count(moves = _mm_cvtsi128_si64(MM))) * w_mobility; // real mobility
-	#else
+#else
 				score  = movelist_mobility_score(search->board.player, search->board.opponent, &moves);
-	#endif
+#endif
 				score += get_edge_stability(search->board.opponent, search->board.player) * w_edge_stability; // edge stability
 				switch (sort_depth) {
 				case 0:
@@ -455,7 +455,7 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 		} while ((move = move->next));
 
 	} else	// sort_depth = -1
-		movelist_evaluate_fast(movelist, search, hash_data);
+		movelist_evaluate_fast(movelist, search, hash_data->move);
 }
 
 /**
