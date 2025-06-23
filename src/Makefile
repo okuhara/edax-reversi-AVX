@@ -71,13 +71,13 @@ ifeq ($(COMP),gcc)
 		CFLAGS += -mx32 -mtune=generic -DUSE_GAS_X64
 	endif
 	ifeq ($(ARCH),x86-sse)
-		CFLAGS += -m32 -march=pentium-m -mfpmath=sse -DUSE_GAS_X86 -DhasSSE2
+		CFLAGS += -m32 -march=pentium-m -mfpmath=sse -DUSE_GAS_X86 -DhasSSE2 -fno-pie -no-pie
 		ifeq ($(BUILD),optimize)
 			CFLAGS += -fomit-frame-pointer
 		endif
 	endif
 	ifeq ($(ARCH),x86)
-		CFLAGS += -m32 -march=i386 -mtune=generic -DUSE_GAS_X86
+		CFLAGS += -m32 -march=i386 -mtune=generic -DUSE_GAS_X86 -fno-pie -no-pie
 		ifeq ($(BUILD),optimize)
 			CFLAGS += -fomit-frame-pointer
 		endif
@@ -186,7 +186,7 @@ ifeq ($(COMP),clang)
 		CFLAGS += -m64 -DUSE_GAS_X64 
 	endif
 	ifeq ($(ARCH),x86)
-		CFLAGS += -m32 -DUSE_GAS_X86
+		CFLAGS += -m32 -DUSE_GAS_X86 -fno-pie -no-pie
 	endif
 	ifeq ($(ARCH),arm)
 		ifeq ($(BUILD),optimize)
