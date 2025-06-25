@@ -243,7 +243,7 @@ extern unsigned char edge_stability[256 * 256];
 #endif
 
 #if defined(__AVX__) || defined(__SSE4_1__)
-	inline int vectorcall vboard_equal(V2DI v, Board *b) {
+	static inline int vectorcall vboard_equal(V2DI v, Board *b) {
 		__m128i t = _mm_xor_si128((v).v2, _mm_loadu_si128((__m128i *) (b)));
 		return _mm_testz_si128(t, t);
 	}
