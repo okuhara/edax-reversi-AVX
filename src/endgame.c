@@ -385,57 +385,37 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 	if (prioritymoves == 0)	// all even
 		prioritymoves = moves;
 
-	if (search->eval.n_empties == 5)	// transfer to search_solve_n, no longer uses n_empties, parity (53%)
+	--search->eval.n_empties;	// for next depth
+	do {
+		moves ^= prioritymoves;
+		x = NOMOVE;
 		do {
-			moves ^= prioritymoves;
-			x = NOMOVE;
 			do {
-				do {
-					x = search->empties[prev = x].next;
-				} while (!(prioritymoves & x_to_bit(x)));	// (58%)
+				x = search->empties[prev = x].next;
+			} while (!(prioritymoves & x_to_bit(x)));	// (57%)
 
-				prioritymoves &= ~x_to_bit(x);
-				search->empties[prev].next = search->empties[x].next;	// remove - maintain single link only
-				vboard_next(board0, x, &search->board);
+			prioritymoves &= ~x_to_bit(x);
+			search->empties[prev].next = search->empties[x].next;	// remove - maintain single link only
+			vboard_next(board0, x, &search->board);
+			if (search->eval.n_empties == 4) {	// transfer to search_solve_n, no longer uses parity
 				score = search_solve_4(search, alpha);
-				search->empties[prev].next = x;	// restore
-
-				if (score > alpha)	// (49%)
-					return score;
-				else if (score > bestscore)
-					bestscore = score;
-			} while (prioritymoves);	// (34%)
-		} while ((prioritymoves = moves));	// (38%)
-
-	else {
-		--search->eval.n_empties;	// for next depth
-		do {
-			moves ^= prioritymoves;
-			x = NOMOVE;
-			do {
-				do {
-					x = search->empties[prev = x].next;
-				} while (!(prioritymoves & x_to_bit(x)));	// (57%)
-
-				prioritymoves &= ~x_to_bit(x);
+			} else {
 				search->eval.parity = parity0 ^ QUADRANT_ID[x];
-				search->empties[prev].next = search->empties[x].next;	// remove - maintain single link only
-				vboard_next(board0, x, &search->board);
 				score = -search_shallow(search, ~alpha, false);
-				search->empties[prev].next = x;	// restore
+			}
+			search->empties[prev].next = x;	// restore
 
-				if (score > alpha) {	// (40%)
-					// search->board = board0.board;
-					// search->eval.parity = parity0;
-					++search->eval.n_empties;
-					return score;
+			if (score > alpha) {	// (40%)
+				++search->eval.n_empties;
+				// search->board = board0.board;
+				// search->eval.parity = parity0;
+				return score;
 
-				} else if (score > bestscore)
-					bestscore = score;
-			} while (prioritymoves);	// (54%)
-		} while ((prioritymoves = moves));	// (23%)
-		++search->eval.n_empties;
-	}
+			} else if (score > bestscore)
+				bestscore = score;
+		} while (prioritymoves);	// (54%)
+	} while ((prioritymoves = moves));	// (23%)
+	++search->eval.n_empties;
 	// search->board = board0.board;	// restore in caller
 	// search->eval.parity = parity0;
 
@@ -459,14 +439,12 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 static int NWS_endgame_local(Search *search, const int alpha)
 {
 	int score, ofssolid, bestmove, bestscore, lower, upper;
-	unsigned long long solid_opp;
 	// const int beta = alpha + 1;
 	Hash *hash_entry;
 	Move *move;
 	// long long nodes_org;
 	V2DI board0, hashboard;
 	unsigned int parity0;
-	unsigned long long full[5];
 	MoveList movelist;
 
 	assert(bit_count(~(search->board.player|search->board.opponent)) < DEPTH_TO_USE_LOCAL_HASH);
@@ -478,8 +456,11 @@ static int NWS_endgame_local(Search *search, const int alpha)
 	// stability cutoff
 	board0.board = hashboard.board = search->board;
 	ofssolid = 0;
-	// search_SC_NWS(search, alpha, &score)
-	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {	// (7%)
+#ifdef USE_SOLID
+	if (USE_SC && alpha >= NWS_STABILITY_SOLID_THRESHOLD) {	// (7%)
+		unsigned long long full[5];
+		unsigned long long solid_opp;
+
 		CUTOFF_STATS(++statistics.n_stability_try;)
 		score = SCORE_MAX - 2 * get_stability_fulls(search->board.opponent, search->board.player, full);
 		if (score <= alpha) {	// (3%)
@@ -504,6 +485,9 @@ static int NWS_endgame_local(Search *search, const int alpha)
 			ofssolid = bit_count(solid_opp) * 2;	// hash score is ofssolid grater than real
 		}
 	}
+#else
+	if (search_SC_NWS(search, alpha, &score)) return score;
+#endif
 
 	hash_entry = search->thread_hash.hash + (board_get_hash_code(&hashboard.board) & search->thread_hash.hash_mask);
 	// PREFETCH(hash_entry);

@@ -840,7 +840,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 		hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
 		hash_store(&search->pv_table, &search->board, hash_code, &hash_data);
 
-#if 0 // not effective for thread local hash
+#if 0 && defined(USE_SOLID) // not effective for thread local hash
 		// store solid-normalized for endgame TC
 		if (search->eval.n_empties <= depth && depth <= DEPTH_TO_USE_LOCAL_HASH && depth > DEPTH_TO_SHALLOW_SEARCH) {
 			V2DI hashboard;
