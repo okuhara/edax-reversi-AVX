@@ -242,11 +242,8 @@ extern unsigned char edge_stability[256 * 256];
 	#define	vboard_get_moves(vboard)	get_moves((vboard).board.player, (vboard).board.opponent)
 #endif
 
-#if defined(__AVX__) || defined(__SSE4_1__)
-	static inline int vectorcall vboard_equal(V2DI v, Board *b) {
-		__m128i t = _mm_xor_si128((v).v2, _mm_loadu_si128((__m128i *) (b)));
-		return _mm_testz_si128(t, t);
-	}
+#ifdef hasSSE2
+	#define	vboard_equal(v,b)	(_mm_movemask_epi8(_mm_cmpeq_epi8((v).v2, _mm_loadu_si128((__m128i *) (b)))) == 0xFFFF)
 #else
 	#define	vboard_equal(v,b)	board_equal(&(v).board, (b))
 #endif
