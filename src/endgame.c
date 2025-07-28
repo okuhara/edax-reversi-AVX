@@ -459,7 +459,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 #ifdef USE_SOLID
 	if (USE_SC && alpha >= NWS_STABILITY_SOLID_THRESHOLD) {	// (7%)
 		unsigned long long full[5];
-		unsigned long long solid_opp;
+		V2DI solid;
 
 		CUTOFF_STATS(++statistics.n_stability_try;)
 		score = SCORE_MAX - 2 * get_stability_fulls(search->board.opponent, search->board.player, full);
@@ -471,19 +471,18 @@ static int NWS_endgame_local(Search *search, const int alpha)
 		// Improvement of Serch by Reducing Redundant Information in a Position of Othello
 		// Hidekazu Matsuo, Shuji Narazaki
 		// http://id.nii.ac.jp/1001/00156359/
-		solid_opp = full[4] & hashboard.board.opponent;	// full[4] = all full
-  #ifndef POPCOUNT
-		if (solid_opp)	// (72%)
-  #endif
-		{
-  #ifdef hasSSE2
-			hashboard.v2 = _mm_xor_si128(hashboard.v2, _mm_set1_epi64x(solid_opp));
+  #if defined(hasSSE2) && defined(POPCOUNT)
+		solid.v2 = _mm_and_si128(hashboard.v2, _mm_loadl_epi64((__m128i *) &full[4]));
+		hashboard.v2 = _mm_xor_si128(hashboard.v2, _mm_unpacklo_epi64(solid.v2, solid.v2));
+		ofssolid = bit_count_si64(solid.v2) * 2;
   #else
-			hashboard.board.player ^= solid_opp;	// normalize solid to player
-			hashboard.board.opponent ^= solid_opp;
-  #endif
-			ofssolid = bit_count(solid_opp) * 2;	// hash score is ofssolid grater than real
+		solid.board.player = full[4] & hashboard.board.player;	// full[4] = all full
+		if (solid.board.player) {	// (72%)
+			hashboard.board.player ^= solid.board.player;	// normalize solid to opponent
+			hashboard.board.opponent ^= solid.board.player;
+			ofssolid = bit_count(solid.board.player) * 2;	// hash score is ofssolid smaller than real
 		}
+  #endif
 	}
 #else
 	if (search_SC_NWS(search, alpha, &score)) return score;
@@ -500,8 +499,8 @@ static int NWS_endgame_local(Search *search, const int alpha)
 		unsigned char hashmove[2] = { NOMOVE, NOMOVE };
 		if (vboard_equal(hashboard, &hash_entry->board)) {	// (6%)
 			hashmove[0] = hash_entry->data.move[0];
-			lower = hash_entry->data.lower - ofssolid;
-			upper = hash_entry->data.upper - ofssolid;
+			lower = hash_entry->data.lower + ofssolid;
+			upper = hash_entry->data.upper + ofssolid;
 			// search_TC_NWS(&hash_data.data, search->eval.n_empties, NO_SELECTIVITY, alpha, &score)
 			if (USE_TC /* && (data->wl.c.selectivity >= NO_SELECTIVITY && data->wl.c.depth >= search->eval.n_empties) */) {
 				CUTOFF_STATS(++statistics.n_hash_try;)
@@ -550,7 +549,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 		if (search->stop)	// (1%)
 			return alpha;
 
-		hash_store_local(hash_entry, hashboard, alpha + ofssolid, alpha + ofssolid + 1, bestscore + ofssolid, bestmove);
+		hash_store_local(hash_entry, hashboard, alpha - ofssolid, alpha - ofssolid + 1, bestscore - ofssolid, bestmove);
 
 	} else {	// (1%)
 		if (can_move(search->board.opponent, search->board.player)) { // pass
