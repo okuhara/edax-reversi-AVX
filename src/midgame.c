@@ -840,18 +840,24 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 		hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
 		hash_store(&search->pv_table, &search->board, hash_code, &hash_data);
 
-#if 0 && defined(USE_SOLID) // not effective for thread local hash
-		// store solid-normalized for endgame TC
+		// lacal hash (main thread only)
 		if (search->eval.n_empties <= depth && depth <= DEPTH_TO_USE_LOCAL_HASH && depth > DEPTH_TO_SHALLOW_SEARCH) {
 			V2DI hashboard;
+  #ifdef USE_SOLID
 			unsigned long long solid = get_all_full_lines(search->board.player | search->board.opponent) & search->board.player;
-			int ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
-			hashboard.board.player = search->board.player ^ solid;	// normalize solid to opponent
-			hashboard.board.opponent = search->board.opponent ^ solid;
-			hash_store_local(search->thread_hash.hash + (hash_code & search->thread_hash.hash_mask), hashboard,
-				hash_data.alpha - ofssolid, hash_data.beta - ofssolid, hash_data.score - ofssolid, hash_data.data.move[0]);
+			if (solid) {
+				int ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
+				hashboard.board.player = search->board.player ^ solid;	// normalize solid to opponent
+				hashboard.board.opponent = search->board.opponent ^ solid;
+				hash_store_local(search->thread_hash.hash + (board_get_hash_code(&hashboard.board) & search->thread_hash.hash_mask),
+					hashboard, alpha - ofssolid, beta - ofssolid, node.bestscore - ofssolid, node.bestmove);
+			}
+  #endif
+			hashboard.board = search->board;
+			hash_store_local(search->thread_hash.hash + (hash_code & search->thread_hash.hash_mask),
+				hashboard, alpha, beta, node.bestscore, node.bestmove);
 		}
-#endif
+
 		SQUARE_STATS(foreach_move(move, movelist))
 		SQUARE_STATS(++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];)
 		SQUARE_STATS(if (node.bestscore > alpha) ++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[node.bestmove]];)
