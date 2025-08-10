@@ -11,7 +11,7 @@
  * some board properties. Most of the functions are optimized to be as fast as
  * possible, while remaining readable.
  *
- * @date 1998 - 2024
+ * @date 1998 - 2025
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -818,7 +818,7 @@ void edge_stability_init(void)
  *
  * Compute the exact stable edges from precomputed tables.
  *
- * @param P bitboard with player's discs.
+ * @param board bitboard with player's discs.
  * @param O bitboard with opponent's discs.
  * @return a bitboard with (some of) player's stable discs.
  *
@@ -832,16 +832,17 @@ unsigned long long get_stable_edge(const unsigned long long P, const unsigned lo
 }
 
 /**
- * @brief Estimate the stability of edges.
+ * @brief Estimate the opponent's stability of edges.
  *
  * Count the number (in fact a lower estimate) of stable discs on the edges.
  *
- * @param P bitboard with player's discs.
- * @param O bitboard with opponent's discs.
+ * @param board bitboard to evaluate.
  * @return the number of stable discs on the edges.
  */
-int get_edge_stability(const unsigned long long P, const unsigned long long O)
+int get_opp_edge_stability(const Board *board)
 {
+	unsigned long long P = board->opponent;	// opponent's view
+	unsigned long long O = board->player;
 	unsigned int packedstable = edge_stability[((unsigned int) P & 0xff) * 256 + ((unsigned int) O & 0xff)]
 	  | edge_stability[(unsigned int) (P >> 56) * 256 + (unsigned int) (O >> 56)] << 8
 	  | edge_stability[packA1A8(P) * 256 + packA1A8(O)] << 16

@@ -59,7 +59,12 @@ int get_mobility(const unsigned long long, const unsigned long long);
 #endif
 
 void edge_stability_init(void);
-unsigned long long get_stable_edge(const unsigned long long, const unsigned long long);
+#ifdef hasSSE2
+	unsigned long long vectorcall get_stable_edge_sse(__m128i);
+	#define	get_stable_edge(P,O)	get_stable_edge_sse(_mm_set_epi64x((P), (O)))
+#else
+	unsigned long long get_stable_edge(const unsigned long long, const unsigned long long);
+#endif
 #ifndef __AVX2__	// public for android dispatch
 	void get_full_lines(const unsigned long long, unsigned long long [4]);
   #if !(defined(hasMMX) && !defined(hasSSE2))
@@ -67,9 +72,17 @@ unsigned long long get_stable_edge(const unsigned long long, const unsigned long
   #endif
 #endif
 unsigned long long get_all_full_lines(const unsigned long long);
+
 int get_stability(const unsigned long long, const unsigned long long);
-int get_stability_fulls(const unsigned long long, const unsigned long long, unsigned long long [5]);
-int get_edge_stability(const unsigned long long, const unsigned long long);
+#ifdef __AVX2__	// Pass Board in a vector register
+	int vectorcall get_stability_PO_fulls(__m128i, unsigned long long [5]);
+	#define	get_stability_fulls(P,O,fulls)	get_stability_PO_fulls(_mm_set_epi64x((P), (O)), (fulls))
+	#define	vget_opp_statility_fulls(vboard,fulls)	get_stability_PO_fulls((vboard).v2, (fulls))
+#else	// Pass the Board, from opp view
+	int get_stability_fulls(const unsigned long long, const unsigned long long, unsigned long long [5]);
+	#define	vget_opp_statility_fulls(vboard,fulls)	get_stability_fulls((vboard).board.opponent, (vboard).board.player, (fulls))
+#endif
+int get_opp_edge_stability(const Board*);
 int get_corner_stability(const unsigned long long);
 unsigned long long board_get_hash_code(const Board*);
 int board_get_square_color(const Board*, const int);

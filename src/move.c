@@ -425,7 +425,7 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 #else
 				score  = movelist_mobility_score(search->board.player, search->board.opponent, &moves);
 #endif
-				score += get_edge_stability(search->board.opponent, search->board.player) * w_edge_stability; // edge stability
+				score += get_opp_edge_stability(&search->board) * w_edge_stability; // edge stability
 				switch (sort_depth) {
 				case 0:
 					score += (SCORE_MAX - search_eval_0(search)) * (w_eval >> 2);	// 1 level score bonus
