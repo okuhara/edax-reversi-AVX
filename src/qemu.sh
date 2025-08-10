@@ -2,7 +2,7 @@ if [ "$1" = arm32 ]
 then
 make build OS=linux ARCH=arm COMP=gcc CC=arm-linux-gnueabi-gcc
 cd ../bin
-qemu-arm -L /usr/arm-linux-gnueabi -cpu max,neon=off ./lEdax-arm -n 1 -l 60 -solve ../problem/fforum-20-39.obf
+qemu-arm -L /usr/arm-linux-gnueabi -cpu cortex-a7,neon=off,vfp-d32=off ./lEdax-arm -n 1 -l 60 -solve ../problem/fforum-20-39.obf
 elif [ "$1" = neon ]
 then
 make build OS=linux ARCH=arm-neon COMP=gcc CC=arm-linux-gnueabi-gcc
