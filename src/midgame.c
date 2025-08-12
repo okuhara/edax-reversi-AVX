@@ -48,6 +48,7 @@ static int accumlate_eval(int ply, Eval *eval)
 		ply = EVAL_N_2PLY - 2;
 
 #if defined(__AVX2__) && !defined(__bdver4__) && !defined(__znver1__) && !defined(__znver2__)
+	static const unsigned long long shift_even[2] = { 16, 0 };
 	enum {
 		W_C9 = offsetof(Eval_weight, C9) / 4,
 		W_C10 = offsetof(Eval_weight, C10) / 4,
@@ -55,7 +56,7 @@ static int accumlate_eval(int ply, Eval *eval)
 		W_S101 = offsetof(Eval_weight, S101) / 4
 	};
 	w = *EVAL_WEIGHT + ply;
-	__m128i SW = _mm_cvtsi32_si128((b0 ^ 1) * 16);	// 16 for even, 0 for odd
+	__m128i SW = _mm_loadl_epi64((__m128i *)(shift_even + b0));	// 16 for even, 0 for odd
 	__m256i FF = _mm256_add_epi32(_mm256_cvtepu16_epi32(eval->feature.v8[0]),
 		_mm256_set_epi32(W_C10, W_C10, W_C10, W_C10, W_C9, W_C9, W_C9, W_C9));
 	__m256i DD = _mm256_i32gather_epi32((int *) w, FF, 4);
