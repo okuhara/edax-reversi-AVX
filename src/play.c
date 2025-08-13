@@ -5,7 +5,7 @@
  *
  * @date 1998 - 2020
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #include "bit.h"
@@ -213,12 +213,12 @@ bool play_must_pass(Play *play)
  */
 void play_go(Play *play, const bool update)
 {
-	extern Log xboard_log[1];
+	extern Log xboard_log;
 
 	long long t_real = -real_clock();
 	long long t_cpu = -cpu_clock();
 	Move move;
-	Search *const search = &play->search;
+	Search *search = &play->search;
 	char s_move[4];
 
 	if (play_is_game_over(play)) return;
@@ -252,7 +252,7 @@ void play_go(Play *play, const bool update)
 		play->result.n_nodes = 0;
 		line_init(&play->result.pv, play->player);
 		book_get_line(play->book, &play->board, &move, &play->result.pv);
-		
+
 		if (options.verbosity) {
 			info("\n[book move]\n");
 			if (options.info) book_show(play->book, &play->board);
@@ -267,7 +267,7 @@ void play_go(Play *play, const bool update)
 				line_print(&play->result.pv, options.width - 54, " ", stdout);
 				putchar('\n');
 				if (search->options.separator) puts(search->options.separator);
-			} 
+			}
 		}
 	} else if (play->state == IS_PONDERING && board_equal(&play->board, &play->ponder.board)) {
 		play->state = IS_THINKING;
@@ -283,11 +283,11 @@ void play_go(Play *play, const bool update)
 		else search_set_game_time(search, play->time[play->player].left);
 
 		search_time_reset(search, &play->board);
-		if (log_is_open(xboard_log)) {
-			 fprintf(xboard_log->f, "edax search> cpu: %d\n", options.n_task);
-			 fprintf(xboard_log->f, "edax search> time: spent while pondering = %.2f mini = %.2f; maxi = %.2f; extra = %.2f\n",
+		if (log_is_open(&xboard_log)) {
+			 fprintf(xboard_log.f, "edax search> cpu: %d\n", options.n_task);
+			 fprintf(xboard_log.f, "edax search> time: spent while pondering = %.2f mini = %.2f; maxi = %.2f; extra = %.2f\n",
 				0.001 * search_time(search), 0.001 * search->time.mini,  0.001 * search->time.maxi,  0.001 * search->time.extra);
-			 fprintf(xboard_log->f, "edax search> level: %d@%d%%\n",
+			 fprintf(xboard_log.f, "edax search> level: %d@%d%%\n",
 				search->options.depth, selectivity_table[search->options.selectivity].percent);
 		}
 
@@ -295,7 +295,7 @@ void play_go(Play *play, const bool update)
 		thread_join(play->ponder.thread);
 		play->ponder.launched = false;
 		search->observer(search->result);
-				
+
 		play->result = *search->result;
 		play->state = IS_WAITING;
 		if (!board_get_move_flip(&play->board, search->result->move, &move) && move.x != PASS) {
@@ -323,15 +323,15 @@ void play_go(Play *play, const bool update)
 		if (options.play_type == EDAX_TIME_PER_MOVE) search_set_move_time(search, options.time);
 		else search_set_game_time(search, play->time[play->player].left);
 
-		search_time_init(search); // redondant, 
-		if (log_is_open(xboard_log)) {
-			 fprintf(xboard_log->f, "edax search> cpu: %d\n", options.n_task);
-			 fprintf(xboard_log->f, "edax search> time: left = %.2f mini = %.2f; maxi = %.2f; extra = %.2f\n",
+		search_time_init(search); // redondant ?
+		if (log_is_open(&xboard_log)) {
+			 fprintf(xboard_log.f, "edax search> cpu: %d\n", options.n_task);
+			 fprintf(xboard_log.f, "edax search> time: left = %.2f mini = %.2f; maxi = %.2f; extra = %.2f\n",
 				0.001 * play->time[play->player].left, 0.001 * search->time.mini,  0.001 * search->time.maxi,  0.001 * search->time.extra);
-			 fprintf(xboard_log->f, "edax search> level: %d@%d%%\n",
+			 fprintf(xboard_log.f, "edax search> level: %d@%d%%\n",
 				search->options.depth, selectivity_table[search->options.selectivity].percent);
 		}
-		
+
 		search_run(search);
 		play->result = *search->result;
 		play->state = IS_WAITING;
@@ -366,7 +366,7 @@ void play_hint(Play *play, int n)
 {
 	Line pv;
 	Move *m;
-	Search *const search = &play->search;
+	Search *search = &play->search;
 	MoveList book_moves;
 	GameStats stat;
 	Board b;
@@ -441,8 +441,8 @@ void play_hint(Play *play, int n)
  */
 void* play_ponder_run(void *v)
 {
-	extern Log xboard_log[1];
-	Play *const play = (Play*) v;
+	extern Log xboard_log;
+	Play *play = (Play*) v;
 	int player;
 	Search *search = &play->search;
 	Board board;
@@ -479,9 +479,9 @@ void* play_ponder_run(void *v)
 			play->ponder.board = board;
 			search_set_board(search, &board, player);
 			search_set_ponder_level(search, options.level, search->eval.n_empties);
-			log_print(xboard_log, "edax (ponder)> start search\n");
+			log_print(&xboard_log, "edax (ponder)> start search\n");
 			search_run(search);
-			log_print(xboard_log, "edax (ponder)> search ended\n");
+			log_print(&xboard_log, "edax (ponder)> search ended\n");
 			if (options.info && play->state == IS_PONDERING) {
 				printf("[ponder (without move) id.%d: ", search->id);
 				result_print(search->result, stdout);
@@ -629,7 +629,7 @@ void play_game(Play *play, const char *string)
 
 	// convert an opening name to a move sequence...
 	next = opening_get_line(string);
-	if (next) string = next;	
+	if (next) string = next;
 
 	while ((next = parse_move(string, &play->board, &move)) != string || move.x == PASS) {
 		string = next;
@@ -699,8 +699,8 @@ Move* play_get_last_move(Play *play)
  */
 static int play_alternative(Play *play, Move *played, Move *alternative, int *depth, int *percent)
 {
-	Search *const search = &play->search;
-	Result *const result = search->result;
+	Search *search = &play->search;
+	Result *result = search->result;
 	Board excluded, board, unique;
 	Move *move;
 	unsigned long long hash_code;
@@ -799,7 +799,7 @@ void play_analyze(Play *play, int n)
 	int n_error[2] = {0, 0}, n_rejection[2] = {0, 0};
 	int disc_error[2] = {0, 0}, disc_rejection[2] = {0, 0};
 	const char *clr = "                                                                              \r";
-	
+
 
 	play_stop_pondering(play);
 
@@ -825,7 +825,7 @@ void play_analyze(Play *play, int n)
 		if (options.verbosity == 1) fputs(clr, stdout);
 		play_write_analysis(play, move, &alternative, n_alternatives, depth, percent, stdout);
 
-		score = move->score; 
+		score = move->score;
 		if (n_alternatives > 0) {
 			if (depth == n_empties && percent == 100) ++n_exact[play->player]; else ++n_eval[play->player];
 			if (alternative.score > score) {
@@ -1210,7 +1210,7 @@ void play_symetry(Play *play, const int sym)
 }
 
 /**
- * @brief Print the opening name 
+ * @brief Print the opening name
  */
 const char* play_show_opening_name(Play *play, const char *(*opening_get_name)(const Board*))
 {

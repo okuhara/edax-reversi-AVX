@@ -12,10 +12,13 @@
 #define EDAX_CONST_H
 
 /** maximal number of threads */
-#define MAX_THREADS 64
+#define MAX_THREADS 256
 
-/** maximal number of moves */
-#define MAX_MOVE 33	// https://eukaryote.hateblo.jp/entry/2023/05/23/145945
+/**
+ * Maximal number of moves is 33.
+ * For a proof, see: https://doi.org/10.51094/jxiv.480
+ */
+#define MAX_MOVE 33
 
 /** size of the board */
 #define BOARD_SIZE 64
@@ -74,12 +77,11 @@ typedef enum Stop {
 } Stop;
 
 /** node type */
-enum {
+typedef enum {
 	PV_NODE,
 	CUT_NODE,
 	ALL_NODE
-};
-typedef	unsigned char	NodeType;
+} NodeType;
 
 #define VERSION 4
 #define RELEASE 5
@@ -95,7 +97,7 @@ typedef	unsigned char	NodeType;
  * Edax state.
  */
 typedef enum PlayState {
-	IS_WAITING,
+	IS_WAITING = 0,
 	IS_PONDERING,
 	IS_ANALYZING,
 	IS_THINKING
@@ -113,5 +115,3 @@ enum {
 };
 
 #endif
-
-

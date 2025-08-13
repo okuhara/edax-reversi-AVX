@@ -71,7 +71,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-Log search_log[1];
+Log search_log;
 
 #ifdef _MSC_VER
 #define log2(x) (log(x)/log(2.0))
@@ -342,7 +342,7 @@ void search_global_init(void)
 		LEVEL[level][n_empties].depth = dep;
 		LEVEL[level][n_empties].selectivity = sel;
 	}
-	search_log->f = NULL;
+	search_log.f = NULL;
 }
 
 void search_resize_hashtable(Search *search)
@@ -457,7 +457,7 @@ void search_init(Search *search)
 	search->options.guess_pv = options.pv_guess;
 	search->options.multipv_depth = MULTIPV_DEPTH;
 
-	log_open(search_log, options.search_log_file);
+	log_open(&search_log, options.search_log_file);
 }
 
 /**
@@ -482,7 +482,7 @@ void search_free(Search *search)
 	spin_free(search->result);
 	free(search->result);
 
-	log_close(search_log);
+	log_close(&search_log);
 }
 
 /**
@@ -645,9 +645,9 @@ void search_set_ponder_level(Search *search, const int level, const int n_emptie
 /**
  * @brief Compute the deepest level that can be solved given a limited time...
  *
- * This is a very approximate computation... 
+ * This is a very approximate computation...
  * SMP_W & SMP_C depends on the depth and the position.
- * The branching factor depends also of the position. 
+ * The branching factor depends also on the position.
  *
  * @param limit Time limit in ms.
  * @param n_tasks Number of parallel tasks.
@@ -833,7 +833,7 @@ void search_check_timeout(Search *search)
 				search_stop_all(master, STOP_TIMEOUT);
 			}
 		}
-	}	
+	}
 
 	if (search->stop != STOP_TIMEOUT) {
 		t = search_time(master);

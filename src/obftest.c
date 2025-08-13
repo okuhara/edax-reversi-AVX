@@ -44,7 +44,7 @@ enum {
 	OBF_PARSE_END
 };
 
-/** 
+/**
  * @brief Free an OBF structure.
  * @param obf OBF structure.
  */
@@ -54,7 +54,7 @@ void obf_free(OBF *obf)
 	obf->comments = NULL;
 }
 
-/** 
+/**
  * @brief Write an OBF structure.
  * @param obf OBF structure.
  * @param f Output stream.
@@ -80,7 +80,7 @@ static void obf_write(OBF *obf, FILE *f)
 	fflush(f);
 }
 
-/** 
+/**
  * @brief Read an OBF structure.
  * @param obf OBF structure.
  * @param f Input stream.
@@ -147,7 +147,7 @@ static int obf_read(OBF *obf, FILE *f)
 	return OBF_PARSE_END;
 }
 
-/** 
+/**
  * @brief Analyze an OBF structure.
  * @param search Search.
  * @param obf OBF structure.
@@ -177,7 +177,7 @@ static void obf_search(Search *search, OBF *obf, int n)
 	search_run(search);
 
 	if (options.verbosity) {
-		if (options.verbosity == 1) { 
+		if (options.verbosity == 1) {
 			result_print(search->result, stdout);
 		}
 		for (i = 0; i < obf->n_moves; ++i) {
@@ -209,7 +209,7 @@ static void obf_search(Search *search, OBF *obf, int n)
 }
 
 
-/** 
+/**
  * @brief Build an OBF structure.
  * @param search Search.
  * @param obf OBF structure.
@@ -274,6 +274,7 @@ static void obf_build(Search *search, OBF *obf, int n)
 		hash_code = board_get_hash_code(&search->board);
 		hash_exclude_move(&search->pv_table, &search->board, hash_code, search->result->move);
 		hash_exclude_move(&search->hash_table, &search->board, hash_code, search->result->move);
+		hash_exclude_move(&search->shallow_table, &search->board, hash_code, search->result->move);
 		movelist_exclude(&search->movelist, search->result->move);
 	}
 
@@ -284,7 +285,7 @@ static void obf_build(Search *search, OBF *obf, int n)
 	}
 }
 
-/** 
+/**
  * @brief Test an OBF file.
  * @param search Search.
  * @param obf_file OBF file.
@@ -319,7 +320,7 @@ void obf_test(Search *search, const char *obf_file, const char *wrong_file)
 			exit(EXIT_FAILURE);
 		}
 	}
-	
+
 	if (options.verbosity == 1) {
 		if (search->options.header) printf(" # |%s\n", search->options.header);
 		if (search->options.separator) printf("---+%s\n", search->options.separator);
@@ -328,7 +329,7 @@ void obf_test(Search *search, const char *obf_file, const char *wrong_file)
 	while ((ok = obf_read(&obf, f)) != OBF_PARSE_END) {
 		if (ok == OBF_PARSE_OK) {
 			obf_search(search, &obf, ++n);
-		
+
 			T += search_time(search);
 			n_nodes += search_count_nodes(search);
 			for (i = 0; i < obf.n_moves; ++i) {
@@ -339,11 +340,11 @@ void obf_test(Search *search, const char *obf_file, const char *wrong_file)
 				if (obf.move[i].score != search->result->score) ++n_bad_score;
 				move_error += abs(obf.best_score - obf.move[i].score);
 				if (w && obf.move[i].score < obf.best_score) obf_write(&obf, w);
-			} 
+			}
 			if (obf.best_score > -SCORE_INF) score_error += abs(obf.best_score - search->result->score);
 			else print_summary = true;
 		}
-		obf_free(&obf);			
+		obf_free(&obf);
 	}
 
 	if (options.verbosity == 1 && search->options.separator) printf("---+%s\n", search->options.separator);
@@ -367,7 +368,7 @@ void obf_test(Search *search, const char *obf_file, const char *wrong_file)
 	if (w) fclose(w);
 }
 
-/** 
+/**
  * @brief Build an OBF file from a Script file.
  *
  * @param search Search.
@@ -376,7 +377,7 @@ void obf_test(Search *search, const char *obf_file, const char *wrong_file)
  */
 void script_to_obf(Search *search, const char *script_file, const char *obf_file)
 {
-	
+
 	FILE *i, *o;
 	OBF obf;
 	int n = 0, ok;
@@ -406,7 +407,7 @@ void script_to_obf(Search *search, const char *script_file, const char *obf_file
 		fclose(i);
 		return;
 	}
-	
+
 	if (options.verbosity == 1) {
 		if (search->options.header) printf(" # |%s\n", search->options.header);
 		if (search->options.separator) printf("---+%s\n", search->options.separator);
@@ -417,7 +418,7 @@ void script_to_obf(Search *search, const char *script_file, const char *obf_file
 			obf_build(search, &obf, ++n);
 		}
 		obf_write(&obf, o);
-		obf_free(&obf);			
+		obf_free(&obf);
 	}
 
 	if (options.verbosity == 1 && search->options.separator) printf("---+%s\n", search->options.separator);
@@ -451,7 +452,7 @@ void obf_filter(const char *input_file, const char *output_file)
 		fprintf(stderr, "obf_filter: cannot open Othello Position Description's file %s\n", output_file);
 		exit(EXIT_FAILURE);
 	}
-	
+
 	n = f = 0;
 	while ((ok = obf_read(&obf, in)) != OBF_PARSE_END) {
 		if (ok == OBF_PARSE_OK) {
@@ -488,21 +489,21 @@ void obf_speed(Search *search, const int n)
 	const int level = options.level;
 	Random r;
 	OBF obf;
-	
+
 	obf.n_moves = 0;
 	obf.best_score = -SCORE_INF;
-	
+
 	random_seed(&r, 42);
 	options.level = 60;
 	search_set_observer(search, search_observer);
 	search->options.verbosity = (options.verbosity == 1 ? 0 : options.verbosity);
 	options.width -= 4;
-	
+
 	if (options.verbosity == 1) {
 		if (search->options.header) printf(" # |%s\n", search->options.header);
 		if (search->options.separator) printf("---+%s\n", search->options.separator);
 	}
-	
+
 	for (i = 0; n == - 1 ? real_clock() - t < 60000 : i < n; ++i) {
 		const int ply = MAX(30, 40 - i / 5);
 		obf.player = ply & 1;
@@ -518,8 +519,8 @@ void obf_speed(Search *search, const int n)
 	time_print(T, false, stdout);
 	if (T > 0 && n_nodes > 0) printf(" (%8.0f nodes/s).", 1000.0 * n_nodes / T);
 	putchar('\n');
-	
+
 	options.level = level;
 	options.width += 4;
-	
+
 }

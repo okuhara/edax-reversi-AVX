@@ -24,9 +24,9 @@
 
 /** Selectivity probcut */
 typedef struct Selectivity {
-	double t; /**< selectivity value */
-	int level; /**< level of selectivity */
-	int percent; /**< selectivity value as a percentage */
+	double t;     /**< selectivity value */
+	int level;    /**< level of selectivity */
+	int percent;  /**< selectivity value as a percentage */
 } Selectivity;
 
 struct Task;

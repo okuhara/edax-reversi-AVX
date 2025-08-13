@@ -39,7 +39,7 @@
 #include <assert.h>
 #include <stdlib.h>
 
-extern Log search_log[1];
+extern Log search_log;
 
 /**
  * @brief Initialize a node
@@ -390,7 +390,7 @@ void task_search(Task *task)
 		if (node->height == 0) {
 			move->cost = search_get_pv_cost(search);
 			move->score = search_bound(search, move->score);
-			if (log_is_open(search_log)) show_current_move(search_log->f, search, move, alpha, node->beta, true);
+			if (log_is_open(&search_log)) show_current_move(search_log.f, search, move, alpha, node->beta, true);
 		}
 
 		lock(node);

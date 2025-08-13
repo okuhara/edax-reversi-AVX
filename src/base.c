@@ -3,9 +3,9 @@
  *
  * Header file for game base management.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2024
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #include "base.h"
@@ -218,7 +218,7 @@ int wthor_player_get(WthorBase *base, const char *name)
 	for (i = 0; i < base->n_players; ++i) {
 		if (strcmp(name, base->player[i]) == 0) return i;
 	}
-	
+
 	n = base->n_players + 1;
 	player = (char (*)[20]) realloc(base->player, n * sizeof (*base->player));
 	if (player) {
@@ -424,8 +424,8 @@ bool base_to_wthor(const Base *base, WthorBase *wthor)
 	if (wthor->game) {
 		for (i = 0; i < base->n_games; ++i, ++j) {
 			game_to_wthor(base->game + i, wthor->game + j);
-			wthor->game[j].black = wthor_player_get(wthor, base->game[i].name[BLACK]); 
-			wthor->game[j].white = wthor_player_get(wthor, base->game[i].name[WHITE]); 
+			wthor->game[j].black = wthor_player_get(wthor, base->game[i].name[BLACK]);
+			wthor->game[j].white = wthor_player_get(wthor, base->game[i].name[WHITE]);
 		}
 	} else {
 		warn("Cannot allocate wthor games\n");
@@ -934,29 +934,29 @@ void base_complete(Base *base, Search *search)
 /**
  * @brief Base Compare.
  *
- * Display the number of positions two base files have in common. 
+ * Display the number of positions two base files have in common.
  *
  * @param file_1 Game base file.
  * @param file_2 Game base file.
  */
 void base_compare(const char *file_1, const char *file_2)
 {
-	Base base_1[1], base_2[2];
+	Base base_1, base_2;
 	PositionHash hash;
 	Board board;
 	int i, j;
 	long long n_1, n_2, n_2_only;
 
-	base_init(base_1);
-	base_init(base_2);
+	base_init(&base_1);
+	base_init(&base_2);
 	n_1 = 0;
 	n_2 = 0;
 	n_2_only = 0;
 
-	base_load(base_1, file_1);
+	base_load(&base_1, file_1);
 	positionhash_init(&hash, options.hash_table_size);
-	for (i = 0; i < base_1->n_games; ++i) {
-		Game *game = base_1->game + i;
+	for (i = 0; i < base_1.n_games; ++i) {
+		Game *game = base_1.game + i;
 		board = game->initial_board;
 		for (j = 0; j < 60 && game->move[j] != NOMOVE; ++j) {
 			if (!game_update_board(&board, game->move[j])) break; // BAD MOVE -> end of game
@@ -965,11 +965,11 @@ void base_compare(const char *file_1, const char *file_2)
 			}
 		}
 	}
-	base_free(base_1);
+	base_free(&base_1);
 
-	base_load(base_2, file_2);
-	for (i = 0; i < base_2->n_games; ++i) {
-		Game *game = base_2->game + i;
+	base_load(&base_2, file_2);
+	for (i = 0; i < base_2.n_games; ++i) {
+		Game *game = base_2.game + i;
 		board = game->initial_board;
 		for (j = 0; j < 60 && game->move[j] != NOMOVE; ++j) {
 			if (!game_update_board(&board, game->move[j])) break; // BAD MOVE -> end of game
@@ -981,8 +981,8 @@ void base_compare(const char *file_1, const char *file_2)
 
 	positionhash_delete(&hash);
 	positionhash_init(&hash, options.hash_table_size);
-	for (i = 0; i < base_2->n_games; ++i) {
-		Game *game = base_2->game + i;
+	for (i = 0; i < base_2.n_games; ++i) {
+		Game *game = base_2.game + i;
 		board = game->initial_board;
 		for (j = 0; j < 60 && game->move[j] != NOMOVE; ++j) {
 			if (!game_update_board(&board, game->move[j])) break; // BAD MOVE -> end of game
@@ -991,7 +991,7 @@ void base_compare(const char *file_1, const char *file_2)
 			}
 		}
 	}
-	base_free(base_2);
+	base_free(&base_2);
 
 	positionhash_delete(&hash);
 
@@ -999,4 +999,3 @@ void base_compare(const char *file_1, const char *file_2)
 	printf("%s : %lld positions - %lld original positions\n", file_2, n_2, n_2_only);
 	printf("%lld common positions\n", n_2-n_2_only);
 }
-

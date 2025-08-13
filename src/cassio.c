@@ -32,7 +32,7 @@
 #include <stdarg.h>
 #include <math.h>
 
-Log engine_log[1];
+Log engine_log;
 
 #define ENGINE_N_POSITION 1024
 
@@ -67,14 +67,14 @@ static void engine_send(const char *format, ...)
 	va_end(args);
 	putchar('\n'); fflush(stdout);
 
-	if (log_is_open(engine_log)) {
-		time_stamp(engine_log->f);
-		fprintf(engine_log->f, "sent> \"");
+	if (log_is_open(&engine_log)) {
+		time_stamp(engine_log.f);
+		fprintf(engine_log.f, "sent> \"");
 		va_start(args, format);
-		vfprintf(engine_log->f, format, args);
+		vfprintf(engine_log.f, format, args);
 		va_end(args);
-		fprintf(engine_log->f, "\"\n");
-		fflush(engine_log->f);
+		fprintf(engine_log.f, "\"\n");
+		fflush(engine_log.f);
 	}
 }
 
@@ -91,9 +91,9 @@ static void engine_get_input(Engine *engine)
 	char *buffer = NULL;
 
 	buffer_with_garbage = string_read_line(stdin);
-	if (log_is_open(engine_log)) {
-		time_stamp(engine_log->f);
-		fprintf(engine_log->f, "received< \"%s\"\n", buffer_with_garbage);
+	if (log_is_open(&engine_log)) {
+		time_stamp(engine_log.f);
+		fprintf(engine_log.f, "received< \"%s\"\n", buffer_with_garbage);
 	}
 
 	if (buffer_with_garbage == NULL) { // stdin closed or not working
@@ -377,7 +377,7 @@ void* engine_init(void)
 {
 	Engine *engine;
 
-	log_open(engine_log, options.ui_log_file);
+	log_open(&engine_log, options.ui_log_file);
 
 	engine = (Engine*) malloc(sizeof (Engine));
 	if (engine == NULL) {
@@ -407,7 +407,7 @@ void engine_free(void *v)
 		search_free(search);
 		mm_free(search);
 	}
-	log_close(engine_log);
+	log_close(&engine_log);
 }
 
 

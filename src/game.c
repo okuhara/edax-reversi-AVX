@@ -172,7 +172,7 @@ static bool game_update_player(Board *board, int x)
 {
 	Move move;
 	bool swap = false;
-	
+
 	if (A1 <= x && x <= H8 && !board_is_occupied(board, x)) {
 		if (!can_move(board->player, board->opponent)) {
 			board_pass(board);
@@ -180,7 +180,7 @@ static bool game_update_player(Board *board, int x)
 		}
 		if (board_get_move_flip(board, x, &move) == 0) swap = !swap;
 	}
-	
+
 	return swap;
 }
 
@@ -260,7 +260,7 @@ int game_score(const Game *game)
 }
 
 /**
- * @brief Convert a text (ascii) game to a Game 
+ * @brief Convert a text (ascii) game to a Game
  * @param line A move sequence in ascii.
  * @param game The output game.
  */
@@ -303,8 +303,8 @@ void game_to_text(const Game *game, char *line)
 
 /**
  * @brief convert an allinf.oko game to a Game.
- *  
- * this was a serie of games played by early M. Buro's logistello
+ *
+ * This was a serie of games played by early M. Buro's logistello
  * against I. Durdanovic's programs.
  *
  * @param oko A single input game.
@@ -329,7 +329,7 @@ void oko_to_game(const OkoGame *oko, Game *game)
 
 /**
  * @brief convert a Wthor game to a Game.
- *  
+ *
  * The Wthor format is famous as all main event
  * games are recorded into this format. Its name
  * comes from Sylvain Quin's program.
@@ -356,7 +356,7 @@ void wthor_to_game(const WthorGame *thor, Game *game)
 
 /**
  * @brief convert a Game to a Whor game.
- *  
+ *
  * The wthor format is famous as all main event
  * games are recorded into this format.
  *
@@ -373,12 +373,11 @@ void game_to_wthor(const Game *game, WthorGame *thor)
 	thor->black = 1368; // edax
 	thor->white = 1368; // edax
 	thor->tournament = 0;//g->tournament;
-	/* TODO: */
 	thor->score = 32 + game_score(game) / 2;
 	thor->theoric_score = thor->score; // may be wrong?
 }
 
-/** 
+/**
  * @brief Build a game from an initial position and a move sequence.
  *
  * @param game Game.
@@ -405,7 +404,7 @@ void game_append_line(Game *game, const Line *line, const int from)
 	}
 }
 
-/** 
+/**
  * @brief Build a game from an initial position and a move sequence.
  *
  * @param initial_board Initial board.
@@ -421,7 +420,7 @@ void line_to_game(const Board *initial_board, const Line *line, Game *game)
 }
 
 /**
- * @brief Read a game from a binary file 
+ * @brief Read a game from a binary file
  *
  * @param game The output game.
  * @param f The file stream.
@@ -432,7 +431,7 @@ void game_read(Game *game, FILE *f)
 }
 
 /**
- * @brief Write a game to a binary file 
+ * @brief Write a game to a binary file
  *
  * @param game The input game.
  * @param f The file stream.
@@ -443,7 +442,7 @@ void game_write(const Game *game, FILE *f)
 }
 
 /**
- * @brief Read a game from a text file 
+ * @brief Read a game from a text file
  *
  * @param game The output game.
  * @param f The file stream.
@@ -459,7 +458,7 @@ void game_import_text(Game *game, FILE *f)
 }
 
 /**
- * @brief Write a game to a text file 
+ * @brief Write a game to a text file
  *
  * @param game The input game.
  * @param f The file stream.
@@ -479,7 +478,7 @@ void game_export_text(const Game *game, FILE *f)
 }
 
 /**
- * @brief Read a game from a Wthor file 
+ * @brief Read a game from a Wthor file
  *
  * @param game The output game.
  * @param f The file stream.
@@ -492,7 +491,7 @@ void game_import_wthor(Game *game, FILE *f)
 }
 
 /**
- * @brief Write a game to a Wthor file 
+ * @brief Write a game to a Wthor file
  *
  * @param game The input game.
  * @param f The file stream.
@@ -505,7 +504,7 @@ void game_export_wthor(const Game *game, FILE *f)
 }
 
 /**
- * @brief Read a game from the "allinf.oko" file 
+ * @brief Read a game from the "allinf.oko" file
  *
  * @param game The output game.
  * @param f The file stream.
@@ -971,7 +970,7 @@ void game_import_pgn(Game *game, FILE *f)
 	char info_tag[257] = "", info_value[257] = ""; // 256 is the maximal info size according to PGN standard
 	int value[3];
 	const int info_size = 256;
-	
+
 	enum {
 		STATE_START,
 		STATE_BEGIN_INFO,
@@ -1035,7 +1034,7 @@ void game_import_pgn(Game *game, FILE *f)
 				case STATE_BEGIN_VALUE:
 					state = STATE_END_VALUE;
 					info_value[j] = '\0';
-					j = 0;					
+					j = 0;
 					if (strcmp(info_tag, "black") == 0) {
 						memcpy(game->name[BLACK], info_value, 31);
 						game->name[BLACK][31] = '\0';
@@ -1052,7 +1051,7 @@ void game_import_pgn(Game *game, FILE *f)
 						game->player = board_from_FEN(&game->initial_board, info_value);
 					}
 					break;
-			}				
+			}
 		}  else  if (isdigit(c)) {
 			switch(state) {
 			case STATE_BEGIN_SCORE:
@@ -1196,7 +1195,7 @@ void game_import_pgn(Game *game, FILE *f)
 				break;
 			}
 		}
-			
+
 	}
 
 	if (!game_check(game)) {
@@ -1498,9 +1497,9 @@ void game_export_svg(const Game *game, FILE *f)
 }
 
 
-/** 
+/**
  * @brief Fill a game with some random moves.
- * 
+ *
  * @param game The output game.
  * @param n_ply The number of random move to generate.
  * @param r The random generator.
@@ -1567,7 +1566,7 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
 			stack[n_move++].played = MOVE_PASS;
 			board_pass(&board);
 			player = !player;
-		} 
+		}
 		if (!board_is_occupied(&board, game->move[i]) && board_get_move_flip(&board, game->move[i], &stack[n_move].played)) {
 			stack[n_move].best = MOVE_INIT;
 			line_init(&stack[n_move].pv, player);
@@ -1598,12 +1597,12 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
 		search_set_level(search, 60, search->eval.n_empties);
 		search_run(search);
 		score = search->result->score;
-		
+
 		for (i = n_move - 1; stack[i].n_empties <= n_empties; --i) {
 			stack[i].played.score = -score;
 			score = MAX(stack[i].played.score, stack[i].best.score);
 		}
-		
+
 		//backpropagate the score
 		while (stack[--n_move].n_empties <= n_empties) {
 			if (stack[n_move].played.score < stack[n_move].best.score) {
@@ -1633,7 +1632,7 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
  * @param search Search analyzer.
  * @return number of iterations to terminate the game.
  */
-int game_complete(Game *game, Search *search) 
+int game_complete(Game *game, Search *search)
 {
 	Board board;
 	const int verbosity = search->options.verbosity;

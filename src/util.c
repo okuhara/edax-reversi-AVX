@@ -196,7 +196,6 @@ void time_stamp(FILE *f)
 	fprintf(f, "[%4d/%2d/%2d %2d:%2d:%2d] ", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
 }
 
-
 /**
  * @brief sleep for t ms.
  * @param t time in ms.

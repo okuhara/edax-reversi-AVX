@@ -73,7 +73,7 @@ char* parse_skip_word(const char*);
  * File.
  */
 void path_get_dir(const char*, char*);
-char* file_add_ext(const char*, const char*, char*); 
+char* file_add_ext(const char*, const char*, char*);
 bool is_stdin_keyboard(void);
 
 /*
@@ -378,6 +378,7 @@ int get_cpu_number(void);
  * @brief Display a message.
  */
 #define info(...) if (options.info) { \
+	extern Log ggs_log; \
 	fprintf(stderr, __VA_ARGS__); \
 } else (void) 0
 
@@ -385,10 +386,11 @@ int get_cpu_number(void);
  * @brief Display a message in cassio's "fenetre de rapport" .
  */
 #define cassio_debug(...) if (options.debug_cassio) { \
+	extern Log engine_log; \
 	printf("DEBUG: "); \
 	printf(__VA_ARGS__); \
-	log_print(engine_log, "DEBUG: "); \
-	log_print(engine_log, __VA_ARGS__);\
+	log_print(&engine_log, "DEBUG: "); \
+	log_print(&engine_log, __VA_ARGS__);\
 } else (void) 0
 
 
@@ -404,11 +406,10 @@ int get_cpu_number(void);
 /**
  * @brief Display a debuging message as "DEBUG : ... "
  */
-#define debug(...) \
-	do { \
-		fprintf(stderr, "\nDEBUG : "); \
-		fprintf(stderr, __VA_ARGS__); \
-	} while (0)
+#define debug(...) do { \
+	fprintf(stderr, "\nDEBUG : "); \
+	fprintf(stderr, __VA_ARGS__); \
+} while (0)
 
 #else
 #define trace(...)

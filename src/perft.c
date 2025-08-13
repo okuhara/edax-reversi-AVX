@@ -36,7 +36,7 @@ typedef struct {
 /** initial statistics*/
 const GameStatistics GAME_STATISTICS_INIT = {0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 64, 0};
 
-/** 
+/**
  * @brief Accumulate statistics: add local data to global ones.
  * @param global Global statistics.
  * @param local Local statistics.
@@ -200,8 +200,8 @@ void estimate_games(const Board *board, const long long n)
 			em[i] += x[i - 1]; es[i] += x[i - 1] * x[i - 1];
 			EM += x[i - 1]; ES += x[i - 1] * x[i - 1];
 			en[i]++;
-		} 
-	}	
+		}
+	}
 	t += cpu_clock();
 
 	for (i = 1; m[i] || en[i]; ++i) {
@@ -386,7 +386,7 @@ static void gamehash_store(GameHashTable *hash, const Board *b, const int depth,
 /**
  * @brief Seek for a position in the hash table.
  *
- * @param  hash Hash table.
+ * @param hash Hash table.
  * @param b position.
  * @param depth Depth.
  * @param stats position's statistics.
@@ -419,7 +419,7 @@ static bool gamehash_fail(GameHashTable *hash, const Board *b, const int depth, 
 /**
  * @brief Count games recursively.
  *
- * @param  hash Hash table.
+ * @param hash Hash table.
  * @param board position.
  * @param depth Depth.
  * @param global_stats Game's statistics.
@@ -685,7 +685,7 @@ static void boardcache_append(BoardCache *hash, const Board *b)
 	Board u;
 	unsigned long long h;
 	int i, j, k, l;
-	
+
 	board_unique(b, &u);
 	h = board_get_hash_code(&u);
 	i = (h & hash->mask);
@@ -854,7 +854,7 @@ void count_positions(const Board *board, const int depth, const int size)
  * @brief unique shape.
  *
  * @param shape input Shape.
- * @return 
+ * @return
  */
 unsigned long long shape_unique(unsigned long long shape)
 {
@@ -1058,7 +1058,6 @@ void count_shapes(const Board *board, const int depth, const int size)
 	long long t;
 	ShapeHash hash;
 	BoardCache cache;
-
 
 	board_print(board, BLACK, stdout);
 	puts("\n discs       nodes         total            time   speed");

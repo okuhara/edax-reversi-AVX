@@ -5,6 +5,7 @@
  *
  * @date 1998 - 2024
  * @author Richard Delorme
+ * @author Toshihiko Okuhara
  * @version 4.5
  */
 
@@ -34,9 +35,8 @@ void version(void)
 #elif defined(__APPLE__)
 		" for Apple"
 #endif
-		"\ncopyright 1998 - 2018 Richard Delorme, 2014 - 25 Toshihiko Okuhara\n\n");
+		"\ncopyright 1998 - 2025 Richard Delorme, Toshihiko Okuhara\n\n");
 }
-
 
 /**
  * @brief Programme usage.
@@ -105,8 +105,6 @@ int main(int argc, char **argv)
 				size = 6;
 				++i;
 			}
-			
-	
 		}
 		else usage();
 	}

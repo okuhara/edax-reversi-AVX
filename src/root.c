@@ -5,6 +5,7 @@
  *
  * @date 1998 - 2023
  * @author Richard Delorme
+ * @author Toshihiko Okuhara
  * @version 4.5
  */
 
@@ -20,8 +21,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
-extern Log search_log[1];
-extern Log engine_log[1];
+extern Log search_log;
+extern Log engine_log;
 
 /**
  * @brief Debug PV.
@@ -113,7 +114,7 @@ bool is_pv_ok(Search *search, int bestmove, int search_depth)
  * this function is used when no move is found in the position retrieved
  * from the hash table, meaning a fail-low search without a good move happened.
  * A move is guessed after a "shallow search".
- * 
+ *
  * @param search Search.
  * @param board Board to guess move from.
  * @return a best move guessed from a shallow search (depth = 6).
@@ -191,7 +192,7 @@ void record_best_move(Search *search, const Move *bestmove, const int alpha, con
 		board_get_move_flip(&board, x, &move);
 		if (board_check_move(&board, &move)) {
 			board_update(&board, &move);
-			--expected_depth; 
+			--expected_depth;
 			tmp = expected_bound.upper; expected_bound.upper = -expected_bound.lower; expected_bound.lower = -tmp;
 			fail_low = !fail_low;
 			line_push(&result->pv, move.x);
@@ -211,23 +212,23 @@ void record_best_move(Search *search, const Move *bestmove, const int alpha, con
 
 	spin_unlock(result);
 
-	if (log_is_open(search_log)) {
-		lock(search_log);
-			log_print(search_log, "id = %d ; ", search->id);
-			log_print(search_log, "level = %2d@%2d%% ; ", result->depth, selectivity_table[result->selectivity].percent);
-			log_print(search_log, "ab = [%+03d, %+03d]:\n", alpha, beta);
-			log_print(search_log, "stability bounds = [%+03d, %+03d]:\n", search->stability_bound.lower, search->stability_bound.upper);
-			log_print(search_log, "%+03d < score = %+03d < %+03d; time = ", result->bound[result->move].lower, result->score, result->bound[result->move].upper);
-			time_print(result->time, false, search_log->f);
-			log_print(search_log, "; nodes = %lld N; ", result->n_nodes);
-			if (result->time > 0) {log_print(search_log, "speed = %9.0f Nps", 1000.0 * result->n_nodes / result->time);}
-			log_print(search_log, "\npv = ");
-			line_print(&result->pv, 200, " ", search_log->f);
-			log_print(search_log, "\npv-debug = ");
-			pv_debug(search, bestmove, search_log->f);
-			log_print(search_log, "\n\n");
-			fflush(search_log->f);
-		unlock(search_log);
+	if (log_is_open(&search_log)) {
+		lock(&search_log);
+			log_print(&search_log, "id = %d ; ", search->id);
+			log_print(&search_log, "level = %2d@%2d%% ; ", result->depth, selectivity_table[result->selectivity].percent);
+			log_print(&search_log, "ab = [%+03d, %+03d]:\n", alpha, beta);
+			log_print(&search_log, "stability bounds = [%+03d, %+03d]:\n", search->stability_bound.lower, search->stability_bound.upper);
+			log_print(&search_log, "%+03d < score = %+03d < %+03d; time = ", result->bound[result->move].lower, result->score, result->bound[result->move].upper);
+			time_print(result->time, false, search_log.f);
+			log_print(&search_log, "; nodes = %lld N; ", result->n_nodes);
+			if (result->time > 0) {log_print(&search_log, "speed = %9.0f Nps", 1000.0 * result->n_nodes / result->time);}
+			log_print(&search_log, "\npv = ");
+			line_print(&result->pv, 200, " ", search_log.f);
+			log_print(&search_log, "\npv-debug = ");
+			pv_debug(search, bestmove, search_log.f);
+			log_print(&search_log, "\n\n");
+			fflush(search_log.f);
+		unlock(&search_log);
 	}
 
 	if (has_changed && options.noise <= depth && search->options.verbosity == 3) search->observer(search->result);
@@ -241,13 +242,13 @@ void show_current_move(FILE *f, Search *search, const Move *move, const int alph
 }
 
 /**
- * @brief bound root scores according to stable squares 
+ * @brief bound root scores according to stable squares
  *
  * @param search Position to search.
  * @param score score to bound.
  * @return score;
  */
-int search_bound(const Search *search, int score) 
+int search_bound(const Search *search, int score)
 {
 	if (score < search->stability_bound.lower) score = search->stability_bound.lower;
 	if (score > search->stability_bound.upper) score = search->stability_bound.upper;
@@ -295,7 +296,7 @@ static int search_route_PVS(Search *search, int alpha, int beta, const int depth
  * The board is supposed to be updated by a move after the root position.
  *
  * @param search Search.
- * @return A search cost. 
+ * @return A search cost.
  */
 int search_get_pv_cost(Search *search)
 {
@@ -379,7 +380,7 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 				assert(search->stability_bound.lower <= move->score && move->score <= search->stability_bound.upper);
 			search_restore_midgame(search, move->x, &eval0);
 			search->board = board0;
-			if (log_is_open(search_log)) show_current_move(search_log->f, search, move, alpha, beta, false);
+			if (log_is_open(&search_log)) show_current_move(search_log.f, search, move, alpha, beta, false);
 			node_update(&node, move);
 			if (search->options.verbosity == 4) pv_debug(search, move, stdout);
 
@@ -402,7 +403,7 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 					assert(SCORE_MIN <= move->score && move->score <= SCORE_MAX);
 					search_restore_midgame(search, move->x, &eval0);
 					search->board = board0;
-					if (log_is_open(search_log)) show_current_move(search_log->f, search, move, alpha, beta, false);
+					if (log_is_open(&search_log)) show_current_move(search_log.f, search, move, alpha, beta, false);
 					node_update(&node, move);
 					assert(SCORE_MIN <= node.bestscore && node.bestscore <= SCORE_MAX);
 				}
@@ -463,7 +464,7 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 	int i;
 	int old_score;
 	Move *move;
-	extern Log xboard_log[1];
+	extern Log xboard_log;
 
 	assert(alpha < beta);
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
@@ -471,7 +472,7 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 	assert(SCORE_MIN <= score && score <= SCORE_MAX);
 	assert(depth >= 0 && depth <= search->eval.n_empties);
 
-	log_print(xboard_log, "edax (search)> search [%d, %d] %d (%d)\n", alpha, beta, depth, score);
+	log_print(&xboard_log, "edax (search)> search [%d, %d] %d (%d)\n", alpha, beta, depth, score);
 
 	if (is_depth_solving(depth, search->eval.n_empties)) {
 		alpha -= (alpha & 1);
@@ -490,7 +491,7 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 	if (beta > high) beta = high;
 	if (score < low) score = low; else if (score > high) score = high;
 	if (score < alpha) score = alpha; else if (score > beta) score = beta;
-	log_print(search_log, "initial bound = [%+03d, %+03d]\n", low, high);
+	log_print(&search_log, "initial bound = [%+03d, %+03d]\n", low, high);
 
 	foreach_move(move, search->movelist) {
 		search->result->bound[move->x].lower = low;
@@ -505,7 +506,7 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 
 		// if in multipv mode or the alphabeta window is already small, search directly
 		if (depth <= search->options.multipv_depth || beta - alpha <= 2 * width) {
-			log_print(search_log, "direct root_PVS [%d, %d]:\n", low, high);
+			log_print(&search_log, "direct root_PVS [%d, %d]:\n", low, high);
 			score = PVS_root(search, alpha, beta, depth);
 		} else { // otherwise iterate search with small windows until the score is bounded by the window, or a cut
 			left = right = (i <= 0 ? 1 : i) * width;
@@ -515,7 +516,7 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 				if (low >= high) break;
 				if (low >= SCORE_MAX) low = SCORE_MAX - 1;
 				if (high <= SCORE_MIN) high = SCORE_MIN + 1;
-				log_print(search_log, "aspiration search [%d, %d]:\n", low, high);
+				log_print(&search_log, "aspiration search [%d, %d]:\n", low, high);
 
 				score = PVS_root(search, low, high, depth);
 
@@ -537,22 +538,22 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 		if (is_depth_solving(depth, search->eval.n_empties)
 		&& ((alpha < score && score < beta) || (score == alpha && score == options.alpha) || (score == beta && score == options.beta))
 		&& !is_pv_ok(search, search->result->move, depth)) {
-			log_print(search_log, "*** WRONG PV => re-research id %d ***\n", search->id);
-			if (log_is_open(search_log)) {
-				pv_debug(search, movelist_first(&search->movelist), search_log->f);
-				putc('\n', search_log->f); fflush(search_log->f);
+			log_print(&search_log, "*** WRONG PV => re-research id %d ***\n", search->id);
+			if (log_is_open(&search_log)) {
+				pv_debug(search, movelist_first(&search->movelist), search_log.f);
+				putc('\n', search_log.f); fflush(search_log.f);
 			}
 			if (options.debug_cassio) {
 				printf("DEBUG: Wrong PV: "); pv_debug(search, movelist_first(&search->movelist), stdout); putchar('\n'); fflush(stdout); 
-				if (log_is_open(engine_log)) {
-					fprintf(engine_log->f, "DEBUG: Wrong PV: "); pv_debug(search, movelist_first(&search->movelist), engine_log->f);
-					putc('\n', engine_log->f); fflush(engine_log->f);
+				if (log_is_open(&engine_log)) {
+					fprintf(engine_log.f, "DEBUG: Wrong PV: "); pv_debug(search, movelist_first(&search->movelist), engine_log.f);
+					putc('\n', engine_log.f); fflush(engine_log.f);
 				}
 			}
 			continue;
 		}
 		if (is_depth_solving(depth, search->eval.n_empties) && (score & 1)) {
-			log_print(search_log, "*** UNEXPECTED ODD SCORE (score=%+d) => re-research id %d ***\n", score, search->id);			
+			log_print(&search_log, "*** UNEXPECTED ODD SCORE (score=%+d) => re-research id %d ***\n", score, search->id);			
 			cassio_debug("wrong odd score => re-research.\n");
 			continue;
 		}
@@ -675,9 +676,9 @@ void iterative_deepening(Search *search, int alpha, int beta)
 
 	old_depth = 0; old_selectivity = search->selectivity;
 
-	if (log_is_open(search_log)) {
-		lock(search_log);
-		log_print(search_log, "\n\n*** Search: id: %d ***\n", search->id);
+	if (log_is_open(&search_log)) {
+		lock(&search_log);
+		log_print(&search_log, "\n\n*** Search: id: %d ***\n", search->id);
 	}
 
 	// reuse last search ?
@@ -691,9 +692,9 @@ void iterative_deepening(Search *search, int alpha, int beta)
 				hash_data.wl.c.depth, selectivity_table[hash_data.wl.c.selectivity].percent,
 				hash_data.wl.c.date, hash_data.wl.c.cost);
 		}
-		if (log_is_open(search_log)) {
-			log_print(search_log, "--- Next Search ---: ");
-			hash_print(&hash_data, search_log->f);
+		if (log_is_open(&search_log)) {
+			log_print(&search_log, "--- Next Search ---: ");
+			hash_print(&hash_data, search_log.f);
 		}
 		old_depth = hash_data.wl.c.depth;
 		old_selectivity = hash_data.wl.c.selectivity;
@@ -707,13 +708,13 @@ void iterative_deepening(Search *search, int alpha, int beta)
 				score = hash_data.lower;
 			} else {
 				search_adjust_time(search, true);
-				log_print(search_log, "--- New Search (inexact score) ---:\n");
+				log_print(&search_log, "--- New Search (inexact score) ---:\n");
 			}
 		}
 
 	} else {
 		search_adjust_time(search, false);
-		log_print(search_log, "--- New Search ---:\n");
+		log_print(&search_log, "--- New Search ---:\n");
 	}
 
 	if (search->selectivity > search->options.selectivity) search->selectivity = search->options.selectivity;
@@ -726,11 +727,11 @@ void iterative_deepening(Search *search, int alpha, int beta)
 		if (start > end) start = end;
 	}
 
-	if (log_is_open(search_log)) {
-		log_print(search_log,"date: pv = %d, main = %d %s\n", search->pv_table.date, search->hash_table.date, search->options.keep_date ? "(keep)":"");
-		log_print(search_log,"iterating from level %d@%d\n", start, selectivity_table[search->selectivity].percent);
-		log_print(search_log, "alloted time: mini=%.1fs maxi=%.1fs extra=%.1fs\n", 0.001 * search->time.mini, 0.001 * search->time.maxi, 0.001 * search->time.extra);
-		unlock(search_log);
+	if (log_is_open(&search_log)) {
+		log_print(&search_log,"date: pv = %d, main = %d %s\n", search->pv_table.date, search->hash_table.date, search->options.keep_date ? "(keep)":"");
+		log_print(&search_log,"iterating from level %d@%d\n", start, selectivity_table[search->selectivity].percent);
+		log_print(&search_log, "alloted time: mini=%.1fs maxi=%.1fs extra=%.1fs\n", 0.001 * search->time.mini, 0.001 * search->time.maxi, 0.001 * search->time.extra);
+		unlock(&search_log);
 	}
 
 	// sort moves & display initial value
@@ -859,17 +860,17 @@ void* search_run(void *v)
 		else if (search->stop == RUNNING) {info("[Search completed]\n");}
 	}
 
-	if (log_is_open(search_log)) {
-		lock(search_log);
-		log_print(search_log, "\n*** Search id: %d ", search->id);
-		if (search->stop == STOP_TIMEOUT) log_print(search_log, "out of time");
-		else if (search->stop == STOP_ON_DEMAND) log_print(search_log, "stopped on user demand");
-		else if (search->stop == STOP_PONDERING) log_print(search_log, "stop pondering");
-		else if (search->stop == STOP_PARALLEL_SEARCH) log_print(search_log, "### BUG: stop parallel search reached root! ###");
-		else if (search->stop == RUNNING) log_print(search_log, "completed");
-		else log_print(search_log, "### BUG: unkwown stop condition %d ###", search->stop);
-		log_print(search_log, " ***\n\n");
-		unlock(search_log);
+	if (log_is_open(&search_log)) {
+		lock(&search_log);
+		log_print(&search_log, "\n*** Search id: %d ", search->id);
+		if (search->stop == STOP_TIMEOUT) log_print(&search_log, "out of time");
+		else if (search->stop == STOP_ON_DEMAND) log_print(&search_log, "stopped on user demand");
+		else if (search->stop == STOP_PONDERING) log_print(&search_log, "stop pondering");
+		else if (search->stop == STOP_PARALLEL_SEARCH) log_print(&search_log, "### BUG: stop parallel search reached root! ###");
+		else if (search->stop == RUNNING) log_print(&search_log, "completed");
+		else log_print(&search_log, "### BUG: unkwown stop condition %d ###", search->stop);
+		log_print(&search_log, " ***\n\n");
+		unlock(&search_log);
 	}
 
 	if (search->stop == RUNNING) search->stop = STOP_END;

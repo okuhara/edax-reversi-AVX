@@ -164,7 +164,7 @@ void ui_loop_nboard(UI *ui)
 			nboard_send("status Edax is waiting");
 
 		} else if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "eof") == 0) {
-			free(cmd); free(param);			
+			free(cmd); free(param);
 			return;
 
 		} else if (strcmp(cmd, "ping") == 0) {

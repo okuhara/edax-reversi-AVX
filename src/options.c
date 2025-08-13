@@ -285,7 +285,7 @@ void options_parse(const char *file)
 /**
  * @brief Keep options between realistic values.
  */
-void options_bound(void) 
+void options_bound(void)
 {
 	int tmp;
 	int max_threads;
@@ -327,7 +327,7 @@ void options_bound(void)
  * @brief Print all global options.
  * @param f output stream.
  */
-void options_dump(FILE *f) 
+void options_dump(FILE *f)
 {
 	const char *(play_type[3]) = {"fixed depth", "fixed time per game", "fixed time per move"};
 	const char *(boolean_string[2]) = {"false", "true"};

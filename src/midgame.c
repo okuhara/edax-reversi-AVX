@@ -292,7 +292,7 @@ static inline void search_restore_probcut(Search *search, const NodeType node_ty
 
 static bool search_probcut(Search *search, const int alpha, const int depth, Node *parent, int *value)
 {
-	// assertion 
+	// assertion
 	assert(search != NULL);
 	assert(parent != NULL);
 	assert(search->node_type[search->height] != PV_NODE);
@@ -313,7 +313,7 @@ static bool search_probcut(Search *search, const int alpha, const int depth, Nod
 
 		// compute reduced depth & associated error
 		probcut_depth = 2 * floor(options.probcut_d * depth) + (depth & 1);
-		if (probcut_depth == 0) probcut_depth = depth - 2; 
+		if (probcut_depth == 0) probcut_depth = depth - 2;
 		assert(probcut_depth > 1 && probcut_depth <= depth - 2 && (probcut_depth & 1) == (depth & 1));
 		probcut_error = t * eval_sigma(search->eval.n_empties, depth, probcut_depth) + RCD;
 
@@ -336,7 +336,7 @@ static bool search_probcut(Search *search, const int alpha, const int depth, Nod
 				return true;
 			}
 		}
-		
+
 		// try a probable lower cut if upper cut failed
 		eval_alpha = alpha + eval_error;
 		probcut_alpha = alpha - probcut_error;

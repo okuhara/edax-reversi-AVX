@@ -317,9 +317,9 @@ int board_unique(const Board *board, Board *unique)
 }
 #endif
 
-/** 
+/**
  * @brief Get a random board by playing random moves.
- * 
+ *
  * @param board The output board.
  * @param n_ply The number of random move to generate.
  * @param r The random generator.
@@ -344,7 +344,6 @@ void board_rand(Board *board, int n_ply, Random *r)
 		board_update(board, &move);
 	}
 }
-
 
 /**
  * @brief Compute a move.
@@ -452,7 +451,6 @@ void board_restore(Board *board, const Move *move)
 void board_pass(Board *board)
 {
 	board_swap_players(board);
-
 	board_check(board);
 }
 
@@ -818,7 +816,7 @@ void edge_stability_init(void)
  *
  * Compute the exact stable edges from precomputed tables.
  *
- * @param board bitboard with player's discs.
+ * @param P bitboard with player's discs.
  * @param O bitboard with opponent's discs.
  * @return a bitboard with (some of) player's stable discs.
  *

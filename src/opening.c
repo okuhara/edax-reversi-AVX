@@ -5,7 +5,8 @@
  *
  * @date 1998 - 2020
  * @author Richard Delorme
- * @version 4.4
+ * @author Toshihiko Okuhara
+ * @version 4.5
  */
 
 #include "opening.h"
@@ -1346,7 +1347,7 @@ const char *opening_get_line(const char *opening_name)
 }
 
 /**
- * @brief Check if a board has got an engilsh opening name.
+ * @brief Check if a board has got an english opening name.
  *
  * @param board Board.
  * return An opening name, or NULL if none has been found.

@@ -35,7 +35,7 @@ void histogram_print(unsigned long long h[129][65])
 	double mean[65], variance[65], median[65];
 
 	for (j = 0; j < 65; ++j) printf("; %d", j * 2 - 64);
-	printf("; total; mean; error; bias; precision");  
+	printf("; total; mean; error; bias; precision");
 	for (i = 0; i < 129; ++i) {
 		printf("\n%d", i - 64);
 		n = s = s2 = 0;
@@ -169,7 +169,7 @@ void histogram_to_ppm(const char *file, unsigned long long histogram[129][65])
 	}
 
 	// compute max_value
-	max = 0; 
+	max = 0;
 	for (i = 0; i < 129; ++i)
 	for (j = 0; j < 65; ++j) {
 		if (histogram[i][j] > max) max = histogram[i][j];
@@ -186,7 +186,7 @@ void histogram_to_ppm(const char *file, unsigned long long histogram[129][65])
 	// header;
 	fprintf(f, "P3\n%d %d\n%d\n", 516, 520, 255);
 
-	// data		
+	// data
 	for (i = 64; i >= 0; --i) {
 		for (i_k = 0; i_k < 8; ++i_k) {
 			for (j = 0; j < 129; ++j) {
