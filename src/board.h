@@ -19,7 +19,18 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-// struct Board: moved to bit.h
+/** Board : board representation */
+typedef struct Board {
+	unsigned long long player, opponent;     /**< bitboard representation */
+} Board;
+
+// MSVC can allocate VBoard var to SSE reg
+typedef union {
+	Board	board;
+  #ifdef hasSSE2
+	__m128i	v2;
+  #endif
+} VBoard;
 
 struct Move;
 struct Random;

@@ -355,7 +355,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 	unsigned long long moves, prioritymoves;
 	int x, prev, score, bestscore;
 	// const int beta = alpha + 1;
-	V2DI board0;
+	VBoard board0;
 	unsigned int parity0;
 
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
@@ -441,7 +441,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 	int score, ofssolid, bestmove, bestscore;
 	// const int beta = alpha + 1;
 	Move *move;
-	V2DI board0, hashboard;
+	VBoard board0, hashboard;
 	unsigned int parity0;
 	MoveList movelist;
 
@@ -457,30 +457,30 @@ static int NWS_endgame_local(Search *search, const int alpha)
 #ifdef USE_SOLID
 	if (USE_SC && alpha >= NWS_STABILITY_SOLID_THRESHOLD) {	// (7%)
 		unsigned long long full[5];
-		V2DI solid;
 
 		CUTOFF_STATS(++statistics.n_stability_try;)
 		score = SCORE_MAX - 2 * vget_opp_statility_fulls(board0, full);
 		if (score <= alpha) {	// (3%)
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return score;
-		}
 
-		// Improvement of Serch by Reducing Redundant Information in a Position of Othello
-		// Hidekazu Matsuo, Shuji Narazaki
-		// http://id.nii.ac.jp/1001/00156359/
+		} else {
+			// Improvement of Serch by Reducing Redundant Information in a Position of Othello
+			// Hidekazu Matsuo, Shuji Narazaki
+			// http://id.nii.ac.jp/1001/00156359/
   #if defined(hasSSE2) && defined(POPCOUNT)
-		solid.v2 = _mm_and_si128(hashboard.v2, _mm_loadl_epi64((__m128i *) &full[4]));
-		hashboard.v2 = _mm_xor_si128(hashboard.v2, _mm_unpacklo_epi64(solid.v2, solid.v2));
-		ofssolid = bit_count_si64(solid.v2) * 2;
+			__m128i solid = _mm_and_si128(hashboard.v2, _mm_loadl_epi64((__m128i *) &full[4]));
+			hashboard.v2 = _mm_xor_si128(hashboard.v2, _mm_unpacklo_epi64(solid, solid));
+			ofssolid = bit_count_si64(solid) * 2;
   #else
-		solid.board.player = full[4] & hashboard.board.player;	// full[4] = all full
-		if (solid.board.player) {	// (72%)
-			hashboard.board.player ^= solid.board.player;	// normalize solid to opponent
-			hashboard.board.opponent ^= solid.board.player;
-			ofssolid = bit_count(solid.board.player) * 2;	// hash score is ofssolid smaller than real
-		}
+			unsigned long long solid = full[4] & hashboard.board.player;	// full[4] = all full
+			if (solid) {	// (72%)
+				hashboard.board.player ^= solid;	// normalize solid to opponent
+				hashboard.board.opponent ^= solid;
+				ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
+			}
   #endif
+		}
 	}
 #else
 	if (search_SC_NWS(search, alpha, &score)) return score;
@@ -586,7 +586,7 @@ int NWS_endgame(Search *search, const int alpha)
 	HashStoreData hash_data;
 	Move *move;
 	long long nodes_org;
-	V2DI board0;
+	VBoard board0;
 	unsigned int parity0;
 	MoveList movelist;
 

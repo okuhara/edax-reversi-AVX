@@ -882,7 +882,7 @@ void search_get_movelist(const Search *search, MoveList *movelist)
 {
 	Move *previous = movelist->move;
 	Move *move = movelist->move + 1;
-	V2DI vboard;
+	VBoard vboard;
 	unsigned long long moves;
 	int x;
 

@@ -142,7 +142,7 @@ int search_eval_1(Search *search, int alpha, int beta, unsigned long long moves)
 	int x, score, bestscore, alphathres;
 	unsigned long long flipped;
 	Eval Ev;
-	V2DI board0;
+	VBoard board0;
 
 	SEARCH_STATS(++statistics.n_search_eval_1);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
@@ -210,7 +210,7 @@ int search_eval_2(Search *search, int alpha, int beta, unsigned long long moves)
 	int x, bestscore, score;
 	unsigned long long flipped;
 	Eval eval0;
-	V2DI board0;
+	VBoard board0;
 
 	SEARCH_STATS(++statistics.n_search_eval_2);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
@@ -380,7 +380,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 	MoveList movelist;
 	Move *move;
 	Eval eval0;
-	V2DI board0;
+	VBoard board0;
 	long long nodes_org;
 
 	if (depth == 2) return search_eval_2(search, alpha, alpha + 1, board_get_moves(&search->board));
@@ -593,7 +593,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	Move *move;
 	Node node;
 	Eval eval0;
-	V2DI board0;
+	VBoard board0;
 	long long nodes_org;
 
 	assert(search->eval.n_empties == bit_count(~(search->board.player | search->board.opponent)));
@@ -843,7 +843,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 
 		// lacal hash (main thread only)
 		if (search->eval.n_empties <= depth && depth <= DEPTH_TO_USE_LOCAL_HASH && depth > DEPTH_TO_SHALLOW_SEARCH) {
-			V2DI hashboard;
+			VBoard hashboard;
   #ifdef USE_SOLID
 			unsigned long long solid = get_all_full_lines(search->board.player | search->board.opponent) & search->board.player;
 			if (solid) {

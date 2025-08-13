@@ -366,14 +366,8 @@ extern const unsigned long long NEIGHBOUR[];
 extern bool	hasSSE2;
 #endif
 
-/** Board : board representation */
-typedef struct Board {
-	unsigned long long player, opponent;     /**< bitboard representation */
-} Board;
-
 typedef union {
 	unsigned long long	ull[2];
-	Board	board;	// for vboard optimization in search
   #ifdef __ARM_NEON
 	uint64x2_t	v2;
   #elif defined(hasSSE2) || defined(USE_MSVC_X86)

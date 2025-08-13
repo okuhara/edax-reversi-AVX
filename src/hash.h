@@ -94,7 +94,7 @@ void hash_clear(HashTable*);
 void hash_free(HashTable*);
 void hash_feed(HashTable*, const Board *, const unsigned long long, HashStoreData *);
 void hash_store(HashTable*, const Board *, const unsigned long long, HashStoreData *);
-void hash_store_local(Hash*, V2DI, int, int, int, int);
+void hash_store_local(Hash*, VBoard, int, int, int, int);
 void hash_force(HashTable*, const Board *, const unsigned long long, HashStoreData *);
 bool hash_get(HashTable*, const Board *, const unsigned long long, HashData *);
 bool hash_get_from_board(HashTable*, const Board *, HashData *);
