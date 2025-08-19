@@ -882,11 +882,11 @@ void search_get_movelist(const Search *search, MoveList *movelist)
 {
 	Move *previous = movelist->move;
 	Move *move = movelist->move + 1;
-	VBoard vboard;
+	vBoard vboard;
 	unsigned long long moves;
 	int x;
 
-	vboard.board = search->board;
+	vboard.bb = search->board;
 	moves = vboard_get_moves(vboard);
 	movelist->n_moves = 0;
 	foreach_bit(x, moves) {

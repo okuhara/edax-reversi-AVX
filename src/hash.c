@@ -550,7 +550,7 @@ void hash_store(HashTable *hash_table, const Board *board, const unsigned long l
  * @param score      Best score found.
  * @param move       Best move found.
  */
-void hash_store_local(Hash *hash, VBoard vboard, int alpha, int beta, int score, int move)
+void hash_store_local(Hash *hash, vBoard vboard, int alpha, int beta, int score, int move)
 {
 	if (vboard_equal(vboard, &hash->board)) {	// data_update
 		if (score < beta && score < hash->data.upper) hash->data.upper = score;
@@ -566,7 +566,7 @@ void hash_store_local(Hash *hash, VBoard vboard, int alpha, int beta, int score,
 			score = SCORE_MIN;
 			move = NOMOVE;
 		}
-		hash->board = vboard.board;
+		hash->board = vboard.bb;
 		hash->data.upper = upper;
 		hash->data.lower = score;
 		hash->data.move[0] = move;

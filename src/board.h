@@ -24,13 +24,13 @@ typedef struct Board {
 	unsigned long long player, opponent;     /**< bitboard representation */
 } Board;
 
-// MSVC can allocate VBoard var to SSE reg
+// MSVC can allocate vBoard var to SSE reg
 typedef union {
-	Board	board;
+	Board	bb;
   #ifdef hasSSE2
 	__m128i	v2;
   #endif
-} VBoard;
+} vBoard;
 
 struct Move;
 struct Random;
@@ -91,7 +91,7 @@ int get_stability(const unsigned long long, const unsigned long long);
 	#define	vget_opp_statility_fulls(vboard,fulls)	get_stability_PO_fulls((vboard).v2, (fulls))
 #else	// Pass the Board, from opp view
 	int get_stability_fulls(const unsigned long long, const unsigned long long, unsigned long long [5]);
-	#define	vget_opp_statility_fulls(vboard,fulls)	get_stability_fulls((vboard).board.opponent, (vboard).board.player, (fulls))
+	#define	vget_opp_statility_fulls(vboard,fulls)	get_stability_fulls((vboard).bb.opponent, (vboard).bb.player, (fulls))
 #endif
 int get_opp_edge_stability(const Board*);
 int get_corner_stability(const unsigned long long);
@@ -230,7 +230,7 @@ extern unsigned char edge_stability[256 * 256];
 #endif
 
 #ifndef vboard_flip
-	#define	vboard_flip(vboard,x)	board_flip(&(vboard).board, (x))
+	#define	vboard_flip(vboard,x)	board_flip(&(vboard).bb, (x))
 #endif
 
 // Use backup copy of search->board in a vector register if available (assume *pboard == vboard on entry)
@@ -251,7 +251,7 @@ extern unsigned char edge_stability[256 * 256];
 	#define vboard_next(vboard,x,next)	board_next_neon((vboard).v2, (x), (next))
 #else
 	unsigned long long board_next(const Board *board, const int x, Board *next);
-	#define	vboard_next(vboard,x,next)	board_next(&(vboard).board, (x), (next))
+	#define	vboard_next(vboard,x,next)	board_next(&(vboard).bb, (x), (next))
 #endif
 
 // Pass vboard to get_moves if vectorcall available, otherwise board
@@ -263,13 +263,13 @@ extern unsigned char edge_stability[256 * 256];
 #else
 	unsigned long long get_moves(const unsigned long long, const unsigned long long);
 	#define	board_get_moves(board)	get_moves((board)->player, (board)->opponent)
-	#define	vboard_get_moves(vboard)	get_moves((vboard).board.player, (vboard).board.opponent)
+	#define	vboard_get_moves(vboard)	get_moves((vboard).bb.player, (vboard).bb.opponent)
 #endif
 
 #ifdef hasSSE2
 	#define	vboard_equal(v,b)	(_mm_movemask_epi8(_mm_cmpeq_epi8((v).v2, _mm_loadu_si128((__m128i *) (b)))) == 0xFFFF)
 #else
-	#define	vboard_equal(v,b)	board_equal(&(v).board, (b))
+	#define	vboard_equal(v,b)	board_equal(&(v).bb, (b))
 #endif
 
 #endif

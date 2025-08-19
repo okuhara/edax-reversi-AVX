@@ -142,7 +142,7 @@ int search_eval_1(Search *search, int alpha, int beta, unsigned long long moves)
 	int x, score, bestscore, alphathres;
 	unsigned long long flipped;
 	Eval Ev;
-	VBoard board0;
+	vBoard board0;
 
 	SEARCH_STATS(++statistics.n_search_eval_1);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
@@ -152,7 +152,7 @@ int search_eval_1(Search *search, int alpha, int beta, unsigned long long moves)
 		if (alpha < SCORE_MIN + 1) alphathres = ((SCORE_MIN + 1) * 128) + 64;
 		else alphathres = (alpha * 128) + 63 + (int) (alpha < 0);	// highest score rounded to alpha
 
-		board0.board = search->board;
+		board0.bb = search->board;
 		x = NOMOVE;
 		do {
 			do {
@@ -210,7 +210,7 @@ int search_eval_2(Search *search, int alpha, int beta, unsigned long long moves)
 	int x, bestscore, score;
 	unsigned long long flipped;
 	Eval eval0;
-	VBoard board0;
+	vBoard board0;
 
 	SEARCH_STATS(++statistics.n_search_eval_2);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
@@ -223,7 +223,7 @@ int search_eval_2(Search *search, int alpha, int beta, unsigned long long moves)
 		bestscore = -SCORE_INF;
 		eval0.feature = search->eval.feature;
 		eval0.n_empties = search->eval.n_empties--;
-		board0.board = search->board;
+		board0.bb = search->board;
 		x = NOMOVE;
 		do {
 			do {
@@ -245,7 +245,7 @@ int search_eval_2(Search *search, int alpha, int beta, unsigned long long moves)
 		} while (moves);
 		search->eval.feature = eval0.feature;
 		search->eval.n_empties = eval0.n_empties;
-		search->board = board0.board;
+		search->board = board0.bb;
 
 	} else {
 		moves = get_moves(search->board.opponent, search->board.player);
@@ -380,7 +380,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 	MoveList movelist;
 	Move *move;
 	Eval eval0;
-	VBoard board0;
+	vBoard board0;
 	long long nodes_org;
 
 	if (depth == 2) return search_eval_2(search, alpha, alpha + 1, board_get_moves(&search->board));
@@ -400,7 +400,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 	if (search_SC_NWS(search, alpha, &score)) return score;
 
 	search_get_movelist(search, &movelist);
-	board0.board = search->board;
+	board0.bb = search->board;
 	eval0 = search->eval;
 
 	if (movelist.n_moves > 1) {
@@ -418,7 +418,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 			search_update_midgame(search, move);
 			score = -NWS_shallow(search, ~alpha, depth - 1, hash_table);
 			search_restore_midgame(search, move->x, &eval0);
-			search->board = board0.board;
+			search->board = board0.bb;
 			if (score > bestscore) {
 				bestscore = score;
 				hash_data.data.move[0] = move->x;
@@ -441,7 +441,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 		search_update_midgame(search, move);
 		bestscore = -NWS_shallow(search, ~alpha, depth - 1, hash_table);
 		search_restore_midgame(search, move->x, &eval0);
-		search->board = board0.board;
+		search->board = board0.bb;
 
 	} else { // no moves
 		if (can_move(search->board.opponent, search->board.player)) { // pass ?
@@ -593,7 +593,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	Move *move;
 	Node node;
 	Eval eval0;
-	VBoard board0;
+	vBoard board0;
 	long long nodes_org;
 
 	assert(search->eval.n_empties == bit_count(~(search->board.player | search->board.opponent)));
@@ -659,14 +659,14 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		node_init(&node, search, alpha, alpha + 1, depth, movelist.n_moves, parent);
 
 		// loop over all moves
-		board0.board = search->board;
+		board0.bb = search->board;
 		eval0 = search->eval;
 		for (move = node_first_move(&node, &movelist); move; move = node_next_move(&node)) {
 			if (!node_split(&node, move)) {
 				search_update_midgame(search, move);
 				move->score = -NWS_midgame(search, ~alpha, depth - 1, &node);
 				search_restore_midgame(search, move->x, &eval0);
-				search->board = board0.board;
+				search->board = board0.bb;
 				node_update(&node, move);
 			}
 		}
@@ -843,18 +843,18 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 
 		// lacal hash (main thread only)
 		if (search->eval.n_empties <= depth && depth <= DEPTH_TO_USE_LOCAL_HASH && depth > DEPTH_TO_SHALLOW_SEARCH) {
-			VBoard hashboard;
+			vBoard hashboard;
   #ifdef USE_SOLID
 			unsigned long long solid = get_all_full_lines(search->board.player | search->board.opponent) & search->board.player;
 			if (solid) {
 				int ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
-				hashboard.board.player = search->board.player ^ solid;	// normalize solid to opponent
-				hashboard.board.opponent = search->board.opponent ^ solid;
-				hash_store_local(search->thread_hash.hash + (board_get_hash_code(&hashboard.board) & search->thread_hash.hash_mask),
+				hashboard.bb.player = search->board.player ^ solid;	// normalize solid to opponent
+				hashboard.bb.opponent = search->board.opponent ^ solid;
+				hash_store_local(search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask),
 					hashboard, alpha - ofssolid, beta - ofssolid, node.bestscore - ofssolid, node.bestmove);
 			}
   #endif
-			hashboard.board = search->board;
+			hashboard.bb = search->board;
 			hash_store_local(search->thread_hash.hash + (hash_code & search->thread_hash.hash_mask),
 				hashboard, alpha, beta, node.bestscore, node.bestmove);
 		}
