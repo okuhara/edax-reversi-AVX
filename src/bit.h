@@ -5,6 +5,7 @@
  *
  * @date 1998 - 2025
  * @author Richard Delorme
+ * @author Toshihiko Okuhara
  * @version 4.5
  */
 

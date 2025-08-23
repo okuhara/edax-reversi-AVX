@@ -207,7 +207,7 @@ static void wthor_players_save(WthorBase *base, const char *file)
  * @param base Wthor base.
  * @param name Player's name.
  */
-int wthor_player_get(WthorBase *base, const char *name) 
+int wthor_player_get(WthorBase *base, const char *name)
 {
 	int i, n;
 	char (*player)[20];
@@ -224,7 +224,8 @@ int wthor_player_get(WthorBase *base, const char *name)
 	if (player) {
 		base->player = player;
 		base->n_players = n;
-		sprintf(base->player[i], "%-.19s", name); // force null terminated string
+		strncpy(base->player[i], name, 20); // used on purpose, as strncpy fills with '\0' the field name
+		base->player[i][19] = '\0'; // force null terminated string
 	} else {
 		warn("Cannot allocate Wthor players' array\n");
 		i = 0;

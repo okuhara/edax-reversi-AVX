@@ -55,7 +55,7 @@
  */
 int board_solve(const unsigned long long player, const int n_empties)
 {
-	int score = bit_count(player) * 2 - SCORE_MAX;	// in case of opponents win
+	int score = bit_count(player) * 2 - SCORE_MAX;	// in case of opponent wins
 	int diff = score + n_empties;		// = n_discs_p - (64 - n_empties - n_discs_p)
 
 	SEARCH_STATS(++statistics.n_search_solve);

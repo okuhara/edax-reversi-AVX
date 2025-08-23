@@ -1093,7 +1093,7 @@ static bool board_fill(Board *board, Book *book, int depth)
 				book_add_board(book, board);
 				filled = true;
 			}
-			board_pass(board);							
+			board_pass(board);
 		} else {
 			foreach_move(m, movelist) {
 				board_update(board, m);
@@ -2465,7 +2465,7 @@ static void extract_skeleton(Book *book, Board *board, Line *pv, Base *base)
 }
 
 /**
- * @brief Extract book draws to a game base 
+ * @brief Extract book draws to a game base
  *
  * This function supposes that f5d6c4 & f5f6e6f4 are draws and the only draws, excluding the transpositions
  * f5d6c3d3c4 & f5f6e6c6 & c4..., d3..., e6...
@@ -2583,7 +2583,7 @@ void book_stats(Book *book)
 
 /**
  * @brief feed hash table from the opening book.
- * 
+ *
  * @param book Opening book.
  * @param board Position to start from.
  * @param search HashTables container.

@@ -345,6 +345,11 @@ void search_global_init(void)
 	search_log.f = NULL;
 }
 
+/**
+ * @brief Resize hashtables from the option settings.
+ *
+ * @param search the Search structure with hashtables.
+ */
 void search_resize_hashtable(Search *search)
 {
 	if (search->options.hash_size != options.hash_table_size) {
@@ -360,12 +365,12 @@ void search_resize_hashtable(Search *search)
 
 void search_alloc_thread_hash(Search *search)
 {
-	search->thread_hash.hash = mm_malloc((1 << THREAD_LOCAL_HASH_SIZE) * sizeof (Hash));
+	search->thread_hash.hash = mm_malloc((1u << THREAD_LOCAL_HASH_SIZE) * sizeof (Hash));
 	if (search->thread_hash.hash == NULL) {
 		fatal_error("Cannot allocate a thread hash\n");
 	}
-	search->thread_hash.hash_mask = (1 << THREAD_LOCAL_HASH_SIZE) - 1;
-	search->thread_hash.n_hash = 1 << THREAD_LOCAL_HASH_SIZE;
+	search->thread_hash.hash_mask = (1u << THREAD_LOCAL_HASH_SIZE) - 1;
+	search->thread_hash.n_hash = 1u << THREAD_LOCAL_HASH_SIZE;
 	hash_cleanup(&search->thread_hash);
 }
 
@@ -468,7 +473,6 @@ void search_init(Search *search)
  */
 void search_free(Search *search)
 {
-
 	hash_free(&search->hash_table);
 	hash_free(&search->pv_table);
 	hash_free(&search->shallow_table);
@@ -494,7 +498,6 @@ void search_free(Search *search)
  */
 void search_setup(Search *search)
 {
-	int i, x, prev;
 	static const unsigned char presorted_x[] = {
 		A1, A8, H1, H8,                    /* Corner */
 		C4, C5, D3, D6, E3, E6, F4, F5,    /* E */
@@ -507,16 +510,14 @@ void search_setup(Search *search)
 		B2, B7, G2, G7,                    /* X */
 		D4, E4, D5, E5,                    /* center */
 	};
+	const Board *board = &search->board;
+	unsigned long long E = ~(board->player | board->opponent);
+	int i, x, prev;
 
-	const Board * const board = &search->board;
-	unsigned long long E;
-
-	// init empties, parity
 	search->eval.n_empties = 0;
 	search->eval.parity = 0;
 
 	prev = NOMOVE;
-	E = ~(board->player | board->opponent);
 	for (i = 0; i < BOARD_SIZE; ++i) {    /* add empty squares */
 		x = presorted_x[i];
 		if (E & x_to_bit(x)) {
@@ -545,6 +546,7 @@ void search_setup(Search *search)
  */
 void search_clone(Search *search, Search *master)
 {
+	search->id = -1;	// (4.6)
 	search->stop = STOP_END;
 	search->player = master->player;
 	search->board = master->board;
@@ -968,7 +970,7 @@ void search_update_midgame(Search *search, const Move *move)
  *
  * @param search  search.
  * @param x       played move.
- * @param backup  board/eval to restore.
+ * @param eval0   eval_feature/n_empties/parity to restore.
  */
 void search_restore_midgame(Search *search, int x, const Eval *eval0)
 {
@@ -1190,7 +1192,15 @@ bool search_SC_NWS(Search *search, const int alpha, int *score)
 	return false;
 }
 
-// for 4 empties (min stage)
+/**
+ * @brief Stability Cutoff (SC) at 4 empties (min stage).
+ *
+ * @param player Player bitboard.
+ * @param opponent Opponent bitboard.
+ * @param alpha Alpha bound.
+ * @param score Score to return in case of a cutoff is found.
+ * @return 'true' if a cutoff is found, false otherwise.
+ */
 bool search_SC_NWS_4(unsigned long long player, unsigned long long opponent, const int alpha, int *score)
 {
 	if (USE_SC && alpha < -NWS_STABILITY_THRESHOLD[4]) {

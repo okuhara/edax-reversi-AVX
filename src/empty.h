@@ -22,10 +22,10 @@ typedef struct SquareList {
  *
  * @param empty  empty square.
  */
-static inline void empty_remove(SquareList *empty, int index)
+static inline void empty_remove(SquareList *empty, int x)
 {
-	int	next = empty[index].next;
-	int	prev = empty[index].previous;
+	int next = empty[x].next;
+	int prev = empty[x].previous;
 	empty[prev].next = next;
 	empty[next].previous = prev;
 }
@@ -35,15 +35,15 @@ static inline void empty_remove(SquareList *empty, int index)
  *
  * @param empty  empty square.
  */
-static inline void empty_restore(SquareList *empty, int index)
+static inline void empty_restore(SquareList *empty, int x)
 {
-	empty[empty[index].previous].next = index;
-	empty[empty[index].next].previous = index;
+	empty[empty[x].previous].next = x;
+	empty[empty[x].next].previous = x;
 }
 
 /** Loop over all empty squares */
-#define foreach_empty(index, empty)\
-	for ((index) = (empty)[NOMOVE].next; index != NOMOVE; (index) = (empty)[index].next)
+#define foreach_empty(x, empty)\
+	for ((x) = (empty)[NOMOVE].next; (x) != NOMOVE; (x) = (empty)[(x)].next)
 
 #endif
 

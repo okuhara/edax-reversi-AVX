@@ -105,6 +105,9 @@ extern unsigned int writeable_level(HashData *data);
 
 extern const HashData HASH_DATA_INIT;
 
+// The hash entry may not be in the CPU cache and take long to read, so
+// prefetch it as soon as the hash code is available.
+
 #ifdef hasSSE2
 	#define	PREFETCH(P)	_mm_prefetch((char const *)(P), _MM_HINT_T0)
 #elif defined(__ARM_ACLE)

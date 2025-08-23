@@ -342,7 +342,7 @@ static void gamehash_init(GameHashTable *hash, int bitsize)
 	hash->size = (1 << bitsize) + 3;
 	hash->mask = (1 << bitsize) - 1;
 	hash->array = (GameHash*) malloc((hash->size) * sizeof (GameHash));
-	if (hash->array == NULL) fatal_error("Cannot allocate qperft hashtable.\n");
+	if (hash->array == NULL) fatal_error("Cannot allocate perft hashtable.\n");
 	for (i = 0; i < hash->size; ++i) hash->array[i] = GAME_HASH_INIT;
 	hash->n_tries = hash->n_hits = 0;
 }

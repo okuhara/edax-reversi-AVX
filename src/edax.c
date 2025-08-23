@@ -611,7 +611,7 @@ void ui_loop_edax(UI *ui)
 				printf("number of output: %ld\n", u.ru_oublock); 
 				printf("number of voluntary context switch: %ld\n", u.ru_nvcsw); 
 				printf("number of unvoluntary context switch: %ld\n\n", u.ru_nivcsw); 
-#endif		
+#endif
 			// opening name
 			} else if (strcmp(cmd, "opening") == 0) {
 				const char *name;

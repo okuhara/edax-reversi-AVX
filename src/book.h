@@ -40,13 +40,13 @@ typedef struct Book {
 		int n_links;
 		int n_todo;
 	} stats;
+	Random random;
 	struct PositionArray *array;
 	struct PositionStack* stack;
+	Search *search;
 	int n;
 	int n_nodes;
 	bool need_saving;
-	Random random;
-	Search *search;
 } Book;
 
 /**
@@ -78,8 +78,8 @@ void book_link(Book*);
 void book_fix(Book*);
 void book_fill(Book *book, const int);
 void book_deviate(Book*, Board*, const int, const int);
+void book_subtree(Book*, const Board*); 
 void book_enhance(Book*, Board*, const int, const int);
-void book_subtree(Book*, const Board*);
 void book_play(Book*);
 
 void book_info(Book*);

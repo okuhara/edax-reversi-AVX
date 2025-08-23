@@ -16,6 +16,7 @@
  *
  * @date 1998 - 2025
  * @author Richard Delorme
+ * @author Toshihiko Okuhara
  * @version 4.5
  */
 
@@ -241,6 +242,8 @@ static void data_upgrade(HashData *data, HashStoreData *storedata)
 /**
  * @brief Set an hash table data item.
  *
+ * All the data are set to a new value.
+ *
  * @param data Hash Data.
  * @param storedata.data.date Search Date.
  * @param storedata.data.depth Search depth.
@@ -298,10 +301,8 @@ static void hash_new(Hash *hash, HashLock *lock, const Board *board, HashStoreDa
 /**
  * @brief Set a new hash table item.
  *
- * This implementation tries to be robust against concurrency. Data are first
- * set up in a local thread-safe structure, before being copied into the
- * hashtable entry. Then the hashcode of the entry is xored with the thread
- * safe structure ; so that any corrupted entry won't be readable.
+ * This implementation tries to be robust against concurrency using a spin lock,
+ * simpler and faster than mutex.
  *
  * @param hash Hash Entry.
  * @param lock Lock.
@@ -675,7 +676,7 @@ bool hash_get_from_board(HashTable *hash_table, const Board *board, HashData *da
 }
 
 /**
- * @brief Erase an hash table entry.
+ * @brief Exclude a move from the hash table entry.
  *
  * @param hash_table Hash table.
  * @param board Bitboard.
@@ -686,14 +687,13 @@ void hash_exclude_move(HashTable *hash_table, const Board *board, const unsigned
 {
 	int i;
 	Hash *hash;
-	HashLock *lock;
 
 	hash = hash_table->hash + (hash_code & hash_table->hash_mask);
 	for (i = 0; i < HASH_N_WAY; ++i) {
 		if (board_equal(&hash->board, board)) {
-			lock = hash_table->lock + (hash_code & hash_table->lock_mask);
-			spin_lock(lock);
-			if (board_equal(&hash->board, board)) {
+			// HashLock *lock = hash_table->lock + (hash_code & hash_table->lock_mask);
+			// spin_lock(lock);
+			// if (board_equal(&hash->board, board)) {
 				if (hash->data.move[0] == move) {
 					hash->data.move[0] = hash->data.move[1];
 					hash->data.move[1] = NOMOVE;
@@ -701,8 +701,8 @@ void hash_exclude_move(HashTable *hash_table, const Board *board, const unsigned
 					hash->data.move[1] = NOMOVE;
 				}
 				hash->data.lower = SCORE_MIN;
-			}
-			spin_unlock(lock);
+			// }
+			// spin_unlock(lock);
 			return;
 		}
 		++hash;
@@ -717,13 +717,12 @@ void hash_exclude_move(HashTable *hash_table, const Board *board, const unsigned
  */
 void hash_copy(const HashTable *src, HashTable *dest)
 {
-	unsigned int i, imax = src->hash_mask + HASH_N_WAY;
-	Hash *pSrc = src->hash, *pDest = dest->hash;
+	unsigned int i;
 
 	assert(src->hash_mask == dest->hash_mask);
 	info("<hash copy>\n");
-	for (i = 0; i <= imax; ++i) {
-		*pDest++ = *pSrc++;
+	for (i = 0; i <= src->hash_mask + HASH_N_WAY; ++i) {
+		dest->hash[i] = src->hash[i];
 	}
 	dest->date = src->date;
 }

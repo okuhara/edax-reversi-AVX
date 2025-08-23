@@ -241,7 +241,7 @@ int search_bound(const Search*, int);
 		*(q - 1) = p;
 		return (void *) q;
 	}
-	#define mm_free(p)	free(*((void **)(p) - 1));
+	#define mm_free(p)	free(*((void **)(p) - 1))
   #endif
 #else
 	#define	mm_malloc(s)	malloc(s)

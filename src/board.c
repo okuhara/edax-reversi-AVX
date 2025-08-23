@@ -232,13 +232,11 @@ void board_check(const Board *board)
  *
  * @param b1 first board
  * @param b2 second board
- * @return true if b1 is lesser than b2
+ * @return true if b1 is lesser than b2.
  */
 bool board_lesser(const Board *b1, const Board *b2)
 {
-	if (b1->player != b2->player)
-		return (b1->player < b2->player);
-	else	return (b1->opponent < b2->opponent);
+	return (b1->player < b2->player) || (b1->player == b2->player && b1->opponent < b2->opponent);
 }
 
 /**
@@ -468,7 +466,7 @@ unsigned long long board_next(const Board *board, const int x, Board *next)
 	const unsigned long long flipped = board_flip(board, x);
 	const unsigned long long player = board->opponent ^ flipped;
 
-	next->opponent = board->player ^ (flipped | X_TO_BIT[x]);
+	next->opponent = board->player ^ (flipped | x_to_bit(x));
 	next->player = player;
 
 	return flipped;
@@ -516,7 +514,7 @@ static inline unsigned long long get_some_moves(const unsigned long long P, cons
 	return ((flip_l & mask) << dir) | ((flip_r & mask) >> dir);
 
 #elif PARALLEL_PREFIX & 1
-	// 1-stage Parallel Prefix (intermediate between kogge stone & sequential) 
+	// 1-stage Parallel Prefix (intermediate between kogge stone & sequential)
 	// 6 << + 6 >> + 7 | + 10 &
 	unsigned long long flip_l, flip_r;
 	unsigned long long mask_l, mask_r;
@@ -531,8 +529,8 @@ static inline unsigned long long get_some_moves(const unsigned long long P, cons
 	return (flip_l << dir) | (flip_r >> dir);
 
 #else
- 	// sequential algorithm
- 	// 7 << + 7 >> + 6 & + 12 |
+	// sequential algorithm
+	// 7 << + 7 >> + 6 & + 12 |
 	unsigned long long flip;
 
 	flip = (((P << dir) | (P >> dir)) & mask);
