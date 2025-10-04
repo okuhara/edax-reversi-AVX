@@ -1857,7 +1857,6 @@ void book_play(Book *book)
 
 	file_add_ext(options.book_file, ".play", file);
 	do {
-		n_diffs = 0;
 		book->stats.n_nodes = book->stats.n_links = book->stats.n_todo = 0;
 		foreach_position(p, a, book) {
 			if (p->n_link == 0 && board_count_empties(&p->board) >= book->options.n_empties && !board_is_game_over(&p->board)) {

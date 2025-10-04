@@ -739,7 +739,7 @@ void base_unique(Base *base)
  */
 bool base_load(Base *base, const char *file)
 {
-	void (*load)(Game*, FILE*) = game_import_text;
+	void (*load)(Game*, FILE*);
 	Game game;
 	FILE *f;
 	char ext[8];
@@ -787,7 +787,7 @@ bool base_load(Base *base, const char *file)
  */
 void base_save(const Base *base, const char *file)
 {
-	void (*save)(const Game*, FILE*)= game_export_text;
+	void (*save)(const Game*, FILE*);
 	FILE *f;
 	char ext[8];
 	int i, l;

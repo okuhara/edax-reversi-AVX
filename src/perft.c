@@ -697,7 +697,7 @@ static void boardcache_append(BoardCache *hash, const Board *b)
 	l = board_count_empties(hash->array + i); j = i;
 	k = board_count_empties(hash->array + ++i); if (k > l) {l = k; j = i;}
 	k = board_count_empties(hash->array + ++i); if (k > l) {l = k; j = i;}
-	k = board_count_empties(hash->array + ++i); if (k > l) {l = k; j = i;}
+	k = board_count_empties(hash->array + ++i); if (k > l) {j = i;}
 
 	hash->array[j] = u;
 }

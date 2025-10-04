@@ -26,6 +26,9 @@ Options options = {
 
 	1, // n_task (will be set to system available cpus at run-time)
 	false, // cpu_affinity
+	true, // can ponder
+
+	false, // all_best
 
 	1, // verbosity
 	0, // noise
@@ -35,10 +38,9 @@ Options options = {
 	false, // debug cassio
 	true, // transgress cassio
 
-	21, // max level
 	TIME_MAX, // infinite time
+	21, // max level
 	EDAX_FIXED_LEVEL, // play-type
-	true, // can ponder
 	-1, // depth
 	-1, // selectivity
 
@@ -49,8 +51,6 @@ Options options = {
 
 	SCORE_MIN, // alpha
 	SCORE_MAX, // beta
-
-	false, // all_best
 
 	NULL, // evaluation function's weights file.
 
@@ -64,10 +64,10 @@ Options options = {
 	NULL, // port
 	1,    // open
 
-	0.25, // probcut depth reduction (/2)
 	false, // pv debug
 	false, // pv check
 	false, // pv guess
+	0.25, // probcut depth reduction (/2)
 
 	NULL, // game file.
 
@@ -411,4 +411,3 @@ void options_free(void)
 	free(options.book_file);
 	free(options.eval_file);
 }
-

@@ -28,19 +28,21 @@ typedef struct {
 
 	int n_task;                           /**< search in parallel, using n_tasks */
 	bool cpu_affinity;                    /**< set one cpu/thread to diminish context change */
+	bool can_ponder;                      /**< pondering on/off */
+
+	bool all_best;                        /**< search for all best moves when solving problem */
 
 	int verbosity;                        /**< search display */
- 	int noise;                            /**< search display min depth */
+	int noise;                            /**< search display min depth */
 	int width;                            /**< line width */
 	bool echo;                            /**< repeat user input */
 	bool info;                            /**< info display */
 	bool debug_cassio;                    /**< display debug info in cassio's "fenetre de rapport"*/
 	bool transgress_cassio;               /**< adapt Cassio requests to search & solve faster */
 
-	int level;                            /**< level */
 	long long time;                       /**< time in sec. */
+	int level;                            /**< level */
 	PlayType play_type;                   /**< game|move-time switch */
-	bool can_ponder;                      /**< pondering on/off */
 	int depth;                            /**< depth (only for testing) */
 	int selectivity;                      /**< selectivity (only for testing) */
 
@@ -51,8 +53,6 @@ typedef struct {
 
 	int alpha;                            /**< alpha bound */
 	int beta;                             /**< beta bound */
-
-	bool all_best;                        /**< search for all best moves when solving problem */
 
 	char *eval_file;                      /**< evaluation file */
 
@@ -66,11 +66,11 @@ typedef struct {
 	char *ggs_port;                       /**< ggs port */
 	bool ggs_open;                        /**< ggs open number (set it false for tournaments) */
 
-	double probcut_d;
-
 	bool pv_debug;                        /**< debug PV */
 	bool pv_check;                        /**< check PV correctness */
 	bool pv_guess;                        /**< guess PV missing moves */
+
+	double probcut_d;
 
 	char *game_file;                      /**< game file */
 

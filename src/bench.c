@@ -58,11 +58,9 @@ static void bench_move_generator(void)
 	double t, t_mean, t_var, t_min, t_max;
 
 	v = 0;
-	c = -click();
 	for (i = 0; i < N_WARMUP; ++i) {
 		v += i;
 	}
-	c += click();
 
 	c = -click();
 	for (i = 0; i < N_REPEAT; ++i) {
@@ -79,12 +77,10 @@ static void bench_move_generator(void)
 		board_set(&board, b);
 		board.player &= ~x_to_bit(x);
 		board.opponent &= ~x_to_bit(x);
-		
-		c = -click();
+
 		for (i = 0; i < N_WARMUP; ++i) {
 			v += board_get_move_flip(&board, x, &move);
 		}
-		c += click();
 
 		c = -click();
 		for (i = 0; i < N_REPEAT; ++i) {
@@ -125,11 +121,9 @@ static void bench_count_last_flip(void)
 
 	v = 0;
 
-	c = -click();
 	for (i = 0; i < N_WARMUP; ++i) {
 		v += i;
 	}
-	c += click();
 
 	c = -click();
 	for (i = 0; i < N_REPEAT; ++i) {
@@ -147,11 +141,9 @@ static void bench_count_last_flip(void)
 		board.player &= ~x_to_bit(x);
 		// board.opponent &= ~x_to_bit(x);
 
-		c = -click();
 		for (i = 0; i < N_WARMUP; ++i) {
 			v += last_flip(x, board.player & ~i);
 		}
-		c += click();
 
 		c = -click();
 		for (i = 0; i < N_REPEAT; ++i) {
@@ -193,11 +185,9 @@ static void bench_solve_1(void)
 	board_set(&board, b);
 	v = 0;
 
-	c = -click();
 	for (i = 0; i < N_WARMUP; ++i) {
 		v += i;
 	}
-	c += click();
 
 	c = -click();
 	for (i = 0; i < N_REPEAT; ++i) {
@@ -215,11 +205,9 @@ static void bench_solve_1(void)
 		board.player &= ~x_to_bit(x);
 		board.opponent &= ~x_to_bit(x);
 
-		c = -click();
 		for (i = 0; i < N_WARMUP; ++i) {
 			v += solve_1(board.player, SCORE_MAX - 1, x);
 		}
-		c += click();
 
 		c = -click();
 		for (i = 0; i < N_REPEAT; ++i) {
@@ -260,13 +248,11 @@ static void bench_mobility(void)
 
 	board_set(&board, b);
 	v = 0;
-	c = -click();
 	for (i = 0; i < N_WARMUP; ++i) {
 		board.player &= ~i;
 		board.opponent &= ~i;
 		v += i;
 	}
-	c += click();
 
 	board_set(&board, b);
 	c = -click();
@@ -276,7 +262,7 @@ static void bench_mobility(void)
 		v += i;
 	}
 	c += click();
-	overhead = 0;
+	overhead = c;
 
 	t_mean = t_var = 0.0;
 	t_max = 0;
@@ -286,14 +272,12 @@ static void bench_mobility(void)
 		board_set(&board, b);
 
 		v = 0;
-		c = -click();
 		for (i = 0; i < N_WARMUP; ++i) {
 			board.player &= ~i;
 			board.opponent &= ~i;
 			v += get_mobility(board.player, board.opponent);
 			v -= get_mobility(board.opponent, board.player);
 		}
-		c += click();
 
 		board_set(&board, b);
 		c = -click();
@@ -340,12 +324,10 @@ static void bench_stability(void)
 
 	v = 0;
 	x = A1;
-	c = -click();
 	for (i = 0; i < N_WARMUP; ++i) {
 		board.player &= ~x_to_bit(x);
 		board.opponent &= ~x_to_bit(x);
 	}
-	c += click();
 
 	board_set(&board, b);
 	c = -click();
@@ -362,15 +344,12 @@ static void bench_stability(void)
 
 	for (x = A1; x < PASS; ++x) {
 		board_set(&board, b);
-
 		v = 0;
-		c = -click();
 		for (i = 0; i < N_WARMUP; ++i) {
 			board.player &= ~x_to_bit(x);
 			board.opponent &= ~x_to_bit(x);
 			v += get_stability(board.player, board.opponent);
 		}
-		c += click();
 
 		board_set(&board, b);
 		c = -click();
