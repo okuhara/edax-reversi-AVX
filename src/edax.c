@@ -255,8 +255,8 @@ void help_book(void)
 void help_base(void)
 {
 	printf( "\nGame DataBase :\n"
-		"  convert [file_in]$00A0[file_out]     convert between different format.\n"
-		"  unique [file_in]$00A0[file_out]      remove doublons in the base.\n"
+		"  convert [file_in] [file_out]     convert between different format.\n"
+		"  unique [file_in] [file_out]      remove doublons in the base.\n"
 		"  check [file_in] [n]              check error in the last <n> moves.\n"
 		"  correct [file_in] [n]            correct error in the last <n> moves.\n"
 		"  complete [file_in]               complete a database by playing the last\n  missing moves.\n"
@@ -665,13 +665,13 @@ void ui_loop_edax(UI *ui)
 				// create a new empty book
 				} else if (strcmp(book_cmd, "new") == 0) {
 					val_1 = 21; book_param = parse_int(book_param, &val_1);
-					val_2 = 36;	book_param = parse_int(book_param, &val_2);
-					book_free(book) ;
+					val_2 = 36; book_param = parse_int(book_param, &val_2);
+					book_free(book);
 					book_new(book, val_1, 61 - val_2);
 
 				// load an opening book (binary format) from the disc
 				} else if (strcmp(book_cmd, "load") == 0 || strcmp(book_cmd, "open") == 0) {
-					book_free(book) ;
+					book_free(book);
 					parse_word(book_param, book_file, FILENAME_MAX);
 					book_load(book, book_file);
 
