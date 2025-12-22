@@ -442,9 +442,9 @@ unsigned int horizontal_mirror_32(unsigned int b)
 unsigned long long horizontal_mirror(unsigned long long b)
 {
 #if defined(HAS_CPU_64) && !defined(__ARM_ACLE)
-	b = ((b >> 1) & 0x5555555555555555ULL) | ((b & 0x5555555555555555ULL) << 1);
-	b = ((b >> 2) & 0x3333333333333333ULL) | ((b & 0x3333333333333333ULL) << 2);
-	b = ((b >> 4) & 0x0F0F0F0F0F0F0F0FULL) | ((b & 0x0F0F0F0F0F0F0F0FULL) << 4);
+	b = ((b >> 1) & 0x5555555555555555) +  2 * (b & 0x5555555555555555);
+	b = ((b >> 2) & 0x3333333333333333) +  4 * (b & 0x3333333333333333);
+	b = ((b >> 4) & 0x0F0F0F0F0F0F0F0F) + 16 * (b & 0x0F0F0F0F0F0F0F0F);
 	return b;
 #else
 	return ((unsigned long long) horizontal_mirror_32(b >> 32) << 32)

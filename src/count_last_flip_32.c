@@ -1384,7 +1384,7 @@ int (*count_last_flip[])(const unsigned long long) = {
  * @param x      Last empty square to play.
  * @return       The final score, as a disc difference.
  */
-int solve_exact_1(unsigned long long P, int pos)
+int solve_exact_1(const unsigned long long P, int pos)
 {
 	unsigned short op_flip;
 	int p_flips, o_flips;
