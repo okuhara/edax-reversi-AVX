@@ -343,7 +343,7 @@ enum {
 	CF52 = 2304
 };
 
-static const uint64_t mask_pext[64] = {
+static const uint64_t mask_pext[64] = {	// merged diagonal for left/right edge, diag-9 for center box, horizontal otherwise
 	0x00000000000000ff, 0x00000000000000ff, 0x00000000000000ff, 0x00000000000000ff, 0x00000000000000ff, 0x00000000000000ff, 0x00000000000000ff, 0x00000000000000ff,
 	0x4020100804020102, 0x000000000000ff00, 0x000000000000ff00, 0x000000000000ff00, 0x000000000000ff00, 0x000000000000ff00, 0x000000000000ff00, 0x0204081020408040, 
 	0x2010080402010204, 0x4020100804020408, 0x0000000102000810, 0x0000010204001020, 0x0001020408002040, 0x0102040810204080, 0x0204081020402010, 0x0408102040804020,
@@ -365,7 +365,7 @@ static const uint16_t ofs_pext[64] = {
 	CF80, CF81, CF82, CF83, CF84, CF85, CF86, CF87
 };
 
-static const uint64_t mask_kg[64] = {
+static const uint64_t mask_kg[64] = {	// merged diagonal for top/bottom edge or horizontal otherwise
 	0x8040201008040201, 0x0080402010080502, 0x0000804020110a04, 0x0000008041221408, 0x0000000182442810, 0x0000010204885020, 0x0001020408102040, 0x0102040810204080,
 	0x000000000000ff00, 0x8040201008040201, 0x00804020110a0400, 0x0000804122140800, 0x0000018244281000, 0x0001020488502000, 0x0102040810204080, 0x000000000000ff00,
 	0x0000000000ff0000, 0x0000000000ff0000, 0x0000000000ff0000, 0x0000000000ff0000, 0x0000000000ff0000, 0x0000000000ff0000, 0x0000000000ff0000, 0x0000000000ff0000,
@@ -376,7 +376,7 @@ static const uint64_t mask_kg[64] = {
 	0x0102040810204080, 0x0205081020408000, 0x040a112040800000, 0x0814224180000000, 0x1028448201000000, 0x2050880402010000, 0x40a0100804020100, 0x8040201008040201
 };
 
-static const uint64_t mask_box_d7[] = {
+static const uint64_t mask_box_d7[] = {	// diag-7 for center box
 	      0x8040201008040201, 0x0080402010000402, 0x0000804020000804, 0x0000008040001008, 0, 0,
 	0, 0, 0x4020100800020100, 0x8040201008040201, 0x0080402000080402, 0x0000804000100804, 0, 0,
 	0, 0, 0x2010080002010000, 0x4020100004020100, 0x8040201008040201, 0x0080400010080402, 0, 0,
@@ -405,7 +405,7 @@ int last_flip(int pos, unsigned long long P)
 	n_flips  = (uint8_t) COUNT_FLIP[(pos & 0x38) * 32 + _pext_u64(P, 0x0101010101010101 << (pos & 0x07))];
 	n_flips += (uint8_t) COUNT_FLIP[ofs_pext[pos] + _pext_u64(P, mask_pext[pos])];
 	n_flips += (uint8_t) COUNT_FLIP[(pos & 0x07) * 256 + ((uint64_t)((P & mask_kg[pos]) * 0x0101010101010101) >> 56)];
-	if (0x00003c3c3c3c0000 & (1ULL << pos))	// last move in inner box - almost 0%
+	if (0x00003c3c3c3c0000 & (1ULL << pos))	// last move in inner box (0%)
 		n_flips += (uint8_t) COUNT_FLIP[ofs_box_d7[pos - 18] + _pext_u64(P, mask_box_d7[pos - 18])];
 
 	return n_flips;
@@ -428,7 +428,7 @@ int solve_exact_1(unsigned long long P, int pos)
 	op_flip  = COUNT_FLIP[(pos & 0x38) * 32 + _pext_u64(P, 0x0101010101010101 << (pos & 0x07))];
 	op_flip += COUNT_FLIP[ofs_pext[pos] + _pext_u64(P, mask_pext[pos])];
 	op_flip += COUNT_FLIP[(pos & 0x07) * 256 + ((uint64_t)((P & mask_kg[pos]) * 0x0101010101010101) >> 56)];
-	if (0x00003c3c3c3c0000 & (1ULL << pos))	// last move in inner box - almost 0%
+	if (0x00003c3c3c3c0000 & (1ULL << pos))	// last move in inner box (0%)
 		op_flip += COUNT_FLIP[ofs_box_d7[pos - 18] + _pext_u64(P, mask_box_d7[pos - 18])];
 
 	score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))

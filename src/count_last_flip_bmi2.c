@@ -380,7 +380,7 @@ static const uint16_t COUNT_FLIP[] = {
 	0x0200, 0x0200, 0x0200, 0x0200, 0x0200, 0x0200, 0x0200, 0x0200,
 	0x0600, 0x0600, 0x0600, 0x0600, 0x0800, 0x0800, 0x0a00, 0x0200,
 	0x0400, 0x0400, 0x0400, 0x0400, 0x0600, 0x0600, 0x0800, 0x0000,
-	// D78: 2688 (LRLRLRL)
+	// CD78: 2688 (LRLRLRL)
 	0x0000, 0x0006, 0x0004, 0x000a, 0x0004, 0x0004, 0x0008, 0x0008,
 	0x0002, 0x0008, 0x0002, 0x0008, 0x0006, 0x0006, 0x0006, 0x0006,
 	0x0002, 0x0002, 0x0006, 0x0006, 0x0002, 0x0002, 0x0006, 0x0006,
@@ -397,7 +397,7 @@ static const uint16_t COUNT_FLIP[] = {
 	0x0600, 0x0600, 0x0200, 0x0200, 0x0600, 0x0600, 0x0200, 0x0200,
 	0x0600, 0x0600, 0x0600, 0x0600, 0x0800, 0x0200, 0x0800, 0x0200,
 	0x0800, 0x0800, 0x0400, 0x0400, 0x0a00, 0x0400, 0x0600, 0x0000,
-	// E78: 2816 (LRLRLRR)
+	// CE78: 2816 (LRLRLRR)
 	0x0000, 0x0006, 0x0004, 0x0004, 0x0004, 0x000a, 0x0008, 0x0008,
 	0x0002, 0x0002, 0x0002, 0x0002, 0x0006, 0x0006, 0x0006, 0x0006,
 	0x0002, 0x0008, 0x0006, 0x0006, 0x0002, 0x0008, 0x0006, 0x0006,
@@ -483,7 +483,7 @@ enum {
 };
 
 /* bit masks for diagonal lines */
-static const uint64_t cf_mask_d[64] = {
+static const uint64_t cf_mask_d[64] = {	// merged diagonal for edges or diag-9 for center box
 	0x8040201008040201, 0x0080402010080403, 0x0000804020110a00, 0x0000008041221400, 0x0000000182442800, 0x0000010204885000, 0x0001020408102041, 0x0102040810204080,
 	0x4020100804020101, 0x8040201008040201, 0x00804020110a0000, 0x0000804122140000, 0x0000018244280000, 0x0001020488500000, 0x0102040810204080, 0x0204081020408001,
 	0x2010080402010204, 0x4020100804020408, 0x0000000102000810, 0x0000010204001020, 0x0001020408002040, 0x0102040810204080, 0x0204081020402010, 0x0408102040804020,
@@ -505,7 +505,7 @@ static const uint_fast16_t cf_ofs_d[64] = {
 	CF87, CF86, CC78, CD78, CE78, CF78, CF86, CF87
 };
 
-static const uint64_t mask_box_d7[] = {
+static const uint64_t mask_box_d7[] = {	// diag-7 for center box
 	      0x8040201008040201, 0x0080402010000402, 0x0000804020000804, 0x0000008040001008, 0, 0,
 	0, 0, 0x4020100800020100, 0x8040201008040201, 0x0080402000080402, 0x0000804000100804, 0, 0,
 	0, 0, 0x2010080002010000, 0x4020100004020100, 0x8040201008040201, 0x0080400010080402, 0, 0,
@@ -533,11 +533,11 @@ int last_flip(int pos, unsigned long long P)
 	int x = pos & 0x07;
 	int y8 = pos & 0x38;
 
-	// n_flipped = (uint8_t) COUNT_FLIP[x * 256 + _bextr_u64(P, y8, 8)];
+	// n_flips = (uint8_t) COUNT_FLIP[x * 256 + _bextr_u64(P, y8, 8)];
 	n_flips  = (uint8_t) COUNT_FLIP[x * 256 + ((P >> y8) & 0xFF)];
 	n_flips += (uint8_t) COUNT_FLIP[y8 * 32 + _pext_u64(P, 0x0101010101010101 << x)];
 	n_flips += (uint8_t) COUNT_FLIP[cf_ofs_d[pos] + _pext_u64(P, cf_mask_d[pos])];
-	if (0x00003c3c3c3c0000 & (1ULL << pos))	// last move in inner box - almost 0%
+	if (0x00003c3c3c3c0000 & (1ULL << pos))	// last move in inner box (0%)
 		n_flips += (uint8_t) COUNT_FLIP[ofs_box_d7[pos - 18] + _pext_u64(P, mask_box_d7[pos - 18])];
 
 	return n_flips;
@@ -563,7 +563,7 @@ int solve_exact_1(unsigned long long P, int pos)
 	op_flip  = COUNT_FLIP[x * 256 + ((P >> y8) & 0xFF)];
 	op_flip += COUNT_FLIP[y8 * 32 + _pext_u64(P, 0x0101010101010101 << x)];
 	op_flip += COUNT_FLIP[cf_ofs_d[pos] + _pext_u64(P, cf_mask_d[pos])];
-	if (0x00003c3c3c3c0000 & (1ULL << pos))	// last move in inner box - almost 0%
+	if (0x00003c3c3c3c0000 & (1ULL << pos))	// last move in inner box (0%
 		op_flip += COUNT_FLIP[ofs_box_d7[pos - 18] + _pext_u64(P, mask_box_d7[pos - 18])];
 
 	score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
