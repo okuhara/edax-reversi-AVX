@@ -1451,6 +1451,30 @@ int solve_exact_1(const unsigned long long P, int pos)
 			op_flip += COUNT_FLIP_1[(((LODWORD(P) & 0x08040000u) + (HIDWORD(P) & 0x80402010u)) * 0x01010101u) >> 26];
 			break;
 
+		case 10: // C2
+			op_flip  = COUNT_FLIP_1[(((LODWORD(P) & 0x04040000u) + ((HIDWORD(P) & 0x04040404u) << 4)) * 0x00408102u) >> 26];
+			op_flip += COUNT_FLIP_2[(LODWORD(P) >> 8) & 0xff];
+			op_flip += COUNT_FLIP_2[(((LODWORD(P) & 0x110A0400u) + (HIDWORD(P) & 0x00804020u)) * 0x01010101u) >> 24];	// A4C2H7
+			break;
+
+		case 11: // D2
+			op_flip  = COUNT_FLIP_1[(((LODWORD(P) & 0x08080000u) + ((HIDWORD(P) & 0x08080808u) << 4)) * 0x00204081u) >> 26];
+			op_flip += COUNT_FLIP_3[(LODWORD(P) >> 8) & 0xff];
+			op_flip += COUNT_FLIP_3[(((LODWORD(P) & 0x22140800u) + (HIDWORD(P) & 0x00008041u)) * 0x01010101u) >> 24];	// A5D2H6
+			break;
+
+		case 12: // E2
+			op_flip  = COUNT_FLIP_1[((((LODWORD(P) & 0x10100000u) >> 4) + (HIDWORD(P) & 0x10101010u)) * 0x01020408u) >> 26];
+			op_flip += COUNT_FLIP_4[(LODWORD(P) >> 8) & 0xff];
+			op_flip += COUNT_FLIP_4[(((LODWORD(P) & 0x44281000u) + (HIDWORD(P) & 0x00000182u)) * 0x01010101u) >> 24];	// A6E2H5
+			break;
+
+		case 13: // F2
+			op_flip  = COUNT_FLIP_1[(((HIDWORD(P) & 0x20202020u) + ((LODWORD(P) & 0x20200000u) >> 4)) * 0x00810204u) >> 26];
+			op_flip += COUNT_FLIP_5[(LODWORD(P) >> 8) & 0xff];
+			op_flip += COUNT_FLIP_5[(((LODWORD(P) & 0x88502000u) + (HIDWORD(P) & 0x00010204u)) * 0x01010101u) >> 24];	// A7F2H4
+			break;
+
 		case 14: // G2 (4%)
 			op_flip  = COUNT_FLIP_1[((((LODWORD(P) & 0x40400000u) >> 4) + (HIDWORD(P) & 0x40404040u)) * 0x00408102u) >> 26];
 			op_flip += COUNT_FLIP_6[(LODWORD(P) >> 8) & 0x3f];
@@ -1469,6 +1493,18 @@ int solve_exact_1(const unsigned long long P, int pos)
 			op_flip += COUNT_FLIP_5[((LODWORD(P) & 0x01010204u) * 0x20202010u + (HIDWORD(P) & 0x01010101u) * 0x08040201u) >> 24];	// C1A3A8
 			break;
 
+		case 17: // B3
+			op_flip  = COUNT_FLIP_2[((LODWORD(P) & 0x04020202u) * 0x00810202u + (HIDWORD(P) & 0x40201008u) * 0x02020202u) >> 24];	// B1B3G8
+			op_flip += COUNT_FLIP_1[(LODWORD(P) >> 18) & 0x3f];
+			op_flip += COUNT_FLIP_5[((LODWORD(P) & 0x02020408u) * 0x10101008u + ((HIDWORD(P) & 0x02020202u) >> 1) * 0x08040201u) >> 24];	// D1B3B8
+			break;
+
+		case 22: // G3
+			op_flip  = COUNT_FLIP_2[(((LODWORD(P) & 0x40402010u) >> 4) * 0x01010102u + (HIDWORD(P) & 0x40404040u) * 0x00408102u) >> 24];	// E1G3G8
+			op_flip += COUNT_FLIP_6[(LODWORD(P) >> 16) & 0x3f];
+			op_flip += COUNT_FLIP_5[(((LODWORD(P) & 0x20404040u) >> 1) * 0x04020101u + ((HIDWORD(P) & 0x02040810u) >> 1) * 0x01010101u) >> 24];	// G1G3B8
+			break;
+
 		case 23: // H3 (1%)
 			op_flip  = COUNT_FLIP_2[(((LODWORD(P) & 0x80804020u) >> 4) * 0x00808081u + (HIDWORD(P) & 0x80808080u) * 0x00204081u) >> 24];	// F1H3H8
 			op_flip += COUNT_FLIP_7[(LODWORD(P) >> 16) & 0x7f];
@@ -1479,6 +1515,18 @@ int solve_exact_1(const unsigned long long P, int pos)
 			op_flip  = COUNT_FLIP_3[((LODWORD(P) & 0x01010101u) * 0x01020408u + (HIDWORD(P) & 0x10080402u) * 0x08080808u) >> 24];	// A1A4E8
 			op_flip += COUNT_FLIP_0[LODWORD(P) >> 25];
 			op_flip += COUNT_FLIP_4[((LODWORD(P) & 0x01020408u) * 0x10101010u + (HIDWORD(P) & 0x01010101u) * 0x08040201u) >> 24];	// D1A4A8
+			break;
+
+		case 25: // B4
+			op_flip  = COUNT_FLIP_3[((LODWORD(P) & 0x02020202u) * 0x00810204u + (HIDWORD(P) & 0x20100804u) * 0x04040404u) >> 24];	// B1B4F8
+			op_flip += COUNT_FLIP_1[LODWORD(P) >> 26];
+			op_flip += COUNT_FLIP_4[((LODWORD(P) & 0x02040810u) * 0x08080808u + ((HIDWORD(P) & 0x02020202u) >> 1) * 0x08040201u) >> 24];	// E1B4B8
+			break;
+
+		case 30: // G4
+			op_flip  = COUNT_FLIP_3[(((LODWORD(P) & 0x40201008u) >> 3) * 0x01010101u + (HIDWORD(P) & 0x40404040u) * 0x00408102u) >> 24];	// D1G4G8
+			op_flip += COUNT_FLIP_6[(LODWORD(P) >> 24) & 0x3f];
+			op_flip += COUNT_FLIP_4[(((LODWORD(P) & 0x40404040u) >> 2) * 0x08040201u + ((HIDWORD(P) & 0x04081020u) >> 2) * 0x01010101u) >> 24];	// G1G4C8
 			break;
 
 		case 31: // H4 (0.8%)
@@ -1493,6 +1541,18 @@ int solve_exact_1(const unsigned long long P, int pos)
 			op_flip += COUNT_FLIP_3[((LODWORD(P) & 0x02040810u) * 0x08080808u + (HIDWORD(P) & 0x01010101u) * 0x08040201u) >> 24];	// E1A5A8
 			break;
 
+		case 33: // B5
+			op_flip  = COUNT_FLIP_4[((LODWORD(P) & 0x02020202u) * 0x00810204u + (HIDWORD(P) & 0x10080402u) * 0x08080808u) >> 24];	// B1B5E8
+			op_flip += COUNT_FLIP_1[(HIDWORD(P) >> 2) & 0x3f];
+			op_flip += COUNT_FLIP_3[((LODWORD(P) & 0x04081020u) * 0x04040404u + ((HIDWORD(P) & 0x02020202u) >> 1) * 0x08040201u) >> 24];	// F1B5B8
+			break;
+
+		case 38: // G5
+			op_flip  = COUNT_FLIP_4[(((LODWORD(P) & 0x20100804u) >> 2) * 0x01010101u + (HIDWORD(P) & 0x40404040u) * 0x00408102u) >> 24];	// C1G5G8
+			op_flip += COUNT_FLIP_6[HIDWORD(P) & 0x3f];
+			op_flip += COUNT_FLIP_3[(((LODWORD(P) & 0x40404040u) >> 3) * 0x10080402u + ((HIDWORD(P) & 0x08102040u) >> 3) * 0x01010101u) >> 24];	// G1G5D8
+			break;
+
 		case 39: // H5 (1%)
 			op_flip  = COUNT_FLIP_4[(((LODWORD(P) & 0x40201008u) >> 3) * 0x01010101u + (HIDWORD(P) & 0x80808080u) * 0x00204081u) >> 24];	// D1H5H8
 			op_flip += COUNT_FLIP_7[HIDWORD(P) & 0x7f];
@@ -1503,6 +1563,18 @@ int solve_exact_1(const unsigned long long P, int pos)
 			op_flip  = COUNT_FLIP_5[((LODWORD(P) & 0x01010101u) * 0x01020408u + (HIDWORD(P) & 0x04020101u) * 0x10202020u) >> 24];	// A1A6C8
 			op_flip += COUNT_FLIP_0[(HIDWORD(P) >> 9) & 0x7f];
 			op_flip += COUNT_FLIP_2[((LODWORD(P) & 0x04081020u) * 0x04040404u + (HIDWORD(P) & 0x01010102u) * 0x04040201u) >> 24];	// F1A6A8
+			break;
+
+		case 41: // B6
+			op_flip  = COUNT_FLIP_5[((LODWORD(P) & 0x02020202u) * 0x00810204u + (HIDWORD(P) & 0x08040202u) * 0x08101010u) >> 24];	// B1B6D8
+			op_flip += COUNT_FLIP_1[(HIDWORD(P) >> 10) & 0x3f];
+			op_flip += COUNT_FLIP_2[((LODWORD(P) & 0x08102040u) * 0x02020202u + ((HIDWORD(P) & 0x02020204u) >> 1) * 0x04040201u) >> 24];	// G1B6B8
+			break;
+
+		case 46: // G6
+			op_flip  = COUNT_FLIP_5[(((LODWORD(P) & 0x10080402u) >> 1) * 0x01010101u + (HIDWORD(P) & 0x40404020u) * 0x00808102u) >> 24];	// B1G6G8
+			op_flip += COUNT_FLIP_6[(HIDWORD(P) >> 8) & 0x3f];
+			op_flip += COUNT_FLIP_2[(((LODWORD(P) & 0x40404040u) >> 4) * 0x20100804u + ((HIDWORD(P) & 0x10204040u) >> 4 ) * 0x02010101u) >> 24];	// G1G6E8
 			break;
 
 		case 47: // H6 (1%)
@@ -1521,6 +1593,30 @@ int solve_exact_1(const unsigned long long P, int pos)
 			op_flip  = COUNT_FLIP_6[((((HIDWORD(P) & 0x00000202u) << 4) + (LODWORD(P) & 0x02020202u)) * 0x00810204u) >> 24];
 			op_flip += COUNT_FLIP_1[(HIDWORD(P) >> 18) & 0x3f];
 			op_flip += COUNT_FLIP_1[(((HIDWORD(P) & 0x00000408u) + (LODWORD(P) & 0x10204080u)) * 0x01010101u) >> 26];
+			break;
+
+		case 50: // C7
+			op_flip  = COUNT_FLIP_6[(((LODWORD(P) & 0x04040404u) + ((HIDWORD(P) & 0x00000404u) << 4)) * 0x00408102u) >> 24];
+			op_flip += COUNT_FLIP_2[(HIDWORD(P) >> 16) & 0xff];
+			op_flip += COUNT_FLIP_2[(((HIDWORD(P) & 0x00040A11u) + (LODWORD(P) & 0x20408000u)) * 0x01010101u) >> 24];	// A5C7H2
+			break;
+
+		case 51: // D7
+			op_flip  = COUNT_FLIP_6[((((HIDWORD(P) & 0x00000808u) << 4) + (LODWORD(P) & 0x08080808u)) * 0x00204081u) >> 24];
+			op_flip += COUNT_FLIP_3[(HIDWORD(P) >> 16) & 0xff];
+			op_flip += COUNT_FLIP_3[(((HIDWORD(P) & 0x00081422u) + (LODWORD(P) & 0x41800000u)) * 0x01010101u) >> 24];	// A4D7H3
+			break;
+
+		case 52: // E7
+			op_flip  = COUNT_FLIP_6[(((HIDWORD(P) & 0x00001010u) + ((LODWORD(P) & 0x10101010u) >> 4)) * 0x01020408u) >> 24];
+			op_flip += COUNT_FLIP_4[(HIDWORD(P) >> 16) & 0xff];
+			op_flip += COUNT_FLIP_4[(((HIDWORD(P) & 0x00102844u) + (LODWORD(P) & 0x82010000u)) * 0x01010101u) >> 24];	// A3E7H4
+			break;
+
+		case 53: // F7
+			op_flip  = COUNT_FLIP_6[(((HIDWORD(P) & 0x00002020u) + ((LODWORD(P) & 0x20202020u) >> 4)) * 0x00810204u) >> 24];
+			op_flip += COUNT_FLIP_5[(HIDWORD(P) >> 16) & 0xff];
+			op_flip += COUNT_FLIP_5[(((HIDWORD(P) & 0x00205088u) + (LODWORD(P) & 0x04020100u)) * 0x01010101u) >> 24];	// A2F7H5
 			break;
 
 		case 54: // G7 (5%)
@@ -1583,8 +1679,6 @@ int solve_exact_1(const unsigned long long P, int pos)
 			op_flip += COUNT_FLIP_7[(((HIDWORD(P) & 0x00402010u) + (LODWORD(P) & 0x08040201u)) * 0x01010101u) >> 24];
 			break;
 
-		case 10: case 11: case 12: case 13: case 17: case 22: case 25: case 30: // (0.4%)
-		case 33: case 38: case 41: case 46: case 50: case 51: case 52: case 53: // (2.3%)
 		case 18: case 19: case 20: case 21: case 26: case 27: case 28: case 29:	// (0%)
 		case 34: case 35: case 36: case 37: case 42: case 43: case 44: case 45:	// (0%)
 			p_flips = (*count_last_flip[pos])(P);

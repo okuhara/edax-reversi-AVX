@@ -1449,6 +1449,30 @@ int solve_exact_1(unsigned long long P, int pos)
 			op_flip += COUNT_FLIP_1[((P & 0x8040201008040000ULL) * 0x0101010101010101ULL) >> 58];
 			break;
 
+		case 10: // C2
+			op_flip  = COUNT_FLIP_1[((P & 0x0404040404040000ULL) * 0x0040810204081020ULL) >> 58];
+			op_flip += COUNT_FLIP_2[(P >> 8) & 0xff];
+			op_flip += COUNT_FLIP_2[(P & 0x00804020110a0400ULL) * 0x0101010101010101ULL >> 56];	// A4C2H7
+			break;
+
+		case 11: // D2
+			op_flip  = COUNT_FLIP_1[((P & 0x0808080808080000ULL) * 0x0020408102040810ULL) >> 58];
+			op_flip += COUNT_FLIP_3[(P >> 8) & 0xff];
+			op_flip += COUNT_FLIP_3[(P & 0x0000804122140800ULL) * 0x0101010101010101ULL >> 56];	// A5D2H6
+			break;
+
+		case 12: // E2
+			op_flip  = COUNT_FLIP_1[((P & 0x1010101010100000ULL) * 0x0010204081020408ULL) >> 58];
+			op_flip += COUNT_FLIP_4[(P >> 8) & 0xff];
+			op_flip += COUNT_FLIP_4[(P & 0x0000018244281000ULL) * 0x0101010101010101ULL >> 56];	// A6E2H5
+			break;
+
+		case 13: // F2
+			op_flip  = COUNT_FLIP_1[((P & 0x2020202020200000ULL) * 0x0008102040810204ULL) >> 58];
+			op_flip += COUNT_FLIP_5[(P >> 8) & 0xff];
+			op_flip += COUNT_FLIP_5[(P & 0x0001020488502000ULL) * 0x0101010101010101ULL >> 56];	// A7F2H4
+			break;
+
 		case 14: // G2 (4%)
 			op_flip  = COUNT_FLIP_1[((P & 0x4040404040400000ULL) * 0x0004081020408102ULL) >> 58];
 			op_flip += COUNT_FLIP_6[(P >> 8) & 0x3f];
@@ -1467,6 +1491,18 @@ int solve_exact_1(unsigned long long P, int pos)
 			op_flip += COUNT_FLIP_5[((P & 0x0101010101010204ULL) * 0x2020201008040201ULL) >> 56];	// C1A3A8
 			break;
 
+		case 17: // B3
+			op_flip  = COUNT_FLIP_2[((P & 0x4020100804020202ULL) * 0x0081020202020202ULL) >> 56];	// B1B3G8
+			op_flip += COUNT_FLIP_1[(P >> 18) & 0x3f];
+			op_flip += COUNT_FLIP_5[(((P & 0x0202020202020408ULL) >> 1) * 0x2020201008040201ULL) >> 56];	// D1B3B8
+			break;
+
+		case 22: // G3
+			op_flip  = COUNT_FLIP_2[((P & 0x4040404040402010ULL) * 0x0010101020408102ULL) >> 56];	// E1G3G8
+			op_flip += COUNT_FLIP_6[(P >> 16) & 0x3f];
+			op_flip += COUNT_FLIP_5[(((P & 0x0204081020404040ULL) >> 1) * 0x0402010101010101ULL) >> 56];	// G1G3B8
+			break;
+
 		case 23: // H3 (1%)
 			op_flip  = COUNT_FLIP_2[((P & 0x8080808080804020ULL) * 0x0008080810204081ULL) >> 56];	// F1H3H8
 			op_flip += COUNT_FLIP_7[(P >> 16) & 0x7f];
@@ -1477,6 +1513,18 @@ int solve_exact_1(unsigned long long P, int pos)
 			op_flip  = COUNT_FLIP_3[((P & 0x1008040201010101ULL) * 0x0102040808080808ULL) >> 56];	// A1A4E8
 			op_flip += COUNT_FLIP_0[(P >> 25) & 0x7f];
 			op_flip += COUNT_FLIP_4[((P & 0x0101010101020408ULL) * 0x1010101008040201ULL) >> 56];	// D1A4A8
+			break;
+
+		case 25: // B4
+			op_flip  = COUNT_FLIP_3[((P & 0x2010080402020202ULL) * 0x0081020404040404ULL) >> 56];	// B1B4F8
+			op_flip += COUNT_FLIP_1[(P >> 26) & 0x3f];
+			op_flip += COUNT_FLIP_4[(((P & 0x0202020202040810ULL) >> 1) * 0x1010101008040201ULL) >> 56];	// E1B4B8
+			break;
+
+		case 30: // G4
+			op_flip  = COUNT_FLIP_3[((P & 0x4040404040201008ULL) * 0x0020202020408102ULL) >> 56];	// D1G4G8
+			op_flip += COUNT_FLIP_6[(P >> 24) & 0x3f];
+			op_flip += COUNT_FLIP_4[(((P & 0x0408102040404040ULL) >> 2) * 0x0804020101010101ULL) >> 56];	// G1G4C8
 			break;
 
 		case 31: // H4 (0.8%)
@@ -1491,6 +1539,18 @@ int solve_exact_1(unsigned long long P, int pos)
 			op_flip += COUNT_FLIP_3[((P & 0x0101010102040810ULL) * 0x0808080808040201ULL) >> 56];	// E1A5A8
 			break;
 
+		case 33: // B5
+			op_flip  = COUNT_FLIP_4[((P & 0x1008040202020202ULL) * 0x0081020408080808ULL) >> 56];	// B1B5E8
+			op_flip += COUNT_FLIP_1[(P >> 34) & 0x3f];
+			op_flip += COUNT_FLIP_3[(((P & 0x0202020204081020ULL) >> 1) * 0x0808080808040201ULL) >> 56];	// F1B5B8
+			break;
+
+		case 38: // G5
+			op_flip  = COUNT_FLIP_4[((P & 0x4040404020100804ULL) * 0x0040404040408102ULL) >> 56];	// C1G5G8
+			op_flip += COUNT_FLIP_6[(P >> 32) & 0x3f];
+			op_flip += COUNT_FLIP_3[(((P & 0x0810204040404040ULL) >> 3) * 0x1008040201010101ULL) >> 56];	// G1G5D8
+			break;
+
 		case 39: // H5 (1%)
 			op_flip  = COUNT_FLIP_4[((P & 0x8080808040201008ULL) * 0x0020202020204081ULL) >> 56];	// D1H5H8
 			op_flip += COUNT_FLIP_7[(P >> 32) & 0x7f];
@@ -1501,6 +1561,18 @@ int solve_exact_1(unsigned long long P, int pos)
 			op_flip  = COUNT_FLIP_5[((P & 0x0402010101010101ULL) * 0x0102040810202020ULL) >> 56];	// A1A6C8
 			op_flip += COUNT_FLIP_0[(P >> 41) & 0x7f];
 			op_flip += COUNT_FLIP_2[((P & 0x0101010204081020ULL) * 0x0404040404040201ULL) >> 56];	// F1A6A8
+			break;
+
+		case 41: // B6
+			op_flip  = COUNT_FLIP_5[((P & 0x0804020202020202ULL) * 0x0081020408101010ULL) >> 56];	// B1B6D8
+			op_flip += COUNT_FLIP_1[(P >> 42) & 0x3f];
+			op_flip += COUNT_FLIP_2[(((P & 0x0202020408102040ULL) >> 1) * 0x0404040404040201ULL) >> 56];	// G1B6B8
+			break;
+
+		case 46: // G6
+			op_flip  = COUNT_FLIP_5[((P & 0x4040402010080402ULL) * 0x0080808080808102ULL) >> 56];	// B1G6G8
+			op_flip += COUNT_FLIP_6[(P >> 40) & 0x3f];
+			op_flip += COUNT_FLIP_2[(((P & 0x1020404040404040ULL) >> 4) * 0x2010080402010101ULL) >> 56];	// G1G6E8
 			break;
 
 		case 47: // H6 (1%)
@@ -1519,6 +1591,30 @@ int solve_exact_1(unsigned long long P, int pos)
 			op_flip  = COUNT_FLIP_6[((P & 0x0000020202020202ULL) * 0x0081020408102040ULL) >> 56];
 			op_flip += COUNT_FLIP_1[(P >> 50) & 0x3f];
 			op_flip += COUNT_FLIP_1[((P & 0x0000040810204080ULL) * 0x0101010101010101ULL) >> 58];
+			break;
+
+		case 50: // C7
+			op_flip  = COUNT_FLIP_6[((P & 0x0000040404040404ULL) * 0x0040810204081020ULL) >> 56];
+			op_flip += COUNT_FLIP_2[(P >> 48) & 0xff];
+			op_flip += COUNT_FLIP_2[(P & 0x00040a1120408000ULL) * 0x0101010101010101ULL >> 56];	// A5C7H2
+			break;
+
+		case 51: // D7
+			op_flip  = COUNT_FLIP_6[((P & 0x0000080808080808ULL) * 0x0020408102040810ULL) >> 56];
+			op_flip += COUNT_FLIP_3[(P >> 48) & 0xff];
+			op_flip += COUNT_FLIP_3[(P & 0x0008142241800000ULL) * 0x0101010101010101ULL >> 56];	// A4D7H3
+			break;
+
+		case 52: // E7
+			op_flip  = COUNT_FLIP_6[((P & 0x0000101010101010ULL) * 0x0010204081020408ULL) >> 56];
+			op_flip += COUNT_FLIP_4[(P >> 48) & 0xff];
+			op_flip += COUNT_FLIP_4[(P & 0x0010284482010000ULL) * 0x0101010101010101ULL >> 56];	// A3E7H4
+			break;
+
+		case 53: // F7
+			op_flip  = COUNT_FLIP_6[((P & 0x0000202020202020ULL) * 0x0008102040810204ULL) >> 56];
+			op_flip += COUNT_FLIP_5[(P >> 48) & 0xff];
+			op_flip += COUNT_FLIP_5[(P & 0x0020508804020100ULL) * 0x0101010101010101ULL >> 56];	// A2F7H5
 			break;
 
 		case 54: // G7 (5%)
@@ -1581,8 +1677,6 @@ int solve_exact_1(unsigned long long P, int pos)
 			op_flip += COUNT_FLIP_7[((P & 0x0040201008040201ULL) * 0x0101010101010101ULL) >> 56];
 			break;
 
-		case 10: case 11: case 12: case 13: case 17: case 22: case 25: case 30: // (0.4%)
-		case 33: case 38: case 41: case 46: case 50: case 51: case 52: case 53: // (2.3%)
 		case 18: case 19: case 20: case 21: case 26: case 27: case 28: case 29:	// (0%)
 		case 34: case 35: case 36: case 37: case 42: case 43: case 44: case 45:	// (0%)
 			p_flips = (*count_last_flip[pos])(P);
