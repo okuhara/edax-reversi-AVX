@@ -17,7 +17,7 @@
  * For optimization purpose, the value returned is twice the number of flipped
  * disc, to facilitate the computation of disc difference.
  *
- * @date 1998 - 2025
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -765,7 +765,7 @@ int vectorcall mm_solve_1(__m128i OP, const int alpha, const int pos)
 int vectorcall mm_solve_exact_1(__m128i OP, const int pos)
 {
 	unsigned short op_flip;	// better than uint_fast16_t on MSVC 2022 (4.5.5)
-	int p_flips, o_flips;
+	int score, p_flips, o_flips;
 	unsigned int t;
   #ifdef AVXLASTFLIP	// no gain
 	static const uint32_t cf_ofs_d[64] = {
@@ -779,7 +779,6 @@ int vectorcall mm_solve_exact_1(__m128i OP, const int pos)
 		(   0<<16)|CF87, (   0<<16)|LF76, (LF32<<16)|LF65, (LF43<<16)|LF54, (LF54<<16)|LF43, (LF65<<16)|LF32, (LF76<<16)|   0, (CF87<<16)|   0
 	};
 	unsigned long long P = _mm_cvtsi128_si64(OP);
-	int score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 	int y8 = pos & 0x38;
 
 	op_flip  = COUNT_FLIP[(pos & 0x07) * 256 + ((P >> y8) & 0xFF)];	// h
@@ -808,8 +807,8 @@ int vectorcall mm_solve_exact_1(__m128i OP, const int pos)
 		{{ CF80,    0, CF80, CF87 }}, {{ CF81,    0, CF81, CF87 }}, {{ CF82, LF32, CF82, CF87 }}, {{ CF83, LF43, CF83, CF87 }},
 		{{ CF84, LF54, CF84, CF87 }}, {{ CF85, LF65, CF85, CF87 }}, {{    0, LF76, CF86, CF87 }}, {{    0, CF87, CF87, CF87 }}
 	};
-	int score = 2 * bit_count_si64(OP) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 	__m128i P2 = _mm_unpacklo_epi64(OP, OP);
+	unsigned long long P = _mm_cvtsi128_si64(P2);
 	__m128i II = _mm_sad_epu8(_mm_and_si128(P2, mask_vdhd[pos].v2[0]), _mm_setzero_si128());	// hd
 
 	II = _mm_add_epi32(II, cf_ofs[pos].v4);
@@ -824,8 +823,9 @@ int vectorcall mm_solve_exact_1(__m128i OP, const int pos)
   #endif
 
 	p_flips = (uint8_t) op_flip;	// better code on MSVC 2022
+	score = 2 * bit_count(P) - 64 + 2 + p_flips;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P)) + p_flips
 	if (p_flips)
-		return score + p_flips;
+		return score;
 
 	o_flips = -(op_flip >> 8);
 	return score + o_flips - (int)((o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
