@@ -3,7 +3,7 @@
  *
  * Board management header file.
  *
- * @date 1998 - 2025
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -128,9 +128,12 @@ extern unsigned char edge_stability[256 * 256];
 
 #if COUNT_LAST_FLIP > COUNT_LAST_FLIP_BITSCAN
 	extern int last_flip(int pos, unsigned long long P);
-#else
+#elif COUNT_LAST_FLIP > COUNT_LAST_FLIP_32
 	extern int (*count_last_flip[BOARD_SIZE + 1])(const unsigned long long);
 	#define	last_flip(x,P)	count_last_flip[x](P)
+#else
+	extern unsigned short (*count_last_flip[BOARD_SIZE + 1])(const unsigned long long);
+	#define	last_flip(x,P)	(count_last_flip[x](P) & 0xff)
 #endif
 
 #if COUNT_LAST_FLIP == COUNT_LAST_FLIP_NEON

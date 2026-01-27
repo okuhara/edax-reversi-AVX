@@ -17,7 +17,7 @@
  * For optimization purpose, the value returned is twice the number of flipped
  * disc, to facilitate the computation of disc difference.
  *
- * @date 1998 - 2025
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -414,7 +414,7 @@ int last_flip(int pos, unsigned long long P)
 /**
  * @brief Get the final score.
  *
- * Get the final score, when 1 empty square remain.
+ * Get the final score, when 1 empty square remain. (w/o lazy cutoff)
  *
  * @param P Board.player to evaluate.
  * @param pos Last empty square to play.
@@ -428,13 +428,13 @@ int solve_exact_1(unsigned long long P, int pos)
 	op_flip  = COUNT_FLIP[(pos & 0x38) * 32 + _pext_u64(P, 0x0101010101010101 << (pos & 0x07))];
 	op_flip += COUNT_FLIP[ofs_pext[pos] + _pext_u64(P, mask_pext[pos])];
 	op_flip += COUNT_FLIP[(pos & 0x07) * 256 + ((uint64_t)((P & mask_kg[pos]) * 0x0101010101010101) >> 56)];
-	if (0x00003c3c3c3c0000 & (1ULL << pos))	// last move in inner box (0%)
+	if (0x00003c3c3c3c0000 & (1ULL << pos))	// last move in center box (0%)
 		op_flip += COUNT_FLIP[ofs_box_d7[pos - 18] + _pext_u64(P, mask_box_d7[pos - 18])];
 
-	score = 2 * bit_count(P) - 64 + 2;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))
 	p_flips = (uint8_t) op_flip;
+	score = 2 * bit_count(P) - 64 + 2 + p_flips;	// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P)) + p_flips
 	if (p_flips)
-		return score + p_flips;
+		return score;
 
 	o_flips = -(op_flip >> 8);
 	return score + o_flips - (int)((o_flips | (score - 1)) < 0) * 2;	// last square for O if O can move or score <= 0
