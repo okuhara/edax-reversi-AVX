@@ -10,7 +10,7 @@
  *
  * @date 1998 - 2025
  * @author Toshihiko Okuhara
- * @version 4.5
+ * @version 4.6
  */
 
 #include "bit.h"
@@ -115,10 +115,9 @@ __m128i vectorcall mm_Flip(const __m128i OP, int pos)
 #else // clear valid bits only using variable shift
 	outflank = _mm256_sllv_epi64(_mm256_and_si256(PP, mask), _mm256_set_epi64x(7, 9, 8, 1));
 	eraser = _mm256_or_si256(eraser, _mm256_srlv_epi64(eraser, _mm256_set_epi64x(7, 9, 8, 1)));
+	eraser = _mm256_or_si256(_mm256_srlv_epi64(eraser, _mm256_set_epi64x(28, 36, 32, 4)),
+		_mm256_or_si256(eraser, _mm256_srlv_epi64(eraser, _mm256_set_epi64x(14, 18, 16, 2))));
 	outflank = _mm256_andnot_si256(eraser, outflank);
-	eraser = _mm256_srlv_epi64(eraser, _mm256_set_epi64x(14, 18, 16, 2));
-	outflank = _mm256_andnot_si256(eraser, outflank);
-	outflank = _mm256_andnot_si256(_mm256_srlv_epi64(eraser, _mm256_set_epi64x(14, 18, 16, 2)), outflank);
 #endif
 		// set mask bits higher than outflank
 	flip = _mm256_and_si256(mask, _mm256_sub_epi64(_mm256_setzero_si256(), outflank));
