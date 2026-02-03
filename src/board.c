@@ -48,6 +48,8 @@
 	#include "flip_sse_acepck.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_AVX
 	#include "flip_avx_ppfill.c"
+#elif MOVE_GENERATOR == MOVE_GENERATOR_AVXGFNI
+	#include "flip_avxgfni.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_AVX512
 	#include "flip_avx512cd.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_NEON
@@ -452,7 +454,7 @@ void board_pass(Board *board)
 	board_check(board);
 }
 
-#if (MOVE_GENERATOR != MOVE_GENERATOR_AVX) && (MOVE_GENERATOR != MOVE_GENERATOR_AVX512) && (MOVE_GENERATOR != MOVE_GENERATOR_SSE) && (MOVE_GENERATOR != MOVE_GENERATOR_NEON)	// SSE version in board_sse.c
+#if (MOVE_GENERATOR < MOVE_GENERATOR_SSE) || (MOVE_GENERATOR > MOVE_GENERATOR_NEON)	// SSE/Neon version in board_sse.c
 /**
  * @brief Compute a board resulting of a move played on a previous board.
  *

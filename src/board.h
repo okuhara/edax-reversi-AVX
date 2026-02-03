@@ -182,7 +182,7 @@ extern unsigned char edge_stability[256 * 256];
   #endif
 #endif
 
-#if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE_ACEPCK)
+#if (MOVE_GENERATOR >= MOVE_GENERATOR_SSE_ACEPCK) && (MOVE_GENERATOR <= MOVE_GENERATOR_AVX512)
 	extern __m128i vectorcall mm_Flip(const __m128i OP, int pos);
 	static inline __m128i vectorcall reduce_vflip(__m128i flip) { return _mm_or_si128(flip, _mm_shuffle_epi32(flip, 0x4e)); }
 	#define	Flip(x,P,O)	((unsigned long long) _mm_cvtsi128_si64(reduce_vflip(mm_Flip(_mm_set_epi64x((O), (P)), (x)))))
@@ -244,7 +244,7 @@ extern unsigned char edge_stability[256 * 256];
 #endif
 
 // Pass Board in a vector register to Flip
-#if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)
+#if (MOVE_GENERATOR >= MOVE_GENERATOR_SSE) && (MOVE_GENERATOR <= MOVE_GENERATOR_AVX512)
 	unsigned long long vectorcall board_next_sse(__m128i OP, const int x, Board *next);
 	#define	board_next(board,x,next)	board_next_sse(_mm_loadu_si128((__m128i *) (board)), (x), (next))
 	#define vboard_next(vboard,x,next)	board_next_sse((vboard).v2, (x), (next))

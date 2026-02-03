@@ -47,14 +47,19 @@ void init_neon (void)
  */
 #ifdef hasSSE2
 
-static __m128i vectorcall board_horizontal_mirror_sse(__m128i bb)
+static __m128i __vectorcall board_horizontal_mirror_sse(__m128i bb)
 {
+  #ifdef __GFNI__	// gfni (https://builders.intel.com/docs/networkbuilders/galois-field-new-instructions-gfni-technology-guide-1-1639042826.pdf)
+	bb = _mm_gf2p8affine_epi64_epi8(bb, _mm_set1_epi64x(0x8040201008040201), 0);
+
+  #elif defined(__SSSE3__) || defined(__AVX__)	// pshufb (cf. http://wm.ite.pl/articles/sse-popcount.html)
 	const __m128i mask0F0F = _mm_set1_epi16(0x0F0F);
-  #if defined(__SSSE3__) || defined(__AVX__)	// pshufb (cf. http://wm.ite.pl/articles/sse-popcount.html)
 	const __m128i mbitrev  = _mm_set_epi8(15, 7, 11, 3, 13, 5, 9, 1, 14, 6, 10, 2, 12, 4, 8, 0);
 	bb = _mm_or_si128(_mm_shuffle_epi8(mbitrev, _mm_and_si128(_mm_srli_epi64(bb, 4), mask0F0F)),
 		_mm_slli_epi64(_mm_shuffle_epi8(mbitrev, _mm_and_si128(bb, mask0F0F)), 4));
+
   #else
+	const __m128i mask0F0F = _mm_set1_epi16(0x0F0F);
 	const __m128i mask5555 = _mm_set1_epi16(0x5555);
 	const __m128i mask3333 = _mm_set1_epi16(0x3333);
 	bb = _mm_or_si128(_mm_and_si128(_mm_srli_epi64(bb, 1), mask5555), _mm_slli_epi64(_mm_and_si128(bb, mask5555), 1));
@@ -194,12 +199,17 @@ void board_symetry(const Board *board, const int s, Board *sym)
  */
 static void board_horizontal_mirror_avx(const __m256i *bb, __m256i *sym)
 {
+  #ifdef __GFNI__	// gfni (https://builders.intel.com/docs/networkbuilders/galois-field-new-instructions-gfni-technology-guide-1-1639042826.pdf)
+	*sym = _mm256_gf2p8affine_epi64_epi8(*bb, _mm256_set1_epi64x(0x8040201008040201), 0);
+
+  #else
 	const __m256i mask0F0F = _mm256_set1_epi16(0x0F0F);
 	const __m256i mbitrev  = _mm256_set_epi8(	//cf. http://wm.ite.pl/articles/sse-popcount.html
 		15, 7, 11, 3, 13, 5, 9, 1, 14, 6, 10, 2, 12, 4, 8, 0,
 		15, 7, 11, 3, 13, 5, 9, 1, 14, 6, 10, 2, 12, 4, 8, 0);
 	*sym = _mm256_or_si256(_mm256_shuffle_epi8(mbitrev, _mm256_and_si256(_mm256_srli_epi64(*bb, 4), mask0F0F)),
 		_mm256_slli_epi64(_mm256_shuffle_epi8(mbitrev, _mm256_and_si256(*bb, mask0F0F)), 4));
+  #endif
 }
 
 static void board_vertical_mirror_avx(const __m256i *bb, __m256i *sym)
@@ -243,7 +253,7 @@ int board_unique(const Board *board, Board *unique)
  * @param next resulting board.
  * @return flipped discs.
  */
-#if (MOVE_GENERATOR == MOVE_GENERATOR_AVX) || (MOVE_GENERATOR == MOVE_GENERATOR_AVX512) || (MOVE_GENERATOR == MOVE_GENERATOR_SSE)
+#if (MOVE_GENERATOR >= MOVE_GENERATOR_SSE) && (MOVE_GENERATOR <= MOVE_GENERATOR_AVX512)
 
 unsigned long long vectorcall board_next_sse(__m128i OP, const int x, Board *next)
 {
