@@ -6,7 +6,7 @@
  * Unifiled SSE version using carry propagation by acepck.
  * https://github.com/okuhara/edax-reversi-AVX/issues/5
  *
- * @date 2024
+ * @date 2026
  * @author acepck
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -89,7 +89,7 @@ static const V2DI bb_maska[66][4] = {
  * @param pos player's move.
  * @param P player's disc pattern.
  * @param O opponent's disc pattern.
- * @return flipped disc pattern before reduction.
+ * @return flipped disc pattern.
  */
 
 __m128i vectorcall mm_Flip(__m128i OP, int pos)
@@ -141,5 +141,6 @@ __m128i vectorcall mm_Flip(__m128i OP, int pos)
 		// set flip bits if pos is the break point
 	f3 = _mm_subs_epu8(_mm_and_si128(_mm_add_epi8(OO, f3), _mm_unpacklo_epi64(m34, m34)), f3);
 
-	return _mm_or_si128(_mm_or_si128(_mm_or_si128(f3, f4), _mm_or_si128(f27, f56)), f01);
+	f3 = _mm_or_si128(_mm_or_si128(_mm_or_si128(f3, f4), _mm_or_si128(f27, f56)), f01);
+	return _mm_or_si128(f3, _mm_shuffle_epi32(f3, 0x4e));
 }

@@ -3,7 +3,7 @@
  *
  * Various macro / constants to control algorithm usage.
  *
- * @date 1998 - 2024
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @version 4.5
  */
@@ -74,6 +74,7 @@
 
 /** SOLID usage */
 #define USE_SOLID true
+
 /** use stability cutoff more often to work best with solid stone */
 #define NWS_STABILITY_SOLID_THRESHOLD 8
 
