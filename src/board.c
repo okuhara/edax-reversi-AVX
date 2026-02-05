@@ -11,7 +11,7 @@
  * some board properties. Most of the functions are optimized to be as fast as
  * possible, while remaining readable.
  *
- * @date 1998 - 2025
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -824,9 +824,9 @@ void edge_stability_init(void)
 unsigned long long get_stable_edge(const unsigned long long P, const unsigned long long O)
 {	// compute the exact stable edges (from precomputed tables)
 	return edge_stability[((unsigned int) P & 0xff) * 256 + ((unsigned int) O & 0xff)]
-	    |  (unsigned long long) edge_stability[(unsigned int) (P >> 56) * 256 + (unsigned int) (O >> 56)] << 56
-	    |  unpackA2A7(edge_stability[packA1A8(P) * 256 + packA1A8(O)])
-	    |  unpackH2H7(edge_stability[packH1H8(P) * 256 + packH1H8(O)]);
+	  | (unsigned long long) edge_stability[(unsigned int) (P >> 56) * 256 + (unsigned int) (O >> 56)] << 56
+	  | unpackA2A7(edge_stability[packA1A8(P) * 256 + packA1A8(O)])
+	  | unpackH2H7(edge_stability[packH1H8(P) * 256 + packH1H8(O)]);
 }
 
 /**

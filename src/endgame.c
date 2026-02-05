@@ -3,7 +3,7 @@
  *
  * Search near the end of the game.
  *
- * @date 1998 - 2025
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -473,7 +473,8 @@ static int NWS_endgame_local(Search *search, const int alpha)
 			hashboard.v2 = _mm_xor_si128(hashboard.v2, _mm_unpacklo_epi64(solid, solid));
 			ofssolid = bit_count_si64(solid) * 2;
   #else
-			unsigned long long solid = full[4] & hashboard.bb.player;	// full[4] = all full
+				// exclude corners from solid to absorb get_full_lines anormalies
+			unsigned long long solid = full[4] & 0x3c7effffffff7e3c & hashboard.bb.player;	// full[4] = all full
 			if (solid) {	// (72%)
 				hashboard.bb.player ^= solid;	// normalize solid to opponent
 				hashboard.bb.opponent ^= solid;
