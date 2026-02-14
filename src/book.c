@@ -469,9 +469,9 @@ static void position_unique(Position *position)
 	board = position->board;
 	if ((s = board_unique(&board, &position->board)) != 0) {
 		for (i = 0; i < position->n_link; ++i) {
-			position->link[i].move = symetry(position->link[i].move, s);
+			position->link[i].move = symmetry(position->link[i].move, s);
 		}
-		position->leaf.move = symetry(position->leaf.move, s);
+		position->leaf.move = symmetry(position->leaf.move, s);
 	}
 }
 
@@ -490,17 +490,17 @@ static int position_get_moves(const Position *position, const Board *board, Move
 	int i, x, s;
 
 	for (s = 0; s < 8; ++s) {
-		board_symetry(&position->board, s, &sym);
+		board_symmetry(&position->board, s, &sym);
 
 		if (board_equal(&sym, board)) {
 			for (i = 0; i < position->n_link; ++i) {
-				x = symetry(position->link[i].move, s);
+				x = symmetry(position->link[i].move, s);
 				board_get_move_flip(board, x, move);
 				move->score = position->link[i].score;
 				previous = previous->next = move;
 				++move;
 			}
-			x = symetry(position->leaf.move, s);
+			x = symmetry(position->leaf.move, s);
 			if (x != NOMOVE) {
 				board_get_move_flip(board, x, move);
 				move->score = position->leaf.score;
@@ -542,7 +542,7 @@ static void position_show(const Position *position, const Board *board, FILE *f)
 	sym = position_get_moves(position, board, &movelist);
 	foreach_move(move, movelist) {
 		move_to_string(move->x, color, s);
-		if (symetry(position->leaf.move, sym) == move->x) {
+		if (symmetry(position->leaf.move, sym) == move->x) {
 			fprintf(f, " <%s:%+02d>", s, move->score);
 		} else {
 			fprintf(f, " [%s:%+02d]", s, move->score);
@@ -572,7 +572,7 @@ static void position_print(const Position *position, const Board *board, FILE *f
 	sym = position_get_moves(position, board, &movelist);
 	foreach_move(move, movelist) {
 		move_to_string(move->x, color, m);
-		if (symetry(position->leaf.move, sym) == move->x) {
+		if (symmetry(position->leaf.move, sym) == move->x) {
 			fprintf(f, " <%s:%+02d>", m, move->score);
 		} else {
 			fprintf(f, " [%s:%+02d]", m, move->score);
@@ -1305,7 +1305,7 @@ static void position_array_free(PositionArray *a)
  *
  * @param a Positions' array.
  * @param board Board to find in the array.
- * @return a position containg the board (or a symetry) or NULL is no position is found.
+ * @return a position containg the board (or a symmetry) or NULL is no position is found.
  */
 static Position* position_array_probe(PositionArray *a, const Board *board)
 {
@@ -1367,7 +1367,7 @@ static double book_get_age(Book *book)
  *
  * @param book Opening book.
  * @param board Board to find in the array.
- * @return a position containg the board (or a symetry) or NULL is no position is found.
+ * @return a position containg the board (or a symmetry) or NULL is no position is found.
  */
 static Position* book_probe(const Book *book, const Board *board)
 {

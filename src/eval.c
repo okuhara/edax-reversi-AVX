@@ -459,7 +459,7 @@ static const unsigned short EVAL_OFFSET[] = {
 static const int EVAL_PACKED_OFS[] = { 0, 10206, 40095, 69741, 99387, 102708, 106029, 109350, 112671, 113805, 114183, 114318, 114363 };
 // static const int EVAL_PACKED_SIZE[] = {10206, 29889, 29646, 29646, 3321, 3321, 3321, 3321, 1134, 378, 135, 45, 1};
 
-/** feature symetry packing */
+/** feature symmetry packing */
 typedef struct {
 	short EVAL_C10[59049];
 	short EVAL_S10[59049];
@@ -469,7 +469,7 @@ typedef struct {
 	short EVAL_S6[729];
 	short EVAL_S5[243];
 	short EVAL_S4[81];
-} SymetryPacking;
+} SymmetryPacking;
 
 /** eval weight load status */
 static int EVAL_LOADED = 0;
@@ -574,8 +574,8 @@ void eval_open(const char* file)
 	FILE* f;
 	short *w;
 	Eval_weight *pe;
-	SymetryPacking (*P)[2];
-	SymetryPacking *pp;
+	SymmetryPacking (*P)[2];
+	SymmetryPacking *pp;
 	static const int kd_S10[] = { 19683, 6561, 2187, 729, 243, 81, 27, 9, 3, 1 };
 	static const int kd_C10[] = { 19683, 6561, 2187, 729, 81, 243, 27, 9, 3, 1 };
 	static const int kd_C9[] = { 1, 9, 3, 81, 27, 243, 2187, 729, 6561 };
@@ -590,7 +590,7 @@ void eval_open(const char* file)
 
 	// create unpacking tables
 	OPPONENT_FEATURE = (unsigned short *) malloc(59049 * sizeof(unsigned short));	// 3^10
-	P = (SymetryPacking (*)[2]) malloc(2 * sizeof(*P));
+	P = (SymmetryPacking (*)[2]) malloc(2 * sizeof(*P));
 	T = (int *) malloc(2 * 59049 * sizeof(*T));
 	if ((OPPONENT_FEATURE == NULL) || (P == NULL) || (T == NULL))
 		fatal_error("Cannot allocate temporary table variable.\n");

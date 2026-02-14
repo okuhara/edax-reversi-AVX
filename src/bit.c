@@ -453,18 +453,26 @@ unsigned long long horizontal_mirror(unsigned long long b)
 }
 
 /**
- * @brief Transpose the unsigned long long (symetry % A1-H8 diagonal, or swap axes).
+ * @brief Transpose the unsigned long long (symmetry % A1-H8 diagonal, or swap axes).
  * @param b An unsigned long long
  * @return The transposed unsigned long long.
  */
 #ifdef __AVX2__
-unsigned long long transpose(unsigned long long b)
+  #if defined(__AVX512BITALG__) && defined(AVX512_PREFER512)
+unsigned long long vectorcall transpose_avx(__m128i bb)
 {
-	__m256i	v = _mm256_sllv_epi64(_mm256_broadcastq_epi64(_mm_cvtsi64_si128(b)), _mm256_set_epi64x(0, 1, 2, 3));
-	return ((unsigned long long) _mm256_movemask_epi8(v) << 32)
+	return _cvtmask64_u64(_mm512_bitshuffle_epi64_mask(_mm512_broadcastq_epi64(bb), _mm512_set_epi8(
+		63, 55, 47, 39, 31, 23, 15, 7, 62, 54, 46, 38, 30, 22, 14, 6, 61, 53, 45, 37, 29, 21, 13, 5, 60, 52, 44, 36, 28, 20, 12, 4,
+		59, 51, 43, 35, 27, 19, 11, 3, 58, 50, 42, 34, 26, 18, 10, 2, 57, 49, 41, 33, 25, 17,  9, 1, 56, 48, 40, 32, 24, 16,  8, 0)));
+}
+  #else
+unsigned long long vectorcall transpose_avx(__m128i bb)
+{
+	__m256i	v = _mm256_sllv_epi64(_mm256_broadcastq_epi64(bb), _mm256_set_epi64x(0, 1, 2, 3));
+	return ((unsigned long long)(unsigned int) _mm256_movemask_epi8(v) << 32)
 		| (unsigned int) _mm256_movemask_epi8(_mm256_slli_epi64(v, 4));
 }
-
+  #endif
 #else
 unsigned long long transpose(unsigned long long b)
 {

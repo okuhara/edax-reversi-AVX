@@ -1175,9 +1175,9 @@ bool play_force_go(Play *play, Move *move)
 		board_unique(&play->board, &unique);
 		if (board_equal(&unique, play->force.unique + play->force.i_move)) {
 			for (s = 1; s < 8; ++s) {
-				board_symetry(play->force.real + play->force.i_move, s, &sym);
+				board_symmetry(play->force.real + play->force.i_move, s, &sym);
 				if (board_equal(&play->board, &sym)) {
-					x = symetry(play->force.move[play->force.i_move].x, s);
+					x = symmetry(play->force.move[play->force.i_move].x, s);
 					board_get_move_flip(&play->board, x, move);
 					return true;
 				}
@@ -1189,22 +1189,22 @@ bool play_force_go(Play *play, Move *move)
 }
 
 /**
- * @brief Get the symetry of the actual position.
+ * @brief Get the symmetry of the actual position.
  *
  * @param play Play.
- * @param sym Symetry.
+ * @param sym Symmetry.
  */
-void play_symetry(Play *play, const int sym)
+void play_symmetry(Play *play, const int sym)
 {
 	int i, x;
 	Move move = MOVE_INIT;
 	Board board;
 
-	board_symetry(&play->initial_board, sym, &play->initial_board);
-	board_symetry(&play->board, sym, &play->board);
+	board_symmetry(&play->initial_board, sym, &play->initial_board);
+	board_symmetry(&play->board, sym, &play->board);
 	board = play->initial_board;
 	for (i = 0; i  < play->n_game; ++i) {
-		x = symetry(play->game[i].x, sym);
+		x = symmetry(play->game[i].x, sym);
 		board_get_move_flip(&board, x, &move);
 		board_update(&board, &move);
 		play->game[i] = move;

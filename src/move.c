@@ -42,10 +42,10 @@ const unsigned char SQUARE_VALUE[] = {
  * @brief Get a symetric square coordinate
  *
  * @param x Square coordinate.
- * @param sym Symetry.
+ * @param sym symmetry.
  * @return Symetric square coordinate.
  */
-int symetry(int x, const int sym)
+int symmetry(int x, const int sym)
 {
 	if (A1 <= x && x <= H8) {
 		if (sym & 1) {
@@ -779,7 +779,7 @@ bool movehash_append(MoveHash *hash, const Board *b, const int x)
 	int y;
 	unsigned long long h;
 
-	y = symetry(x, board_unique(b, &u));
+	y = symmetry(x, board_unique(b, &u));
 	h = board_get_hash_code(&u);
 	return movearray_append(hash->array + (h & hash->mask), &u, y);
 }

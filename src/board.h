@@ -43,7 +43,7 @@ bool board_lesser(const Board*, const Board*);
 void board_horizontal_mirror(const Board *, Board *);
 void board_vertical_mirror(const Board *, Board *);
 void board_transpose(const Board *, Board *);
-void board_symetry(const Board*, const int, Board*);
+void board_symmetry(const Board*, const int, Board*);
 int board_unique(const Board*, Board*);
 void board_check(const Board*);
 void board_rand(Board*, int, struct Random*);

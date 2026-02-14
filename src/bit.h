@@ -232,6 +232,17 @@ static inline int _tzcnt_u64(unsigned long long x) {
 	unsigned int crc32c_u8(unsigned int crc, unsigned int data);
 #endif
 
+/* Define function attributes directive when available */
+#if (defined(_MSC_VER) || defined(__clang__)) && defined(hasSSE2)
+	#define	vectorcall	__vectorcall
+#elif defined(__GNUC__) && defined(__i386__)
+	#define	vectorcall	__attribute__((sseregparm))
+#elif 0 // defined(__GNUC__)	// erroreous result on pgo-build
+	#define	vectorcall	__attribute__((sysv_abi))
+#else
+	#define	vectorcall
+#endif
+
 #ifdef __GNUC__
 	#define UNREACHABLE	__builtin_unreachable()
 #elif defined(_MSC_VER)
@@ -248,7 +259,12 @@ struct Random;
 void bit_init(void);
 // int next_bit(unsigned long long*);
 void bitboard_write(unsigned long long, FILE*);
-unsigned long long transpose(unsigned long long);
+#ifdef __AVX2__
+	unsigned long long vectorcall transpose_avx(__m128i);
+	#define transpose(x)	transpose_avx(_mm_cvtsi64_si128(x))
+#else
+	unsigned long long transpose(unsigned long long);
+#endif
 unsigned int horizontal_mirror_32(unsigned int b);
 unsigned long long horizontal_mirror(unsigned long long);
 int get_rand_bit(unsigned long long, struct Random*);
@@ -409,18 +425,6 @@ typedef union {
 	unsigned int	ui[4];
 	__m128i	v4;
 } V4SI;
-#endif
-
-/* Define function attributes directive when available */
-
-#if (defined(_MSC_VER) || defined(__clang__)) && defined(hasSSE2)
-	#define	vectorcall	__vectorcall
-#elif defined(__GNUC__) && defined(__i386__)
-	#define	vectorcall	__attribute__((sseregparm))
-#elif 0 // defined(__GNUC__)	// erroreous result on pgo-build
-	#define	vectorcall	__attribute__((sysv_abi))
-#else
-	#define	vectorcall
 #endif
 
 // X64 compatibility sims for X86

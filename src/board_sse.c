@@ -40,7 +40,7 @@ void init_neon (void)
 #endif
 
 /**
- * @brief SSE2 translation of board_symetry
+ * @brief SSE2 translation of board_symmetry
  *
  * @param board input board
  * @param sym symetric output board
@@ -94,6 +94,30 @@ void board_vertical_mirror(const Board *board, Board *sym)
   #endif
 }
 
+#ifdef __AVX2__
+void board_transpose(const Board *board, Board *sym)
+{
+	sym->player = transpose(board->player);
+	sym->opponent = transpose(board->opponent);
+}
+
+void board_symmetry(const Board *board, const int s, Board *sym)
+{
+	__m128i	bb = _mm_loadu_si128((__m128i *) board);
+	if (s & 1)
+		bb = board_horizontal_mirror_sse(bb);
+	if (s & 2)
+		bb = board_vertical_mirror_sse(bb);
+	if (s & 4) {
+		sym->player = transpose_avx(bb);
+		sym->opponent = transpose_avx(_mm_unpackhi_epi64(bb, bb));
+	} else
+		_mm_storeu_si128((__m128i *) sym, bb);
+
+	board_check(sym);
+}
+
+#else
 static __m128i vectorcall board_transpose_sse(__m128i bb)
 {
 	const __m128i mask00AA = _mm_set1_epi16(0x00AA);
@@ -113,7 +137,7 @@ void board_transpose(const Board *board, Board *sym)
 	_mm_storeu_si128((__m128i *) sym, board_transpose_sse(_mm_loadu_si128((__m128i *) board)));
 }
 
-void board_symetry(const Board *board, const int s, Board *sym)
+void board_symmetry(const Board *board, const int s, Board *sym)
 {
 	__m128i	bb = _mm_loadu_si128((__m128i *) board);
 	if (s & 1)
@@ -122,10 +146,11 @@ void board_symetry(const Board *board, const int s, Board *sym)
 		bb = board_vertical_mirror_sse(bb);
 	if (s & 4)
 		bb = board_transpose_sse(bb);
-
 	_mm_storeu_si128((__m128i *) sym, bb);
+
 	board_check(sym);
 }
+#endif
 
 #elif defined(__ARM_NEON) && !defined(DISPATCH_NEON)
 
@@ -172,7 +197,7 @@ void board_transpose(const Board *board, Board *sym)
 	vst1q_u64((uint64_t *) sym, board_transpose_neon(vld1q_u64((uint64_t *) board)));
 }
 
-void board_symetry(const Board *board, const int s, Board *sym)
+void board_symmetry(const Board *board, const int s, Board *sym)
 {
 	uint64x2_t bb = vld1q_u64((uint64_t *) board);
 	if (s & 1)

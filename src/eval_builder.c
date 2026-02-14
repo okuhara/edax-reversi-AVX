@@ -125,7 +125,7 @@ typedef struct EvalOption {
 	int minimax_ply;
 } EvalOption;
 
-/** feature symetry packing */
+/** feature symmetry packing */
 /* extern */ int s12[2][531441], s10[2][59049], c10[2][59049], i10[2][59049], c9[2][19683], s8[2][6561], s7[2][2187], s6[2][729], s5[2][243], s4[2][81], s3[2][27];
 
 /* Original eval_builder lacks supporting routines to build, so here are ad hoc restore by T.Okuhara */

@@ -420,11 +420,11 @@ void ui_loop_edax(UI *ui)
 
 			// vertical mirror
 			} else if (strcmp(cmd, "vmirror") == 0) {
-				play_symetry(play, 2);
+				play_symmetry(play, 2);
 
 			// horizontal mirror
 			} else if (strcmp(cmd, "hmirror") == 0) {
-				play_symetry(play, 1);
+				play_symmetry(play, 1);
 
 			// rotate
 			} else if (strcmp(cmd, "rotate") == 0) {
@@ -432,26 +432,26 @@ void ui_loop_edax(UI *ui)
 				if (angle < 0) angle += 360;
 				switch (angle) {
 				case 90:
-					play_symetry(play, 5);
+					play_symmetry(play, 5);
 					break;
 				case 180:
-					play_symetry(play, 3);
+					play_symmetry(play, 3);
 					break;
 				case 270:
-					play_symetry(play, 6);
+					play_symmetry(play, 6);
 					break;
 				default:
 					warn("Rotate angle should be 90°, 180° or 270°");
 					break;
 				}
 
-			// direct symetry...
-			} else if (strcmp(cmd, "symetry") == 0) {
+			// direct symmetry...
+			} else if (strcmp(cmd, "symmetry") == 0) {
 				int sym = string_to_int(param, 1);
-				if (sym < 0 || sym >= 16) warn("symetry parameter should be a number between 0 and 15\n");
+				if (sym < 0 || sym >= 16) warn("symmetry parameter should be a number between 0 and 15\n");
 				else {
 					if (sym & 8) play->player ^= 1;
-					play_symetry(play, sym & 7);
+					play_symmetry(play, sym & 7);
 				}
 
 			// play a serie of moves

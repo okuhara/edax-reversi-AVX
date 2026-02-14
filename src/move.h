@@ -48,7 +48,7 @@ extern const Move MOVE_PASS;
 
 
 /* function declarations */
-int symetry(int, const int);
+int symmetry(int, const int);
 
 void move_print(const int, const int, FILE*);
 Move* move_next_best(Move*);

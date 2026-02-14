@@ -44,7 +44,7 @@ typedef struct Play {
 	} time[2];                 /**< time of each player */
 	struct {
 		Board real[80];        /**< forced positions */
-		Board unique[80];      /**< unique symetry of the forced positions */
+		Board unique[80];      /**< unique symmetry of the forced positions */
 		Move move[80];         /**< forced move sequence */
 		int n_move;            /**< number of forced move */
 		int i_move;            /**< current forced move */
@@ -94,7 +94,7 @@ void play_force_init(Play*, const char*);
 void play_force_update(Play*);
 void play_force_restore(Play*);
 bool play_force_go(Play*, Move*);
-void play_symetry(Play*, const int);
+void play_symmetry(Play*, const int);
 const char* play_show_opening_name(Play*, const char *(*opening_get_name)(const Board*));
 // bool play_is_game_over(Play*);
 // bool play_must_pass(Play *play);

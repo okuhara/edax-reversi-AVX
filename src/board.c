@@ -245,7 +245,7 @@ bool board_lesser(const Board *b1, const Board *b2)
  * @brief symetric board
  *
  * @param board input board
- * @param s symetry
+ * @param s symmetry
  * @param sym symetric output board
  */
 #if !defined(hasSSE2) && !defined(__ARM_NEON)	// SSE version in board_sse.c
@@ -267,7 +267,7 @@ void board_transpose(const Board *board, Board *sym)
 	sym->opponent = transpose(board->opponent);
 }
 
-void board_symetry(const Board *board, const int s, Board *sym)
+void board_symmetry(const Board *board, const int s, Board *sym)
 {
 	*sym = *board;
 	if (s & 1)
@@ -305,7 +305,7 @@ int board_unique(const Board *board, Board *unique)
 
 	*unique = *board;
 	for (i = 1; i < 8; ++i) {
-		// board_symetry(board, i, &sym);	// moved to before loop to minimize symetry ops
+		// board_symmetry(board, i, &sym);	// moved to before loop to minimize symmetry ops
 		if (board_lesser(&sym[i], unique)) {
 			*unique = sym[i];
 			s = i;
