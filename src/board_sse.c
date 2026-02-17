@@ -47,7 +47,7 @@ void init_neon (void)
  */
 #ifdef hasSSE2
 
-static __m128i __vectorcall board_horizontal_mirror_sse(__m128i bb)
+static __m128i vectorcall board_horizontal_mirror_sse(__m128i bb)
 {
   #ifdef __GFNI__	// gfni (https://builders.intel.com/docs/networkbuilders/galois-field-new-instructions-gfni-technology-guide-1-1639042826.pdf)
 	bb = _mm_gf2p8affine_epi64_epi8(bb, _mm_set1_epi64x(0x8040201008040201), 0);
