@@ -850,12 +850,12 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 				int ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
 				hashboard.bb.player = search->board.player ^ solid;	// normalize solid to opponent
 				hashboard.bb.opponent = search->board.opponent ^ solid;
-				hash_store_local(search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask),
+				vhash_store_local(search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask),
 					hashboard, alpha - ofssolid, beta - ofssolid, node.bestscore - ofssolid, node.bestmove);
 			}
   #endif
 			hashboard.bb = search->board;
-			hash_store_local(search->thread_hash.hash + (hash_code & search->thread_hash.hash_mask),
+			vhash_store_local(search->thread_hash.hash + (hash_code & search->thread_hash.hash_mask),
 				hashboard, alpha, beta, node.bestscore, node.bestmove);
 		}
 

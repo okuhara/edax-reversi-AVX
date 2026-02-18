@@ -468,12 +468,13 @@ static int NWS_endgame_local(Search *search, const int alpha)
 			// Improvement of Serch by Reducing Redundant Information in a Position of Othello
 			// Hidekazu Matsuo, Shuji Narazaki
 			// http://id.nii.ac.jp/1001/00156359/
+				// exclude corners from solid to absorb get_full_lines anormalies
   #if defined(hasSSE2) && defined(POPCOUNT)
-			__m128i solid = _mm_and_si128(hashboard.v2, _mm_loadl_epi64((__m128i *) &full[4]));
+			__m128i solid = _mm_and_si128(hashboard.v2,
+				_mm_and_si128(_mm_loadl_epi64((__m128i *) &full[4]), _mm_set_epi64x(0, 0x3c7effffffff7e3c)));
 			hashboard.v2 = _mm_xor_si128(hashboard.v2, _mm_unpacklo_epi64(solid, solid));
 			ofssolid = bit_count_si64(solid) * 2;
   #else
-				// exclude corners from solid to absorb get_full_lines anormalies
 			unsigned long long solid = full[4] & 0x3c7effffffff7e3c & hashboard.bb.player;	// full[4] = all full
 			if (solid) {	// (72%)
 				hashboard.bb.player ^= solid;	// normalize solid to opponent
@@ -544,7 +545,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 		if (search->stop)	// (1%)
 			return alpha;
 
-		hash_store_local(hash_entry, hashboard, alpha - ofssolid, alpha - ofssolid + 1, bestscore - ofssolid, bestmove);
+		vhash_store_local(hash_entry, hashboard, alpha - ofssolid, alpha - ofssolid + 1, bestscore - ofssolid, bestmove);
 
 	} else {	// (1%)
 		if (can_move(search->board.opponent, search->board.player)) { // pass

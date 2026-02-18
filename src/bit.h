@@ -435,10 +435,10 @@ typedef union {
 		// better code but requires lvalue
 	// #define	_mm_cvtsi64_si128(x)	_mm_loadl_epi64((__m128i *) &(x))
 
-	static inline unsigned long long vectorcall _mm_cvtsi128_si64(__m128i x) {
+	static inline unsigned long long _mm_cvtsi128_si64(__m128i x) {
 		return *(unsigned long long *) &x;
 	}
-	static inline unsigned long long vectorcall _mm_extract_epi64(__m128i x, int i) {
+	static inline unsigned long long _mm_extract_epi64(__m128i x, int i) {
 		return ((unsigned long long *) &x)[i];
 	}
 

@@ -1029,7 +1029,7 @@ static unsigned short count_last_flip_C6(const unsigned long long P)
 	n_flipped  = COUNT_FLIP_5[(((LODWORD(P) & 0x04040404u) + ((HIDWORD(P) & 0x04040404u) << 4)) * 0x00408102u) >> 24];
 	n_flipped += COUNT_FLIP_2[(HIDWORD(P) >> 8) & 0xff];
 	n_flipped += COUNT_FLIP_2[(((LODWORD(P) & 0x10204080u) + (HIDWORD(P) & 0x01020408u)) * 0x01010101u) >> 24];
-	n_flipped += COUNT_FLIP_52[((LODWORD(P) & 0x01000000u) * 0x00000002u + ((HIDWORD(P) & 0x10080002u) * 0x02000101u) >> 25)];
+	n_flipped += COUNT_FLIP_52[(((LODWORD(P) & 0x01000000u) * 0x00000002u + (HIDWORD(P) & 0x10080002u) * 0x02000101u) >> 25)];
 
 	return n_flipped;
 }
