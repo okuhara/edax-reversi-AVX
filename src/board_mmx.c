@@ -6,7 +6,7 @@
  * If both hasMMX and hasSSE2 are undefined, dynamic dispatching code
  * will be generated.  (This setting requires VC or GCC 4.4+)
  *
- * @date 2014 - 2023
+ * @date 2014 - 2026
  * @author Toshihiko Okuhara
  * @version 4.5
  */
@@ -111,15 +111,15 @@ unsigned long long get_moves_mmx(const unsigned long long P_, const unsigned lon
 	O = _m_punpckldq(_m_from_int(O_), _m_from_int(O_ >> 32));	mO1 = (unsigned int) O_ & 0x7e7e7e7e;
 	    /* shift = +8 */                                     	    /* shift = +1 */
 	flip = _m_pand(O, _m_psllqi(P, 8));                      	flip1  = mO1 & ((unsigned int) P_ << 1);
-	flip = _m_por(flip, _m_pand(O, _m_psllqi(flip, 8)));     	flip1 |= mO1 & (flip1 << 1);
-	pre  = _m_pand(O, _m_psllqi(O, 8));                      	pre1   = mO1 & (mO1 << 1);
-	flip = _m_por(flip, _m_pand(pre, _m_psllqi(flip, 16)));  	flip1 |= pre1 & (flip1 << 2);
-	flip = _m_por(flip, _m_pand(pre, _m_psllqi(flip, 16)));  	flip1 |= pre1 & (flip1 << 2);
-	M = _m_psllqi(flip, 8);                                  	movesL = flip1 << 1;
+	flip = _m_por(flip, _m_pand(O, _m_psllqi(flip, 8)));     	movesL = mO1 + flip1;
+	pre  = _m_pand(O, _m_psllqi(O, 8));
+	flip = _m_por(flip, _m_pand(pre, _m_psllqi(flip, 16)));
+	flip = _m_por(flip, _m_pand(pre, _m_psllqi(flip, 16)));
+	M = _m_psllqi(flip, 8);
 	    /* shift = -8 */                                     	    /* shift = -1 */
 	flip = _m_pand(O, _m_psrlqi(P, 8));                      	flip1  = mO1 & ((unsigned int) P_ >> 1);
 	flip = _m_por(flip, _m_pand(O, _m_psrlqi(flip, 8)));     	flip1 |= mO1 & (flip1 >> 1);
-	pre  = _m_psrlqi(pre, 8);                                	pre1 >>= 1;
+	pre  = _m_psrlqi(pre, 8);                                	pre1   = mO1 & (mO1 >> 1);
 	flip = _m_por(flip, _m_pand(pre, _m_psrlqi(flip, 16)));  	flip1 |= pre1 & (flip1 >> 2);
 	flip = _m_por(flip, _m_pand(pre, _m_psrlqi(flip, 16)));  	flip1 |= pre1 & (flip1 >> 2);
 	M = _m_por(M, _m_psrlqi(flip, 8));                       	movesL |= flip1 >> 1;
@@ -133,15 +133,15 @@ unsigned long long get_moves_mmx(const unsigned long long P_, const unsigned lon
 	M = _m_por(M, _m_psllqi(flip, 7));
 	    /* shift = -7 */                                     	    /* shift = +1 */
 	flip = _m_pand(mO, _m_psrlqi(P, 7));                     	flip1  = mO1 & ((unsigned int)(P_ >> 32) << 1);
-	flip = _m_por(flip, _m_pand(mO, _m_psrlqi(flip, 7)));    	flip1 |= mO1 & (flip1 << 1);
-	pre  = _m_psrlqi(pre, 7);                                	pre1   = mO1 & (mO1 << 1);
-	flip = _m_por(flip, _m_pand(pre, _m_psrlqi(flip, 14)));  	flip1 |= pre1 & (flip1 << 2);
-	flip = _m_por(flip, _m_pand(pre, _m_psrlqi(flip, 14)));  	flip1 |= pre1 & (flip1 << 2);
-	M = _m_por(M, _m_psrlqi(flip, 7));                       	movesH = flip1 << 1;
+	flip = _m_por(flip, _m_pand(mO, _m_psrlqi(flip, 7)));    	movesH = mO1 + flip1;
+	pre  = _m_psrlqi(pre, 7);
+	flip = _m_por(flip, _m_pand(pre, _m_psrlqi(flip, 14)));
+	flip = _m_por(flip, _m_pand(pre, _m_psrlqi(flip, 14)));
+	M = _m_por(M, _m_psrlqi(flip, 7));
 	    /* shift = +9 */                                     	    /* shift = -1 */
 	flip = _m_pand(mO, _m_psllqi(P, 9));                     	flip1  = mO1 & ((unsigned int)(P_ >> 32) >> 1);
 	flip = _m_por(flip, _m_pand(mO, _m_psllqi(flip, 9)));    	flip1 |= mO1 & (flip1 >> 1);
-	pre  = _m_pand(mO, _m_psllqi(mO, 9));                    	pre1 >>= 1;
+	pre  = _m_pand(mO, _m_psllqi(mO, 9));                    	pre1   = mO1 & (mO1 >> 1);
 	flip = _m_por(flip, _m_pand(pre, _m_psllqi(flip, 18)));  	flip1 |= pre1 & (flip1 >> 2);
 	flip = _m_por(flip, _m_pand(pre, _m_psllqi(flip, 18)));  	flip1 |= pre1 & (flip1 >> 2);
 	M = _m_por(M, _m_psllqi(flip, 9));                       	movesH |= flip1 >> 1;
@@ -165,130 +165,130 @@ unsigned long long get_moves_mmx(const unsigned long long P, const unsigned long
 {
 	unsigned long long moves;
 	__asm__ (
-		"movl	%1, %%ebx\n\t"         	"movd	%1, %%mm4\n\t"	// (movd for store-forwarding)
-		"movl	%3, %%edi\n\t"         	"movd	%3, %%mm5\n\t"
-		"andl	$0x7e7e7e7e, %%edi\n\t"	"punpckldq %2, %%mm4\n\t"
-		                               	"punpckldq %4, %%mm5\n\t"
-		            /* shift=-1 */     	            /* shift=-8 */
-		"movl	%%ebx, %%eax\n\t"      	"movq	%%mm4, %%mm0\n\t"
-		"shrl	$1, %%eax\n\t"         	"psrlq	$8, %%mm0\n\t"
-		"andl	%%edi, %%eax\n\t"      	"pand	%%mm5, %%mm0\n\t"	// 0 m7&o6 m6&o5 .. m1&o0
-		"movl	%%eax, %%edx\n\t"      	"movq	%%mm0, %%mm1\n\t"
-		"shrl	$1, %%eax\n\t"         	"psrlq	$8, %%mm0\n\t"
-		"movl	%%edi, %%ecx\n\t"      	"movq	%%mm5, %%mm3\n\t"
-		"andl	%%edi, %%eax\n\t"      	"pand	%%mm5, %%mm0\n\t"	// 0 0 m7&o6&o5 .. m2&o1&o0
-		"shrl	$1, %%ecx\n\t"         	"psrlq	$8, %%mm3\n\t"
-		"orl	%%edx, %%eax\n\t"      	"por	%%mm1, %%mm0\n\t"	// 0 m7&o6 (m6&o5)|(m7&o6&o5) .. (m1&o0)
-		"andl	%%edi, %%ecx\n\t"      	"pand	%%mm5, %%mm3\n\t"	// 0 o7&o6 o6&o5 o5&o4 o4&o3 ..
-		"movl	%%eax, %%edx\n\t"      	"movq	%%mm0, %%mm2\n\t"
-		"shrl	$2, %%eax\n\t"         	"psrlq	$16, %%mm0\n\t"
-		"andl	%%ecx, %%eax\n\t"      	"pand	%%mm3, %%mm0\n\t"	// 0 0 0 m7&o6&o5&o4 (m6&o5&o4&o3)|(m7&o6&o5&o4&o3) ..
-		"orl	%%eax, %%edx\n\t"      	"por	%%mm0, %%mm2\n\t"
-		"shrl	$2, %%eax\n\t"         	"psrlq	$16, %%mm0\n\t"
-		"andl	%%ecx, %%eax\n\t"      	"pand	%%mm3, %%mm0\n\t"	// 0 0 0 0 0 m7&o6&..&o2 (m6&o5&..&o1)|(m7&o6&..&o1) ..
-		"orl	%%edx, %%eax\n\t"      	"por	%%mm0, %%mm2\n\t"
-		"shrl	$1, %%eax\n\t"         	"psrlq	$8, %%mm2\n\t"
-		            /* shift=+1 */     	            /* shift=+8 */
-		                               	"movq	%%mm4, %%mm0\n\t"
-		"addl	%%ebx, %%ebx\n\t"      	"psllq	$8, %%mm0\n\t"
-		"andl	%%edi, %%ebx\n\t"      	"pand	%%mm5, %%mm0\n\t"
-		"movl	%%ebx, %%edx\n\t"      	"movq	%%mm0, %%mm1\n\t"
-		"addl	%%ebx, %%ebx\n\t"      	"psllq	$8, %%mm0\n\t"
-		"andl	%%edi, %%ebx\n\t"      	"pand	%%mm5, %%mm0\n\t"
-		"orl	%%ebx, %%edx\n\t"      	"por	%%mm1, %%mm0\n\t"
-		"addl	%%ecx, %%ecx\n\t"      	"psllq	$8, %%mm3\n\t"
-		                               	"movq	%%mm0, %%mm1\n\t"
-		"leal	(,%%edx,4), %%ebx\n\t" 	"psllq	$16, %%mm0\n\t"
-		"andl	%%ecx, %%ebx\n\t"      	"pand	%%mm3, %%mm0\n\t"
-		"orl	%%ebx, %%edx\n\t"      	"por	%%mm0, %%mm1\n\t"
-		"shll	$2, %%ebx\n\t"         	"psllq	$16, %%mm0\n\t"
-		"andl	%%ecx, %%ebx\n\t"      	"pand	%%mm3, %%mm0\n\t"
-		"orl	%%edx, %%ebx\n\t"      	"por	%%mm1, %%mm0\n\t"
-		"addl	%%ebx, %%ebx\n\t"      	"psllq	$8, %%mm0\n\t"
-		"orl	%%eax, %%ebx\n\t"      	"por	%%mm0, %%mm2\n\t"
-		                               	            /* shift=-7 */
-		                               	"pand	%5, %%mm5\n\t"
-		                               	"movq	%%mm4, %%mm0\n\t"
-		                               	"psrlq	$7, %%mm0\n\t"
-		                               	"pand	%%mm5, %%mm0\n\t"
-		                               	"movq	%%mm0, %%mm1\n\t"
-		                               	"psrlq	$7, %%mm0\n\t"
-		                               	"pand	%%mm5, %%mm0\n\t"
-		                               	"movq	%%mm5, %%mm3\n\t"
-		                               	"por	%%mm1, %%mm0\n\t"
-		                               	"psrlq	$7, %%mm3\n\t"
-		                               	"movq	%%mm0, %%mm1\n\t"
-		                               	"pand	%%mm5, %%mm3\n\t"
-		                               	"psrlq	$14, %%mm0\n\t"
-		                               	"pand	%%mm3, %%mm0\n\t"
-		"movl	%2, %%esi\n\t"         	"por	%%mm0, %%mm1\n\t"
-		"movl	%4, %%edi\n\t"         	"psrlq	$14, %%mm0\n\t"
-		"andl	$0x7e7e7e7e,%%edi\n\t" 	"pand	%%mm3, %%mm0\n\t"
-		"movl	%%edi, %%ecx\n\t"      	"por	%%mm1, %%mm0\n\t"
-		"shrl	$1, %%ecx\n\t"         	"psrlq	$7, %%mm0\n\t"
-		"andl	%%edi, %%ecx\n\t"      	"por	%%mm0, %%mm2\n\t"
-		            /* shift=-1 */     	            /* shift=+7 */
-		"movl	%%esi, %%eax\n\t"      	"movq	%%mm4, %%mm0\n\t"
-		"shrl	$1, %%eax\n\t"         	"psllq	$7, %%mm0\n\t"
-		"andl	%%edi, %%eax\n\t"      	"pand	%%mm5, %%mm0\n\t"
-		"movl	%%eax, %%edx\n\t"      	"movq	%%mm0, %%mm1\n\t"
-		"shrl	$1, %%eax\n\t"         	"psllq	$7, %%mm0\n\t"
-		"andl	%%edi, %%eax\n\t"      	"pand	%%mm5, %%mm0\n\t"
-		"orl	%%edx, %%eax\n\t"      	"por	%%mm1, %%mm0\n\t"
-		                               	"psllq	$7, %%mm3\n\t"
-		"movl	%%eax, %%edx\n\t"      	"movq	%%mm0, %%mm1\n\t"
-		"shrl	$2, %%eax\n\t"         	"psllq	$14, %%mm0\n\t"
-		"andl	%%ecx, %%eax\n\t"      	"pand	%%mm3, %%mm0\n\t"
-		"orl	%%eax, %%edx\n\t"      	"por	%%mm0, %%mm1\n\t"
-		"shrl	$2, %%eax\n\t"         	"psllq	$14, %%mm0\n\t"
-		"andl	%%ecx, %%eax\n\t"      	"pand	%%mm3, %%mm0\n\t"
-		"orl	%%edx, %%eax\n\t"      	"por	%%mm1, %%mm0\n\t"
-		"shrl	$1, %%eax\n\t"         	"psllq	$7, %%mm0\n\t"
-		                               	"por	%%mm0, %%mm2\n\t"
-		            /* shift=+1 */     	            /* shift=-9 */
-		                               	"movq	%%mm4, %%mm0\n\t"
-		"addl	%%esi, %%esi\n\t"      	"psrlq	$9, %%mm0\n\t"
-		"andl	%%edi, %%esi\n\t"      	"pand	%%mm5, %%mm0\n\t"
-		"movl	%%esi, %%edx\n\t"      	"movq	%%mm0, %%mm1\n\t"
-		"addl	%%esi, %%esi\n\t"      	"psrlq	$9, %%mm0\n\t"
-		"andl	%%edi, %%esi\n\t"      	"pand	%%mm5, %%mm0\n\t"
-		                               	"movq	%%mm5, %%mm3\n\t"
-		"orl	%%esi, %%edx\n\t"      	"por	%%mm1, %%mm0\n\t"
-		                               	"psrlq	$9, %%mm3\n\t"
-		                               	"movq	%%mm0, %%mm1\n\t"
-		"addl	%%ecx, %%ecx\n\t"      	"pand	%%mm5, %%mm3\n\t"
-		"leal	(,%%edx,4), %%esi\n\t" 	"psrlq	$18, %%mm0\n\t"
-		"andl	%%ecx, %%esi\n\t"      	"pand	%%mm3, %%mm0\n\t"
-		"orl	%%esi, %%edx\n\t"      	"por	%%mm0, %%mm1\n\t"
-		"shll	$2, %%esi\n\t"         	"psrlq	$18, %%mm0\n\t"
-		"andl	%%ecx, %%esi\n\t"      	"pand	%%mm3, %%mm0\n\t"
-		"orl	%%edx, %%esi\n\t"      	"por	%%mm1, %%mm0\n\t"
-		"addl	%%esi, %%esi\n\t"      	"psrlq	$9, %%mm0\n\t"
-		"orl	%%eax, %%esi\n\t"      	"por	%%mm0, %%mm2\n\t"
-		                               	            /* shift=+9 */
-		                               	"movq	%%mm4, %%mm0\n\t"
-		                               	"psllq	$9, %%mm0\n\t"
-		                               	"pand	%%mm5, %%mm0\n\t"
-		                               	"movq	%%mm0, %%mm1\n\t"
-		                               	"psllq	$9, %%mm0\n\t"
-		                               	"pand	%%mm5, %%mm0\n\t"
-		                               	"por	%%mm1, %%mm0\n\t"
-		                               	"psllq	$9, %%mm3\n\t"
-		                               	"movq	%%mm0, %%mm1\n\t"
-		                               	"psllq	$18, %%mm0\n\t"
-		                               	"pand	%%mm3, %%mm0\n\t"
-		"movl	%1, %%eax\n\t"         	"por	%%mm0, %%mm1\n\t"
-		"movl	%2, %%edx\n\t"         	"psllq	$18, %%mm0\n\t"
-		"orl	%3, %%eax\n\t"         	"pand	%%mm3, %%mm0\n\t"
-		"orl	%4, %%edx\n\t"         	"por	%%mm1, %%mm0\n\t"
-		"notl	%%eax\n\t"             	"psllq	$9, %%mm0\n\t"
-		"notl	%%edx\n\t"             	"por	%%mm0, %%mm2\n\t"
+		"movl	%1, %%ebx\n\t"   	"movd 	%1, %%mm4\n\t"	// (movd for store-forwarding)
+		"movl	%3, %%edi\n\t"   	"movd 	%3, %%mm5\n\t"
+		"andl	$0x7e7e7e7e, %%edi\n\t" "punpckldq %2, %%mm4\n\t"
+		     	                 	"punpckldq %4, %%mm5\n\t"
+		     	/* shift=-1 */   		/* shift=-8 */
+		"movl	%%ebx, %%eax\n\t"	"movq 	%%mm4, %%mm0\n\t"
+		"shrl	$1, %%eax\n\t"   	"psrlq	$8, %%mm0\n\t"
+		"andl	%%edi, %%eax\n\t"	"pand 	%%mm5, %%mm0\n\t"	// 0 m7&o6 m6&o5 .. m1&o0
+		"movl	%%eax, %%edx\n\t"	"movq 	%%mm0, %%mm1\n\t"
+		"shrl	$1, %%eax\n\t"   	"psrlq	$8, %%mm0\n\t"
+		"movl	%%edi, %%ecx\n\t"	"movq 	%%mm5, %%mm3\n\t"
+		"andl	%%edi, %%eax\n\t"	"pand 	%%mm5, %%mm0\n\t"	// 0 0 m7&o6&o5 .. m2&o1&o0
+		"shrl	$1, %%ecx\n\t"   	"psrlq	$8, %%mm3\n\t"
+		"orl 	%%edx, %%eax\n\t"	"por  	%%mm1, %%mm0\n\t"	// 0 m7&o6 (m6&o5)|(m7&o6&o5) .. (m1&o0)
+		"andl	%%edi, %%ecx\n\t"	"pand 	%%mm5, %%mm3\n\t"	// 0 o7&o6 o6&o5 o5&o4 o4&o3 ..
+		"movl	%%eax, %%edx\n\t"	"movq 	%%mm0, %%mm2\n\t"
+		"shrl	$2, %%eax\n\t"   	"psrlq	$16, %%mm0\n\t"
+		"andl	%%ecx, %%eax\n\t"	"pand 	%%mm3, %%mm0\n\t"	// 0 0 0 m7&o6&o5&o4 (m6&o5&o4&o3)|(m7&o6&o5&o4&o3) ..
+		"orl 	%%eax, %%edx\n\t"	"por  	%%mm0, %%mm2\n\t"
+		"shrl	$2, %%eax\n\t"   	"psrlq	$16, %%mm0\n\t"
+		"andl	%%ecx, %%eax\n\t"	"pand 	%%mm3, %%mm0\n\t"	// 0 0 0 0 0 m7&o6&..&o2 (m6&o5&..&o1)|(m7&o6&..&o1) ..
+		"orl 	%%edx, %%eax\n\t"	"por  	%%mm0, %%mm2\n\t"
+		"shrl	$1, %%eax\n\t"   	"psrlq	$8, %%mm2\n\t"
+		     	/* shift=+1 */   		/* shift=+8 */
+		     	                 	"movq 	%%mm4, %%mm0\n\t"
+		"addl	%%ebx, %%ebx\n\t"	"psllq	$8, %%mm0\n\t"
+		"andl	%%edi, %%ebx\n\t"	"pand 	%%mm5, %%mm0\n\t"
+		     	                 	"movq 	%%mm0, %%mm1\n\t"
+		"addl	%%edi, %%ebx\n\t"	"psllq	$8, %%mm0\n\t"
+		"orl 	%%eax, %%ebx\n\t"	"pand 	%%mm5, %%mm0\n\t"
+		     	                 	"por  	%%mm1, %%mm0\n\t"
+		     	                 	"psllq	$8, %%mm3\n\t"
+		     	                 	"movq 	%%mm0, %%mm1\n\t"
+		     	                 	"psllq	$16, %%mm0\n\t"
+		     	                 	"pand 	%%mm3, %%mm0\n\t"
+		     	                 	"por  	%%mm0, %%mm1\n\t"
+		     	                 	"psllq	$16, %%mm0\n\t"
+		     	                 	"pand 	%%mm3, %%mm0\n\t"
+		     	                 	"por  	%%mm1, %%mm0\n\t"
+		     	                 	"psllq	$8, %%mm0\n\t"
+		     	                 	"por  	%%mm0, %%mm2\n\t"
+		     	                 		/* shift=-7 */
+		     	                 	"pand 	%5, %%mm5\n\t"
+		     	                 	"movq 	%%mm4, %%mm0\n\t"
+		     	                 	"psrlq	$7, %%mm0\n\t"
+		     	                 	"pand 	%%mm5, %%mm0\n\t"
+		     	                 	"movq 	%%mm0, %%mm1\n\t"
+		     	                 	"psrlq	$7, %%mm0\n\t"
+		     	                 	"pand 	%%mm5, %%mm0\n\t"
+		     	                 	"movq 	%%mm5, %%mm3\n\t"
+		     	                 	"por  	%%mm1, %%mm0\n\t"
+		     	                 	"psrlq	$7, %%mm3\n\t"
+		     	                 	"movq 	%%mm0, %%mm1\n\t"
+		     	                 	"pand 	%%mm5, %%mm3\n\t"
+		     	                 	"psrlq	$14, %%mm0\n\t"
+		     	                 	"pand 	%%mm3, %%mm0\n\t"
+		"movl	%2, %%esi\n\t"   	"por  	%%mm0, %%mm1\n\t"
+		"movl	%4, %%edi\n\t"   	"psrlq	$14, %%mm0\n\t"
+		"andl	$0x7e7e7e7e, %%edi\n\t" "pand 	%%mm3, %%mm0\n\t"
+		"movl	%%edi, %%ecx\n\t"	"por  	%%mm1, %%mm0\n\t"
+		"shrl	$1, %%ecx\n\t"   	"psrlq	$7, %%mm0\n\t"
+		"andl	%%edi, %%ecx\n\t"	"por  	%%mm0, %%mm2\n\t"
+		     	/* shift=-1 */   		/* shift=+7 */
+		"movl	%%esi, %%eax\n\t"	"movq 	%%mm4, %%mm0\n\t"
+		"shrl	$1, %%eax\n\t"   	"psllq	$7, %%mm0\n\t"
+		"andl	%%edi, %%eax\n\t"	"pand 	%%mm5, %%mm0\n\t"
+		"movl	%%eax, %%edx\n\t"	"movq 	%%mm0, %%mm1\n\t"
+		"shrl	$1, %%eax\n\t"   	"psllq	$7, %%mm0\n\t"
+		"andl	%%edi, %%eax\n\t"	"pand 	%%mm5, %%mm0\n\t"
+		"orl 	%%edx, %%eax\n\t"	"por  	%%mm1, %%mm0\n\t"
+		     	                 	"psllq	$7, %%mm3\n\t"
+		"movl	%%eax, %%edx\n\t"	"movq 	%%mm0, %%mm1\n\t"
+		"shrl	$2, %%eax\n\t"   	"psllq	$14, %%mm0\n\t"
+		"andl	%%ecx, %%eax\n\t"	"pand 	%%mm3, %%mm0\n\t"
+		"orl 	%%eax, %%edx\n\t"	"por  	%%mm0, %%mm1\n\t"
+		"shrl	$2, %%eax\n\t"   	"psllq	$14, %%mm0\n\t"
+		"andl	%%ecx, %%eax\n\t"	"pand 	%%mm3, %%mm0\n\t"
+		"orl 	%%edx, %%eax\n\t"	"por  	%%mm1, %%mm0\n\t"
+		"shrl	$1, %%eax\n\t"   	"psllq	$7, %%mm0\n\t"
+		     	                 	"por  	%%mm0, %%mm2\n\t"
+		     	/* shift=+1 */   		/* shift=-9 */
+		     	                 	"movq 	%%mm4, %%mm0\n\t"
+		"addl	%%esi, %%esi\n\t"	"psrlq	$9, %%mm0\n\t"
+		"andl	%%edi, %%esi\n\t"	"pand 	%%mm5, %%mm0\n\t"
+		     	                 	"movq 	%%mm0, %%mm1\n\t"
+		"addl	%%edi, %%esi\n\t"	"psrlq	$9, %%mm0\n\t"
+		"orl 	%%eax, %%esi\n\t"	"pand 	%%mm5, %%mm0\n\t"
+		     	                 	"movq 	%%mm5, %%mm3\n\t"
+		     	                 	"por  	%%mm1, %%mm0\n\t"
+		     	                 	"psrlq	$9, %%mm3\n\t"
+		     	                 	"movq 	%%mm0, %%mm1\n\t"
+		     	                 	"pand 	%%mm5, %%mm3\n\t"
+		     	                 	"psrlq	$18, %%mm0\n\t"
+		     	                 	"pand 	%%mm3, %%mm0\n\t"
+		     	                 	"por  	%%mm0, %%mm1\n\t"
+		     	                 	"psrlq	$18, %%mm0\n\t"
+		     	                 	"pand 	%%mm3, %%mm0\n\t"
+		     	                 	"por  	%%mm1, %%mm0\n\t"
+		     	                 	"psrlq	$9, %%mm0\n\t"
+		     	                 	"por  	%%mm0, %%mm2\n\t"
+		     	                 		/* shift=+9 */
+		     	                 	"movq 	%%mm4, %%mm0\n\t"
+		     	                 	"psllq	$9, %%mm0\n\t"
+		     	                 	"pand 	%%mm5, %%mm0\n\t"
+		     	                 	"movq 	%%mm0, %%mm1\n\t"
+		     	                 	"psllq	$9, %%mm0\n\t"
+		     	                 	"pand 	%%mm5, %%mm0\n\t"
+		     	                 	"por  	%%mm1, %%mm0\n\t"
+		     	                 	"psllq	$9, %%mm3\n\t"
+		     	                 	"movq 	%%mm0, %%mm1\n\t"
+		     	                 	"psllq	$18, %%mm0\n\t"
+		     	                 	"pand 	%%mm3, %%mm0\n\t"
+		"movl	%1, %%eax\n\t"   	"por  	%%mm0, %%mm1\n\t"
+		"movl	%2, %%edx\n\t"   	"psllq	$18, %%mm0\n\t"
+		"orl 	%3, %%eax\n\t"   	"pand 	%%mm3, %%mm0\n\t"
+		"orl 	%4, %%edx\n\t"   	"por  	%%mm1, %%mm0\n\t"
+		"notl	%%eax\n\t"       	"psllq	$9, %%mm0\n\t"
+		"notl	%%edx\n\t"       	"por  	%%mm0, %%mm2\n\t"
 		/* mm2|(esi:ebx) is the pseudo-feasible moves at this point. */
 		/* Let edx:eax be the feasible moves, i.e., mm2 restricted to empty squares. */
-		"movd	%%mm2, %%ecx\n\t"      	"punpckhdq %%mm2, %%mm2\n\t"
-		"orl	%%ecx, %%ebx\n\t"
+		"movd	%%mm2, %%ecx\n\t"	"punpckhdq %%mm2, %%mm2\n\t"
+		"orl 	%%ecx, %%ebx\n\t"
 		"movd	%%mm2, %%ecx\n\t"
-		"orl	%%ecx, %%esi\n\t"
+		"orl 	%%ecx, %%esi\n\t"
 		"andl	%%ebx, %%eax\n\t"
 		"andl	%%esi, %%edx\n\t"
 		"emms"		/* Reset the FP/MMX unit. */
@@ -353,7 +353,7 @@ int get_stability_fulls(unsigned long long P, unsigned long long O, unsigned lon
 
 	OL = (unsigned int) O;	OH = (unsigned int)(O >> 32);
 	PL = (unsigned int) P;	PH = (unsigned int)(P >> 32);
-	SL = PL & 0x7f7f7f00;	SH = PH & 0x007f7f7f;
+	SL = PL & 0x7e7e7e00;	SH = PH & 0x007e7e7e;
 	P_central = _m_punpckldq(_m_from_int(SL), _m_from_int(SH));
 
 	// P_central & allfull
