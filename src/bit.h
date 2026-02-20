@@ -277,7 +277,7 @@ int get_rand_bit(unsigned long long, struct Random*);
 	int bit_weighted_count(unsigned long long);
 #endif
 
-extern unsigned long long X_TO_BIT[];
+extern const unsigned long long X_TO_BIT[];
 extern const unsigned long long NEIGHBOUR[];
 
 /** Return a bitboard with bit x set. */

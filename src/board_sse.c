@@ -94,30 +94,7 @@ void board_vertical_mirror(const Board *board, Board *sym)
   #endif
 }
 
-#ifdef __AVX2__
-void board_transpose(const Board *board, Board *sym)
-{
-	sym->player = transpose(board->player);
-	sym->opponent = transpose(board->opponent);
-}
-
-void board_symmetry(const Board *board, const int s, Board *sym)
-{
-	__m128i	bb = _mm_loadu_si128((__m128i *) board);
-	if (s & 1)
-		bb = board_horizontal_mirror_sse(bb);
-	if (s & 2)
-		bb = board_vertical_mirror_sse(bb);
-	if (s & 4) {
-		sym->player = transpose_avx(bb);
-		sym->opponent = transpose_avx(_mm_unpackhi_epi64(bb, bb));
-	} else
-		_mm_storeu_si128((__m128i *) sym, bb);
-
-	board_check(sym);
-}
-
-#else
+  #ifndef __AVX2__
 static __m128i vectorcall board_transpose_sse(__m128i bb)
 {
 	const __m128i mask00AA = _mm_set1_epi16(0x00AA);
@@ -136,6 +113,7 @@ void board_transpose(const Board *board, Board *sym)
 {
 	_mm_storeu_si128((__m128i *) sym, board_transpose_sse(_mm_loadu_si128((__m128i *) board)));
 }
+  #endif
 
 void board_symmetry(const Board *board, const int s, Board *sym)
 {
@@ -144,13 +122,20 @@ void board_symmetry(const Board *board, const int s, Board *sym)
 		bb = board_horizontal_mirror_sse(bb);
 	if (s & 2)
 		bb = board_vertical_mirror_sse(bb);
+  #ifdef __AVX2__
+	if (s & 4) {
+		sym->player = transpose_avx(bb);
+		sym->opponent = transpose_avx(_mm_unpackhi_epi64(bb, bb));
+	} else
+		_mm_storeu_si128((__m128i *) sym, bb);
+  #else
 	if (s & 4)
 		bb = board_transpose_sse(bb);
 	_mm_storeu_si128((__m128i *) sym, bb);
+  #endif
 
 	board_check(sym);
 }
-#endif
 
 #elif defined(__ARM_NEON) && !defined(DISPATCH_NEON)
 
@@ -887,15 +872,15 @@ void get_full_lines(const unsigned long long disc, unsigned long long full[4])
 	const __m128i e792 = _mm_set1_epi64x(0x00003f3f3f3f3f3f);
 	const __m128i e793 = _mm_set1_epi64x(0x0f0f0f0ff0f0f0f0);
 
-	l01 = l79 = _mm_cvtsi64_si128(disc);	l79 = r79 = _mm_unpacklo_epi64(l79, _mm_cvtsi64_si128(rdisc));
-	l01 = _mm_cmpeq_epi8(kff, l01);     	l79 = _mm_and_si128(l79, _mm_or_si128(e790, _mm_srli_epi64(l79, 9)));
+	l01 = _mm_cvtsi64_si128(disc);  	l79 = r79 = _mm_unpacklo_epi64(l01, _mm_cvtsi64_si128(rdisc));
+	l01 = _mm_cmpeq_epi8(kff, l01); 	l79 = _mm_and_si128(l79, _mm_or_si128(e790, _mm_srli_epi64(l79, 9)));
 	_mm_storel_epi64((__m128i*) &full[0], l01);
-	                                    	r79 = _mm_and_si128(r79, _mm_or_si128(e791, _mm_slli_epi64(r79, 9)));
-	l8 = disc;                          	l79 = _mm_andnot_si128(_mm_andnot_si128(_mm_srli_epi64(l79, 18), e792), l79);	// De Morgan
-	l8 &= (l8 >> 8) | (l8 << 56);       	r79 = _mm_andnot_si128(_mm_slli_epi64(_mm_andnot_si128(r79, e792), 18), r79);
-	l8 &= (l8 >> 16) | (l8 << 48);      	l79 = _mm_and_si128(_mm_and_si128(l79, r79), _mm_or_si128(e793, _mm_or_si128(_mm_srli_epi64(l79, 36), _mm_slli_epi64(r79, 36))));
-	l8 &= (l8 >> 32) | (l8 << 32);      	_mm_storel_epi64((__m128i *) &full[2], l79);
-	full[1] = l8;                       	full[3] = vertical_mirror(_mm_cvtsi128_si64(_mm_unpackhi_epi64(l79, l79)));
+	                                	r79 = _mm_and_si128(r79, _mm_or_si128(e791, _mm_slli_epi64(r79, 9)));
+	l8 = disc;                      	l79 = _mm_andnot_si128(_mm_andnot_si128(_mm_srli_epi64(l79, 18), e792), l79);	// De Morgan
+	l8 &= (l8 >> 8) | (l8 << 56);   	r79 = _mm_andnot_si128(_mm_slli_epi64(_mm_andnot_si128(r79, e792), 18), r79);
+	l8 &= (l8 >> 16) | (l8 << 48);  	l79 = _mm_and_si128(_mm_and_si128(l79, r79), _mm_or_si128(e793, _mm_or_si128(_mm_srli_epi64(l79, 36), _mm_slli_epi64(r79, 36))));
+	l8 &= (l8 >> 32) | (l8 << 32);  	_mm_storel_epi64((__m128i *) &full[2], l79);
+	full[1] = l8;                   	full[3] = vertical_mirror(_mm_cvtsi128_si64(_mm_unpackhi_epi64(l79, l79)));
 }
 
   #endif
@@ -960,7 +945,7 @@ int vectorcall get_stability_PO_fulls(__m128i PO, unsigned long long full[5])
 	// _mm256_storeu_si256((__m256i *) full, v4_full);
 	__m128i v2_full = _mm_and_si128(_mm256_castsi256_si128(v4_full), _mm256_extracti128_si256(v4_full, 1));
 	v2_full = _mm_and_si128(v2_full, _mm_unpackhi_epi64(v2_full, v2_full));
-	full[4] = _mm_cvtsi128_si64(v2_full);
+	_mm_storel_epi64((__m128i*) &full[4], v2_full);
 	stable |= _mm_cvtsi128_si64(_mm_and_si128(P_central, v2_full));
 
 	return get_spreaded_stability(stable, P_central, v4_full);	// compute the other stable discs

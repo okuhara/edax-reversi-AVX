@@ -21,7 +21,25 @@ static unsigned int crc32c_table[4][256];
 #endif
 
 /** coordinate to bit table converter */
-unsigned long long X_TO_BIT[66];
+const unsigned long long X_TO_BIT[] = {
+	0x0000000000000001ULL, 0x0000000000000002ULL, 0x0000000000000004ULL, 0x0000000000000008ULL,
+	0x0000000000000010ULL, 0x0000000000000020ULL, 0x0000000000000040ULL, 0x0000000000000080ULL,
+	0x0000000000000100ULL, 0x0000000000000200ULL, 0x0000000000000400ULL, 0x0000000000000800ULL,
+	0x0000000000001000ULL, 0x0000000000002000ULL, 0x0000000000004000ULL, 0x0000000000008000ULL,
+	0x0000000000010000ULL, 0x0000000000020000ULL, 0x0000000000040000ULL, 0x0000000000080000ULL,
+	0x0000000000100000ULL, 0x0000000000200000ULL, 0x0000000000400000ULL, 0x0000000000800000ULL,
+	0x0000000001000000ULL, 0x0000000002000000ULL, 0x0000000004000000ULL, 0x0000000008000000ULL,
+	0x0000000010000000ULL, 0x0000000020000000ULL, 0x0000000040000000ULL, 0x0000000080000000ULL,
+	0x0000000100000000ULL, 0x0000000200000000ULL, 0x0000000400000000ULL, 0x0000000800000000ULL,
+	0x0000001000000000ULL, 0x0000002000000000ULL, 0x0000004000000000ULL, 0x0000008000000000ULL,
+	0x0000010000000000ULL, 0x0000020000000000ULL, 0x0000040000000000ULL, 0x0000080000000000ULL,
+	0x0000100000000000ULL, 0x0000200000000000ULL, 0x0000400000000000ULL, 0x0000800000000000ULL,
+	0x0001000000000000ULL, 0x0002000000000000ULL, 0x0004000000000000ULL, 0x0008000000000000ULL,
+	0x0010000000000000ULL, 0x0020000000000000ULL, 0x0040000000000000ULL, 0x0080000000000000ULL,
+	0x0100000000000000ULL, 0x0200000000000000ULL, 0x0400000000000000ULL, 0x0800000000000000ULL,
+	0x1000000000000000ULL, 0x2000000000000000ULL, 0x4000000000000000ULL, 0x8000000000000000ULL,
+	0, 0 // <- hack for passing move & nomove
+};
 
 /** Conversion array: flippable neighbour bits */
 // https://eukaryote.hateblo.jp/entry/2020/04/26/031246
@@ -99,7 +117,6 @@ static int bit_count_32_SWAR(unsigned int b)
 void bit_init(void)
 {
 	unsigned int	n;
-	unsigned long long	ll;
 #ifndef crc32c_u64
 	unsigned int	k, crc;
 
@@ -122,11 +139,13 @@ void bit_init(void)
 	}
 #endif
 
+#if 0	// MSVC expands loop
 	ll = 1;
 	for (n = 0; n < 66; ++n) {	// X_TO_BIT[64] = X_TO_BIT[65] = 0 for passing move & nomove
 		X_TO_BIT[n] = ll;
 		ll <<= 1;
 	}
+#endif
 
 #ifndef POPCOUNT
 	for (n = 0; n < (1 << 16); ++n)
@@ -458,21 +477,18 @@ unsigned long long horizontal_mirror(unsigned long long b)
  * @return The transposed unsigned long long.
  */
 #ifdef __AVX2__
-  #if defined(__AVX512BITALG__) && defined(AVX512_PREFER512)
 unsigned long long vectorcall transpose_avx(__m128i bb)
 {
+  #if defined(__AVX512BITALG__) && defined(AVX512_PREFER512)
 	return _cvtmask64_u64(_mm512_bitshuffle_epi64_mask(_mm512_broadcastq_epi64(bb), _mm512_set_epi8(
 		63, 55, 47, 39, 31, 23, 15, 7, 62, 54, 46, 38, 30, 22, 14, 6, 61, 53, 45, 37, 29, 21, 13, 5, 60, 52, 44, 36, 28, 20, 12, 4,
 		59, 51, 43, 35, 27, 19, 11, 3, 58, 50, 42, 34, 26, 18, 10, 2, 57, 49, 41, 33, 25, 17,  9, 1, 56, 48, 40, 32, 24, 16,  8, 0)));
-}
   #else
-unsigned long long vectorcall transpose_avx(__m128i bb)
-{
 	__m256i	v = _mm256_sllv_epi64(_mm256_broadcastq_epi64(bb), _mm256_set_epi64x(0, 1, 2, 3));
 	return ((unsigned long long)(unsigned int) _mm256_movemask_epi8(v) << 32)
 		| (unsigned int) _mm256_movemask_epi8(_mm256_slli_epi64(v, 4));
-}
   #endif
+}
 #else
 unsigned long long transpose(unsigned long long b)
 {

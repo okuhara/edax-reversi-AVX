@@ -248,6 +248,13 @@ bool board_lesser(const Board *b1, const Board *b2)
  * @param s symmetry
  * @param sym symetric output board
  */
+#if defined(__AVX2__) || (!defined(hasSSE2) && !defined(__ARM_NEON))	// SSE version in board_sse.c, AVX uses transpose_avx
+void board_transpose(const Board *board, Board *sym)
+{
+	sym->player = transpose(board->player);
+	sym->opponent = transpose(board->opponent);
+}
+#endif
 #if !defined(hasSSE2) && !defined(__ARM_NEON)	// SSE version in board_sse.c
 void board_horizontal_mirror(const Board *board, Board *sym)
 {
@@ -259,12 +266,6 @@ void board_vertical_mirror(const Board *board, Board *sym)
 {
 	sym->player = vertical_mirror(board->player);
 	sym->opponent = vertical_mirror(board->opponent);
-}
-
-void board_transpose(const Board *board, Board *sym)
-{
-	sym->player = transpose(board->player);
-	sym->opponent = transpose(board->opponent);
 }
 
 void board_symmetry(const Board *board, const int s, Board *sym)
