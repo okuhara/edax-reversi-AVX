@@ -96,10 +96,8 @@ void hash_feed(HashTable*, const Board *, const unsigned long long, HashStoreDat
 void hash_store(HashTable*, const Board *, const unsigned long long, HashStoreData *);
 #ifdef hasSSE2
 	void vectorcall hash_store_local(Hash*, int, int, int, __m128i, int);
-	#define vhash_store_local(hash,vboard,alpha,beta,score,move)	hash_store_local((hash), (alpha), (beta), (score), (vboard).v2, (move))
 #else
-	void hash_store_local(Hash*, Board *, int, int, int, int);
-	#define vhash_store_local(hash,vboard,alpha,beta,score,move)	hash_store_local((hash), &(vboard).bb, (alpha), (beta), (score), (move))
+	void hash_store_local(Hash*, int, int, int, Board *, int);
 #endif
 void hash_force(HashTable*, const Board *, const unsigned long long, HashStoreData *);
 bool hash_get(HashTable*, const Board *, const unsigned long long, HashData *);

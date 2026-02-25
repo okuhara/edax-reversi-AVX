@@ -428,7 +428,7 @@ typedef union {
 #endif
 
 // X64 compatibility sims for X86
-#if !defined(HAS_CPU_64) && (defined(hasSSE2) || defined(USE_MSVC_X86)) // & !defined(__clang__)
+#if !defined(HAS_CPU_64) && (defined(hasSSE2) || defined(USE_MSVC_X86))
 	static inline __m128i _mm_cvtsi64_si128(const unsigned long long x) {
 		return _mm_unpacklo_epi32(_mm_cvtsi32_si128(x), _mm_cvtsi32_si128(x >> 32));
 	}
@@ -437,9 +437,6 @@ typedef union {
 
 	static inline unsigned long long _mm_cvtsi128_si64(__m128i x) {
 		return *(unsigned long long *) &x;
-	}
-	static inline unsigned long long _mm_extract_epi64(__m128i x, int i) {
-		return ((unsigned long long *) &x)[i];
 	}
 
   #if defined(_MSC_VER) && _MSC_VER<1900
@@ -452,6 +449,7 @@ typedef union {
 	}
   #endif
 #endif // !HAS_CPU_64
+
 
 #if __clang_major__ == 3	// undefined reference to `llvm.x86.avx.storeu.dq.256'
 	#define	_mm_storeu_si128(a,b)	*(__m128i *)(a) = (b)

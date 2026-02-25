@@ -888,7 +888,7 @@ void search_get_movelist(const Search *search, MoveList *movelist)
 	unsigned long long moves;
 	int x;
 
-	vboard.bb = search->board;
+	vboard = loadvBoard(search->board);
 	moves = vboard_get_moves(vboard);
 	movelist->n_moves = 0;
 	foreach_bit(x, moves) {

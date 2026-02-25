@@ -367,7 +367,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 	// stability cutoff (try 8%, cut 7%)
 	if (search_SC_NWS(search, alpha, &score)) return score;
 
-	board0.bb = search->board;
+	board0 = loadvBoard(search->board);
 	moves = vboard_get_moves(board0);
 	if (moves == 0) {	// pass (2%)
 		if (pass1)	// gameover (1%)
@@ -452,7 +452,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	// stability cutoff
-	board0.bb = hashboard.bb = search->board;
+	board0 = hashboard = loadvBoard(search->board);
 	ofssolid = 0;
 #ifdef USE_SOLID
 	if (USE_SC && alpha >= NWS_STABILITY_SOLID_THRESHOLD) {	// (7%)
@@ -470,15 +470,19 @@ static int NWS_endgame_local(Search *search, const int alpha)
 			// http://id.nii.ac.jp/1001/00156359/
 				// exclude corners from solid to absorb get_full_lines anormalies
   #if defined(hasSSE2) && defined(POPCOUNT)
-			__m128i solid = _mm_and_si128(hashboard.v2,
+			__m128i solid = _mm_and_si128(hashboard,
 				_mm_and_si128(_mm_loadl_epi64((__m128i *) &full[4]), _mm_set_epi64x(0, 0x3c7effffffff7e3c)));
-			hashboard.v2 = _mm_xor_si128(hashboard.v2, _mm_unpacklo_epi64(solid, solid));
+			hashboard = _mm_xor_si128(hashboard, _mm_unpacklo_epi64(solid, solid));
 			ofssolid = bit_count_si64(solid) * 2;
   #else
-			unsigned long long solid = full[4] & 0x3c7effffffff7e3c & hashboard.bb.player;	// full[4] = all full
+			unsigned long long solid = full[4] & 0x3c7effffffff7e3c & vBoard_P(hashboard);	// full[4] = all full
 			if (solid) {	// (72%)
-				hashboard.bb.player ^= solid;	// normalize solid to opponent
-				hashboard.bb.opponent ^= solid;
+    #ifdef hasSSE2
+				hashboard = _mm_xor_si128(hashboard, _mm_set1_epi64x(solid));
+    #else
+				hashboard.player ^= solid;	// normalize solid to opponent
+				hashboard.opponent ^= solid;
+    #endif
 				ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
 			}
   #endif
@@ -493,7 +497,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 		// transposition cutoff
 		// hash_get(&search->thread_hash, &hashboard.bb, hash_code, &hash_data.data)
 		unsigned char hashmove[2] = { NOMOVE, NOMOVE };
-		Hash *hash_entry = search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask);
+		Hash *hash_entry = search->thread_hash.hash + (board_get_hash_code((Board *) &hashboard) & search->thread_hash.hash_mask);
 		if (vboard_equal(hashboard, &hash_entry->board)) {	// (6%)
 			hashmove[0] = hash_entry->data.move[0];
 			// search_TC_NWS(&hash_data.data, search->eval.n_empties, NO_SELECTIVITY, alpha, &score)
@@ -531,7 +535,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 				score = -NWS_endgame_local(search, ~alpha);
 				empty_restore(search->empties, move->x);
 			}
-			search->board = board0.bb;
+			storevBoard(search->board, board0);
 
 			if (score > bestscore) {	// (63%)
 				bestscore = score;
@@ -545,7 +549,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 		if (search->stop)	// (1%)
 			return alpha;
 
-		vhash_store_local(hash_entry, hashboard, alpha - ofssolid, alpha - ofssolid + 1, bestscore - ofssolid, bestmove);
+		hash_store_local(hash_entry, alpha - ofssolid, alpha - ofssolid + 1, bestscore - ofssolid, vBoardref(hashboard), bestmove);
 
 	} else {	// (1%)
 		if (can_move(search->board.opponent, search->board.player)) { // pass
@@ -610,7 +614,7 @@ int NWS_endgame(Search *search, const int alpha)
 	hash_prefetch(&search->hash_table, hash_code);
 
 	search_get_movelist(search, &movelist);
-	board0.bb = search->board;
+	board0 = loadvBoard(search->board);
 
 	if (movelist.n_moves > 0) {	// (96%)
 		// transposition cutoff
@@ -632,7 +636,7 @@ int NWS_endgame(Search *search, const int alpha)
 			vboard_update(&search->board, board0, move);
 			score = -NWS_endgame(search, ~alpha);
 			empty_restore(search->empties, move->x);
-			search->board = board0.bb;
+			storevBoard(search->board, board0);
 
 			if (score > bestscore) {	// (63%)
 				bestscore = score;

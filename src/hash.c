@@ -582,7 +582,7 @@ void vectorcall hash_store_local(Hash *hash, int alpha, int beta, int score, __m
 	}
 }
 #else
-void hash_store_local(Hash *hash, Board *board, int alpha, int beta, int score, int move)
+void hash_store_local(Hash *hash, int alpha, int beta, int score, Board *board, int move)
 {
 	if (board_equal(board, &hash->board)) {
 		data_update_local(hash, alpha, beta, score, move);

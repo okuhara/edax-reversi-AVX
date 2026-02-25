@@ -935,7 +935,7 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 
 // returns all full in full[4] in addition to stability count
 // board is passed in __m128i, opponent in Q0 to be called from NWS_endgame_local
-int vectorcall get_stability_PO_fulls(__m128i PO, unsigned long long full[5])
+int vectorcall vget_opp_statility_fulls(__m128i PO, unsigned long long full[5])
 {
 	unsigned long long stable = get_stable_edge_sse(PO);	// compute the exact stable edges
 	__m128i PP = _mm_unpackhi_epi64(PO, PO);
