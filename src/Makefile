@@ -56,7 +56,7 @@ ifeq ($(COMP),gcc)
 		CFLAGS += -m64 -march=x86-64-v4 -mprefer-vector-width=256 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x86-64-v2)
-		CFLAGS += -m64 -mpopcnt -mtune=generic -DUSE_GAS_X64 -DPOPCOUNT
+		CFLAGS += -m64 -march=x86-64-v2 -DUSE_GAS_X64 -DPOPCOUNT
 	endif
 	ifeq ($(ARCH),x86-64-k10)
 		CFLAGS += -m64 -march=amdfam10 -DUSE_GAS_X64 -DPOPCOUNT -DMOVE_GENERATOR=MOVE_GENERATOR_BITSCAN

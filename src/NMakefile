@@ -19,7 +19,7 @@ vc-x64-v4:
 	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /arch:AVX512 /vlen=256 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v4.exe /link /VERSION:4.5
 
 vc-x64-v2:
-	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v2.exe /link /VERSION:4.5
+	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /D POPCOUNT /D __SSSE3__ /D __SSE4_1__ /D __SSE4_2__ all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v2.exe /link /VERSION:4.5
 
 vc-x64-k10:
 	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /D POPCOUNT /D __LZCNT__ /D MOVE_GENERATOR=MOVE_GENERATOR_BITSCAN /favor:AMD64 all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-k10.exe /link /VERSION:4.5
