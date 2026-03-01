@@ -98,11 +98,15 @@ void edge_stability_init(void);
 #endif
 unsigned long long get_all_full_lines(const unsigned long long);
 
-int get_stability(const unsigned long long, const unsigned long long);
 #ifdef __AVX2__	// Pass Board in a vector register
+	int vectorcall vget_opp_stability(__m128i);
+	#define get_stability(P,O)	vget_opp_stability(_mm_set_epi64x((P), (O)))
+	#define get_board_opp_stability(board)	vget_opp_stability(_mm_loadu_si128((__m128i *) (board)))
 	int vectorcall vget_opp_statility_fulls(__m128i, unsigned long long [5]);
 	#define	get_stability_fulls(P,O,fulls)	vget_opp_statility_fulls(_mm_set_epi64x((P), (O)), (fulls))
 #else	// Pass the Board, from opp view
+	int get_stability(const unsigned long long, const unsigned long long);
+	#define get_board_opp_stability(board)	get_stability((board)->opponent, (board)->player)
 	int get_stability_fulls(const unsigned long long, const unsigned long long, unsigned long long [5]);
 	#define	vget_opp_statility_fulls(vboard,fulls)	get_stability_fulls(vBoard_O(vboard), vBoard_P(vboard), (fulls))
 #endif

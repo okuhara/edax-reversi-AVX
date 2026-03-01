@@ -919,9 +919,9 @@ static int vectorcall get_spreaded_stability(unsigned long long stable, __m128i 
 }
 
 // returns stability count only
-int get_stability(const unsigned long long P, const unsigned long long O)
+// board is passed in __m128i, opponent in Q0 to be called from search_solve_4
+int vectorcall vget_opp_stability(__m128i PO)
 {
-	__m128i PO = _mm_set_epi64x(P, O);
 	unsigned long long stable = get_stable_edge_sse(PO);	// compute the exact stable edges
 	__m128i PP = _mm_unpackhi_epi64(PO, PO);
 	__m128i P_central = _mm_and_si128(PP, _mm_set_epi64x(0, 0x007e7e7e7e7e7e00));
@@ -933,6 +933,7 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 	return get_spreaded_stability(stable, P_central, v4_full);	// compute the other stable discs
 }
 
+  #ifdef USE_SOLID
 // returns all full in full[4] in addition to stability count
 // board is passed in __m128i, opponent in Q0 to be called from NWS_endgame_local
 int vectorcall vget_opp_statility_fulls(__m128i PO, unsigned long long full[5])
@@ -958,6 +959,7 @@ unsigned long long get_all_full_lines(const unsigned long long disc)
 	__m128i v2_full = _mm_and_si128(_mm256_castsi256_si128(v4_full), _mm256_extracti128_si256(v4_full, 1));
 	return _mm_cvtsi128_si64(_mm_and_si128(v2_full, _mm_unpackhi_epi64(v2_full, v2_full)));
 }
+  #endif
 
 /**
  * @brief AVX2 optimized get_moves + get_potential_moves.

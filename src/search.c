@@ -1183,7 +1183,7 @@ bool search_SC_NWS(Search *search, const int alpha, int *score)
 {
 	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
-		*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player);
+		*score = SCORE_MAX - 2 * get_board_opp_stability(&search->board);
 		if (*score <= alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return true;
@@ -1201,11 +1201,11 @@ bool search_SC_NWS(Search *search, const int alpha, int *score)
  * @param score Score to return in case of a cutoff is found.
  * @return 'true' if a cutoff is found, false otherwise.
  */
-bool search_SC_NWS_4(unsigned long long player, unsigned long long opponent, const int alpha, int *score)
+bool search_SC_NWS_4(Search *search, const int alpha, int *score)
 {
 	if (USE_SC && alpha < -NWS_STABILITY_THRESHOLD[4]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
-		*score = 2 * get_stability(opponent, player) - SCORE_MAX;
+		*score = 2 * get_board_opp_stability(&search->board) - SCORE_MAX;
 		if (*score > alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return true;

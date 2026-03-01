@@ -967,6 +967,7 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 	return get_spreaded_stability(stable, P_central, full);	// compute the other stable discs
 }
 
+    #ifdef USE_SOLID
 // returns all full in full[4] in addition to stability count
 int get_stability_fulls(const unsigned long long P, const unsigned long long O, unsigned long long full[5])
 {
@@ -979,8 +980,10 @@ int get_stability_fulls(const unsigned long long P, const unsigned long long O, 
 
 	return get_spreaded_stability(stable, P_central, full);	// compute the other stable discs
 }
+    #endif
   #endif
 
+  #ifdef USE_SOLID
 /**
  * @brief Get intersection of full lines.
  *
@@ -995,6 +998,7 @@ unsigned long long get_all_full_lines(const unsigned long long disc)
 	get_full_lines(disc, full);
 	return full[0] & full[1] & full[2] & full[3];
 }
+  #endif
 #endif // __AVX2__
 
 /**

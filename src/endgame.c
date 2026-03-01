@@ -272,7 +272,7 @@ static int search_solve_4(Search *search, int alpha)
 	// stability cutoff (try 12%, cut 7%)
 	player = search->board.player;
 	opponent = search->board.opponent;
-	if (search_SC_NWS_4(player, opponent, alpha, &score)) return score;
+	if (search_SC_NWS_4(search, alpha, &score)) return score;
 
 	x1 = search->empties[NOMOVE].next;
 	x2 = search->empties[x1].next;
