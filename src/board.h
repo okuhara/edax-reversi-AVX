@@ -20,7 +20,7 @@
 #include <stdbool.h>
 
 /** Board : board representation */
-typedef struct Board {
+typedef ALIGN16(struct) Board {
 	unsigned long long player, opponent;     /**< bitboard representation */
 } Board;
 
@@ -28,8 +28,8 @@ typedef struct Board {
 #ifdef hasSSE2
 	#define	vBoard	__m128i
 	#define	vBoardref(board)	(board)
-	#define	loadvBoard(mboard)	_mm_loadu_si128((__m128i *) &(mboard))
-	#define	storevBoard(mboard,vboard)	_mm_storeu_si128((__m128i *) &(mboard), (vboard))
+	#define	loadvBoard(mboard)	_mm_load_si128((__m128i *) &(mboard))
+	#define	storevBoard(mboard,vboard)	_mm_store_si128((__m128i *) &(mboard), (vboard))
 	#define	vBoard_P(vboard)	_mm_cvtsi128_si64(vboard)
   #if defined(HAS_CPU_64) && (defined(__AVX__) || defined(__SSE4_1__))
 	#define	vBoard_O(vboard)	_mm_extract_epi64((vboard), 1)
@@ -101,7 +101,7 @@ unsigned long long get_all_full_lines(const unsigned long long);
 #ifdef __AVX2__	// Pass Board in a vector register
 	int vectorcall vget_opp_stability(__m128i);
 	#define get_stability(P,O)	vget_opp_stability(_mm_set_epi64x((P), (O)))
-	#define get_board_opp_stability(board)	vget_opp_stability(_mm_loadu_si128((__m128i *) (board)))
+	#define get_board_opp_stability(board)	vget_opp_stability(_mm_load_si128((__m128i *) (board)))
 	int vectorcall vget_opp_statility_fulls(__m128i, unsigned long long [5]);
 	#define	get_stability_fulls(P,O,fulls)	vget_opp_statility_fulls(_mm_set_epi64x((P), (O)), (fulls))
 #else	// Pass the Board, from opp view
@@ -142,8 +142,8 @@ extern unsigned char edge_stability[256 * 256];
 	#define	unpackA2A7(x)	((((x) & 0x7e) * 0x0000040810204080) & 0x0001010101010100)
 	#define	unpackH2H7(x)	((((x) & 0x7e) * 0x0002040810204000) & 0x0080808080808000)
 #else
-	#define	unpackA2A7(x)	(((unsigned long long)((((x) >> 4) * 0x00204081) & 0x00010101) << 32) | ((((x) & 0x0f) * 0x00204081) & 0x01010100))
-	#define	unpackH2H7(x)	(((unsigned long long)((((x) >> 4) * 0x10204080) & 0x00808080) << 32) | ((((x) & 0x0f) * 0x10204080) & 0x80808000))
+	#define	unpackA2A7(x)	(((unsigned long long)((((x) >> 4) * 0x00204081u) & 0x00010101u) << 32) | ((((x) & 0x0f) * 0x00204081u) & 0x01010100u))
+	#define	unpackH2H7(x)	(((unsigned long long)((((x) >> 4) * 0x10204080u) & 0x00808080u) << 32) | ((((x) & 0x0f) * 0x10204080u) & 0x80808000u))
 #endif
 
 #if COUNT_LAST_FLIP > COUNT_LAST_FLIP_BITSCAN
@@ -206,14 +206,14 @@ extern unsigned char edge_stability[256 * 256];
 	extern __m128i vectorcall mm_Flip(const __m128i OP, int pos);
 	static inline __m128i vectorcall reduce_vflip(__m128i flip) { return _mm_or_si128(flip, _mm_shuffle_epi32(flip, 0x4e)); }
 	#define	Flip(x,P,O)	((unsigned long long) _mm_cvtsi128_si64(reduce_vflip(mm_Flip(_mm_set_epi64x((O), (P)), (x)))))
-	#define	board_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(reduce_vflip(mm_Flip(_mm_loadu_si128((__m128i *) (board)), (x)))))
+	#define	board_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(reduce_vflip(mm_Flip(_mm_load_si128((__m128i *) (board)), (x)))))
 	#define	vboard_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(reduce_vflip(mm_Flip((board), (x)))))
 
 #elif MOVE_GENERATOR == MOVE_GENERATOR_SSE_ACEPCK
 	extern __m128i vectorcall mm_Flip(const __m128i OP, int pos);
 	#define reduce_vflip(x)	(x)
 	#define	Flip(x,P,O)	((unsigned long long) _mm_cvtsi128_si64(mm_Flip(_mm_set_epi64x((O), (P)), (x))))
-	#define	board_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(mm_Flip(_mm_loadu_si128((__m128i *) (board)), (x))))
+	#define	board_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(mm_Flip(_mm_load_si128((__m128i *) (board)), (x))))
 	#define	vboard_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(mm_Flip((board), (x))))
 
 #elif MOVE_GENERATOR == MOVE_GENERATOR_SSE
@@ -221,7 +221,7 @@ extern unsigned char edge_stability[256 * 256];
 	#define	Flip(x,P,O)	((unsigned long long) _mm_cvtsi128_si64(mm_flip[x](_mm_set_epi64x((O), (P)))))
 	#define mm_Flip(OP,x)	mm_flip[x](OP)
 	#define reduce_vflip(x)	(x)
-	#define	board_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(mm_flip[x](_mm_loadu_si128((__m128i *) (board)))))
+	#define	board_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(mm_flip[x](_mm_load_si128((__m128i *) (board)))))
 	#define	vboard_flip(board,x)	((unsigned long long) _mm_cvtsi128_si64(mm_flip[x]((board))))
 
 #elif MOVE_GENERATOR == MOVE_GENERATOR_NEON
@@ -264,7 +264,7 @@ extern unsigned char edge_stability[256 * 256];
 
 // Use backup copy of search->board in a vector register if available (assume *pboard == vboard on entry)
 #ifdef hasSSE2
-	#define	vboard_update(pboard,vboard,move)	_mm_storeu_si128((__m128i *) (pboard), _mm_shuffle_epi32(_mm_xor_si128((vboard), _mm_or_si128(_mm_set1_epi64x((move)->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x]))), 0x4e))
+	#define	vboard_update(pboard,vboard,move)	_mm_store_si128((__m128i *) (pboard), _mm_shuffle_epi32(_mm_xor_si128((vboard), _mm_or_si128(_mm_set1_epi64x((move)->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x]))), 0x4e))
 #else
 	#define	vboard_update(pboard,vboard,move)	board_update((pboard), (move))
 #endif
@@ -272,7 +272,7 @@ extern unsigned char edge_stability[256 * 256];
 // Pass Board in a vector register to Flip
 #if (MOVE_GENERATOR >= MOVE_GENERATOR_SSE) && (MOVE_GENERATOR <= MOVE_GENERATOR_AVX512)
 	unsigned long long vectorcall board_next_sse(__m128i OP, const int x, Board *next);
-	#define	board_next(board,x,next)	board_next_sse(_mm_loadu_si128((__m128i *) (board)), (x), (next))
+	#define	board_next(board,x,next)	board_next_sse(_mm_load_si128((__m128i *) (board)), (x), (next))
 	#define vboard_next(vboard,x,next)	board_next_sse((vboard), (x), (next))
 #elif MOVE_GENERATOR == MOVE_GENERATOR_NEON
 	unsigned long long board_next_neon(uint64x2_t OP, const int x, Board *next);
@@ -296,7 +296,7 @@ extern unsigned char edge_stability[256 * 256];
 #endif
 
 #ifdef hasSSE2
-	#define	vboard_equal(v,b)	(_mm_movemask_epi8(_mm_cmpeq_epi8((v), _mm_loadu_si128((__m128i *) (b)))) == 0xFFFF)
+	#define	vboard_equal(v,b)	(_mm_movemask_epi8(_mm_cmpeq_epi8((v), _mm_load_si128((__m128i *) (b)))) == 0xFFFF)
 #else
 	#define	vboard_equal(v,b)	board_equal(&(v), (b))
 #endif

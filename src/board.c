@@ -85,9 +85,13 @@ unsigned char edge_stability[256 * 256];
  */
 void board_swap_players(Board *board)
 {
+#ifdef hasSSE2
+	_mm_store_si128((__m128i *) board, _mm_shuffle_epi32(*(__m128i *) board, 0x4e));
+#else
 	const unsigned long long tmp = board->player;
 	board->player = board->opponent;
 	board->opponent = tmp;
+#endif
 }
 
 /**
@@ -390,9 +394,9 @@ bool board_check_move(const Board *board, Move *move)
 void board_update(Board *board, const Move *move)
 {
 #if defined(hasSSE2) && (defined(HAS_CPU_64) || !defined(__3dNOW__))	// 3DNow CPU has fast emms, and possibly slow SSE
-	__m128i	OP = _mm_loadu_si128((__m128i *) board);
+	__m128i	OP = *(__m128i *) board;
 	OP = _mm_xor_si128(OP, _mm_or_si128(_mm_set1_epi64x(move->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x])));
-	_mm_storeu_si128((__m128i *) board, _mm_shuffle_epi32(OP, 0x4e));
+	_mm_store_si128((__m128i *) board, _mm_shuffle_epi32(OP, 0x4e));
 
 #elif defined(hasMMX)
 	__m64	F = *(__m64 *) &move->flipped;
@@ -422,9 +426,9 @@ void board_update(Board *board, const Move *move)
 void board_restore(Board *board, const Move *move)
 {
 #if defined(hasSSE2) && (defined(HAS_CPU_64) || !defined(__3dNOW__))
-	__m128i	OP = _mm_shuffle_epi32(_mm_loadu_si128((__m128i *) board), 0x4e);
+	__m128i	OP = _mm_shuffle_epi32(*(__m128i *) board, 0x4e);
 	OP = _mm_xor_si128(OP, _mm_or_si128(_mm_set1_epi64x(move->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x])));
-	_mm_storeu_si128((__m128i *) board, OP);
+	_mm_store_si128((__m128i *) board, OP);
 
 #elif defined(hasMMX)
 	__m64	F = *(__m64 *) &move->flipped;

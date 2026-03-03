@@ -53,6 +53,20 @@
 	#include <x86intrin.h>
 #endif
 
+// align16
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+  #if __STDC_VERSION__ < 202311L
+	#include <stdalign.h>
+  #endif
+	#define ALIGN16(S) S alignas(16)
+#elif defined(_MSC_VER)
+	#define ALIGN16(S) __declspec(align(16)) S
+#elif defined(__GNUC__)
+	#define ALIGN16(S) S __attribute__((aligned(16)))
+#else
+	#define ALIGN16(S) S
+#endif
+
 #ifndef __has_builtin  // Compatibility with non-clang compilers.
 	#define __has_builtin(x) 0
 #endif
@@ -383,7 +397,7 @@ extern const unsigned long long NEIGHBOUR[];
 extern bool	hasSSE2;
 #endif
 
-typedef union {
+typedef ALIGN16(union) {	// explicit align16 for USE_GAS_X86
 	unsigned long long	ull[2];
   #ifdef __ARM_NEON
 	uint64x2_t	v2;
@@ -391,11 +405,7 @@ typedef union {
 	__m128i	v2;
 	__m128d	d2;	// used in flip_carry_sse_32.c
   #endif
-}
-#if defined(__GNUC__) || defined(__clang__)	// for USE_GAS_X86
-__attribute__ ((aligned (16)))
-#endif
-V2DI;
+} V2DI;
 
 typedef union {
 	unsigned long long	ull[4];

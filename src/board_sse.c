@@ -71,7 +71,7 @@ static __m128i vectorcall board_horizontal_mirror_sse(__m128i bb)
 
 void board_horizontal_mirror(const Board *board, Board *sym)
 {
-	_mm_storeu_si128((__m128i *) sym, board_horizontal_mirror_sse(_mm_loadu_si128((__m128i *) board)));
+	_mm_store_si128((__m128i *) sym, board_horizontal_mirror_sse(_mm_load_si128((__m128i *) board)));
 }
 
 static __m128i vectorcall board_vertical_mirror_sse(__m128i bb)
@@ -87,7 +87,7 @@ static __m128i vectorcall board_vertical_mirror_sse(__m128i bb)
 void board_vertical_mirror(const Board *board, Board *sym)
 {
   #if defined(__SSSE3__) || defined(__AVX__) || !defined(HAS_CPU_64)
-	_mm_storeu_si128((__m128i *) sym, board_vertical_mirror_sse(_mm_loadu_si128((__m128i *) board)));
+	_mm_store_si128((__m128i *) sym, board_vertical_mirror_sse(_mm_load_si128((__m128i *) board)));
   #else	// use BSWAP64
 	sym->player = vertical_mirror(board->player);
 	sym->opponent = vertical_mirror(board->opponent);
@@ -111,13 +111,13 @@ static __m128i vectorcall board_transpose_sse(__m128i bb)
 
 void board_transpose(const Board *board, Board *sym)
 {
-	_mm_storeu_si128((__m128i *) sym, board_transpose_sse(_mm_loadu_si128((__m128i *) board)));
+	_mm_store_si128((__m128i *) sym, board_transpose_sse(_mm_load_si128((__m128i *) board)));
 }
   #endif
 
 void board_symmetry(const Board *board, const int s, Board *sym)
 {
-	__m128i	bb = _mm_loadu_si128((__m128i *) board);
+	__m128i	bb = _mm_load_si128((__m128i *) board);
 	if (s & 1)
 		bb = board_horizontal_mirror_sse(bb);
 	if (s & 2)
@@ -127,11 +127,11 @@ void board_symmetry(const Board *board, const int s, Board *sym)
 		sym->player = transpose_avx(bb);
 		sym->opponent = transpose_avx(_mm_unpackhi_epi64(bb, bb));
 	} else
-		_mm_storeu_si128((__m128i *) sym, bb);
+		_mm_store_si128((__m128i *) sym, bb);
   #else
 	if (s & 4)
 		bb = board_transpose_sse(bb);
-	_mm_storeu_si128((__m128i *) sym, bb);
+	_mm_store_si128((__m128i *) sym, bb);
   #endif
 
 	board_check(sym);
@@ -270,7 +270,7 @@ unsigned long long vectorcall board_next_sse(__m128i OP, const int x, Board *nex
 	__m128i flipped = reduce_vflip(mm_Flip(OP, x));
 
 	OP = _mm_xor_si128(OP, _mm_or_si128(flipped, _mm_loadl_epi64((__m128i *) &X_TO_BIT[x])));
-	_mm_storeu_si128((__m128i *) next, _mm_shuffle_epi32(OP, 0x4e));
+	_mm_store_si128((__m128i *) next, _mm_shuffle_epi32(OP, 0x4e));
 
 	return _mm_cvtsi128_si64(flipped);
 }
@@ -742,7 +742,7 @@ int get_opp_edge_stability(const Board *board)
   #elif defined(hasSSE2)
 int get_opp_edge_stability(const Board *board)
 {
-	__m128i PO = _mm_loadu_si128((__m128i *) board);	// opponent's view
+	__m128i PO = _mm_load_si128((__m128i *) board);	// opponent's view
 	unsigned int packedstable = edge_stability[_mm_movemask_epi8(_mm_slli_epi64(PO, 7))] << 16 | edge_stability[_mm_movemask_epi8(PO)] << 24;
 	PO = _mm_unpacklo_epi8(PO, _mm_shuffle_epi32(PO, 0x4e));	// P7O7 .. P0O0
 	packedstable |= edge_stability[_mm_extract_epi16(PO, 0)] | edge_stability[_mm_extract_epi16(PO, 7)] << 8;
@@ -918,8 +918,7 @@ static int vectorcall get_spreaded_stability(unsigned long long stable, __m128i 
 	return bit_count(_mm_cvtsi128_si64(v2_stable));
 }
 
-// returns stability count only
-// board is passed in __m128i, opponent in Q0 to be called from search_solve_4
+// returns opponent's (in Q1, hereafter P) stability count only
 int vectorcall vget_opp_stability(__m128i PO)
 {
 	unsigned long long stable = get_stable_edge_sse(PO);	// compute the exact stable edges
@@ -934,8 +933,7 @@ int vectorcall vget_opp_stability(__m128i PO)
 }
 
   #ifdef USE_SOLID
-// returns all full in full[4] in addition to stability count
-// board is passed in __m128i, opponent in Q0 to be called from NWS_endgame_local
+// returns all full in full[4] in addition to opponent's stability count
 int vectorcall vget_opp_statility_fulls(__m128i PO, unsigned long long full[5])
 {
 	unsigned long long stable = get_stable_edge_sse(PO);	// compute the exact stable edges
