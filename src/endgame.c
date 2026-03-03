@@ -455,7 +455,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 	board0 = hashboard = loadvBoard(search->board);
 	ofssolid = 0;
 #ifdef USE_SOLID
-	if (USE_SC && alpha >= NWS_STABILITY_SOLID_THRESHOLD) {	// (7%)
+	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {	// (7%)
 		unsigned long long full[5];
 
 		CUTOFF_STATS(++statistics.n_stability_try;)
