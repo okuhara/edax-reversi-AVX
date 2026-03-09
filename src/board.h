@@ -216,7 +216,7 @@ extern unsigned char edge_stability[256 * 256];
 	extern void init_flip_sse(void);
   #endif
 
-#elif MOVE_GENERATOR == MOVE_GENERATOR_SSE_BSWAP
+#elif MOVE_GENERATOR == MOVE_GENERATOR_LZCNT
 	extern unsigned long long Flip(int, unsigned long long, unsigned long long);
 	#define	board_flip(board,x)	Flip((x), (board)->player, (board)->opponent)
 

@@ -42,6 +42,8 @@
   #else
 	#include "flip_bitscan.c"
   #endif
+#elif MOVE_GENERATOR == MOVE_GENERATOR_LZCNT
+	#include "flip_lzcnt.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_SSE
 	#include "flip_sse.c"
 #elif MOVE_GENERATOR == MOVE_GENERATOR_SSE_ACEPCK

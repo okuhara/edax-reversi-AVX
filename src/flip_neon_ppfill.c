@@ -95,32 +95,32 @@ static const uint64x2_t lrmask_v4[66][4] = {
 
 uint64x2_t mm_Flip(uint64x2_t OP, int pos)
 {
-	uint64x2_t	flip, oflank0, eraser0, mask0;			uint64x2_t	oflank1, eraser1, mask1;
-	const int64x2_t lshift18 = { 1, 8 };				const int64x2_t lshift79 = { 9, 7 };
-	int64x2_t rshift18 = { -1, -8 };				int64x2_t rshift79 = { -9, -7 };
+	uint64x2_t	flip, oflank0, eraser0, mask0;             	uint64x2_t	oflank1, eraser1, mask1;
+	const int64x2_t lshift18 = { 1, 8 };                       	const int64x2_t lshift79 = { 9, 7 };
+	int64x2_t rshift18 = { -1, -8 };                           	int64x2_t rshift79 = { -9, -7 };
 	const uint64x2_t one = vdupq_n_u64(1);
 	uint64x2_t PP = vdupq_lane_u64(vget_low_u64(OP), 0);
 	uint64x2_t OO = vdupq_lane_u64(vget_high_u64(OP), 0);
 
-	mask0 = lrmask_v4[pos][0];					mask1 = lrmask_v4[pos][1];
+	mask0 = lrmask_v4[pos][0];                                 	mask1 = lrmask_v4[pos][1];
 		// isolate non-opponent MS1B by clearing lower bits
-	eraser0 = vbicq_u64(mask0, OO);					eraser1 = vbicq_u64(mask1, OO);
+	eraser0 = vbicq_u64(mask0, OO);                            	eraser1 = vbicq_u64(mask1, OO);
 		// clear valid bits only using variable shift
-	oflank0 = vshlq_u64(vandq_u64(PP, mask0), lshift18);		oflank1 = vshlq_u64(vandq_u64(PP, mask1), lshift79);
+	oflank0 = vshlq_u64(vandq_u64(PP, mask0), lshift18);       	oflank1 = vshlq_u64(vandq_u64(PP, mask1), lshift79);
 	eraser0 = vorrq_u64(eraser0, vshlq_u64(eraser0, rshift18));	eraser1 = vorrq_u64(eraser1, vshlq_u64(eraser1, rshift79));
-	rshift18 = vaddq_s64(rshift18, rshift18);			rshift79 = vaddq_s64(rshift79, rshift79);
+	rshift18 = vaddq_s64(rshift18, rshift18);                  	rshift79 = vaddq_s64(rshift79, rshift79);
 	eraser0 = vorrq_u64(eraser0, vshlq_u64(eraser0, rshift18));	eraser1 = vorrq_u64(eraser1, vshlq_u64(eraser1, rshift79));
 	eraser0 = vorrq_u64(eraser0, vshlq_u64(eraser0, rshift18));	eraser1 = vorrq_u64(eraser1, vshlq_u64(eraser1, rshift79));
-	oflank0 = vbicq_u64(oflank0, eraser0);				oflank1 = vbicq_u64(oflank1, eraser1);
+	oflank0 = vbicq_u64(oflank0, eraser0);                     	oflank1 = vbicq_u64(oflank1, eraser1);
 		// set mask bits higher than oflank
-	flip = vbicq_u64(mask0, vsubq_u64(oflank0, one));		flip = vorrq_u64(flip, vbicq_u64(mask1, vsubq_u64(oflank1, one)));
+	flip = vbicq_u64(mask0, vsubq_u64(oflank0, one));          	flip = vorrq_u64(flip, vbicq_u64(mask1, vsubq_u64(oflank1, one)));
 
-	mask0 = lrmask_v4[pos][2];					mask1 = lrmask_v4[pos][3];
+	mask0 = lrmask_v4[pos][2];                                 	mask1 = lrmask_v4[pos][3];
 		// get outflank with carry-propagation
-	oflank0 = vaddq_u64(vornq_u64(OO, mask0), one);			oflank1 = vaddq_u64(vornq_u64(OO, mask1), one);
-	oflank0 = vandq_u64(vandq_u64(PP, mask0), oflank0);		oflank1 = vandq_u64(vandq_u64(PP, mask1), oflank1);
+	oflank0 = vaddq_u64(vornq_u64(OO, mask0), one);            	oflank1 = vaddq_u64(vornq_u64(OO, mask1), one);
+	oflank0 = vandq_u64(vandq_u64(PP, mask0), oflank0);        	oflank1 = vandq_u64(vandq_u64(PP, mask1), oflank1);
 		// set all bits lower than oflank, using satulation if oflank = 0
-	oflank0 = vqsubq_u64(oflank0, one);				oflank1 = vqsubq_u64(oflank1, one);
+	oflank0 = vqsubq_u64(oflank0, one);                        	oflank1 = vqsubq_u64(oflank1, one);
 	flip = vbslq_u64(mask1, oflank1, vbslq_u64(mask0, oflank0, flip));
 
 	return vorrq_u64(flip, vextq_u64(flip, flip, 1));
