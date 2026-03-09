@@ -270,8 +270,6 @@ static int search_solve_4(Search *search, int alpha)
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	// stability cutoff (try 12%, cut 7%)
-	player = search->board.player;
-	opponent = search->board.opponent;
 	if (search_SC_NWS_4(search, alpha, &score)) return score;
 
 	x1 = search->empties[NOMOVE].next;
@@ -288,6 +286,8 @@ static int search_solve_4(Search *search, int alpha)
 	shuf4 = sort4_shuf[paritysort];
 	empties_series = (x1 << 24) | (x2 << 16) | (x3 << 8) | x4;
 
+	player = search->board.player;
+	opponent = search->board.opponent;
 	bestscore = SCORE_INF;	// min stage
 	pol = 1;
 	do {
@@ -367,7 +367,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 	// stability cutoff (try 8%, cut 7%)
 	if (search_SC_NWS(search, alpha, &score)) return score;
 
-	board0 = loadvBoard(search->board);
+	board0.bb = search->board;
 	moves = vboard_get_moves(board0);
 	if (moves == 0) {	// pass (2%)
 		if (pass1)	// gameover (1%)
@@ -385,39 +385,59 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 	if (prioritymoves == 0)	// all even
 		prioritymoves = moves;
 
-	--search->eval.n_empties;	// for next depth
-	do {
-		moves ^= prioritymoves;
-		x = NOMOVE;
+	if (search->eval.n_empties == 5)	// transfer to search_solve_n, no longer uses n_empties, parity (53%)
 		do {
+			moves ^= prioritymoves;
+			x = NOMOVE;
 			do {
-				x = search->empties[prev = x].next;
-			} while (!(prioritymoves & x_to_bit(x)));	// (57%)
+				do {
+					x = search->empties[prev = x].next;
+				} while (!(prioritymoves & x_to_bit(x)));	// (58%)
 
-			prioritymoves &= ~x_to_bit(x);
-			search->empties[prev].next = search->empties[x].next;	// remove - maintain single link only
-			vboard_next(board0, x, &search->board);
-			if (search->eval.n_empties == 4) {	// transfer to search_solve_n, no longer uses parity
+				prioritymoves &= ~x_to_bit(x);
+				search->empties[prev].next = search->empties[x].next;	// remove - maintain single link only
+				vboard_next(board0, x, &search->board);
 				score = search_solve_4(search, alpha);
-			} else {
+				search->empties[prev].next = x;	// restore
+
+				if (score > alpha)	// (49%)
+					return score;
+				else if (score > bestscore)
+					bestscore = score;
+			} while (prioritymoves);	// (34%)
+		} while ((prioritymoves = moves));	// (38%)
+
+	else {
+		--search->eval.n_empties;	// for next depth
+		do {
+			moves ^= prioritymoves;
+			x = NOMOVE;
+			do {
+				do {
+					x = search->empties[prev = x].next;
+				} while (!(prioritymoves & x_to_bit(x)));	// (57%)
+
+				prioritymoves &= ~x_to_bit(x);
 				search->eval.parity = parity0 ^ QUADRANT_ID[x];
+				search->empties[prev].next = search->empties[x].next;	// remove - maintain single link only
+				vboard_next(board0, x, &search->board);
 				score = -search_shallow(search, ~alpha, false);
-			}
-			search->empties[prev].next = x;	// restore
+				search->empties[prev].next = x;	// restore
 
-			if (score > alpha) {	// (40%)
-				++search->eval.n_empties;
-				// search->board = board0.board;
-				// search->eval.parity = parity0;
-				return score;
+				if (score > alpha) {	// (40%)
+					// search->board = board0.board;
+					// search->eval.parity = parity0;
+					++search->eval.n_empties;
+					return score;
 
-			} else if (score > bestscore)
-				bestscore = score;
-		} while (prioritymoves);	// (54%)
-	} while ((prioritymoves = moves));	// (23%)
-	++search->eval.n_empties;
+				} else if (score > bestscore)
+					bestscore = score;
+			} while (prioritymoves);	// (54%)
+		} while ((prioritymoves = moves));	// (23%)
+		// search->eval.parity = parity0;
+		++search->eval.n_empties;
+	}
 	// search->board = board0.board;	// restore in caller
-	// search->eval.parity = parity0;
 
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
 	return bestscore;	// (33%)
@@ -452,14 +472,14 @@ static int NWS_endgame_local(Search *search, const int alpha)
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	// stability cutoff
-	board0 = hashboard = loadvBoard(search->board);
+	board0.bb = hashboard.bb = search->board;
 	ofssolid = 0;
 #ifdef USE_SOLID
-	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {	// (7%)
+	if (USE_SC && alpha >= NWS_STABILITY_SOLID_THRESHOLD) {	// (7%)
 		unsigned long long full[5];
 
 		CUTOFF_STATS(++statistics.n_stability_try;)
-		score = SCORE_MAX - 2 * vget_opp_statility_fulls(board0, full);
+		score = SCORE_MAX - 2 * get_stability_fulls(search->board.opponent, search->board.player, full);
 		if (score <= alpha) {	// (3%)
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return score;
@@ -469,23 +489,19 @@ static int NWS_endgame_local(Search *search, const int alpha)
 			// Hidekazu Matsuo, Shuji Narazaki
 			// http://id.nii.ac.jp/1001/00156359/
 				// exclude corners from solid to absorb get_full_lines anormalies
-  #if defined(hasSSE2) && defined(POPCOUNT)
-			__m128i solid = _mm_and_si128(hashboard,
-				_mm_and_si128(_mm_loadl_epi64((__m128i *) &full[4]), _mm_set_epi64x(0, 0x3c7effffffff7e3c)));
-			hashboard = _mm_xor_si128(hashboard, _mm_unpacklo_epi64(solid, solid));
-			ofssolid = bit_count_si64(solid) * 2;
+			unsigned long long solid = full[4] & 0x3c7effffffff7e3c & search->board.player;	// full[4] = all full
+  #ifndef POPCOUNT
+			if (solid)	// (72%)
+  #endif
+			{
+  #ifdef hasSSE2
+				hashboard.v2 = _mm_xor_si128(hashboard.v2, _mm_set1_epi64x(solid));
   #else
-			unsigned long long solid = full[4] & 0x3c7effffffff7e3c & vBoard_P(hashboard);	// full[4] = all full
-			if (solid) {	// (72%)
-    #ifdef hasSSE2
-				hashboard = _mm_xor_si128(hashboard, _mm_set1_epi64x(solid));
-    #else
-				hashboard.player ^= solid;	// normalize solid to opponent
-				hashboard.opponent ^= solid;
-    #endif
+				hashboard.bb.player ^= solid;	// normalize solid to opponent
+				hashboard.bb.opponent ^= solid;
+  #endif
 				ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
 			}
-  #endif
 		}
 	}
 #else
@@ -497,7 +513,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 		// transposition cutoff
 		// hash_get(&search->thread_hash, &hashboard.bb, hash_code, &hash_data.data)
 		unsigned char hashmove[2] = { NOMOVE, NOMOVE };
-		Hash *hash_entry = search->thread_hash.hash + (board_get_hash_code((Board *) &hashboard) & search->thread_hash.hash_mask);
+		Hash *hash_entry = search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask);
 		if (vboard_equal(hashboard, &hash_entry->board)) {	// (6%)
 			hashmove[0] = hash_entry->data.move[0];
 			// search_TC_NWS(&hash_data.data, search->eval.n_empties, NO_SELECTIVITY, alpha, &score)
@@ -535,7 +551,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 				score = -NWS_endgame_local(search, ~alpha);
 				empty_restore(search->empties, move->x);
 			}
-			storevBoard(search->board, board0);
+			search->board = board0.bb;
 
 			if (score > bestscore) {	// (63%)
 				bestscore = score;
@@ -549,7 +565,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 		if (search->stop)	// (1%)
 			return alpha;
 
-		hash_store_local(hash_entry, alpha - ofssolid, alpha - ofssolid + 1, bestscore - ofssolid, vBoardref(hashboard), bestmove);
+		vhash_store_local(hash_entry, hashboard, alpha - ofssolid, alpha - ofssolid + 1, bestscore - ofssolid, bestmove);
 
 	} else {	// (1%)
 		if (can_move(search->board.opponent, search->board.player)) { // pass
@@ -614,7 +630,7 @@ int NWS_endgame(Search *search, const int alpha)
 	hash_prefetch(&search->hash_table, hash_code);
 
 	search_get_movelist(search, &movelist);
-	board0 = loadvBoard(search->board);
+	board0.bb = search->board;
 
 	if (movelist.n_moves > 0) {	// (96%)
 		// transposition cutoff
@@ -636,7 +652,7 @@ int NWS_endgame(Search *search, const int alpha)
 			vboard_update(&search->board, board0, move);
 			score = -NWS_endgame(search, ~alpha);
 			empty_restore(search->empties, move->x);
-			storevBoard(search->board, board0);
+			search->board = board0.bb;
 
 			if (score > bestscore) {	// (63%)
 				bestscore = score;

@@ -85,13 +85,9 @@ unsigned char edge_stability[256 * 256];
  */
 void board_swap_players(Board *board)
 {
-#ifdef hasSSE2
-	_mm_store_si128((__m128i *) board, _mm_shuffle_epi32(*(__m128i *) board, 0x4e));
-#else
 	const unsigned long long tmp = board->player;
 	board->player = board->opponent;
 	board->opponent = tmp;
-#endif
 }
 
 /**
@@ -252,13 +248,6 @@ bool board_lesser(const Board *b1, const Board *b2)
  * @param s symmetry
  * @param sym symetric output board
  */
-#if defined(__AVX2__) || (!defined(hasSSE2) && !defined(__ARM_NEON))	// SSE version in board_sse.c, AVX uses transpose_avx
-void board_transpose(const Board *board, Board *sym)
-{
-	sym->player = transpose(board->player);
-	sym->opponent = transpose(board->opponent);
-}
-#endif
 #if !defined(hasSSE2) && !defined(__ARM_NEON)	// SSE version in board_sse.c
 void board_horizontal_mirror(const Board *board, Board *sym)
 {
@@ -270,6 +259,12 @@ void board_vertical_mirror(const Board *board, Board *sym)
 {
 	sym->player = vertical_mirror(board->player);
 	sym->opponent = vertical_mirror(board->opponent);
+}
+
+void board_transpose(const Board *board, Board *sym)
+{
+	sym->player = transpose(board->player);
+	sym->opponent = transpose(board->opponent);
 }
 
 void board_symmetry(const Board *board, const int s, Board *sym)
@@ -394,9 +389,9 @@ bool board_check_move(const Board *board, Move *move)
 void board_update(Board *board, const Move *move)
 {
 #if defined(hasSSE2) && (defined(HAS_CPU_64) || !defined(__3dNOW__))	// 3DNow CPU has fast emms, and possibly slow SSE
-	__m128i	OP = *(__m128i *) board;
+	__m128i	OP = _mm_loadu_si128((__m128i *) board);
 	OP = _mm_xor_si128(OP, _mm_or_si128(_mm_set1_epi64x(move->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x])));
-	_mm_store_si128((__m128i *) board, _mm_shuffle_epi32(OP, 0x4e));
+	_mm_storeu_si128((__m128i *) board, _mm_shuffle_epi32(OP, 0x4e));
 
 #elif defined(hasMMX)
 	__m64	F = *(__m64 *) &move->flipped;
@@ -426,9 +421,9 @@ void board_update(Board *board, const Move *move)
 void board_restore(Board *board, const Move *move)
 {
 #if defined(hasSSE2) && (defined(HAS_CPU_64) || !defined(__3dNOW__))
-	__m128i	OP = _mm_shuffle_epi32(*(__m128i *) board, 0x4e);
+	__m128i	OP = _mm_shuffle_epi32(_mm_loadu_si128((__m128i *) board), 0x4e);
 	OP = _mm_xor_si128(OP, _mm_or_si128(_mm_set1_epi64x(move->flipped), _mm_loadl_epi64((__m128i *) &X_TO_BIT[move->x])));
-	_mm_store_si128((__m128i *) board, OP);
+	_mm_storeu_si128((__m128i *) board, OP);
 
 #elif defined(hasMMX)
 	__m64	F = *(__m64 *) &move->flipped;
@@ -971,7 +966,6 @@ int get_stability(const unsigned long long P, const unsigned long long O)
 	return get_spreaded_stability(stable, P_central, full);	// compute the other stable discs
 }
 
-    #ifdef USE_SOLID
 // returns all full in full[4] in addition to stability count
 int get_stability_fulls(const unsigned long long P, const unsigned long long O, unsigned long long full[5])
 {
@@ -984,10 +978,8 @@ int get_stability_fulls(const unsigned long long P, const unsigned long long O, 
 
 	return get_spreaded_stability(stable, P_central, full);	// compute the other stable discs
 }
-    #endif
   #endif
 
-  #ifdef USE_SOLID
 /**
  * @brief Get intersection of full lines.
  *
@@ -1002,7 +994,6 @@ unsigned long long get_all_full_lines(const unsigned long long disc)
 	get_full_lines(disc, full);
 	return full[0] & full[1] & full[2] & full[3];
 }
-  #endif
 #endif // __AVX2__
 
 /**

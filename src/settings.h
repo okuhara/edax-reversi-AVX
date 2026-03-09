@@ -75,6 +75,9 @@
 /** SOLID usage */
 #define USE_SOLID true
 
+/** use stability cutoff more often to work best with solid stone */
+#define NWS_STABILITY_SOLID_THRESHOLD 8
+
 /** transposition cutoff usage. */
 #define USE_TC true
 

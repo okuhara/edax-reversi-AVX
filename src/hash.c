@@ -574,15 +574,16 @@ static inline void data_new_local(Hash *hash, int alpha, int beta, int score, in
 #ifdef hasSSE2
 void vectorcall hash_store_local(Hash *hash, int alpha, int beta, int score, __m128i board, int move)
 {
-	if (_mm_movemask_epi8(_mm_cmpeq_epi8(board, _mm_loadu_si128((__m128i *) &hash->board))) == 0xFFFF) {
+	vBoard vboard = { board };
+	if (vboard_equal(vboard, &hash->board)) {
 		data_update_local(hash, alpha, beta, score, move);
 	} else {
-		_mm_storeu_si128((__m128i *) &hash->board, board);
+		_mm_storeu_si128((__m128i *) &hash->board, vboard.v2);
 		data_new_local(hash, alpha, beta, score, move);
 	}
 }
 #else
-void hash_store_local(Hash *hash, int alpha, int beta, int score, Board *board, int move)
+void hash_store_local(Hash *hash, Board *board, int alpha, int beta, int score, int move)
 {
 	if (board_equal(board, &hash->board)) {
 		data_update_local(hash, alpha, beta, score, move);

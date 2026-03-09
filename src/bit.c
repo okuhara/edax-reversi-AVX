@@ -6,7 +6,7 @@
  * a macro needs to be defined to chose between different flavors of the
  * algorithm.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2025
  * @author Richard Delorme
  * @version 4.5
  */
@@ -140,7 +140,7 @@ void bit_init(void)
 #endif
 
 #if 0	// MSVC expands loop
-	ll = 1;
+	unsigned long long ll = 1;
 	for (n = 0; n < 66; ++n) {	// X_TO_BIT[64] = X_TO_BIT[65] = 0 for passing move & nomove
 		X_TO_BIT[n] = ll;
 		ll <<= 1;
@@ -477,14 +477,14 @@ unsigned long long horizontal_mirror(unsigned long long b)
  * @return The transposed unsigned long long.
  */
 #ifdef __AVX2__
-unsigned long long vectorcall transpose_avx(__m128i bb)
+unsigned long long transpose(unsigned long long b)
 {
   #if defined(__AVX512BITALG__) && defined(AVX512_PREFER512)
-	return _cvtmask64_u64(_mm512_bitshuffle_epi64_mask(_mm512_broadcastq_epi64(bb), _mm512_set_epi8(
+	return _cvtmask64_u64(_mm512_bitshuffle_epi64_mask(_mm512_broadcastq_epi64(_mm_cvtsi64_si128(b)), _mm512_set_epi8(
 		63, 55, 47, 39, 31, 23, 15, 7, 62, 54, 46, 38, 30, 22, 14, 6, 61, 53, 45, 37, 29, 21, 13, 5, 60, 52, 44, 36, 28, 20, 12, 4,
 		59, 51, 43, 35, 27, 19, 11, 3, 58, 50, 42, 34, 26, 18, 10, 2, 57, 49, 41, 33, 25, 17,  9, 1, 56, 48, 40, 32, 24, 16,  8, 0)));
   #else
-	__m256i	v = _mm256_sllv_epi64(_mm256_broadcastq_epi64(bb), _mm256_set_epi64x(0, 1, 2, 3));
+	__m256i	v = _mm256_sllv_epi64(_mm256_broadcastq_epi64(_mm_cvtsi64_si128(b)), _mm256_set_epi64x(0, 1, 2, 3));
 	return ((unsigned long long)(unsigned int) _mm256_movemask_epi8(v) << 32)
 		| (unsigned int) _mm256_movemask_epi8(_mm256_slli_epi64(v, 4));
   #endif

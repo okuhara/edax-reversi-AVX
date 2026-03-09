@@ -71,7 +71,7 @@ static __m128i vectorcall board_horizontal_mirror_sse(__m128i bb)
 
 void board_horizontal_mirror(const Board *board, Board *sym)
 {
-	_mm_store_si128((__m128i *) sym, board_horizontal_mirror_sse(_mm_load_si128((__m128i *) board)));
+	_mm_storeu_si128((__m128i *) sym, board_horizontal_mirror_sse(_mm_loadu_si128((__m128i *) board)));
 }
 
 static __m128i vectorcall board_vertical_mirror_sse(__m128i bb)
@@ -87,14 +87,13 @@ static __m128i vectorcall board_vertical_mirror_sse(__m128i bb)
 void board_vertical_mirror(const Board *board, Board *sym)
 {
   #if defined(__SSSE3__) || defined(__AVX__) || !defined(HAS_CPU_64)
-	_mm_store_si128((__m128i *) sym, board_vertical_mirror_sse(_mm_load_si128((__m128i *) board)));
+	_mm_storeu_si128((__m128i *) sym, board_vertical_mirror_sse(_mm_loadu_si128((__m128i *) board)));
   #else	// use BSWAP64
 	sym->player = vertical_mirror(board->player);
 	sym->opponent = vertical_mirror(board->opponent);
   #endif
 }
 
-  #ifndef __AVX2__
 static __m128i vectorcall board_transpose_sse(__m128i bb)
 {
 	const __m128i mask00AA = _mm_set1_epi16(0x00AA);
@@ -111,29 +110,20 @@ static __m128i vectorcall board_transpose_sse(__m128i bb)
 
 void board_transpose(const Board *board, Board *sym)
 {
-	_mm_store_si128((__m128i *) sym, board_transpose_sse(_mm_load_si128((__m128i *) board)));
+	_mm_storeu_si128((__m128i *) sym, board_transpose_sse(_mm_loadu_si128((__m128i *) board)));
 }
-  #endif
 
 void board_symmetry(const Board *board, const int s, Board *sym)
 {
-	__m128i	bb = _mm_load_si128((__m128i *) board);
+	__m128i	bb = _mm_loadu_si128((__m128i *) board);
 	if (s & 1)
 		bb = board_horizontal_mirror_sse(bb);
 	if (s & 2)
 		bb = board_vertical_mirror_sse(bb);
-  #ifdef __AVX2__
-	if (s & 4) {
-		sym->player = transpose_avx(bb);
-		sym->opponent = transpose_avx(_mm_unpackhi_epi64(bb, bb));
-	} else
-		_mm_store_si128((__m128i *) sym, bb);
-  #else
 	if (s & 4)
 		bb = board_transpose_sse(bb);
-	_mm_store_si128((__m128i *) sym, bb);
-  #endif
 
+	_mm_storeu_si128((__m128i *) sym, bb);
 	board_check(sym);
 }
 
@@ -270,7 +260,7 @@ unsigned long long vectorcall board_next_sse(__m128i OP, const int x, Board *nex
 	__m128i flipped = reduce_vflip(mm_Flip(OP, x));
 
 	OP = _mm_xor_si128(OP, _mm_or_si128(flipped, _mm_loadl_epi64((__m128i *) &X_TO_BIT[x])));
-	_mm_store_si128((__m128i *) next, _mm_shuffle_epi32(OP, 0x4e));
+	_mm_storeu_si128((__m128i *) next, _mm_shuffle_epi32(OP, 0x4e));
 
 	return _mm_cvtsi128_si64(flipped);
 }
@@ -684,15 +674,23 @@ unsigned long long get_stable_edge(unsigned long long P, unsigned long long O)
 }
 
   #elif defined(hasSSE2)
-unsigned long long vectorcall get_stable_edge_sse(__m128i PO)
+unsigned long long get_stable_edge(const unsigned long long P, const unsigned long long O)
 {
 	// compute the exact stable edges (from precomputed tables)
-	unsigned int a1a8 = edge_stability[_mm_movemask_epi8(_mm_slli_epi64(PO, 7))];
-	unsigned int h1h8 = edge_stability[_mm_movemask_epi8(PO)];
-	unsigned long long stable_edge = unpackA2A7(a1a8) | unpackH2H7(h1h8);
-	PO = _mm_unpacklo_epi8(PO, _mm_shuffle_epi32(PO, 0x4e));
-	stable_edge |= edge_stability[_mm_extract_epi16(PO, 0)]
+	unsigned int a1a8, h1h8;
+	unsigned long long stable_edge;
+
+	__m128i	P0 = _mm_cvtsi64_si128(P);
+	__m128i	O0 = _mm_cvtsi64_si128(O);
+	__m128i	PO = _mm_unpacklo_epi8(O0, P0);
+	stable_edge = edge_stability[_mm_extract_epi16(PO, 0)]
 		| ((unsigned long long) edge_stability[_mm_extract_epi16(PO, 7)] << 56);
+
+	PO = _mm_unpacklo_epi64(O0, P0);
+	a1a8 = edge_stability[_mm_movemask_epi8(_mm_slli_epi64(PO, 7))];
+	h1h8 = edge_stability[_mm_movemask_epi8(PO)];
+	stable_edge |= unpackA2A7(a1a8) | unpackH2H7(h1h8);
+
 	return stable_edge;
 }
   #endif
@@ -707,10 +705,10 @@ unsigned long long vectorcall get_stable_edge_sse(__m128i PO)
  *
  */
   #if defined(__aarch64__) || defined(_M_ARM64)	// for vaddvq
-int get_opp_edge_stability(const Board *board)
+int get_edge_stability(const unsigned long long P, const unsigned long long O)
 {
 	const uint64x2_t shiftv = { 0x0003000200010000, 0x0007000600050004 };
-	uint8x16_t PO = vzip1q_u8(vreinterpretq_u8_u64(vdupq_n_u64(board->player)), vreinterpretq_u8_u64(vdupq_n_u64(board->opponent)));	// opponent's view
+	uint8x16_t PO = vzip1q_u8(vreinterpretq_u8_u64(vdupq_n_u64(O)), vreinterpretq_u8_u64(vdupq_n_u64(P)));
 	uint8x8_t packedstable = vcreate_u8((edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 0)]
 	  | edge_stability[vgetq_lane_u16(vreinterpretq_u16_u8(PO), 7)] << 8) & 0x7e7e);
 	packedstable = vset_lane_u8(edge_stability[vaddvq_u16(vshlq_u16(vreinterpretq_u16_u8(vandq_u8(PO, vdupq_n_u8(1))), vreinterpretq_s16_u64(shiftv)))], packedstable, 2);
@@ -719,13 +717,11 @@ int get_opp_edge_stability(const Board *board)
 }
 
   #elif defined(__ARM_NEON)	// Neon kindergarten
-int get_opp_edge_stability(const Board *board)
+int get_edge_stability(const unsigned long long P, const unsigned long long O)
 {
 	const uint64x2_t kMul  = { 0x1020408001020408, 0x1020408001020408 };
-	uint64x1_t P = vcreate_u64(board->opponent);	// opponent's view
-	uint64x1_t O = vcreate_u64(board->player);
-	uint64x2_t PP = vcombine_u64(vshl_n_u64(P, 7), P);
-	uint64x2_t OO = vcombine_u64(vshl_n_u64(O, 7), O);
+	uint64x2_t PP = vcombine_u64(vshl_n_u64(vcreate_u64(P), 7), vcreate_u64(P));
+	uint64x2_t OO = vcombine_u64(vshl_n_u64(vcreate_u64(O), 7), vcreate_u64(O));
 	uint32x4_t QP = vmulq_u32(vreinterpretq_u32_u64(kMul), vreinterpretq_u32_u8(vshrq_n_u8(vreinterpretq_u8_u64(PP), 7)));
 	uint32x4_t QO = vmulq_u32(vreinterpretq_u32_u64(kMul), vreinterpretq_u32_u8(vshrq_n_u8(vreinterpretq_u8_u64(OO), 7)));
 	uint32x2_t DP = vpadd_u32(vget_low_u32(QP), vget_high_u32(QP));	// P_h1h8 * * * P_a1a8 * * *
@@ -740,12 +736,14 @@ int get_opp_edge_stability(const Board *board)
 }
 
   #elif defined(hasSSE2)
-int get_opp_edge_stability(const Board *board)
+int get_edge_stability(const unsigned long long P, const unsigned long long O)
 {
-	__m128i PO = _mm_load_si128((__m128i *) board);	// opponent's view
-	unsigned int packedstable = edge_stability[_mm_movemask_epi8(_mm_slli_epi64(PO, 7))] << 16 | edge_stability[_mm_movemask_epi8(PO)] << 24;
-	PO = _mm_unpacklo_epi8(PO, _mm_shuffle_epi32(PO, 0x4e));	// P7O7 .. P0O0
-	packedstable |= edge_stability[_mm_extract_epi16(PO, 0)] | edge_stability[_mm_extract_epi16(PO, 7)] << 8;
+	__m128i	P0 = _mm_cvtsi64_si128(P);
+	__m128i	O0 = _mm_cvtsi64_si128(O);
+	__m128i	PO = _mm_unpacklo_epi8(O0, P0);
+	unsigned int packedstable = edge_stability[_mm_extract_epi16(PO, 0)] | edge_stability[_mm_extract_epi16(PO, 7)] << 8;
+	PO = _mm_unpacklo_epi64(O0, P0);
+	packedstable |= edge_stability[_mm_movemask_epi8(_mm_slli_epi64(PO, 7))] << 16 | edge_stability[_mm_movemask_epi8(PO)] << 24;
 	return bit_count_32(packedstable & 0xffff7e7e);
 }
   #endif
@@ -918,10 +916,11 @@ static int vectorcall get_spreaded_stability(unsigned long long stable, __m128i 
 	return bit_count(_mm_cvtsi128_si64(v2_stable));
 }
 
-// returns opponent's (in Q1, hereafter P) stability count only
-int vectorcall vget_opp_stability(__m128i PO)
+// returns stability count only
+int get_stability(const unsigned long long P, const unsigned long long O)
 {
-	unsigned long long stable = get_stable_edge_sse(PO);	// compute the exact stable edges
+	__m128i PO = _mm_set_epi64x(P, O);
+	unsigned long long stable = get_stable_edge(P, O);	// compute the exact stable edges
 	__m128i PP = _mm_unpackhi_epi64(PO, PO);
 	__m128i P_central = _mm_and_si128(PP, _mm_set_epi64x(0, 0x007e7e7e7e7e7e00));
 
@@ -932,11 +931,12 @@ int vectorcall vget_opp_stability(__m128i PO)
 	return get_spreaded_stability(stable, P_central, v4_full);	// compute the other stable discs
 }
 
-  #ifdef USE_SOLID
-// returns all full in full[4] in addition to opponent's stability count
-int vectorcall vget_opp_statility_fulls(__m128i PO, unsigned long long full[5])
+// returns all full in full[4] in addition to stability count
+// board is passed in __m128i, opponent in Q0 to be called from NWS_endgame_local
+int get_stability_fulls(const unsigned long long P, const unsigned long long O, unsigned long long full[5])
 {
-	unsigned long long stable = get_stable_edge_sse(PO);	// compute the exact stable edges
+	__m128i PO = _mm_set_epi64x(P, O);
+	unsigned long long stable = get_stable_edge(P, O);	// compute the exact stable edges
 	__m128i PP = _mm_unpackhi_epi64(PO, PO);
 	__m128i P_central = _mm_and_si128(PP, _mm_set_epi64x(0, 0x007e7e7e7e7e7e00));
 
@@ -957,7 +957,6 @@ unsigned long long get_all_full_lines(const unsigned long long disc)
 	__m128i v2_full = _mm_and_si128(_mm256_castsi256_si128(v4_full), _mm256_extracti128_si256(v4_full, 1));
 	return _mm_cvtsi128_si64(_mm_and_si128(v2_full, _mm_unpackhi_epi64(v2_full, v2_full)));
 }
-  #endif
 
 /**
  * @brief AVX2 optimized get_moves + get_potential_moves.

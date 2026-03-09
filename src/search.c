@@ -888,7 +888,7 @@ void search_get_movelist(const Search *search, MoveList *movelist)
 	unsigned long long moves;
 	int x;
 
-	vboard = loadvBoard(search->board);
+	vboard.bb = search->board;
 	moves = vboard_get_moves(vboard);
 	movelist->n_moves = 0;
 	foreach_bit(x, moves) {
@@ -1183,7 +1183,7 @@ bool search_SC_NWS(Search *search, const int alpha, int *score)
 {
 	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
-		*score = SCORE_MAX - 2 * get_board_opp_stability(&search->board);
+		*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player);
 		if (*score <= alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return true;
@@ -1205,7 +1205,7 @@ bool search_SC_NWS_4(Search *search, const int alpha, int *score)
 {
 	if (USE_SC && alpha < -NWS_STABILITY_THRESHOLD[4]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
-		*score = 2 * get_board_opp_stability(&search->board) - SCORE_MAX;
+		*score = 2 * get_stability(search->board.opponent, search->board.player) - SCORE_MAX;
 		if (*score > alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return true;
