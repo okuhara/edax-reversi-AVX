@@ -58,13 +58,13 @@
   #if __STDC_VERSION__ < 202311L
 	#include <stdalign.h>
   #endif
-	#define ALIGN16(S) S alignas(16)
+	#define ALIGN16(typ)	alignas(16) typ
 #elif defined(_MSC_VER)
-	#define ALIGN16(S) __declspec(align(16)) S
+	#define ALIGN16(typ)	__declspec(align(16)) typ
 #elif defined(__GNUC__)
-	#define ALIGN16(S) S __attribute__((aligned(16)))
+	#define ALIGN16(typ)	typ __attribute__((aligned(16)))
 #else
-	#define ALIGN16(S) S
+	#define ALIGN16(typ)	typ
 #endif
 
 #ifndef __has_builtin  // Compatibility with non-clang compilers.
@@ -392,8 +392,8 @@ extern const unsigned long long NEIGHBOUR[];
 extern bool	hasSSE2;
 #endif
 
-typedef ALIGN16(union) {	// explicit align16 for USE_GAS_X86
-	unsigned long long	ull[2];
+typedef union V2DI {
+	ALIGN16(unsigned long long)	ull[2];	// explicit align16 (for whole array) for USE_GAS_X86
   #ifdef __ARM_NEON
 	uint64x2_t	v2;
   #elif defined(hasSSE2) || defined(USE_MSVC_X86)
