@@ -28,6 +28,8 @@ typedef struct Board {
 typedef union {
   #ifdef hasSSE2
 	__m128i	v2;
+  #elif defined(__ARM_NEON)
+	uint64x2_t	v2;
   #endif
 	Board	bb;
 } vBoard;
