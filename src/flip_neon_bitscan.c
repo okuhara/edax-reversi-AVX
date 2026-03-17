@@ -85,15 +85,8 @@ static const unsigned long long FLIPPED_4_H[19] = {	// ...cbahg
 /*
  * Set all bits below the sole outflank bit if outfrank != 0
  */
-#if __has_builtin(__builtin_subcll)
-static inline unsigned long long OutflankToFlipmask(unsigned long long outflank) {
-	unsigned long long flipmask, cy;
-	flipmask = __builtin_subcll(outflank, 1, 0, &cy);
-	return __builtin_addcll(flipmask, 0, cy, &cy);
-}
-#else
-	#define OutflankToFlipmask(outflank)	((outflank) - (unsigned int) ((outflank) != 0))
-#endif
+// #define OutflankToFlipmask(outflank)	((outflank) - (unsigned int) ((outflank) != 0))
+#define OutflankToFlipmask(outflank)	(--outflank, outflank += (outflank >> 63))
 
 // Strictly, (long long) >> 64 is undefined in C, but either 0 bit (no change)
 // or 64 bit (zero out) shift will lead valid result (i.e. flipped == 0).

@@ -374,7 +374,7 @@ static const unsigned long long  FLIPPED_5_U[137] = {
 /*
  * Set all bits below the sole outflank bit if outfrank != 0
  */
-#if __has_builtin(__builtin_subcll)
+#if (defined(__x86_64__) || defined(__i386__)) && __has_builtin(__builtin_subcll)
 static inline unsigned long long OutflankToFlipmask(unsigned long long outflank) {
 	unsigned long long flipmask, cy;
 	flipmask = __builtin_subcll(outflank, 1, 0, &cy);
@@ -388,7 +388,8 @@ static inline unsigned long long OutflankToFlipmask(unsigned long long outflank)
 	return flipmask;
 }
 #else
-	#define OutflankToFlipmask(outflank)	((outflank) - (unsigned int) ((outflank) != 0))
+	// #define OutflankToFlipmask(outflank)	((outflank) - (unsigned int) ((outflank) != 0))
+	#define OutflankToFlipmask(outflank)	(--outflank, outflank += (outflank >> 63))
 #endif
 
 /*

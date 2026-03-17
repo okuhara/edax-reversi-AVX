@@ -272,7 +272,7 @@ STATIC const UINT64 FLIPPED_5_V[137] = {
 /*
  * Set all bits below the sole outflank bit if outfrank != 0
  */
-#if __has_builtin(__builtin_subc)
+#if defined(__i386__) && __has_builtin(__builtin_subcll)
 static inline unsigned long long OutflankToFlipmask(unsigned long long outflank) {
 	unsigned int flipmaskL, flipmaskH, cy, outflankH = outflank >> 32;
 	flipmaskL = __builtin_subc(outflank, 1, 0, &cy);

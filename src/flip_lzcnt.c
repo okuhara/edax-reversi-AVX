@@ -98,23 +98,25 @@ unsigned long long Flip(int pos, unsigned long long P, unsigned long long O)
 	unsigned long long flip, flip0, flip1, flip2, flip3;
 	unsigned long long mask0, mask1, mask2, mask3, oflank0, oflank1, oflank2, oflank3, clz0, clz1, clz2, clz3;
 
-	mask0 = lrmask[pos][0];     	mask1 = lrmask[pos][1];     	mask2 = lrmask[pos][2];     	mask3 = lrmask[pos][3];
+	mask0 = lrmask[pos][0];   	mask1 = lrmask[pos][1];   	mask2 = lrmask[pos][2];   	mask3 = lrmask[pos][3];
 		// right: isolate non-opponent MS1B
-	oflank0 = ~O & mask0;       	oflank1 = ~O & mask1;       	oflank2 = ~O & mask2;       	oflank3 = ~O & mask3;
-	clz0 = lzcnt_u64(oflank0);  	clz1 = lzcnt_u64(oflank1);  	clz2 = lzcnt_u64(oflank2);  	clz3 = lzcnt_u64(oflank3);
-	oflank0 = (msb >> clz0) & P;	oflank1 = (msb >> clz1) & P;	oflank2 = (msb >> clz2) & P;	oflank3 = (msb >> clz3) & P;
+	oflank0 = ~O & mask0;     	oflank1 = ~O & mask1;     	oflank2 = ~O & mask2;     	oflank3 = ~O & mask3;
+	clz0 = lzcnt_u64(oflank0);	clz1 = lzcnt_u64(oflank1);	clz2 = lzcnt_u64(oflank2);	clz3 = lzcnt_u64(oflank3);
+	oflank0 = msb >> clz0;    	oflank1 = msb >> clz1;    	oflank2 = msb >> clz2;    	oflank3 = msb >> clz3;
+	oflank0 &= P;             	oflank1 &= P;             	oflank2 &= P;             	oflank3 &= P;
 		// set all bits higher than outflank
-	flip0 = -oflank0 & mask0;   	flip1 = -oflank1 & mask1;   	flip2 = -oflank2 & mask2;   	flip3 = -oflank3 & mask3;
+	flip0 = -oflank0 & mask0; 	flip1 = -oflank1 & mask1; 	flip2 = -oflank2 & mask2; 	flip3 = -oflank3 & mask3;
 	flip = (flip0 | flip1 | flip2 | flip3) & O;
 
-	mask0 = lrmask[pos][4];     	mask1 = lrmask[pos][5];     	mask2 = lrmask[pos][6];     	mask3 = lrmask[pos][7];
+	mask0 = lrmask[pos][4];   	mask1 = lrmask[pos][5];   	mask2 = lrmask[pos][6];   	mask3 = lrmask[pos][7];
 		// left: look for non-opponent LS1B
-	oflank0 = ~O & mask0;       	oflank1 = ~O & mask1;       	oflank2 = ~O & mask2;       	oflank3 = ~O & mask3;
-	oflank0 &= -oflank0;        	oflank1 &= -oflank1;        	oflank2 &= -oflank2;        	oflank3 &= -oflank3;
-	oflank0 &= P;               	oflank1 &= P;               	oflank2 &= P;               	oflank3 &= P;
+	oflank0 = ~O & mask0;     	oflank1 = ~O & mask1;     	oflank2 = ~O & mask2;     	oflank3 = ~O & mask3;
+	oflank0 &= -oflank0;      	oflank1 &= -oflank1;      	oflank2 &= -oflank2;      	oflank3 &= -oflank3;
+	oflank0 &= P;             	oflank1 &= P;             	oflank2 &= P;             	oflank3 &= P;
 		// set all bits lower than oflank unless oflank = 0
-	if (oflank0) --oflank0;     	if (oflank1) --oflank1;     	if (oflank2) --oflank2;     	if (oflank3) --oflank3;
-	flip0 = oflank0 & mask0;    	flip1 = oflank1 & mask1;    	flip2 = oflank2 & mask2;    	flip3 = oflank3 & mask3;
+	--oflank0;                	--oflank1;                	--oflank2;                	--oflank3;
+	oflank0 += oflank0 >> 63; 	oflank1 += oflank1 >> 63; 	oflank2 += oflank2 >> 63; 	oflank3 += oflank3 >> 63;
+	flip0 = oflank0 & mask0;  	flip1 = oflank1 & mask1;  	flip2 = oflank2 & mask2;  	flip3 = oflank3 & mask3;
 	flip |= flip0 | flip1 | flip2 | flip3;
 
 	return flip;
