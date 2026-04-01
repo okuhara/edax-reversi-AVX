@@ -29,7 +29,33 @@ extern const EVAL_FEATURE_V EVAL_FEATURE_all_opponent;
 
 void eval_update_sse(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
-  #ifdef __AVX2__
+  #if defined(__AVX512F__) && defined(AVX512_PREFER512)
+	__m512i	f01 = _mm512_loadu_si512(eval_in->feature.v16);
+	__m256i	f2 = eval_in->feature.v16[2];
+
+	if (eval_in->n_empties & 1) {
+		f01 = _mm512_sub_epi16(f01, _mm512_loadu_si512(EVAL_FEATURE[x].v16));
+		f2 = _mm256_sub_epi16(f2, EVAL_FEATURE[x].v16[2]);
+
+		foreach_bit (x, f) {
+			f01 = _mm512_add_epi16(f01, _mm512_loadu_si512(EVAL_FEATURE[x].v16));
+			f2 = _mm256_add_epi16(f2, EVAL_FEATURE[x].v16[2]);
+		}
+
+	} else {
+		f01 = _mm512_sub_epi16(f01, _mm512_slli_epi16(_mm512_loadu_si512(EVAL_FEATURE[x].v16), 1));
+		f2 = _mm256_sub_epi16(f2, _mm256_slli_epi16(EVAL_FEATURE[x].v16[2], 1));
+
+		foreach_bit (x, f) {
+			f01 = _mm512_sub_epi16(f01, _mm512_loadu_si512(EVAL_FEATURE[x].v16));
+			f2 = _mm256_sub_epi16(f2, EVAL_FEATURE[x].v16[2]);
+		}
+	}
+
+	_mm512_storeu_si512(eval_out->feature.v16, f01);
+	eval_out->feature.v16[2] = f2;
+
+  #elif defined(__AVX2__)
 	__m256i	f0 = eval_in->feature.v16[0];
 	__m256i	f1 = eval_in->feature.v16[1];
 	__m256i	f2 = eval_in->feature.v16[2];
@@ -202,7 +228,24 @@ void eval_set(Eval *eval, const Board *board)
 {
 	int x;
 	unsigned long long b = (eval->n_empties & 1) ? board->opponent : board->player;
-  #ifdef __AVX2__
+  #if defined(__AVX512F__) && defined(AVX512_PREFER512)
+	__m512i	f01 = _mm512_loadu_si512(EVAL_FEATURE_all_opponent.v16);
+	__m256i	f2 = EVAL_FEATURE_all_opponent.v16[2];
+
+	foreach_bit (x, b) {
+		f01 = _mm512_sub_epi16(f01, _mm512_loadu_si512(EVAL_FEATURE[x].v16));
+		f2 = _mm256_sub_epi16(f2, EVAL_FEATURE[x].v16[2]);
+	}
+
+	b = ~(board->opponent | board->player);
+	foreach_bit (x, b) {
+		f01 = _mm512_add_epi16(f01, _mm512_loadu_si512(EVAL_FEATURE[x].v16));
+		f2 = _mm256_add_epi16(f2, EVAL_FEATURE[x].v16[2]);
+	}
+	_mm512_storeu_si512(eval->feature.v16, f01);
+	eval->feature.v16[2] = f2;
+
+  #elif defined(__AVX2__)
 	__m256i	f0 = EVAL_FEATURE_all_opponent.v16[0];
 	__m256i	f1 = EVAL_FEATURE_all_opponent.v16[1];
 	__m256i	f2 = EVAL_FEATURE_all_opponent.v16[2];
