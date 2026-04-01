@@ -681,7 +681,7 @@ static bool ggs_board(GGSBoard *board, Text *text)
 				return false;
 			ii = 5;
 			for (i = 0; i < 8; i++) {
-	    		++ii;
+				++ii;
 				for (j = 0; j < 8; j++)
 					board->board_init[i * 8 + j] = text->line[ii][4 + j * 2];
 			}

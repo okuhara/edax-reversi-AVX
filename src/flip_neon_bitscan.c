@@ -1878,6 +1878,7 @@ static unsigned long long flip_G8(const unsigned long long P, const unsigned lon
  * @param O opponent's disc pattern.
  * @return flipped disc pattern.
  */
+#if 1 // clang:31, msvc:27 (CPU)
 static unsigned long long flip_H8(const unsigned long long P, const unsigned long long O)
 {
 	unsigned int outflank_h;
@@ -1894,6 +1895,12 @@ static unsigned long long flip_H8(const unsigned long long P, const unsigned lon
 
 	return flipped;
 }
+#else // clang:27, msvc:28 (Neon)
+static unsigned long long flip_H8(const unsigned long long P, const unsigned long long O)
+{
+	return __rbitll(flip_A1(__rbitll(P), __rbitll(O)));
+}
+#endif
 
 /**
  * Compute (zero-) flipped discs when plassing.
