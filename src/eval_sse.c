@@ -93,7 +93,7 @@ void eval_update_sse(int x, unsigned long long f, Eval *eval_out, const Eval *ev
   #else
     #ifdef __ARM_FEATURE_SVE
 	if (svcnth() >= 16) {	// SVE256, use Neon if svcnth() < 16
-		svbool_t	pg = svwhilelt_b16(0, 16);
+		svbool_t	pg = svptrue_pat_b16(SV_VL16);
 		svuint16_t	f0 = svld1_u16(pg, eval_in->feature.us);
 		svuint16_t	f1 = svld1_u16(pg, eval_in->feature.us + 16);
 		svuint16_t	f2 = svld1_u16(pg, eval_in->feature.us + 32);
@@ -307,7 +307,7 @@ void eval_set(Eval *eval, const Board *board)
   #else
     #ifdef __ARM_FEATURE_SVE
 	if (svcnth() >= 16) {	// SVE256, use Neon for svcnth() < 16
-		svbool_t	pg = svwhilelt_b16(0, 16);
+		svbool_t	pg = svptrue_pat_b16(SV_VL16);
 		svuint16_t	f0 = svld1_u16(pg, EVAL_FEATURE_all_opponent.us);
 		svuint16_t	f1 = svld1_u16(pg, EVAL_FEATURE_all_opponent.us + 16);
 		svuint16_t	f2 = svld1_u16(pg, EVAL_FEATURE_all_opponent.us + 32);
