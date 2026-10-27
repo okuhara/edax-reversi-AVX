@@ -393,6 +393,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 	assert(depth > 2);
 	assert(hash_table != NULL);
 
+	// transposition prefetch
 	hash_code = board_get_hash_code(&search->board);
 	hash_prefetch(hash_table, hash_code);
 
@@ -492,15 +493,7 @@ int PVS_shallow(Search *search, int alpha, int beta, int depth)
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
 
 	// stability cutoff
-	if (USE_SC && beta >= PVS_STABILITY_THRESHOLD[search->eval.n_empties]) {
-		CUTOFF_STATS(++statistics.n_stability_try;)
-		score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player);
-		if (score <= alpha) {
-			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
-			return score;
-		}
-		else if (score < beta) beta = score;
-	}
+	// if (search_SC_PVS(search, &alpha, &beta, &score)) return score;
 
 	search_get_movelist(search, &movelist);
 	board0 = search->board;

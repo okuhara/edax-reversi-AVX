@@ -124,8 +124,8 @@ const signed char NWS_STABILITY_THRESHOLD[] = { // 99 = unused value...
 	 99, 99, 99, 99, 99, 99, 99, 99
 };
 
+#if 0
 /** threshold values to try stability cutoff during PVS search */
-// TODO: better values may exist.
 const signed char PVS_STABILITY_THRESHOLD[] = { // 99 = unused value...
 	 99, 99, 99, 99, -2,  0,  2,  4,
 	  6,  8, 12, 14, 16, 18, 20, 22,
@@ -136,7 +136,7 @@ const signed char PVS_STABILITY_THRESHOLD[] = { // 99 = unused value...
 	 99, 99, 99, 99, 99, 99, 99, 99, // no stable square at those depths
 	 99, 99, 99, 99, 99, 99, 99, 99
 };
-
+#endif
 
 /** square type */
 const unsigned char SQUARE_TYPE[] = {
@@ -1146,7 +1146,7 @@ void result_print(Result *result, FILE *f)
 	spin_unlock(result);
 }
 
-#if 0	// inlined in PVS_shallow
+#if 0	// unused
 /**
  * @brief Stability Cutoff (SC).
  *
