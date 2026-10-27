@@ -73,8 +73,13 @@
   #endif
 #endif
 
-/** SOLID usage */
-#define USE_SOLID true
+/** SOLID usage: should not be defined
+ *  Takuro Yamana pointed out the current implementation has a potential bug
+ *  when final score includes empties for the winner.
+ *  It is not very effective as well.
+ *  http://www.amy.hi-ho.ne.jp/okuhara/edaxopt.htm#dogaishi
+ */
+// #define USE_SOLID true
 
 /** use stability cutoff more often to work best with solid stone */
 #define NWS_STABILITY_SOLID_THRESHOLD 8
