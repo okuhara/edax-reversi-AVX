@@ -3,9 +3,9 @@
  *
  * Event management.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #include "event.h"
@@ -105,7 +105,7 @@ void event_add_message(Event *event, char *message)
 		new_size = event->size * 2;
 		new_ring = (char**) malloc(new_size * sizeof (char*));
 		if (new_ring == NULL) fatal_error("cannot allocate event buffers\n");
-		for (i = 0; i < event->size; ++i) 
+		for (i = 0; i < event->size; ++i)
 			new_ring[i] = event->ring[(i + event->first) % event->size];
 		for (; i < new_size; ++i) new_ring[i] = NULL;
 		event->first = 0;
@@ -202,4 +202,3 @@ char *event_peek_message(Event *event)
 
 	return message;
 }
-

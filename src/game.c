@@ -3,7 +3,7 @@
  *
  * Game management
  *
- * @date 1998 - 2023
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @version 4.5
  */
@@ -779,18 +779,18 @@ static int game_parse_sgf(FILE *f, char *tag, char *value)
 	for (i = 0; i < 3; i++) {
 		c = fgetc(f);
 		if (c == EOF) return 0;
-		 else  if (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == ';') {
+		else if (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == ';') {
 			i--;
 			continue;
 		}
-		 else  if (c == '[') break;
-		 else  if ('A' <= c && c <= 'Z') tag[i] = (char)c;
-		 else  if (i == 0 && (c == '(' || c == ')')) {
+		else if (c == '[') break;
+		else if ('A' <= c && c <= 'Z') tag[i] = (char)c;
+		else if (i == 0 && (c == '(' || c == ')')) {
  			tag[0] = (char)c;
  			tag[1] = '\0';
 			return 1;
 		}
-		 else  return 0;
+		else return 0;
 
 	}
 	if (c != '[') return 0;
@@ -1674,4 +1674,3 @@ int game_complete(Game *game, Search *search)
 
 	return n;
 }
-

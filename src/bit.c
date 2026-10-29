@@ -6,7 +6,7 @@
  * a macro needs to be defined to chose between different flavors of the
  * algorithm.
  *
- * @date 1998 - 2025
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @version 4.5
  */
@@ -68,7 +68,7 @@ const unsigned long long NEIGHBOUR[] = {
  *
  * This is the classical popcount function.
  * Since 2007, it is part of the instruction set of some modern CPU,
- * (>= barcelona for AMD or >= nelhacem for Intel). Alternatively,
+ * (>= barcelona for AMD or >= nehalem for Intel). Alternatively,
  * a fast SWAR algorithm, adding bits in parallel is provided here.
  * This function is massively used to count discs on the board,
  * the mobility, or the stability.

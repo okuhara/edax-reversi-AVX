@@ -10,11 +10,11 @@
  * the analysis and the best move found.
  * The implementation is now a multi-way (or bucket based) hashtable. It both
  * tries to keep the deepest records and to always add the latest one.
- * The following implementation store the whole board to avoid collision. 
+ * The following implementation store the whole board to avoid collision.
  * When doing parallel search with a shared hashtable, a locked implementation
  * avoid concurrency collisions.
  *
- * @date 1998 - 2025
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -396,6 +396,7 @@ static bool hash_replace(Hash *hash, HashLock *lock, const Board *board, HashSto
 {
 	bool ok = false;
 
+	// double check locking.
 	if (board_equal(&hash->board, board)) {
 		spin_lock(lock);
 		if (board_equal(&hash->board, board)) {
@@ -424,6 +425,7 @@ static bool hash_reset(Hash *hash, HashLock *lock, const Board *board, HashStore
 {
 	bool ok = false;
 
+	// double check locking.
 	if (board_equal(&hash->board, board)) {
 		spin_lock(lock);
 		if (board_equal(&hash->board, board)) {

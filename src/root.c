@@ -3,7 +3,7 @@
  *
  * Search near the end of the game.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -667,6 +667,7 @@ void iterative_deepening(Search *search, int alpha, int beta)
 		end = search->eval.n_empties - ITERATIVE_MIN_EMPTIES + 2;
 		if (end <= 0) end = 2 - (search->eval.n_empties & 1);
 	}
+
 	start = 6 - (end & 1);
 	if (start > end - 2) start = end - 2;
 	if (start <= 0) start = 2 - (end & 1);
@@ -846,7 +847,7 @@ void* search_run(void *v)
 		search->result->bound[PASS].lower = SCORE_MIN;
 		search->result->bound[PASS].upper = SCORE_MAX;
 	}
-	
+
 	// search using iterative deepening (& widening).
 	iterative_deepening(search, options.alpha, options.beta);
 
@@ -884,4 +885,3 @@ void* search_run(void *v)
 
 	return search->result;
 }
-

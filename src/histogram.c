@@ -1,11 +1,11 @@
 /**
  * @file histogram.c
  *
- * Hash table's header.
+ * Histogram management.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #include "util.h"
@@ -200,4 +200,3 @@ void histogram_to_ppm(const char *file, unsigned long long histogram[129][65])
 	// end
 	fclose(f);
 }
-

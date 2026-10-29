@@ -3,9 +3,10 @@
  *
  * A simple protocol to communicate with Cassio.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @author Stéphane Nicolet
+ * @version 4.5
  */
 
 #ifndef CASSIO_H
@@ -22,4 +23,3 @@ void engine_empty_hash(void*);
 void engine_loop(void);
 
 #endif /* CASSIO_H */
-

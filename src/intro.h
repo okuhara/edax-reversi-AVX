@@ -2,8 +2,8 @@
  * @mainpage
  *
  * Edax : a strong Othello program.
- * - copyleft (c) 1998-2012
- * - version: 4.4 (2012-10-10)
+ * - copyleft (c) 1998-2026
+ * - version: 4.5 (2026-10-26)
  * - author: Richard A Delorme
  * - email: edax-reversi@orange.fr
  * - author: Toshihiko Okuhara
@@ -22,7 +22,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * aint with this program; if not, write to the Free Software
+ * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *
@@ -118,11 +118,11 @@
  * event support to communicate with GUI.
  * - version 4.2.1: Several bug fixes.
  * - version 4.2.2: Several bug fixes. XBoard protocol should work OK now.
- * - version 4.3: Bug fixes. Cleaner code. Enhancement of GGS protocol support. 
+ * - version 4.3: Bug fixes. Cleaner code. Enhancement of GGS protocol support.
  * - version 4.4: Bug fixes. Cleaner code. Enhancement of GGS protocol support.
  *   Faster move generator provided by Toshihiko Okuhara.
  * - version 4.5: code vectorisation (AVXX2) for x86_64 x86_32 & ARM Neon
- *   by Toshihiko Okuhara giving 7 to 20% faster code. 
+ *   by Toshihiko Okuhara giving 7 to 20% faster code.
  *
  * \htmlonly
  * <p> Speed comparison between versions: </p>

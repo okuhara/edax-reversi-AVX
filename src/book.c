@@ -3,14 +3,14 @@
  *
  * File for opening book management.
  *
- * Edax book is a set of positions. Each position is unique concerning all possible symetries.
+ * Edax book is a set of positions. Each position is unique concerning all possible symmetries.
  * A position is made of an othello board, a set of moves leading to other positions in the book,
  * called here "link", and the best remaining move, as evaluated by a search at fixed depth, called
  * here leaf. It also contains win/draw/loss statistics, which is actually useless, and a score
  * with two bounds from retropropagated error.
- * Several algorithms are present to add positions in the book, in the most usefull way.
+ * Several algorithms are present to add positions in the book, in the most useful way.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @version 4.5
  */
@@ -53,7 +53,8 @@ static void bprint(const char *format, ...)
 	}
 }
 
-/** struct Link
+/**
+ * struct Link
  * @brief a move (with its score) linking to another Position.
  */
 typedef struct Link {
@@ -68,6 +69,7 @@ const Link BAD_LINK = {-SCORE_INF, NOMOVE};
  *
  * @param link link to read in.
  * @param f input stream.
+ * @return true on success.
  */
 static inline bool link_read(Link *link, FILE *f)
 {
@@ -82,6 +84,7 @@ static inline bool link_read(Link *link, FILE *f)
  *
  * @param link link to write out.
  * @param f output stream.
+ * @return true on success.
  */
 static inline bool link_write(const Link *link, FILE *f)
 {
@@ -313,6 +316,7 @@ static void position_free(Position *position)
  *
  * @param position Position to read in.
  * @param f Input stream.
+ * @return true on success.
  */
 static bool position_read(Position *position, FILE *f)
 {
@@ -357,6 +361,7 @@ static bool position_read(Position *position, FILE *f)
  *
  * @param position Position to read in.
  * @param f Input stream.
+ * @return true on success.
  */
 static bool position_import(Position *position, FILE *f)
 {
@@ -411,6 +416,7 @@ static bool position_import(Position *position, FILE *f)
  *
  * @param position position to write out.
  * @param f output stream.
+ * @return true on success.
  */
 static bool position_write(const Position *position, FILE* f)
 {
@@ -446,6 +452,7 @@ static bool position_write(const Position *position, FILE* f)
  *
  * @param p position to write out.
  * @param f output stream.
+ * @return true on success.
  */
 static bool position_export(const Position *p, FILE* f)
 {
@@ -457,7 +464,7 @@ static bool position_export(const Position *p, FILE* f)
 }
 
 /**
- * @brief Make position unique, regarding symetries.
+ * @brief Make position unique, regarding symmetries.
  *
  * @param position position.
  */
@@ -481,6 +488,7 @@ static void position_unique(Position *position)
  * @param position position to get moves from.
  * @param board board.
  * @param movelist movelist.
+ * @return the symmetry of the board found compared to the actual board.
  */
 static int position_get_moves(const Position *position, const Board *board, MoveList *movelist)
 {
@@ -522,7 +530,7 @@ static int position_get_moves(const Position *position, const Board *board, Move
  * @brief print a position in a readable format.
  *
  * @param position position to print out.
- * @param board Symetrical board to use.
+ * @param board Symmetrical board to use.
  * @param f output stream.
  */
 static void position_show(const Position *position, const Board *board, FILE *f)
@@ -554,7 +562,7 @@ static void position_show(const Position *position, const Board *board, FILE *f)
  * @brief print a position in a compact but readable format.
  *
  * @param position position to print out.
- * @param board Symetrical board to use.
+ * @param board Symmetrical board to use.
  * @param f output stream.
  */
 static void position_print(const Position *position, const Board *board, FILE *f)
@@ -582,9 +590,9 @@ static void position_print(const Position *position, const Board *board, FILE *f
 }
 
 /**
- * @brief Chose a move at random from the position.
+ * @brief Choose a move at random from the position.
  *
- * @param position Position to chose a move from.
+ * @param position Position to choose a move from.
  * @param board Correctly rotated/mirrored board.
  * @param move Chosen move.
  * @param r Random data.
@@ -623,7 +631,7 @@ static void position_get_random_move(const Position *position, const Board *boar
 /**
  * @brief Add a link to this position.
  *
- * @param position Position to chose a move from.
+ * @param position Position to choose a move from.
  * @param link Link to add.
  * @return true if the link has been added, false if it was already present.
  */
@@ -808,6 +816,7 @@ static void position_expand(Position *position, Book *book)
  *
  * @param position Position to expand.
  * @param book Opening book.
+ * @return The score value of the position.
  */
 static int position_negamax(Position *position, Book *book)
 {
@@ -1014,14 +1023,10 @@ static void position_extend(Position *position, Book *book)
 /**
  * @brief Play a position.
  *
- * Here we look for all the positions with no link and mark it to be expanded.
+ * Here we look for all the positions with no link and expand them up to n_empties.
  *
  * @param position Position to expand.
  * @param book Opening book.
- * @param player_deviation Player's error.
- * @param opponent_deviation Opponent's error.
- * @param lower Error lower bound.
- * @param upper Error upper bound.
  */
 static void position_play(Position *position, Book *book)
 {
@@ -1055,7 +1060,6 @@ static void position_play(Position *position, Book *book)
  * another methods.
  * Here we use score negamaxed bounds to decide if a move is a good candidate for further enhancement or for expansion.
  * The purpose of this algorithm is to find more moves.
- *
  *
  * @param position Position to expand.
  * @param book Opening book.
@@ -1305,7 +1309,7 @@ static void position_array_free(PositionArray *a)
  *
  * @param a Positions' array.
  * @param board Board to find in the array.
- * @return a position containg the board (or a symmetry) or NULL is no position is found.
+ * @return a position containing the board (or a symmetry) or NULL if no position is found.
  */
 static Position* position_array_probe(PositionArray *a, const Board *board)
 {
@@ -1367,7 +1371,7 @@ static double book_get_age(Book *book)
  *
  * @param book Opening book.
  * @param board Board to find in the array.
- * @return a position containg the board (or a symmetry) or NULL is no position is found.
+ * @return a position containing the board (or a symmetry) or NULL if no position is found.
  */
 static Position* book_probe(const Book *book, const Board *board)
 {
@@ -1430,7 +1434,7 @@ static void book_clean(Book *book)
  * recall this function each time as necessary.
  *
  * @param book Opening book.
- * @return the inital position.
+ * @return the initial position.
  */
 static Position *book_root(Book *book)
 {
@@ -2042,12 +2046,15 @@ void book_extend(Book *book, const Board *board)
 		bprint("Book extend... finished\n");
 	}
 }
+
 /**
  * @brief Play.
  *
- * Add positions to the opening book by expanding positions witht zero link.
+ * Add positions to the opening book by expanding positions with zero link.
  *
  * @param book opening book.
+ * @param board The boardd positioin to add.
+ * @param n_empties Play moves until this number of empty squares on the board.
  */
 void book_play(Book *book, const Board *board)
 {
@@ -2140,7 +2147,6 @@ void book_subtree(Book *book, const Board *board)
 		bprint("done\n");
 	}
 }
-
 
 /**
  * @brief Enhance a book.
@@ -2255,6 +2261,7 @@ void book_show(Book *book, Board *board)
  * @param book Opening book.
  * @param board Position to display.
  * @param movelist List of moves.
+ * @return true on success.
  */
 bool book_get_moves(Book *book, const Board *board, MoveList *movelist)
 {
@@ -2273,7 +2280,7 @@ bool book_get_moves(Book *book, const Board *board, MoveList *movelist)
  * @param book Opening book.
  * @param board Position.
  * @param move First move;
- * @param line Bariation.
+ * @param line Variation.
  */
 void book_get_line(Book *book, const Board *board, const Move *move, Line *line)
 {
@@ -2299,6 +2306,7 @@ void book_get_line(Book *book, const Board *board, const Move *move, Line *line)
  * @param board Position to find a move from.
  * @param move Chosen move.
  * @param randomness Randomness.
+ * @return true on success.
  */
 #if 0
 #include "srbook.c"

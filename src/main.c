@@ -3,7 +3,7 @@
  *
  * @brief Main file.
  *
- * @date 1998 - 2024
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -151,7 +151,6 @@ int main(int argc, char **argv)
 	// display statistics
 	statistics_print(stdout);
 
-
 	// free;
 	eval_close();
 	options_free();
@@ -159,4 +158,3 @@ int main(int argc, char **argv)
 
 	return 0;
 }
-

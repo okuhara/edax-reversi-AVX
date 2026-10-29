@@ -6,9 +6,9 @@
  * The purpose of these functions is to gather performance
  * statistics on some algorithms or code.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #include "stats.h"
@@ -21,7 +21,7 @@
 Statistics statistics;
 
 /**
- * @brief Intialization of the statistics.
+ * @brief Initialization of the statistics.
  */
 void statistics_init(void)
 {
@@ -214,4 +214,3 @@ void statistics_print(FILE *f)
 		);
 	}
 }
-

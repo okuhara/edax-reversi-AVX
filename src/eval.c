@@ -3,7 +3,7 @@
  *
  * Evaluation function.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5

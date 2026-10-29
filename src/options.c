@@ -3,7 +3,7 @@
  *
  * Options reader.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @version 4.5
  */

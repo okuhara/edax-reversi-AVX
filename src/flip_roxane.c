@@ -5,9 +5,9 @@
  *
  * Note: Square Notation is inverted compared to Edax's one.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2026
  * @author Richard Delorme, Bruno Causse, Stéphane Nicolet
- * @version 4.4
+ * @version 4.5
  */
 
 #include "bit.h"
@@ -15,7 +15,7 @@
 static unsigned long long flip_A1(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction SE */
 	my_discs = discs_player & 0X0000201008040201ULL;
 	opp_discs = (discs_opponent & 0X0040201008040200ULL) | 0X7FBFDFEFF7FBFC00ULL;
@@ -46,7 +46,7 @@ static unsigned long long flip_A1(const unsigned long long discs_player, const u
 static unsigned long long flip_B1(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction SE */
 	my_discs = discs_player & 0X0000100804020100ULL;
 	opp_discs = (discs_opponent & 0X0020100804020000ULL) | 0X3FDFEFF7FBFC0000ULL;
@@ -75,9 +75,9 @@ static unsigned long long flip_B1(const unsigned long long discs_player, const u
 }
 
 static unsigned long long flip_C1(const unsigned long long discs_player, const unsigned long long discs_opponent) {
-	
+
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction _W */
 	unsigned long long flipped = (discs_opponent & 0X4000000000000000ULL) & (discs_player >> 1);
 
@@ -113,9 +113,9 @@ static unsigned long long flip_C1(const unsigned long long discs_player, const u
 }
 
 static unsigned long long flip_D1(const unsigned long long discs_player, const unsigned long long discs_opponent) {
-	
+
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction S */
 	my_discs = discs_player & 0X0000101010101010ULL;
 	opp_discs = (discs_opponent & 0X0010101010101000ULL) | 0X0FEFEFEFEFEFE000ULL;
@@ -161,7 +161,7 @@ static unsigned long long flip_D1(const unsigned long long discs_player, const u
 static unsigned long long flip_E1(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction S */
 	my_discs = discs_player & 0X0000080808080808ULL;
 	opp_discs = (discs_opponent & 0X0008080808080800ULL) | 0X07F7F7F7F7F7F000ULL;
@@ -207,11 +207,10 @@ static unsigned long long flip_E1(const unsigned long long discs_player, const u
 static unsigned long long flip_F1(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
-	
+
 	/* direction _E */
 	unsigned long long flipped =(discs_opponent & 0X0200000000000000ULL) & (discs_player << 1);
-	
+
 	/* direction S */
 	my_discs = discs_player & 0X0000040404040404ULL;
 	opp_discs = (discs_opponent & 0X0004040404040400ULL) | 0X03FBFBFBFBFBF800ULL;
@@ -246,7 +245,7 @@ static unsigned long long flip_F1(const unsigned long long discs_player, const u
 static unsigned long long flip_G1(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction SW */
 	my_discs = discs_player & 0X0000081020408000ULL;
 	opp_discs = (discs_opponent & 0X0004081020400000ULL) | 0X01FBF7EFDF800000ULL;
@@ -277,7 +276,7 @@ static unsigned long long flip_G1(const unsigned long long discs_player, const u
 static unsigned long long flip_H1(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction SW */
 	my_discs = discs_player & 0X0000040810204080ULL;
 	opp_discs = (discs_opponent & 0X0002040810204000ULL) | 0X00FDFBF7EFDF8000ULL;
@@ -308,7 +307,7 @@ static unsigned long long flip_H1(const unsigned long long discs_player, const u
 static unsigned long long flip_A2(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction SE */
 	my_discs = discs_player & 0X0000002010080402ULL;
 	opp_discs = (discs_opponent & 0X0000402010080400ULL) | 0X007FBFDFEFF7F800ULL;
@@ -339,7 +338,7 @@ static unsigned long long flip_A2(const unsigned long long discs_player, const u
 static unsigned long long flip_B2(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction SE */
 	my_discs = discs_player & 0X0000001008040201ULL;
 	opp_discs = (discs_opponent & 0X0000201008040200ULL) | 0X003FDFEFF7FBFC00ULL;
@@ -370,10 +369,10 @@ static unsigned long long flip_B2(const unsigned long long discs_player, const u
 static unsigned long long flip_C2(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction SW */
 	unsigned long long flipped = (discs_opponent & 0X0000400000000000ULL) & (discs_player << 7);
-	
+
 	/* direction S */
 	my_discs = discs_player & 0X0000002020202020ULL;
 	opp_discs = (discs_opponent & 0X0000202020202000ULL) | 0X001FDFDFDFDFC000ULL;
@@ -408,7 +407,7 @@ static unsigned long long flip_C2(const unsigned long long discs_player, const u
 static unsigned long long flip_D2(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction S */
 	my_discs = discs_player & 0X0000001010101010ULL;
 	opp_discs = (discs_opponent & 0X0000101010101000ULL) | 0X000FEFEFEFEFE000ULL;
@@ -454,7 +453,7 @@ static unsigned long long flip_D2(const unsigned long long discs_player, const u
 static unsigned long long flip_E2(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction S */
 	my_discs = discs_player & 0X0000000808080808ULL;
 	opp_discs = (discs_opponent & 0X0000080808080800ULL) | 0X0007F7F7F7F7F000ULL;
@@ -500,13 +499,13 @@ static unsigned long long flip_E2(const unsigned long long discs_player, const u
 static unsigned long long flip_F2(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction _E */
 	unsigned long long flipped = (discs_opponent & 0X0002000000000000ULL) & (discs_player << 1);
-	
+
 	/* direction SE */
 	flipped |= (discs_opponent & 0X0000020000000000ULL) & (discs_player << 9);
-	
+
 	/* direction S */
 	my_discs = discs_player & 0X0000000404040404ULL;
 	opp_discs = (discs_opponent & 0X0000040404040400ULL) | 0X0003FBFBFBFBF800ULL;
@@ -538,7 +537,7 @@ static unsigned long long flip_F2(const unsigned long long discs_player, const u
 static unsigned long long flip_G2(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction SW */
 	my_discs = discs_player & 0X0000000810204080ULL;
 	opp_discs = (discs_opponent & 0X0000040810204000ULL) | 0X0001FBF7EFDF8000ULL;
@@ -569,7 +568,7 @@ static unsigned long long flip_G2(const unsigned long long discs_player, const u
 static unsigned long long flip_H2(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction SW */
 	my_discs = discs_player & 0X0000000408102040ULL;
 	opp_discs = (discs_opponent & 0X0000020408102000ULL) | 0X0000FDFBF7EFC000ULL;
@@ -600,13 +599,13 @@ static unsigned long long flip_H2(const unsigned long long discs_player, const u
 static unsigned long long flip_A3(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction N_ */
 	unsigned long long flipped = (discs_opponent & 0X0080000000000000ULL) & (discs_player >> 8);
 
 	/* direction NE */
 	flipped |= (discs_opponent & 0X0040000000000000ULL) & (discs_player >> 7);
-		
+
 	/* direction _E */
 	my_discs = discs_player & 0X00003F0000000000ULL;
 	r = ((my_discs << 1) + discs_opponent) & 0X0000800000000000ULL;
@@ -637,13 +636,13 @@ static unsigned long long flip_A3(const unsigned long long discs_player, const u
 static unsigned long long flip_B3(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction NE */
 	unsigned long long flipped = (discs_opponent & 0X0020000000000000ULL) & (discs_player >> 7);
 
 	/* direction N_ */
 	flipped |= (discs_opponent & 0X0040000000000000ULL) & (discs_player >> 8);
-		
+
 	/* direction _E */
 	my_discs = discs_player & 0X00001F0000000000ULL;
 	r = ((my_discs << 1) + discs_opponent) & 0X0000400000000000ULL;
@@ -672,23 +671,23 @@ static unsigned long long flip_B3(const unsigned long long discs_player, const u
 }
 
 static unsigned long long flip_C3(const unsigned long long discs_player, const unsigned long long discs_opponent) {
-	
+
 	unsigned long long my_discs, opp_discs, r;
-		
+
 	/* direction NE */
 	unsigned long long flipped = (discs_opponent & 0X0010000000000000ULL) & (discs_player >> 7);
 	/* direction N_ */
 	flipped |= (discs_opponent & 0X0020000000000000ULL) & (discs_player >> 8);
-	
+
 	/* direction NW */
 	flipped |= (discs_opponent & 0X0040000000000000ULL) & (discs_player >> 9);
-	
+
 	/* direction SW */
 	flipped |= (discs_opponent & 0X0000004000000000ULL) & (discs_player << 7);
-	
+
 	/* direction _W */
 	flipped |= (discs_opponent & 0X0000400000000000ULL) & (discs_player >> 1);
-	
+
 	/* direction SE */
 	my_discs = discs_player & 0X0000000008040201ULL;
 	opp_discs = (discs_opponent & 0X0000001008040200ULL) | 0X00001FEFF7FBFC00ULL;
@@ -720,16 +719,16 @@ static unsigned long long flip_C3(const unsigned long long discs_player, const u
 static unsigned long long flip_D3(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction NE */
 	unsigned long long flipped = (discs_opponent & 0X0008000000000000ULL) & (discs_player >> 7);
 
 	/* direction N_ */
 	flipped |= (discs_opponent & 0X0010000000000000ULL) & (discs_player >> 8);
-	
+
 	/* direction NW */
 	flipped |= (discs_opponent & 0X0020000000000000ULL) & (discs_player >> 9);
-	
+
 	/* direction SE */
 	my_discs = discs_player & 0X0000000004020100ULL;
 	opp_discs = (discs_opponent & 0X0000000804020000ULL) | 0X00000FF7FBFC0000ULL;
@@ -775,16 +774,16 @@ static unsigned long long flip_D3(const unsigned long long discs_player, const u
 static unsigned long long flip_E3(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction NE */
 	unsigned long long flipped = (discs_opponent & 0X0004000000000000ULL) & (discs_player >> 7);
-	
+
 	/* direction N_ */
 	flipped |= (discs_opponent & 0X0008000000000000ULL) & (discs_player >> 8);
-	
+
 	/* direction NW */
 	flipped |= (discs_opponent & 0X0010000000000000ULL) & (discs_player >> 9);
-	
+
 	/* direction SE */
 	my_discs = discs_player & 0X0000000002010000ULL;
 	opp_discs = (discs_opponent & 0X0000000402000000ULL) | 0X000007FBFC000000ULL;
@@ -831,22 +830,22 @@ static unsigned long long flip_E3(const unsigned long long discs_player, const u
 static unsigned long long flip_F3(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction SE */
 	unsigned long long flipped = (discs_opponent & 0X0000000200000000ULL) & (discs_player << 9);
 
 	/* direction _E */
 	flipped |= (discs_opponent & 0X0000020000000000ULL) & (discs_player << 1);
-	
+
 	/* direction NE */
 	flipped |= (discs_opponent & 0X0002000000000000ULL) & (discs_player >> 7);
-	
+
 	/* direction N_ */
 	flipped |= (discs_opponent & 0X0004000000000000ULL) & (discs_player >> 8);
-	
+
 	/* direction NW */
 	flipped |= (discs_opponent & 0X0008000000000000ULL) & (discs_player >> 9);
-		
+
 	/* direction S */
 	my_discs = discs_player & 0X0000000004040404ULL;
 	opp_discs = (discs_opponent & 0X0000000404040400ULL) | 0X000003FBFBFBF800ULL;
@@ -877,13 +876,13 @@ static unsigned long long flip_F3(const unsigned long long discs_player, const u
 static unsigned long long flip_G3(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction NW */
 	unsigned long long flipped = (discs_opponent & 0X0004000000000000ULL) & (discs_player >> 9);
 
 	/* direction N_ */
 	flipped |= (discs_opponent & 0X0002000000000000ULL) & (discs_player >> 8);
-		
+
 	/* direction _W */
 	my_discs = discs_player & 0X0000F80000000000ULL;
 	r = (discs_opponent + 0X0000040000000000ULL) & my_discs;
@@ -920,7 +919,7 @@ static unsigned long long flip_H3(const unsigned long long discs_player, const u
 
 	/* direction N_ */
 	flipped |= (discs_opponent & 0X0001000000000000ULL) & (discs_player >> 8);
-		
+
 	/* direction _W */
 	my_discs = discs_player & 0X0000FC0000000000ULL;
 	r = (discs_opponent + 0X0000020000000000ULL) & my_discs;
@@ -951,7 +950,7 @@ static unsigned long long flip_H3(const unsigned long long discs_player, const u
 static unsigned long long flip_A4(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction _E */
 	my_discs = discs_player & 0X0000003F00000000ULL;
 	r = ((my_discs << 1) + discs_opponent) & 0X0000008000000000ULL;
@@ -998,7 +997,7 @@ static unsigned long long flip_A4(const unsigned long long discs_player, const u
 static unsigned long long flip_B4(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction _E */
 	my_discs = discs_player & 0X0000001F00000000ULL;
 	r = ((my_discs << 1) + discs_opponent) & 0X0000004000000000ULL;
@@ -1045,16 +1044,16 @@ static unsigned long long flip_B4(const unsigned long long discs_player, const u
 static unsigned long long flip_C4(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction NW */
 	unsigned long long flipped = (discs_opponent & 0X0000400000000000ULL) & (discs_player >> 9);
 
 	/* direction SW */
 	flipped |= (discs_opponent & 0X0000000040000000ULL) & (discs_player << 7);
-	
+
 	/* direction _W */
 	flipped |= (discs_opponent & 0X0000004000000000ULL) & (discs_player >> 1);
-		
+
 	/* direction SE */
 	my_discs = discs_player & 0X0000000000080402ULL;
 	opp_discs = (discs_opponent & 0X0000000010080400ULL) | 0X0000001FEFF7F800ULL;
@@ -1101,13 +1100,13 @@ static unsigned long long flip_C4(const unsigned long long discs_player, const u
 static unsigned long long flip_F4(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction _E */
 	unsigned long long flipped = (discs_opponent & 0X0000000200000000ULL) & (discs_player << 1);
-	
+
 	/* direction NE */
 	flipped |= (discs_opponent & 0X0000020000000000ULL) & (discs_player >> 7);
-	
+
 	/* direction SE */
 	flipped |= (discs_opponent & 0X0000000002000000ULL) & (discs_player << 9);
 
@@ -1157,7 +1156,7 @@ static unsigned long long flip_F4(const unsigned long long discs_player, const u
 static unsigned long long flip_G4(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction _W */
 	my_discs = discs_player & 0X000000F800000000ULL;
 	r = (discs_opponent + 0X0000000400000000ULL) & my_discs;
@@ -1204,7 +1203,7 @@ static unsigned long long flip_G4(const unsigned long long discs_player, const u
 static unsigned long long flip_H4(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction _W */
 	my_discs = discs_player & 0X000000FC00000000ULL;
 	r = (discs_opponent + 0X0000000200000000ULL) & my_discs;
@@ -1251,7 +1250,7 @@ static unsigned long long flip_H4(const unsigned long long discs_player, const u
 static unsigned long long flip_A5(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction _E */
 	my_discs = discs_player & 0X000000003F000000ULL;
 	r = ((my_discs << 1) + discs_opponent) & 0X0000000080000000ULL;
@@ -1298,7 +1297,7 @@ static unsigned long long flip_A5(const unsigned long long discs_player, const u
 static unsigned long long flip_B5(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction _E */
 	my_discs = discs_player & 0X000000001F000000ULL;
 	r = ((my_discs << 1) + discs_opponent) & 0X0000000040000000ULL;
@@ -1345,16 +1344,16 @@ static unsigned long long flip_B5(const unsigned long long discs_player, const u
 static unsigned long long flip_C5(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction NW */
 	unsigned long long flipped = (discs_opponent & 0X0000004000000000ULL) & (discs_player >> 9);
-	
+
 	/* direction SW */
 	flipped |= (discs_opponent & 0X0000000000400000ULL) & (discs_player << 7);
-	
+
 	/* direction _W */
 	flipped |= (discs_opponent & 0X0000000040000000ULL) & (discs_player >> 1);
-	
+
 	/* direction SE */
 	my_discs = discs_player & 0X0000000000000804ULL;
 	opp_discs = (discs_opponent & 0X0000000000100800ULL) | 0X000000001FEFF000ULL;
@@ -1401,16 +1400,16 @@ static unsigned long long flip_C5(const unsigned long long discs_player, const u
 static unsigned long long flip_F5(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction SE */
 	unsigned long long flipped = (discs_opponent & 0X0000000000020000ULL) & (discs_player << 9);
-	
+
 	/* direction _E */
 	flipped |= (discs_opponent & 0X0000000002000000ULL) & (discs_player << 1);
-	
+
 	/* direction NE */
 	flipped |= (discs_opponent & 0X0000000200000000ULL) & (discs_player >> 7);
-	
+
 	/* direction S */
 	my_discs = discs_player & 0X0000000000000404ULL;
 	opp_discs = (discs_opponent & 0X0000000000040400ULL) | 0X0000000003FBF800ULL;
@@ -1457,7 +1456,7 @@ static unsigned long long flip_F5(const unsigned long long discs_player, const u
 static unsigned long long flip_G5(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction _W */
 	my_discs = discs_player & 0X00000000F8000000ULL;
 	r = (discs_opponent + 0X0000000004000000ULL) & my_discs;
@@ -1504,7 +1503,7 @@ static unsigned long long flip_G5(const unsigned long long discs_player, const u
 static unsigned long long flip_H5(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction _W */
 	my_discs = discs_player & 0X00000000FC000000ULL;
 	r = (discs_opponent + 0X0000000002000000ULL) & my_discs;
@@ -1551,13 +1550,13 @@ static unsigned long long flip_H5(const unsigned long long discs_player, const u
 static unsigned long long flip_A6(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction SE */
 	unsigned long long flipped =(discs_opponent & 0X0000000000004000ULL) & (discs_player << 9);
 
 	/* direction S */
 	flipped |= (discs_opponent & 0X0000000000008000ULL) & (discs_player << 8);
-	
+
 	/* direction _E */
 	my_discs = discs_player & 0X00000000003F0000ULL;
 	r = ((my_discs << 1) + discs_opponent) & 0X0000000000800000ULL;
@@ -1588,18 +1587,18 @@ static unsigned long long flip_A6(const unsigned long long discs_player, const u
 static unsigned long long flip_B6(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction S */
 	unsigned long long flipped = (discs_opponent & 0X0000000000004000ULL) & (discs_player << 8);
-	
+
 	/* direction SE */
 	flipped |= (discs_opponent & 0X0000000000002000ULL) & (discs_player << 9);
-	
+
 	/* direction _E */
 	my_discs = discs_player & 0X00000000001F0000ULL;
 	r = ((my_discs << 1) + discs_opponent) & 0X0000000000400000ULL;
 	if (r != 0) {
-		flipped |= 0X0000000000400000ULL - (0X2ULL << last_bit(my_discs));		
+		flipped |= 0X0000000000400000ULL - (0X2ULL << last_bit(my_discs));
 	}
 
 	/* direction NE */
@@ -1625,22 +1624,22 @@ static unsigned long long flip_B6(const unsigned long long discs_player, const u
 static unsigned long long flip_C6(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction SE */
 	unsigned long long flipped = (discs_opponent & 0X0000000000001000ULL) & (discs_player << 9);
 
 	/* direction S */
 	flipped |= (discs_opponent & 0X0000000000002000ULL) & (discs_player << 8);
-	
+
 	/* direction NW */
 	flipped |= (discs_opponent & 0X0000000040000000ULL) & (discs_player >> 9);
-	
+
 	/* direction SW */
 	flipped |= (discs_opponent & 0X0000000000004000ULL) & (discs_player << 7);
-	
+
 	/* direction _W */
 	flipped |= (discs_opponent & 0X0000000000400000ULL) & (discs_player >> 1);
-	
+
 	/* direction _E */
 	my_discs = discs_player & 0X00000000000F0000ULL;
 	r = ((my_discs << 1) + discs_opponent) & 0X0000000000200000ULL;
@@ -1663,7 +1662,7 @@ static unsigned long long flip_C6(const unsigned long long discs_player, const u
 	if (r != 0) {
 		flipped |= (r - 1) & 0X0020202020000000ULL;
 	}
-	
+
 
 	return flipped;
 
@@ -1672,16 +1671,16 @@ static unsigned long long flip_C6(const unsigned long long discs_player, const u
 static unsigned long long flip_D6(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction SE */
 	unsigned long long flipped = (discs_opponent & 0X0000000000000800ULL) & (discs_player << 9);
-	
+
 	/* direction S */
 	flipped |= (discs_opponent & 0X0000000000001000ULL) & (discs_player << 8);
-	
+
 	/* direction SW */
 	flipped |= (discs_opponent & 0X0000000000002000ULL) & (discs_player << 7);
-	
+
 	/* direction _E */
 	my_discs = discs_player & 0X0000000000070000ULL;
 	r = ((my_discs << 1) + discs_opponent) & 0X0000000000100000ULL;
@@ -1727,16 +1726,16 @@ static unsigned long long flip_D6(const unsigned long long discs_player, const u
 static unsigned long long flip_E6(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction SE */
 	unsigned long long flipped = (discs_opponent & 0X0000000000000400ULL) & (discs_player << 9);
 
 	/* direction S */
 	flipped |= (discs_opponent & 0X0000000000000800ULL) & (discs_player << 8);
-	
+
 	/* direction SW */
 	flipped |= (discs_opponent & 0X0000000000001000ULL) & (discs_player << 7);
-	
+
 	/* direction _E */
 	my_discs = discs_player & 0X0000000000030000ULL;
 	r = ((my_discs << 1) + discs_opponent) & 0X0000000000080000ULL;
@@ -1782,7 +1781,7 @@ static unsigned long long flip_E6(const unsigned long long discs_player, const u
 static unsigned long long flip_F6(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction SE */
 	unsigned long long flipped = (discs_opponent & 0X0000000000000200ULL) & (discs_player << 9);
 
@@ -1794,10 +1793,10 @@ static unsigned long long flip_F6(const unsigned long long discs_player, const u
 
 	/* direction NE */
 	flipped |= (discs_opponent & 0X0000000002000000ULL) & (discs_player >> 7);
-	
+
 	/* direction SW */
 	flipped |= (discs_opponent & 0X0000000000000800ULL) & (discs_player << 7);
-	
+
 	/* direction N_ */
 	my_discs = discs_player & 0X0404040400000000ULL;
 	opp_discs = (discs_opponent & 0X0004040404000000ULL) | 0X03FBFBFBF8000000ULL;
@@ -1828,13 +1827,13 @@ static unsigned long long flip_F6(const unsigned long long discs_player, const u
 static unsigned long long flip_G6(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction SW */
 	unsigned long long flipped = (discs_opponent & 0X0000000000000400ULL) & (discs_player << 7);
-	
+
 	/* direction S */
 	flipped |= (discs_opponent & 0X0000000000000200ULL) & (discs_player << 8);
-	
+
 	/* direction _W */
 	my_discs = discs_player & 0X0000000000F80000ULL;
 	r = (discs_opponent + 0X0000000000040000ULL) & my_discs;
@@ -1865,13 +1864,13 @@ static unsigned long long flip_G6(const unsigned long long discs_player, const u
 static unsigned long long flip_H6(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction SW */
 	unsigned long long flipped = (discs_opponent & 0X0000000000000200ULL) & (discs_player << 7);
-	
+
 	/* direction S */
 	flipped |= (discs_opponent & 0X0000000000000100ULL) & (discs_player << 8);
-	
+
 	/* direction _W */
 	my_discs = discs_player & 0X0000000000FC0000ULL;
 	r = (discs_opponent + 0X0000000000020000ULL) & my_discs;
@@ -1902,7 +1901,7 @@ static unsigned long long flip_H6(const unsigned long long discs_player, const u
 static unsigned long long flip_A7(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction NE */
 	my_discs = discs_player & 0X0204081020000000ULL;
 	opp_discs = (discs_opponent & 0X0004081020400000ULL) | 0X01FBF7EFDF800000ULL;
@@ -1933,7 +1932,7 @@ static unsigned long long flip_A7(const unsigned long long discs_player, const u
 static unsigned long long flip_B7(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction NE */
 	my_discs = discs_player & 0X0102040810000000ULL;
 	opp_discs = (discs_opponent & 0X0002040810200000ULL) | 0X00FDFBF7EFC00000ULL;
@@ -1964,13 +1963,13 @@ static unsigned long long flip_B7(const unsigned long long discs_player, const u
 static unsigned long long flip_C7(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction NW */
 	unsigned long long flipped = (discs_opponent & 0X0000000000400000ULL) & (discs_player >> 9);
-	
+
 	/* direction _W */
 	flipped |= (discs_opponent & 0X0000000000004000ULL) & (discs_player >> 1);
-	
+
 	/* direction N_ */
 	my_discs = discs_player & 0X2020202020000000ULL;
 	opp_discs = (discs_opponent & 0X0020202020200000ULL) | 0X1FDFDFDFDFC00000ULL;
@@ -2001,7 +2000,7 @@ static unsigned long long flip_C7(const unsigned long long discs_player, const u
 static unsigned long long flip_D7(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction N_ */
 	my_discs = discs_player & 0X1010101010000000ULL;
 	opp_discs = (discs_opponent & 0X0010101010100000ULL) | 0X0FEFEFEFEFE00000ULL;
@@ -2047,7 +2046,7 @@ static unsigned long long flip_D7(const unsigned long long discs_player, const u
 static unsigned long long flip_E7(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction N_ */
 	my_discs = discs_player & 0X0808080808000000ULL;
 	opp_discs = (discs_opponent & 0X0008080808080000ULL) | 0X07F7F7F7F7F00000ULL;
@@ -2093,10 +2092,10 @@ static unsigned long long flip_E7(const unsigned long long discs_player, const u
 static unsigned long long flip_F7(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction _E */
 	unsigned long long flipped = (discs_opponent & 0X0000000000000200ULL) & (discs_player << 1);
-	
+
 	/* direction N_ */
 	my_discs = discs_player & 0X0404040404000000ULL;
 	opp_discs = (discs_opponent & 0X0004040404040000ULL) | 0X03FBFBFBFBF80000ULL;
@@ -2130,7 +2129,7 @@ static unsigned long long flip_F7(const unsigned long long discs_player, const u
 static unsigned long long flip_G7(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction NW */
 	my_discs = discs_player & 0X8040201008000000ULL;
 	opp_discs = (discs_opponent & 0X0040201008040000ULL) | 0X7FBFDFEFF7F80000ULL;
@@ -2161,7 +2160,7 @@ static unsigned long long flip_G7(const unsigned long long discs_player, const u
 static unsigned long long flip_H7(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction NW */
 	my_discs = discs_player & 0X4020100804000000ULL;
 	opp_discs = (discs_opponent & 0X0020100804020000ULL) | 0X3FDFEFF7FBFC0000ULL;
@@ -2192,7 +2191,7 @@ static unsigned long long flip_H7(const unsigned long long discs_player, const u
 static unsigned long long flip_A8(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction NE */
 	my_discs = discs_player & 0X0102040810200000ULL;
 	opp_discs = (discs_opponent & 0X0002040810204000ULL) | 0X00FDFBF7EFDF8000ULL;
@@ -2223,7 +2222,7 @@ static unsigned long long flip_A8(const unsigned long long discs_player, const u
 static unsigned long long flip_B8(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction NE */
 	my_discs = discs_player & 0X0001020408100000ULL;
 	opp_discs = (discs_opponent & 0X0000020408102000ULL) | 0X0000FDFBF7EFC000ULL;
@@ -2246,7 +2245,7 @@ static unsigned long long flip_B8(const unsigned long long discs_player, const u
 	if (r != 0) {
 		flipped |= 0X0000000000000040ULL - (0X2ULL << last_bit(my_discs));
 	}
-	
+
 	return flipped;
 
 }
@@ -2254,13 +2253,13 @@ static unsigned long long flip_B8(const unsigned long long discs_player, const u
 static unsigned long long flip_C8(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction NW */
 	unsigned long long flipped = (discs_opponent & 0X0000000000004000ULL) & (discs_player >> 9);
-	
+
 	/* direction _W */
 	flipped |= (discs_opponent & 0X0000000000000040ULL) & (discs_player >> 1);
-	
+
 	/* direction N_ */
 	my_discs = discs_player & 0X2020202020200000ULL;
 	opp_discs = (discs_opponent & 0X0020202020202000ULL) | 0X1FDFDFDFDFDFC000ULL;
@@ -2283,7 +2282,7 @@ static unsigned long long flip_C8(const unsigned long long discs_player, const u
 	if (r != 0) {
 		flipped |= 0X0000000000000020ULL - (0X2ULL << last_bit(my_discs));
 	}
-	
+
 	return flipped;
 
 }
@@ -2291,7 +2290,7 @@ static unsigned long long flip_C8(const unsigned long long discs_player, const u
 static unsigned long long flip_D8(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction N_ */
 	my_discs = discs_player & 0X1010101010100000ULL;
 	opp_discs = (discs_opponent & 0X0010101010101000ULL) | 0X0FEFEFEFEFEFE000ULL;
@@ -2329,7 +2328,7 @@ static unsigned long long flip_D8(const unsigned long long discs_player, const u
 	if (r != 0) {
 		flipped |= (r - 1) & 0X00000000000000E0ULL;
 	}
-	
+
 	return flipped;
 
 }
@@ -2337,7 +2336,7 @@ static unsigned long long flip_D8(const unsigned long long discs_player, const u
 static unsigned long long flip_E8(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction N_ */
 	my_discs = discs_player & 0X0808080808080000ULL;
 	opp_discs = (discs_opponent & 0X0008080808080800ULL) | 0X07F7F7F7F7F7F000ULL;
@@ -2375,7 +2374,7 @@ static unsigned long long flip_E8(const unsigned long long discs_player, const u
 	if (r != 0) {
 		flipped |= (r - 1) & 0X00000000000000F0ULL;
 	}
-	
+
 	return flipped;
 
 }
@@ -2383,13 +2382,13 @@ static unsigned long long flip_E8(const unsigned long long discs_player, const u
 static unsigned long long flip_F8(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r;
-	
+
 	/* direction NE */
 	unsigned long long flipped = (discs_opponent & 0X0000000000000200ULL) & (discs_player >> 7);
-	
+
 	/* direction _E */
 	flipped |= (discs_opponent & 0X0000000000000002ULL) & (discs_player << 1);
-	
+
 	/* direction N_ */
 	my_discs = discs_player & 0X0404040404040000ULL;
 	opp_discs = (discs_opponent & 0X0004040404040400ULL) | 0X03FBFBFBFBFBF800ULL;
@@ -2405,7 +2404,7 @@ static unsigned long long flip_F8(const unsigned long long discs_player, const u
 	if (r != 0) {
 		flipped |= (r - 1) & 0X0000004020100800ULL;
 	}
-	
+
 
 	/* direction _W */
 	my_discs = discs_player & 0X00000000000000F0ULL;
@@ -2413,7 +2412,7 @@ static unsigned long long flip_F8(const unsigned long long discs_player, const u
 	if (r != 0) {
 		flipped |= (r - 1) & 0X00000000000000F8ULL;
 	}
-	
+
 	return flipped;
 
 }
@@ -2421,7 +2420,7 @@ static unsigned long long flip_F8(const unsigned long long discs_player, const u
 static unsigned long long flip_G8(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction NW */
 	my_discs = discs_player & 0X0080402010080000ULL;
 	opp_discs = (discs_opponent & 0X0000402010080400ULL) | 0X007FBFDFEFF7F800ULL;
@@ -2444,7 +2443,7 @@ static unsigned long long flip_G8(const unsigned long long discs_player, const u
 	if (r != 0) {
 		flipped |= (r - 1) & 0X00000000000000FCULL;
 	}
-	
+
 	return flipped;
 
 }
@@ -2452,7 +2451,7 @@ static unsigned long long flip_G8(const unsigned long long discs_player, const u
 static unsigned long long flip_H8(const unsigned long long discs_player, const unsigned long long discs_opponent) {
 
 	unsigned long long my_discs, opp_discs, r, flipped = 0ULL;
-	
+
 	/* direction NW */
 	my_discs = discs_player & 0X8040201008040000ULL;
 	opp_discs = (discs_opponent & 0X0040201008040200ULL) | 0X7FBFDFEFF7FBFC00ULL;

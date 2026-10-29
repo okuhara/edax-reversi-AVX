@@ -2,7 +2,7 @@
  * @file count_last_flip_bitscan.c
  *
  *
- * A function is provided to count the number of fipped disc of the last move
+ * A function is provided to count the number of flipped disc of the last move
  * for each square of the board. These functions are gathered into an array of
  * functions, so that a fast access to each function is allowed. The generic
  * form of the function take as input the player bitboard and return twice
@@ -27,10 +27,10 @@
  * For top to bottom flip, LS1B isolation (http://chessprogramming.wikispaces.com/
  * General+Setwise+Operations) is used to get the outflank bit.
  *
- * @date 1998 - 2025
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @author Toshihiko Okuhara
- * @version 4.4
+ * @version 4.5
  * 
  */
 

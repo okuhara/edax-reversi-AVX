@@ -3,9 +3,9 @@
  *
  * Header file for game base management
  *
- * @date 1998 - 2017
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #ifndef EDAX_BASE_H
@@ -22,17 +22,17 @@ struct Search;
  * @brief Header for wthor files
 */
 typedef struct WthorHeader {
-	char century;                /**< Century. */
-	char year;                   /**< Year. */
-	char month;                  /**< month */
-	char day;                    /**< day */
-	char board_size;             /**< board size (8 or 10) */
-	char game_type;              /**< game type (games or solitaires) */
-	char depth;                  /**< depth (of theoric score) */
-	char reserved;               /**< reserved */
-	unsigned short n;            /**< */
-	unsigned short game_year;    /**< */
-	int n_games;                 /**< */
+	char century;              /**< Century. */
+	char year;                 /**< Year. */
+	char month;                /**< month */
+	char day;                  /**< day */
+	char board_size;           /**< board size (8 or 10) */
+	char game_type;            /**< game type (games or solitaires) */
+	char depth;                /**< depth (of theoric score) */
+	char reserved;             /**< reserved */
+	unsigned short n;          /**< number of player or tournaments */
+	unsigned short game_year;  /**< year of the game */
+	int n_games;               /**< number of games */
 } WthorHeader;
 
 typedef struct WthorBase {
@@ -59,6 +59,11 @@ void wthor_test(const char*, struct Search*);
 void wthor_eval(const char*, struct Search*, unsigned long long histogram[129][65]);
 void wthor_edaxify(const char*);
 
+/**
+ * @brief macro to loop over all games of a wthorBase.
+ * @param wgame a Wthor game.
+ * @param wbase a WthorBase.
+ */
 #define foreach_wthorgame(wgame, wbase) \
 	for ((wgame) = (wbase).game ; (wgame) < (wbase).game + (wbase).header.n_games; ++(wgame))
 

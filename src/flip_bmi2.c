@@ -17,7 +17,7 @@
  *  - ARRAY[x][8-bits disc pattern].
  * The problem is thus to convert any line of a 64-bits disc pattern into an
  * 8-bits disc pattern. A fast way to do this is to select the right line,
- * with a bit-mask, to gather the masked-bits into a continuous set by the 
+ * with a bit-mask, to gather the masked-bits into a continuous set by the
  * BMI2 PEXT instruction.
  * Once we get our 8-bits disc patterns,a first array (OUTFLANK) is used to
  * get the player's discs that surround the opponent discs:
@@ -29,9 +29,9 @@
  * 64-bits disc pattern, and the flipped squares for each line are gathered and
  * returned to generate moves.
  *
- * @date 1998 - 2014
+ * @date 1998 - 2026
  * @author Toshihiko Okuhara
- * @version 4.4
+ * @version 4.5
  */
 
 #include <x86intrin.h>

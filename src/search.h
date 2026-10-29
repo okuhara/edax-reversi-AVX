@@ -3,7 +3,7 @@
  *
  * Search's header file.
  *
- * @date 1998 - 2025
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @version 4.5
  */

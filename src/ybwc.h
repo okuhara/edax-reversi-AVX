@@ -3,9 +3,9 @@
  *
  * @brief Parallel search header.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  *
  */
 
@@ -109,4 +109,3 @@ void task_stack_clear(TaskStack*);
 unsigned long long task_stack_count_nodes(TaskStack*);
 
 #endif
-

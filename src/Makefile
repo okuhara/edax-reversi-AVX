@@ -1,7 +1,7 @@
 #
 # makefile to Compile Edax
 #
-# Copyright 1998 - 2024
+# Copyright 1998 - 2026
 # Richard Delorme
 # Version 4.5
 #
@@ -251,7 +251,7 @@ endif
 #SRC
 SRC= bit.c board.c move.c hash.c ybwc.c eval.c endgame.c midgame.c root.c search.c \
 book.c opening.c game.c base.c bench.c perft.c obftest.c util.c event.c histogram.c \
-stats.c options.c play.c ui.c edax.c cassio.c gtp.c ggs.c nboard.c xboard.c main.c   
+stats.c options.c play.c ui.c edax.c cassio.c gtp.c ggs.c nboard.c xboard.c main.c
 
 # RULES
 help:

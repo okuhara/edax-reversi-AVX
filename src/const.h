@@ -3,7 +3,7 @@
  *
  * Constants as macros, enums, or global consts.
  *
- * @date 1998 - 2025
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @version 4.5
  */

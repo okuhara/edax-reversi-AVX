@@ -33,11 +33,11 @@
  * 64-bits disc pattern, and the flipped squares for each line are gathered and
  * returned to generate moves.
  *
- * If the OUTFLANK search is in LSB to MSB direction, carry propagation 
+ * If the OUTFLANK search is in LSB to MSB direction, carry propagation
  * (with Neon if appropriate) can be used to determine contiguous opponent discs.
  * If the OUTFLANK search is in MSB to LSB direction, lzcnt64 is used.
  *
- * @date 1998 - 2022
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5

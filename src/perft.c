@@ -3,7 +3,7 @@
  *
  * @brief Move generator test.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @version 4.5
  */
@@ -373,10 +373,10 @@ static void gamehash_store(GameHashTable *hash, const Board *b, const int depth,
 	if (depth > 2) {
 		board_unique(b, &u);
 		i = j = hash->array + (board_get_hash_code(&u) & hash->mask);
+		++j; if (i->stats.n_moves > j->stats.n_moves) i = j;
+		++j; if (i->stats.n_moves > j->stats.n_moves) i = j;
+		++j; if (i->stats.n_moves > j->stats.n_moves) i = j;
 
-		++j; if (i->stats.n_moves > j->stats.n_moves) i = j;
-		++j; if (i->stats.n_moves > j->stats.n_moves) i = j;
-		++j; if (i->stats.n_moves > j->stats.n_moves) i = j;
 		i->board = u;
 		i->stats = *stats;
 		i->depth = depth;
@@ -594,7 +594,7 @@ static void positionarray_init(PosArray *array)
 }
 
 /**
- * @brief array supression.
+ * @brief array suppression.
  * @param array Array of positions.
  */
 static void positionarray_delete(PosArray *array)
@@ -658,7 +658,7 @@ static void boardcache_delete(BoardCache *hash)
 }
 
 /**
- * @brief Append a shape to the hash table.
+ * @brief Append a unique board to the hash table.
  * @param hash Hash table.
  * @param b Position.
  */
@@ -678,7 +678,6 @@ static bool boardcache_undone(BoardCache *hash, const Board *b)
 
 	return true;
 }
-
 
 static void boardcache_append(BoardCache *hash, const Board *b)
 {
@@ -828,7 +827,6 @@ void count_positions(const Board *board, const int depth, const int size)
 	PositionHash hash;
 	BoardCache cache;
 
-
 	board_print(board, BLACK, stdout);
 	puts("\n discs       nodes         total            time   speed");
 	puts("----------------------------------------------------------");
@@ -848,7 +846,6 @@ void count_positions(const Board *board, const int depth, const int size)
 	}
 	puts("----------------------------------------------------------");
 }
-
 
 /**
  * @brief unique shape.
@@ -893,7 +890,7 @@ static void shapearray_init(ShapeArray *array)
 }
 
 /**
- * @brief array supression.
+ * @brief array suppression.
  * @param array Array of shapes.
  */
 static void shapearray_delete(ShapeArray *array)
@@ -1079,8 +1076,6 @@ void count_shapes(const Board *board, const int depth, const int size)
 	puts("----------------------------------------------------------");
 }
 
-
-
 /**
  * @brief seek a game that reach to a position
  *
@@ -1114,4 +1109,3 @@ bool seek_position(const Board *target, const Board *board, Line *line) {
 
 	return false;
 }
-

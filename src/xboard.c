@@ -5,9 +5,9 @@
  *
  * Of course, only the "reversi" variant is supported.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  *
  */
 
@@ -32,8 +32,8 @@ typedef struct {
 } XBoardStats;
 
 /**
- * @brief Search oberver.
- * @param result Search Result.
+ * @brief Search observer.
+ * @param result Search result.
  */
 static void xboard_observer(Result *result)
 {

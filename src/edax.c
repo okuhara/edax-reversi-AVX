@@ -11,7 +11,7 @@
  * Options must be entered in the form '[set] <option> [=] <value>', with [set] and\n[=] being optional.
  *   -verbose [n]          set Edax verbosity (default 1).
  *   -noise [n]            start displaying Edax search result from this depth\n  (default 5).
- *   -witdh [n]            display edax search results using <width> characters\n  (default 80).
+ *   -width [n]            display edax search results using <width> characters\n  (default 80).
  *   -hash-table-size [n]  set hashtable size (default 22 bits).
  *   -n-tasks [n]          control the number of parallel threads used in searching\n  (default 1).
  *   -l|level [n]          search using limited depth (default 21).
@@ -91,9 +91,9 @@
  *   -count shapes [d]    compute the number of shapes from the current position up\n  to depth [d].
  *
  *
- * @date 1998 - 2025
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  *
  */
 
@@ -120,8 +120,8 @@ void version(void);
 void bench(void);
 
 /**
- * @brief default search oberver.
- * @param result Search Result.
+ * @brief default search observer.
+ * @param result Search result.
  */
 static void edax_observer(Result *result)
 {
@@ -264,7 +264,7 @@ void help_base(void)
 }
 
 /**
- * @brief print base's help.
+ * @brief print test's help.
  */
 void help_test(void)
 {
@@ -328,7 +328,6 @@ void ui_loop_edax(UI *ui)
 
 		// proceed by reading a command
 		} else {
-
 			/* automatic rules after a game over*/
 			if (play_is_game_over(play)) {
 				if (options.auto_store) play_store(play);
@@ -472,7 +471,7 @@ void ui_loop_edax(UI *ui)
 				obf_test(&play->search, problem_file, hard_file);
 				search_set_observer(&play->search, edax_observer);
 
-			// convert a set of problems in a .script file to a .obf file
+			// convert a set of problems from a .script/.txt file to a .obf file, annotating each possible move with its score
 			} else if (strcmp(cmd, "script-to-obf") == 0) {
 				char script_file[FILENAME_MAX + 1], *obf_file;
 				obf_file = parse_word(param, script_file, FILENAME_MAX);
@@ -984,6 +983,4 @@ void ui_loop_edax(UI *ui)
 	HASH_STATS(printf("pv_table     : %12llu stores %12llu probes %12llu found probes\n", play->search.pv_table.n_store, play->search.pv_table.n_try, play->search.pv_table.n_found);)
 	HASH_STATS(printf("hash_table   : %12llu stores %12llu probes %12llu found probes\n", play->search.hash_table.n_store, play->search.hash_table.n_try, play->search.hash_table.n_found);)
 	HASH_STATS(printf("shallow_table: %12llu stores %12llu probes %12llu found probes\n", play->search.shallow_table.n_store, play->search.shallow_table.n_try, play->search.shallow_table.n_found);)
-
 }
-

@@ -3,7 +3,7 @@
  *
  * @brief Move & list of moves management.
  *
- * @date 1998 - 2025
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -484,7 +484,7 @@ Move* movelist_sort_bestmove(MoveList *movelist, const int move)
 }
 
 /**
- * @brief Sort all moves based on move cost & hash_table storage.
+ * @brief Sort all moves except the first, based on move cost & hash_table storage.
  *
  * @param movelist List of moves to sort.
  * @param hash_data  Data from the hash table.
@@ -771,7 +771,7 @@ void movehash_delete(MoveHash *hash)
  * @param hash Hash table.
  * @param b Position.
  * @param x Move.
- * @return true if a position is added to the hash table, false otherwsise.
+ * @return true if a position is added to the hash table, false otherwise.
  */
 bool movehash_append(MoveHash *hash, const Board *b, const int x)
 {
@@ -783,4 +783,3 @@ bool movehash_append(MoveHash *hash, const Board *b, const int x)
 	h = board_get_hash_code(&u);
 	return movearray_append(hash->array + (h & hash->mask), &u, y);
 }
-

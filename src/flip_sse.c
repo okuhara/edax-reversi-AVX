@@ -33,12 +33,12 @@
  * 64-bits disc pattern, and the flipped squares for each line are gathered and
  * returned to generate moves.
  *
- * If the OUTFLANK search is in LSB to MSB direction, LS1B or carry propagation 
+ * If the OUTFLANK search is in LSB to MSB direction, LS1B or carry propagation
  * can be used to determine contiguous opponent discs.
  * If the OUTFLANK search is in MSB to LSB direction, MS1B using int-float
  * conversion can be used.
  *
- * @date 1998 - 2024
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5

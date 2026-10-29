@@ -3,9 +3,9 @@
  *
  * @brief Miscellaneous utilities header.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #ifndef EDAX_UTIL_H
@@ -76,8 +76,8 @@ void path_get_dir(const char*, char*);
 char* file_add_ext(const char*, const char*, char*);
 bool is_stdin_keyboard(void);
 
-/*
- * random
+/**
+ * @brief strict random
  */
 typedef struct Random {
 	unsigned long long x;
@@ -87,7 +87,7 @@ unsigned long long random_get(Random*);
 void random_seed(Random*, const unsigned long long);
 
 /*
- * Usefull macros
+ * Useful macros
  */
 /** Maximum of two values */
 #define MAX(a, b) ((a) > (b) ? (a) : (b))

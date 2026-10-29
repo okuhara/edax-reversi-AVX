@@ -187,4 +187,3 @@
 #define MULTIPV_DEPTH 10
 
 #endif /* EDAX_SETTINGS_H */
-

@@ -3,9 +3,9 @@
  *
  * Header file for opening book management
  *
- * @date 1998 - 2020
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #ifndef EDAX_BOOK_H
@@ -102,4 +102,3 @@ void book_extract_positions(Book*, const int, const int);
 void book_feed_hash(const Book*, Board*, Search*);
 
 #endif /* EDAX_BOOK_H */
-

@@ -3,9 +3,9 @@
  *
  * Header file for game management
  *
- * @date 1998 - 2020
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #ifndef EDAX_GAME_H

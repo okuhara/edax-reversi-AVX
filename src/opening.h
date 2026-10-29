@@ -3,9 +3,9 @@
  *
  * Opening Name aliasing.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #ifndef EDAX_OPENING_NAME
@@ -18,4 +18,3 @@ const char *opening_get_french_name(const struct Board*);
 const char *opening_get_english_name(const struct Board*);
 
 #endif
-

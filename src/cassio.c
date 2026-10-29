@@ -13,8 +13,9 @@
  *  - With "-follow-cassio" Edax will follow more closely Cassio's search request. By default, it
  * searches with settings that make it better in tournament mode against Roxane, Cassio, etc.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2026
  * @author Richard Delorme
+ * @author Stéphane Nicolet
  * @version 4.5
  */
 
@@ -167,7 +168,6 @@ static void engine_wait_input(Engine *engine, char **cmd, char **param)
 static void* engine_input_loop(void *v)
 {
 	Engine *engine = (Engine*) v;
-
 
 	while (engine->event.loop && !feof(stdin) && !ferror(stdin)) {
 		engine_get_input(engine);
@@ -408,8 +408,6 @@ void engine_free(void *v)
 	}
 	log_close(&engine_log);
 }
-
-
 
 void feed_all_hash_table(Search *search, Board *board, const int depth, const int selectivity, const int lower, const int upper, const int move)
 {
@@ -814,4 +812,3 @@ void engine_loop(void)
 		}
 	}
 }
-

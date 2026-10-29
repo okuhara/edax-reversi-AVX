@@ -3,7 +3,7 @@
  *
  * Header file for game base management.
  *
- * @date 1998 - 2024
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @version 4.5
  */
@@ -21,9 +21,9 @@
  * @brief Set wthor header.
  *
  * @param wheader Wthor's file header.
- * @param n_games Game number;
- * @param n  Tourney/player number;
- * @param year Tournament year;
+ * @param n_games Game number.
+ * @param n  Tourney/player number.
+ * @param year Tournament year.
  */
 static void wthor_header_set(WthorHeader *wheader, unsigned int n_games, unsigned int n, unsigned int year)
 {
@@ -49,7 +49,8 @@ static void wthor_header_set(WthorHeader *wheader, unsigned int n_games, unsigne
  * @brief Read wthor header.
  *
  * @param wheader Wthor's file header.
- * @param f Input stream .
+ * @param f Input stream.
+ * @return false if a mistake occurred.
  */
 static bool wthor_header_read(WthorHeader *wheader, FILE *f)
 {
@@ -76,10 +77,11 @@ static bool wthor_header_read(WthorHeader *wheader, FILE *f)
 }
 
 /**
- * @brief Read wthor header.
+ * @brief Write wthor header.
  *
  * @param wheader Wthor's file header.
  * @param f Input stream .
+ * @return false if a mistake occurred.
  */
 static bool wthor_header_write(WthorHeader *wheader, FILE *f)
 {
@@ -166,7 +168,7 @@ static void wthor_players_load(WthorBase *base, const char *file)
 }
 
 /**
- * @brief Load wthor players.
+ * @brief Save wthor players.
  *
  * @param base Wthor base.
  * @param file File name.
@@ -206,6 +208,7 @@ static void wthor_players_save(WthorBase *base, const char *file)
  *
  * @param base Wthor base.
  * @param name Player's name.
+ * @return the index of the player in the database.
  */
 int wthor_player_get(WthorBase *base, const char *name)
 {
@@ -328,6 +331,7 @@ void wthor_init(WthorBase *base)
  *
  * @param base Wthor game base.
  * @param file Game file.
+ * @return true on success.
  */
 bool wthor_load(WthorBase *base, const char *file)
 {
@@ -383,6 +387,7 @@ void wthor_free(WthorBase *base)
  *
  * @param base Wthor game base.
  * @param file Game file name.
+ * @return true on success.
  */
 bool wthor_save(WthorBase *base, const char *file)
 {
@@ -413,6 +418,7 @@ bool wthor_save(WthorBase *base, const char *file)
  *
  * @param base Generic game base.
  * @param wthor Wthor Game base.
+ * @return true on success.
  */
 bool base_to_wthor(const Base *base, WthorBase *wthor)
 {
@@ -440,7 +446,7 @@ bool base_to_wthor(const Base *base, WthorBase *wthor)
  * @brief print a wthor game.
  *
  * @param base Wthor game base.
- * @param i game intex
+ * @param i game index
  * @param f output stream.
  */
 void wthor_print_game(WthorBase *base, int i, FILE *f)
@@ -830,7 +836,6 @@ void base_save(const Base *base, const char *file)
 
 }
 
-
 /**
  * @brief Convert a game database to a set of problems.
  *
@@ -911,10 +916,13 @@ void base_analyze(Base *base, Search *search, const int n_empties, const bool ap
 }
 
 /**
- * @brief Base analysis.
+ * @brief Base completion.
+ *
+ * Terminate the games in the database.
  *
  * @param base Game base.
  * @param search Search engine.
+ * @param level Search level.
  */
 void base_complete(Base *base, Search *search)
 {

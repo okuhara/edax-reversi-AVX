@@ -24,7 +24,7 @@
  * will not impact too much the benefit of using minimal windows. Aspiration
  * windows have been added as another improvement, so that even the first
  * search is done with a reduced window.
- * During the 1990s, several re-re-search algorithms based on null-window
+ * During the 1990s, several re-search algorithms based on null-window
  * alphabeta have been proposed : SSS*ab [2], Dual*ab[2], NegaC*[3], MDT[2],
  * negascout[4]. Some (unpublished) experimental tests I made with them did not
  * show any significant improvement compare to the PVS algorithm with
@@ -52,7 +52,7 @@
  * -# Reinsfeld A. (1983) An Improvement Of the Scout Tree-Search Algorithm. ICCA
  *     journal, 6(4), pp. 4-14.
  *
- * @date 1998 - 2025
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @version 4.5
  */
@@ -126,6 +126,7 @@ const signed char NWS_STABILITY_THRESHOLD[] = { // 99 = unused value...
 
 #if 0
 /** threshold values to try stability cutoff during PVS search */
+// TODO: better values may exist.
 const signed char PVS_STABILITY_THRESHOLD[] = { // 99 = unused value...
 	 99, 99, 99, 99, -2,  0,  2,  4,
 	  6,  8, 12, 14, 16, 18, 20, 22,
@@ -698,7 +699,15 @@ void search_set_move_time(Search *search, const long long t)
 }
 
 /**
- * @brief Initialize the alloted time.
+ * @brief Set the alloted time.
+ *
+ * Two case are considered: time per move & time per game.
+ * For time per move, set the time to move as max(time_per_move - 0.01s, 0.1s) and bound time between 90% & 99% of this time.
+ * For time per game, get the depth where a position can be solved with 10% of the remaining time. Then deduce the moves_to_do
+ * from the current depth and compute the search and dispatch in the different time bound.
+ * Three time bounds are defined:
+ *  - time.mini:
+ *
  *
  * @param search Search.
  */
@@ -772,6 +781,8 @@ void search_time_reset(Search *search, const Board *initial_board)
 
 /**
  * @brief Give more time.
+ *
+ * Use the extra available time when the best move found so far is bad.
  *
  * @param search Search.
  * @param once A flag to prevent further time extension.
@@ -1146,7 +1157,7 @@ void result_print(Result *result, FILE *f)
 	spin_unlock(result);
 }
 
-#if 0	// unused
+#if 0	// not used
 /**
  * @brief Stability Cutoff (SC).
  *

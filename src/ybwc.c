@@ -22,7 +22,7 @@
  * ICCA Journal, Vol. 12, No. 2, pp. 65-73.
  * -# Feldmann R. (1993) Game-Tree Search on Massively Parallel System - PhD Thesis, Paderborn (English version).
  *
- * @date 1998 - 2025
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @version 4.5
  */
@@ -59,7 +59,7 @@ extern Log search_log;
 void node_init(Node* node, Search *search, const int alpha, const int beta, const int depth, const int n_moves, Node* parent)
 {
 	int i;
-	
+
 	assert(node != NULL);
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
 	assert(SCORE_MIN <= beta && beta <= SCORE_MAX);
@@ -107,7 +107,7 @@ void node_free(Node *node)
  * @param master A parent node with an idle task.
  * @param node Searched node.
  * @param move Searched move.
- * @return true if an helper task has been launch, false otherwise.
+ * @return true if a helper task has been launched, false otherwise.
  */
 static bool get_helper(Node *master, Node *node, Move *move)
 {
@@ -274,13 +274,13 @@ void node_update(Node* node, Move *move)
 		}
 		if (score > node->alpha) node->alpha = score;
 	}
-	if (node->alpha >= node->beta  && node->n_slave) { // stop slave ?
+	if (node->alpha >= node->beta && node->n_slave) { // stop slave ?
 		for (i = 0; i < node->n_slave; ++i) {
 			search_stop_all(node->slave[i], STOP_PARALLEL_SEARCH);
 			YBWC_STATS(atomic_add(&statistics.n_stopped_slave, 1);)
 		}
 	}
-	unlock(node);	
+	unlock(node);
 }
 
 /**
@@ -314,7 +314,7 @@ Move* node_first_move(Node *node, MoveList *movelist)
 /**
  * @brief Get the next move of the move list.
  *
- * This is a thread/safe getter of the next move. If the search is stopped,
+ * This is a thread unsafe getter of the next move. If the search is stopped,
  * or an alphabeta cut has been found or no move is available the function
  * returns NULL.
  *
@@ -337,7 +337,7 @@ static Move* node_next_move_lockless(Node *node)
 /**
  * @brief Get the next move of the move list.
  *
- * This is a thread/safe getter of the next move.
+ * This is a thread safe getter of the next move.
  *
  * @param node Node data.
  * @return the next move of the list.
@@ -444,7 +444,7 @@ void task_search(Task *task)
 
 
 /**
- * @brief The main loop runned by a task.
+ * @brief The main loop run by a task.
  *
  * When task->run is set to true, the task starts a parallel search.
  * In order to diminish the parallelism overhead, we do not launch a new
@@ -674,4 +674,3 @@ void task_stack_put_idle_task(TaskStack *stack, Task *task)
 
 	spin_unlock(stack);
 }
-

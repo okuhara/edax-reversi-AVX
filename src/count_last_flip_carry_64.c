@@ -27,11 +27,11 @@
  * For top to bottom flip, LS1B isolation (http://chessprogramming.wikispaces.com/
  * General+Setwise+Operations) is used to get the outflank bit.
  *
- * @date 1998 - 2018
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @author Toshihiko Okuhara
- * @version 4.4
- * 
+ * @version 4.5
+ *
  */
 
 #include "bit.h"

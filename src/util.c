@@ -6,7 +6,7 @@
  * This should be the only file with linux/windows
  * dedicated code.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @version 4.5
  */
@@ -836,7 +836,7 @@ char* parse_time(const char *string, long long *t)
 	double x = 0.0;
 
 	*t = 0;
-	
+
 	if (string) {
 		const char *s = parse_skip_spaces(string);
 		s = parse_int(s, &n);
@@ -907,7 +907,7 @@ void path_get_dir(const char *path, char *dir)
 
 /**
  * @brief Add an extension to a string.
- * 
+ *
  * @param base Base name.
  * @param ext  Extension (.dat, .ext, .bin, etc.)
  * @param file Output file name.
@@ -1024,7 +1024,7 @@ int get_cpu_number(void)
 #elif defined(__APPLE__) /* should also works on any bsd system */
 
 	int mib[4];
-	size_t len; 
+	size_t len;
 
 	mib[0] = CTL_HW;
 	mib[1] = HW_AVAILCPU;

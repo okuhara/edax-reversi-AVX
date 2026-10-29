@@ -14,9 +14,9 @@
  * </ul>
  *
  *
- * @date 1998 - 2017
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 #include "search.h"
 #include "options.h"

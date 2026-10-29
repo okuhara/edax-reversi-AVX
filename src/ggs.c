@@ -3,9 +3,9 @@
  *
  *  A ggs client in C language.
  *
- * @date 2002 - 2020
+ * @date 2002 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #include "board.h"
@@ -156,8 +156,8 @@ typedef struct GGSClient {
 		int i;                  /**< iteration number */
 		long long delay;        /**< delay between commands */
 	} loop;                     /**< loop instruction */
-	struct {                    
-		char *cmd;              /**< command */              
+	struct {
+		char *cmd;              /**< command */
 		long long delay;        /**< delay */
 	} once;		            /**< command issued once after some delay */
 } GGSClient;
@@ -343,7 +343,7 @@ static bool ggs_parse_move(int *move, const char *word) {
 }
 
 /**
- * @brief ggs_parse_move
+ * @brief ggs_parse_time
  *
  * Translate input word into time (as ms).
  *
@@ -414,7 +414,6 @@ static bool ggs_parse_clock(GGSClock *ggsclock, const char *line) {
 
 	return true;
 }
-
 
 /**
  * @brief ggs_player_set
@@ -502,9 +501,7 @@ static void ggs_MBR_free(void* v) {
 }
 
 /**
- * @brief ggs_match_check_destination
- *
- * Check if Edax is concerned by the match.
+ * @brief Check if Edax is concerned by the match.
  *
  * @param player GGS player.
  * @param me Edax's login name.
@@ -570,7 +567,7 @@ static bool ggs_match_on(GGSMatchOn *match, Text *text)
 	match->id = string_duplicate(word);
 
 	line = parse_word(line, word, WORD_SIZE);
-	if (!ggs_player_set(&(match->player[0]), line, word))return false;
+	if (!ggs_player_set(&(match->player[0]), line, word)) return false;
 
 	line = parse_skip_word(line);
 
@@ -793,7 +790,6 @@ static bool ggs_saio_delay(Text *text, long long *delay)
 	return false;
 }
 
-
 /**
  * @brief ggs_admin
  *
@@ -857,7 +853,7 @@ static bool ggs_alert(Text *text)
  * Parse a login request from a GGS input text.
  *
  * @param text GGS input text.
- * @return 'true' if the text is "ALERT".
+ * @return 'true' if the text is a correct login.
  */
 static bool ggs_login(Text *text)
 {
@@ -871,7 +867,7 @@ static bool ggs_login(Text *text)
  * Parse a login password from a GGS input text.
  *
  * @param text GGS input text.
- * @return 'true' if the text is "ALERT".
+ * @return 'true' if the text is a correct password.
  */
 static bool ggs_password(Text *text)
 {
@@ -1524,7 +1520,7 @@ void ui_loop_ggs(UI *ui) {
 			if (ggs_has_player(client->match_off.player, client->me)) {
 				ggs_printf("[received GGS_MATCH_OFF]\n");
 
-				// store the game in yhe opening book (standard game only)
+				// store the game in the opening book (standard game only)
 				if (!client->match_on.match_type.is_rand) {
 					if (client->match_on.match_type.is_synchro) {
 						ggs_printf("[store match #1]\n");
@@ -1628,4 +1624,3 @@ void ui_free_ggs(UI *ui) {
 	free(ui->ggs);
 	log_close(&ggs_log);
 }
-
