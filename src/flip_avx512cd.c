@@ -95,7 +95,7 @@ const V8DI lrmask[66] = {
  * @return partially reduced flipped disc pattern.
  */
 
-#ifdef AVX512_PREFER512	// AVX512(512)
+#if 0 // AVX512(512) - Substantially slower even on Zen 5
 __m128i vectorcall mm_Flip(const __m128i OP, int pos)
 {
 	__m512i mask = lrmask[pos].v8;
