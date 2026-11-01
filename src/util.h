@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <time.h>
 
 struct Board;
 struct Move;
