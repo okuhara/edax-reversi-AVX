@@ -73,12 +73,8 @@
   #endif
 #endif
 
-/** SOLID usage: should not be defined
- *  Takuro Yamana pointed out the current implementation has a potential bug
- *  when final score includes empties for the winner.
- *  It is not very effective as well.
- *  http://www.amy.hi-ho.ne.jp/okuhara/edaxopt.htm#dogaishi
- */
+/** SOLID usage */
+// Node decrease is just 0.1% in this implementation.
 // #define USE_SOLID true
 
 /** use stability cutoff more often to work best with solid stone */
