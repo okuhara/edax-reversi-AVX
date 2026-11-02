@@ -840,13 +840,18 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 		if (search->eval.n_empties <= depth && depth <= DEPTH_TO_USE_LOCAL_HASH && depth > DEPTH_TO_SHALLOW_SEARCH) {
 			vBoard hashboard;
   #ifdef USE_SOLID
-			unsigned long long solid = get_all_full_lines(search->board.player | search->board.opponent) & 0x3c7effffffff7e3c & search->board.player;
-			if (solid) {
-				int ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
-				hashboard.bb.player = search->board.player ^ solid;	// normalize solid to opponent
-				hashboard.bb.opponent = search->board.opponent ^ solid;
-				vhash_store_local(search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask),
-					hashboard, alpha - ofssolid, beta - ofssolid, node.bestscore - ofssolid, node.bestmove);
+			unsigned long long solid = get_all_full_lines(search->board.player | search->board.opponent) & 0x3c7effffffff7e3c;
+			int ofssolid = bit_count(solid) * 2;
+			// apply only if ofssolid will not alter the winner, i.e. the window is apart enough from 0.
+			if (((alpha > ofssolid) && (node.bestscore > ofssolid)) || ((beta < -ofssolid) && (node.bestscore < -ofssolid))) {
+				solid &= search->board.player;
+				if (solid) {
+					ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
+					hashboard.bb.player = search->board.player ^ solid;	// normalize solid to opponent
+					hashboard.bb.opponent = search->board.opponent ^ solid;
+					vhash_store_local(search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask),
+						hashboard, alpha - ofssolid, beta - ofssolid, node.bestscore - ofssolid, node.bestmove);
+				}
 			}
   #endif
 			hashboard.bb = search->board;

@@ -476,24 +476,27 @@ static int NWS_endgame_local(Search *search, const int alpha)
 	ofssolid = 0;
 #ifdef USE_SOLID
 	if (USE_SC && alpha >= NWS_STABILITY_SOLID_THRESHOLD) {	// (7%)
-		unsigned long long full[5];
+		unsigned long long full[5], solid;
 
 		CUTOFF_STATS(++statistics.n_stability_try;)
 		score = SCORE_MAX - 2 * get_stability_fulls(search->board.opponent, search->board.player, full);
 		if (score <= alpha) {	// (3%)
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return score;
+		}
 
-		} else {
-			// Improvement of Serch by Reducing Redundant Information in a Position of Othello
-			// Hidekazu Matsuo, Shuji Narazaki
-			// http://id.nii.ac.jp/1001/00156359/
-				// exclude corners from solid to absorb get_full_lines anormalies
-			unsigned long long solid = full[4] & 0x3c7effffffff7e3c & search->board.player;	// full[4] = all full
+		// Improvement of Serch by Reducing Redundant Information in a Position of Othello
+		// Hidekazu Matsuo, Shuji Narazaki
+		// http://id.nii.ac.jp/1001/00156359/
+			// exclude corners from solid to absorb get_full_lines anormalies
+		solid = full[4] & 0x3c7effffffff7e3c;	// full[4] = all full
   #ifndef POPCOUNT
-			if (solid)	// (72%)
+		if (solid)	// (72%)
   #endif
-			{
+			// Takuro Yamana pointed out the old implementation has a potential bug
+			// when final score includes empties for the winner. (4.5.6)
+			if (bit_count(solid) * 2 < alpha) {	// i.e. ofssolid will not alter the winner (alpha > 0 here)
+				solid &= search->board.player;
   #ifdef hasSSE2
 				hashboard.v2 = _mm_xor_si128(hashboard.v2, _mm_set1_epi64x(solid));
   #else
@@ -502,7 +505,6 @@ static int NWS_endgame_local(Search *search, const int alpha)
   #endif
 				ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
 			}
-		}
 	}
 #else
 	if (search_SC_NWS(search, alpha, &score)) return score;
