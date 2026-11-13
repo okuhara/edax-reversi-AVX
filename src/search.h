@@ -61,6 +61,15 @@ extern struct Level {
 } LEVEL[61][61];
 
 
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && !defined(__STDC_NO_ATOMICS__)
+	#include <stdatomic.h>
+	#define	ATOMIC	_Atomic
+	#define	search_set_state(search,stp)	atomic_store_explicit(&(search)->stop, (stp), memory_order_release)
+	#define search_get_state(search)	atomic_load_explicit(&(search)->stop, memory_order_acquire)
+#else
+	#define	ATOMIC	volatile
+#endif
+
 /** search stare */
 typedef struct Search {
 	Board board;                                  /**< othello board (16) */
@@ -92,7 +101,7 @@ typedef struct Search {
 	int selectivity;                              /**< selectivity level */
 	int probcut_level;                            /**< probcut recursivity level */
 	int depth_pv_extension;                       /**< depth for pv_extension */
-	volatile Stop stop;                           /**< thinking status */
+	ATOMIC Stop stop;                           /**< thinking status */
 	bool allow_node_splitting;                    /**< allow parallelism */
 	struct {
 		long long  extra;                         /**< extra alloted time */
@@ -208,7 +217,6 @@ void iterative_deepening(Search*, int, int);
 void* search_run(void*);
 int search_guess(Search*, const Board*);
 void search_stop_all(Search*, const Stop);
-void search_set_state(Search*, const Stop);
 
 void search_observer(Result*);
 void search_set_observer(Search*, void (*Observer)(Result*));
@@ -222,6 +230,16 @@ void pv_debug(Search*, const Move*, FILE*);
 int search_get_pv_cost(Search*);
 void show_current_move(FILE *f, Search*, const Move*, const int, const int, const bool);
 int search_bound(const Search*, int);
+
+#ifndef search_set_state
+  #ifdef INTEGER_NOT_ATOMIC	// practically load/store an integer is atomic on all CPUs.
+	void search_set_state(Search*, const Stop);
+	Stop search_get_state(Search*);
+  #else
+	#define	search_set_state(search,stp)	((search)->stop = (stp))
+	#define search_get_state(search)	((search)->stop)
+  #endif
+#endif
 
 #if defined(hasSSE2) || defined(__ARM_NEON) || defined(USE_GAS_X86) || defined(USE_MSVC_X86) || defined(ANDROID)
   #ifdef __AVX2__
@@ -255,4 +273,3 @@ int search_bound(const Search*, int);
 #endif
 
 #endif
-

@@ -1,7 +1,7 @@
 /**
  * @file base.h
  *
- * Header file for game base management
+ * Header file for game base management.
  *
  * @date 1998 - 2026
  * @author Richard Delorme
@@ -35,6 +35,10 @@ typedef struct WthorHeader {
 	int n_games;               /**< number of games */
 } WthorHeader;
 
+/**
+ * struct WthorBase
+ * @brief A set of games using the Wthor format.
+*/
 typedef struct WthorBase {
 	WthorHeader header;        /** Header */
 	char (*tournament)[26];    /** tournaments */
@@ -45,6 +49,10 @@ typedef struct WthorBase {
 	int n_games;               /** n_games */
 } WthorBase;
 
+/**
+ * struct Base
+ * @brief a set of games.
+ */
 typedef struct Base {
 	Game *game;
 	int n_games;
@@ -70,14 +78,13 @@ void wthor_edaxify(const char*);
 void base_init(Base*);
 void base_free(Base*);
 bool base_load(Base*, const char*);
-void base_save(const Base*, const char*);
+void base_save(const Base*, const char*, const bool);
 void base_append(Base*, const Game*);
 void base_to_problem(Base*, const int, const char*);
 void base_to_FEN(Base*, const int, const char*);
 void base_analyze(Base*, struct Search*, const int, const bool);
-void base_complete(Base*, struct Search*);
+void base_complete(Base*, struct Search*, const int);
 void base_unique(Base*);
 void base_compare(const char*, const char*);
 
 #endif /* EDAX_BASE_H */
-

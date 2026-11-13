@@ -96,7 +96,7 @@ void game_init(Game *game)
 /**
  * @brief Game copy.
  *
- * TODO: check if parameter's order is consistant all over the program
+ * TODO: check if parameter's order is consistent all over the program
  * @param dest Destination Game.
  * @param src Source Game.
  */
@@ -149,6 +149,9 @@ bool wthor_equals(const WthorGame *game_1, const WthorGame *game_2)
 /**
  * @brief update a board.
  *
+ * @param board Board to update.
+ * @param x Square to move on.
+ * @return true on success.
  */
 bool game_update_board(Board *board, int x)
 {
@@ -166,7 +169,9 @@ bool game_update_board(Board *board, int x)
 
 /**
  * @brief update a player.
- *
+ * @param board Board to update.
+ * @param x Square to move on.
+ * @return true on success.
  */
 static bool game_update_player(Board *board, int x)
 {
@@ -288,7 +293,7 @@ void text_to_game(const char *line, Game *game)
 
 /**
  * @brief Convert game to a text (ascii).
- * @param game The intput game.
+ * @param game The input game.
  * @param line A move sequence in ascii.
  */
 void game_to_text(const Game *game, char *line)
@@ -304,7 +309,7 @@ void game_to_text(const Game *game, char *line)
 /**
  * @brief convert an allinf.oko game to a Game.
  *
- * This was a serie of games played by early M. Buro's logistello
+ * This was a series of games played by early M. Buro's logistello
  * against I. Durdanovic's programs.
  *
  * @param oko A single input game.
@@ -355,7 +360,7 @@ void wthor_to_game(const WthorGame *thor, Game *game)
 }
 
 /**
- * @brief convert a Game to a Whor game.
+ * @brief convert a Game to a Wthor game.
  *
  * The wthor format is famous as all main event
  * games are recorded into this format.
@@ -722,7 +727,7 @@ void game_export_ggf(const Game *game, FILE *f)
 	char move_string[3] = "xx";
 
 	fputs("(;GM[othello]PC[Edax]", f);
-//	t = time(NULL); 
+//	t = time(NULL);
 //	date = localtime(&t);
 //	fprintf(f, "DT[%d.%2d.%2d_%2d:%2d:%2d]", date->tm_year + 1900, date->tm_mon + 1, date->tm_mday, date->tm_hour, date->tm_min, date->tm_sec);
 	fprintf(f, "PB[%s]PW[%s]", game->name[BLACK], game->name[WHITE]);
@@ -1281,7 +1286,7 @@ void game_export_eps(const Game *game, FILE *f)
 	char s[8];
 
 	fputs(	"%!PS-Adobe-3.0 EPSF-3.0\n"
-		"%%Creator: Edax-3.0\n", f);
+		"%%Creator: Edax-" VERSION_STRING "\n", f);
 	fprintf(f, "%%%%CreationDate:  %d/%d/%d %d:%d:%d\n", date->tm_year + 1900, date->tm_mon + 1, date->tm_mday, date->tm_hour, date->tm_min, date->tm_sec);
 	fputs(	"%%BoundingBox: 0 0 200 200\n\n"
 		"%%BeginProlog\n\n"
@@ -1400,19 +1405,21 @@ void game_export_eps(const Game *game, FILE *f)
 		}
 	}
 
-	fputs(	"\n\t% draw the moves\n"
-		"\t/Utopia-Bold findfont 12 scalefont setfont\n", f);
-	player = game->player;
-	for (i = 0; i < 60 && game->move[i] != NOMOVE; ++i) {
-		if (!can_move(board.player, board.opponent)) {
-			player = !player;
+	if (game->move[0]) {
+		fputs( "\n\t% draw the moves\n"
+		       "\t/Utopia-Bold findfont 12 scalefont setfont\n", f);
+		player = game->player;
+		for (i = 0; i < 60 && game->move[i] != NOMOVE; ++i) {
+			if (!can_move(board.player, board.opponent)) {
+				player = !player;
+			}
+			if (game_update_board(&board, game->move[i])) {
+				fprintf(f, "\t(%d) %s move_%s\n", i + 1,  move_to_string(game->move[i], BLACK, s), s_player[player]);
+				player = !player;
+			}
 		}
-		if (game_update_board(&board, game->move[i])) {
-			fprintf(f, "\t(%d) %s move_%s\n", i + 1,  move_to_string(game->move[i], BLACK, s), s_player[player]);
-			player = !player;
-		}
+		fputc('\n', f);
 	}
-	fputc('\n', f);
 	fputs("grestore\n", f);
 }
 
@@ -1587,7 +1594,7 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
 			warn("\nillegal move %s in game:\n", move_to_string(game->move[i], player, s));			
 			game_export_text(game, stderr);
 			board_print(&board, player, stderr);
-			fprintf(stderr, "\n\n");			
+			fprintf(stderr, "\n\n");
 			return 1; // stop, illegal moves
 		}
 	}
@@ -1632,7 +1639,7 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
  * @param search Search analyzer.
  * @return number of iterations to terminate the game.
  */
-int game_complete(Game *game, Search *search)
+int game_complete(Game *game, Search *search, const int level)
 {
 	Board board;
 	const int verbosity = search->options.verbosity;
@@ -1659,14 +1666,12 @@ int game_complete(Game *game, Search *search)
 		}
 
 		search_set_board(search, &board, player);
+		search_set_level(search, level, search->eval.n_empties);
 		search_run(search);
 		if (search->result->depth == search->eval.n_empties && search->result->selectivity == NO_SELECTIVITY) {
 			game_append_line(game, &search->result->pv, i);
 		} else {
 			game->move[i] = search->result->move;
-		}
-		if (search->result->score != 0) {
-			putchar('\n'); search->observer(search->result);
 		}
 	}
 

@@ -1,13 +1,13 @@
 /**
  * @file count_last_flip_sve_lzcnt.c
  *
- * A function is provided to count the number of fipped disc of the last move.
+ * A function is provided to count the number of flipped disc of the last move.
  *
  * Count last flip using the flip_sve_lzcnt way.
  * For optimization purpose, the value returned is twice the number of flipped
  * disc, to facilitate the computation of disc difference.
  *
- * @date 2024 - 25
+ * @date 2025
  * @author Toshihiko Okuhara
  * @version 4.5
  * 

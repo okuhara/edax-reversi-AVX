@@ -3,9 +3,9 @@
  *
  * Go Text Protocol
  *
- * @date 1998 - 2020
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #include "options.h"
@@ -218,7 +218,7 @@ void ui_loop_gtp(UI *ui)
 				if (play_must_pass(play)) {
 					play_move(play, PASS);
 				} else {
-					gtp_fail("wrong color", has_id, id);
+					gtp_fail("wrong color", id, has_id);
 					continue;
 				}
 			 }
@@ -239,7 +239,7 @@ void ui_loop_gtp(UI *ui)
 				if (play_must_pass(play)) {
 					play_move(play, PASS);
 				} else {
-					gtp_fail("wrong color", has_id, id);
+					gtp_fail("wrong color", id, has_id);
 					continue;
 				}
 			}
@@ -250,7 +250,7 @@ void ui_loop_gtp(UI *ui)
 		// optional GTP commands but needed or supported by Quarry
 		} else if (strcmp(cmd, "undo") == 0) {
 			if (play->i_game <= 0) {
-				gtp_fail("cannot undo", has_id, id);
+				gtp_fail("cannot undo", id, has_id);
 			} else {
 				play_undo(play);
 				gtp_send("", id, has_id);
@@ -310,7 +310,7 @@ void ui_loop_gtp(UI *ui)
 				if (play_must_pass(play)) {
 					play_move(play, PASS);
 				} else {
-					gtp_fail("wrong color", has_id, id);
+					gtp_fail("wrong color", id, has_id);
 					continue;
 				}
 			}
@@ -331,5 +331,3 @@ void ui_loop_gtp(UI *ui)
 		}
 	}
 }
-
-

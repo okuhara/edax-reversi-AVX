@@ -52,7 +52,7 @@ void hash_init(HashTable *hash_table, const unsigned long long size)
 	assert(hash_table != NULL);
 	assert((n_way & -n_way) == n_way);
 
-	info("< init hashtable of %llu entries>\n", size);
+	info("[init hashtable of %llu entries]\n", size);
 	if (hash_table->hash != NULL) free(hash_table->memory);
 	hash_table->memory = malloc((size + n_way + 1) * sizeof (Hash));
 	if (hash_table->memory == NULL) {
@@ -93,7 +93,7 @@ void hash_cleanup(HashTable *hash_table)
 
 	assert(hash_table != NULL && hash_table->hash != NULL);
 
-	info("< cleaning hashtable >\n");
+	info("[Cleaning hashtable]\n");
 
   #if defined(hasSSE2) || defined(USE_MSVC_X86)
 	if (hasSSE2 && (sizeof(Hash) == 24) && (((size_t) pHash & 0x1f) == 0) && (imax > 7)) {
@@ -144,7 +144,7 @@ void hash_clear(HashTable *hash_table)
 
 	if (hash_table->date == 127) hash_cleanup(hash_table);
 	++hash_table->date;
-	info("< clearing hashtable -> date = %d>\n", hash_table->date);
+	info("[clearing hashtable -> date = %d]\n", hash_table->date);
 	assert(hash_table->date > 0 && hash_table->date <= 127);
 }
 
@@ -433,17 +433,7 @@ static bool hash_reset(Hash *hash, HashLock *lock, const Board *board, HashStore
 				if (hash->data.lower < storedata->data.lower) hash->data.lower = storedata->data.lower;
 				if (hash->data.upper > storedata->data.upper) hash->data.upper = storedata->data.upper;
 			} else {
-				hash->data.lower = storedata->data.lower;
-				hash->data.upper = storedata->data.upper;
-			}
-			hash->data.wl = storedata->data.wl;
-			if (storedata->data.move[0] != NOMOVE) {
-				// if (hash->data.move[0] != storedata->data.move[0]) {
-					hash->data.move[1] = hash->data.move[0];
-					hash->data.move[0] = storedata->data.move[0];
-				// } else {
-				//	hash->data.move[1] = storedata->data.move[0];
-				// }
+				hash->data = storedata->data;
 			}
 			ok = true;
 		}
@@ -540,61 +530,6 @@ void hash_store(HashTable *hash_table, const Board *board, const unsigned long l
 	HASH_COLLISIONS(storedata->hash_code = hash_code;)
 	hash_new(worst, lock, board, storedata);
 }
-
-/**
- * @brief Thead local (lockfree), 1-way version of hash_store
- * http://www.amy.hi-ho.ne.jp/okuhara/edaxopt.htm#localhash
- * https://github.com/Nyanyan/Egaroucid/pull/294
- *
- * @param hash   Hash table entry to update.
- * @param alpha  Alpha bound when calling the alphabeta function.
- * @param beta   Beta bound when calling the alphabeta function.
- * @param score  Best score found.
- * @param board  Bitboard.
- * @param move   Best move found.
- */
-static inline void data_update_local(Hash *hash, int alpha, int beta, int score, int move)
-{
-	if (score < beta && score < hash->data.upper) hash->data.upper = score;
-	if (score > alpha) {
-		if (score > hash->data.lower) hash->data.lower = score;
-		hash->data.move[0] = move;
-	}
-}
-
-static inline void data_new_local(Hash *hash, int alpha, int beta, int score, int move)
-{
-	hash->data.upper = (score < beta) ? score : SCORE_MAX;
-	if (score <= alpha) {
-		score = SCORE_MIN;
-		move = NOMOVE;
-	}
-	hash->data.lower = score;
-	hash->data.move[0] = move;
-}
-
-#ifdef hasSSE2
-void vectorcall hash_store_local(Hash *hash, int alpha, int beta, int score, __m128i board, int move)
-{
-	vBoard vboard = { board };
-	if (vboard_equal(vboard, &hash->board)) {
-		data_update_local(hash, alpha, beta, score, move);
-	} else {
-		_mm_storeu_si128((__m128i *) &hash->board, vboard.v2);
-		data_new_local(hash, alpha, beta, score, move);
-	}
-}
-#else
-void hash_store_local(Hash *hash, Board *board, int alpha, int beta, int score, int move)
-{
-	if (board_equal(board, &hash->board)) {
-		data_update_local(hash, alpha, beta, score, move);
-	} else {
-		hash->board = *board;
-		data_new_local(hash, alpha, beta, score, move);
-	}
-}
-#endif
 
 /**
  * @brief Store an hashtable item.
@@ -713,18 +648,13 @@ void hash_exclude_move(HashTable *hash_table, const Board *board, const unsigned
 	hash = hash_table->hash + (hash_code & hash_table->hash_mask);
 	for (i = 0; i < HASH_N_WAY; ++i) {
 		if (board_equal(&hash->board, board)) {
-			// HashLock *lock = hash_table->lock + (hash_code & hash_table->lock_mask);
-			// spin_lock(lock);
-			// if (board_equal(&hash->board, board)) {
-				if (hash->data.move[0] == move) {
-					hash->data.move[0] = hash->data.move[1];
-					hash->data.move[1] = NOMOVE;
-				} else if (hash->data.move[1] == move) {
-					hash->data.move[1] = NOMOVE;
-				}
-				hash->data.lower = SCORE_MIN;
-			// }
-			// spin_unlock(lock);
+			if (hash->data.move[0] == move) {
+				hash->data.move[0] = hash->data.move[1];
+				hash->data.move[1] = NOMOVE;
+			} else if (hash->data.move[1] == move) {
+				hash->data.move[1] = NOMOVE;
+			}
+			hash->data.lower = SCORE_MIN;
 			return;
 		}
 		++hash;
@@ -742,7 +672,7 @@ void hash_copy(const HashTable *src, HashTable *dest)
 	unsigned int i;
 
 	assert(src->hash_mask == dest->hash_mask);
-	info("<hash copy>\n");
+	info("[hash copy]\n");
 	for (i = 0; i <= src->hash_mask + HASH_N_WAY; ++i) {
 		dest->hash[i] = src->hash[i];
 	}
@@ -764,3 +694,72 @@ void hash_print(const HashData *data, FILE *f)
 	fprintf(f, "score = [%+02d, %+02d] ; ", data->lower, data->upper);
 	fprintf(f, "level = %2d:%2d:%2d@%3d%%", data->wl.c.date, data->wl.c.cost, data->wl.c.depth, selectivity_table[data->wl.c.selectivity].percent);
 }
+
+/**
+ * @brief Thead local (lockfree), 1-way version of hash_store
+ * http://www.amy.hi-ho.ne.jp/okuhara/edaxopt.htm#localhash
+ * https://github.com/Nyanyan/Egaroucid/pull/294
+ *
+ * Find an hash table entry according to the evaluated board hash codes.  Lower
+ * and upper score bounds are then updated/set from the alpha, beta and score
+ * values according to the following alphabeta property (where alpha < beta):
+ *     -if (score >= beta) score is a lower bound of the real score
+ *     -if (score <= alpha) score is an upper bound of the real score
+ *     -if (alpha < score && score < beta) score equals the real score
+ * So:
+ *     -if (score < beta) update the upper bound of the hash entry
+ *     -if (score > alpha) update the lower bound of the hash entry
+ * The best move is also stored, but only if score >= alpha.
+ */
+static inline void data_update_local(Hash *hash, int alpha, int beta, int score, int move)
+{
+	if (score < beta && score < hash->data.upper) hash->data.upper = score;
+	if (score > alpha) {
+		if (score > hash->data.lower) hash->data.lower = score;
+		hash->data.move[0] = move;
+	}
+}
+
+static inline void data_new_local(Hash *hash, int alpha, int beta, int score, int move)
+{
+	hash->data.upper = (score < beta) ? score : SCORE_MAX;
+	if (score <= alpha) {
+		score = SCORE_MIN;
+		move = NOMOVE;
+	}
+	hash->data.lower = score;
+	hash->data.move[0] = move;
+}
+
+/**
+ * @brief Store an hashtable item
+ *
+ * @param hash   Hash table entry to update.
+ * @param alpha  Alpha bound when calling the alphabeta function.
+ * @param beta   Beta bound when calling the alphabeta function.
+ * @param score  Best score found.
+ * @param board  Bitboard.
+ * @param move   Best move found.
+ */
+#ifdef hasSSE2
+void vectorcall hash_store_local(Hash *hash, int alpha, int beta, int score, __m128i board, int move)
+{
+	vBoard vboard = { board };
+	if (vboard_equal(vboard, &hash->board)) {
+		data_update_local(hash, alpha, beta, score, move);
+	} else {
+		_mm_storeu_si128((__m128i *) &hash->board, vboard.v2);
+		data_new_local(hash, alpha, beta, score, move);
+	}
+}
+#else
+void hash_store_local(Hash *hash, Board *board, int alpha, int beta, int score, int move)
+{
+	if (board_equal(board, &hash->board)) {
+		data_update_local(hash, alpha, beta, score, move);
+	} else {
+		hash->board = *board;
+		data_new_local(hash, alpha, beta, score, move);
+	}
+}
+#endif

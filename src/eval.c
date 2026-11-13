@@ -19,6 +19,7 @@
 
 #include <stdlib.h>
 #include <assert.h>
+#include <time.h>
 
 #if !defined(VECTOR_EVAL_UPDATE) && !defined(hasSSE2) && !defined(__ARM_NEON)
 
@@ -480,9 +481,6 @@ Eval_weight (*EVAL_WEIGHT)[EVAL_N_2PLY - 1];	// for 2..53
 /** opponent feature */
 static unsigned short *OPPONENT_FEATURE;
 
-/** evaluation function error coefficient parameters */
-static double EVAL_A, EVAL_B, EVAL_C, EVAL_a, EVAL_b, EVAL_c;
-
 /**
  * @brief Opponent feature.
  *
@@ -636,6 +634,7 @@ void eval_open(const char* file)
 
 	// data reading
 	w = (short*) malloc(n_w * sizeof (*w)); // a temporary to read packed weights
+	if (w == NULL) fatal_error("Cannot allocate evaluation packed weights.\n");
 	f = fopen(file, "rb");
 	if (f == NULL) {
 		fprintf(stderr, "Cannot open %s", file);
@@ -701,12 +700,12 @@ void eval_open(const char* file)
 	free(w);
 	free(P);
 
-	/*if (version == 3 && release == 2 && build == 5)*/ {
-		EVAL_A = -0.10026799, EVAL_B = 0.31027733, EVAL_C = -0.57772603;
-		EVAL_a = 0.07585621, EVAL_b = 1.16492647, EVAL_c = 5.4171698;
+	if (options.info) {
+		time_t t = (time_t) date;
+		fprintf(stderr, "[Evaluation function weights version %u.%u.%u loaded, date: ", version, release, build);
+		date_print(t, stderr);
+		fprintf(stderr, "]\n");
 	}
-
-	info("<Evaluation function weights version %u.%u.%u loaded>\n", version, release, build);
 
 	// f = fopen("eval.bin", "wb");
 	// fwrite(*EVAL_WEIGHT, sizeof(Eval_weight), EVAL_N_PLY, f);
@@ -947,6 +946,9 @@ void eval_pass(Eval *eval)
  */
 double eval_sigma(const int n_empty, const int depth, const int probcut_depth)
 {
+	static const double EVAL_A = -0.10026799, EVAL_B = 0.31027733, EVAL_C = -0.57772603;
+	static const double EVAL_a = 0.07585621, EVAL_b = 1.16492647, EVAL_c = 5.4171698;
+
 	double sigma;
 
 	sigma = EVAL_A * n_empty + EVAL_B * depth + EVAL_C * probcut_depth;

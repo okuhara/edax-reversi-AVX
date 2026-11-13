@@ -67,6 +67,17 @@
 	#define ALIGN16(typ)	typ
 #endif
 
+// threadlocal
+#if __STDC_VERSION__ >= 201112L
+        #define threadlocal	_Thread_local
+#elif defined(__thread)
+	#define	threadlocal	__thread
+#elif defined(_MSC_VER)
+        #define threadlocal	__declspec(thread)
+#else
+	#define threadlocal
+#endif
+
 #ifndef __has_builtin  // Compatibility with non-clang compilers.
 	#define __has_builtin(x) 0
 #endif

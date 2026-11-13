@@ -3,9 +3,9 @@
  *
  * List of empty squares.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #ifndef EDAX_EMPTY_H
@@ -18,9 +18,10 @@ typedef struct SquareList {
 } SquareList;
 
 /**
- * @brief remove an empty square from the list.
+ * @brief Remove an empty square from the list.
  *
  * @param empty  empty square.
+ * @param x Square to remove.
  */
 static inline void empty_remove(SquareList *empty, int x)
 {
@@ -31,9 +32,10 @@ static inline void empty_remove(SquareList *empty, int x)
 }
 
 /**
- * @brief restore the list of empty squares
+ * @brief Restore an empty square into the list of empty squares.
  *
  * @param empty  empty square.
+ * @param x Square to restore.
  */
 static inline void empty_restore(SquareList *empty, int x)
 {

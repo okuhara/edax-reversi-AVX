@@ -271,4 +271,4 @@ extern unsigned char edge_stability[256 * 256];
 	#define	vboard_equal(v,b)	board_equal(&(v).bb, (b))
 #endif
 
-#endif
+#endif // EDAX_BOARD_H

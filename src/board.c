@@ -20,7 +20,6 @@
 #include "board.h"
 
 #include "bit.h"
-#include "hash.h"
 #include "move.h"
 #include "util.h"
 
@@ -102,9 +101,10 @@ void board_swap_players(Board *board)
  * @param string string describing the board
  * @return turn's color.
  */
-int board_set(Board *board, const char *s)
+int board_set(Board *board, const char *string)
 {
 	int i;
+	const char *s = string;
 	unsigned long long b = 1;
 
 	board->player = board->opponent = 0;
@@ -145,7 +145,7 @@ int board_set(Board *board, const char *s)
 		}
 	}
 
-	warn("board_set: bad string input\n");
+	warn("board_set: bad string input: %s\n", string);
 	return EMPTY;
 }
 
@@ -182,6 +182,9 @@ int board_from_FEN(Board *board, const char *string)
 			return EMPTY;
 		}
 	}
+
+	// check for truncated FEN
+	if (i != 8) return EMPTY;
 
 	s = parse_skip_spaces(s);
 	if (*s == 'b') {
@@ -247,8 +250,7 @@ bool board_lesser(const Board *b1, const Board *b2)
  * @brief symetric board
  *
  * @param board input board
- * @param s symmetry
- * @param sym symetric output board
+ * @param sym output board, horizontally mirrored
  */
 #if !defined(hasSSE2) && !defined(__ARM_NEON)	// SSE version in board_sse.c
 void board_horizontal_mirror(const Board *board, Board *sym)
@@ -257,18 +259,37 @@ void board_horizontal_mirror(const Board *board, Board *sym)
 	sym->opponent = horizontal_mirror(board->opponent);
 }
 
+/**
+ * @brief Mirror a board vertically
+ *
+ * @param board input board
+ * @param sym output board, vertically mirrored
+ */
 void board_vertical_mirror(const Board *board, Board *sym)
 {
 	sym->player = vertical_mirror(board->player);
 	sym->opponent = vertical_mirror(board->opponent);
 }
 
+/**
+ * @brief Mirror a board  horizontally
+ *
+ * @param board input board
+ * @param sym output board, horrizontally mirrored
+ */
 void board_transpose(const Board *board, Board *sym)
 {
 	sym->player = transpose(board->player);
 	sym->opponent = transpose(board->opponent);
 }
 
+/**
+ * @brief symmetric board
+ *
+ * @param board input board
+ * @param s symmetry
+ * @param sym symmetric output board
+ */
 void board_symmetry(const Board *board, const int s, Board *sym)
 {
 	*sym = *board;
@@ -483,7 +504,7 @@ unsigned long long board_next(const Board *board, const int x, Board *next)
  *
  * Partially compute a bitboard where each coordinate with a legal move is set to one.
  *
- * Two variants of the algorithm are provided, one based on Kogge-Stone parallel
+ * Three variants of the algorithm are provided, one based on Kogge-Stone parallel
  * prefix.
  *
  * @param P bitboard with player's discs.
@@ -781,7 +802,7 @@ static int find_edge_stable(const int old_P, const int old_O, int stable)
 }
 
 /**
- * @brief Initialize the edge stability table.
+ * @brief Initialize the edge stability tables.
  */
 void edge_stability_init(void)
 {
@@ -1241,7 +1262,7 @@ char* board_to_FEN(const Board *board, const int player, char *string)
 	static const char color[2] = "bw";
 	int n_empties = 0;
 	char *s = string;
-	static char local_string[128];
+	static threadlocal char local_string[128];
 
 	if (s == NULL) s = string = local_string;
 

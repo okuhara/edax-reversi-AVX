@@ -2,7 +2,7 @@
  * @file count_last_flip_carry_64.c
  *
  *
- * A function is provided to count the number of fipped disc of the last move
+ * A function is provided to count the number of flipped disc of the last move
  * for each square of the board. These functions are gathered into an array of
  * functions, so that a fast access to each function is allowed. The generic
  * form of the function take as input the player bitboard and return twice

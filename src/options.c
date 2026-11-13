@@ -8,10 +8,9 @@
  * @version 4.5
  */
 
+#include "const.h"
 #include "options.h"
-#include "stats.h"
 #include "util.h"
-#include "search.h"
 
 #include <string.h>
 #include <ctype.h>
@@ -39,7 +38,7 @@ Options options = {
 	true, // transgress cassio
 
 	TIME_MAX, // infinite time
-	21, // max level
+	24, // default level
 	EDAX_FIXED_LEVEL, // play-type
 	-1, // depth
 	-1, // selectivity
@@ -101,7 +100,6 @@ void options_usage(void)
 		"  -width <n>                    line width.\n"
 		"  -h|hash-table-size <nbits>    hash table size.\n"
 		"  -n|n-tasks <n>                search in parallel using n tasks.\n"
-		"  -cpu                          search using 1 cpu/thread.\n"
 #ifdef __APPLE__
 		"\nCassio protocol options:\n"
 		"  -debug-cassio                 print extra-information in cassio.\n"
@@ -202,7 +200,7 @@ int options_read(const char *option, const char *value)
 
 		else if (strcmp(option, "game-file") == 0) options.game_file = string_duplicate(value);
 
-		else if (strcmp(option, "eval-file") == 0) options.eval_file = string_duplicate(value);	// 11/13/2015
+		else if (strcmp(option, "eval-file") == 0) options.eval_file = string_duplicate(value);
 
 		else if (strcmp(option, "book-file") == 0) options.book_file = string_duplicate(value);
 		else if (strcmp(option, "book-usage") == 0) parse_boolean(value, &options.book_allowed);
@@ -225,37 +223,10 @@ int options_read(const char *option, const char *value)
 	}
 
 	if (read) {
-		info("<set option %s %s>\n", option, value);
+		info("[set option %s %s]\n", option, value);
 	}
 
 	return read;
-}
-
-
-/**
- * @brief parse an option from a string
- *
- * A line of the form:  <code>"[set] option [=] value"</code>
- * is parse into two strings: <code>option</code> and <code>value</code>.
- * The "set" and "=" are optionnal.
- * This function assume all string sizes are sufficient.
- *
- * @param line The string to parse.
- * @param option A string to be filled with the option name.
- * @param value A string to be filled with the option value.
- * @param size option & value string capacity.
- * @return remaining of the string.
- */
-static const char* option_parse(const char *line, char *option, char *value, int size)
-{
-	line = parse_word(line, option, size);
-	if (strcmp(option, "set") == 0) line = parse_word(line, option, size);
-	line = parse_word(line, value, size);
-	if (strcmp(value, "=") == 0) line = parse_word(line, value, size);
-
-	options_read(option, value);
-
-	return line;
 }
 
 /**
@@ -265,16 +236,24 @@ static const char* option_parse(const char *line, char *option, char *value, int
  */
 void options_parse(const char *file)
 {
-	char *line, *option, *value;
+	char *line, *option, *value, *word;
 	FILE *f = fopen(file, "r");
 
 	if (f != NULL) {
 
 		while ((line = string_read_line(f)) != NULL) {
-			size_t n = strlen(line);
-			option = (char*) malloc(n + 1);
-			value = (char*) malloc(n + 1);
-			option_parse(line, option, value, n);
+			size_t size = strlen(line);
+			option = (char*) malloc(size + 1);
+			if (option == NULL) fatal_error("Cannot allocate option string.\n");
+			value = (char*) malloc(size + 1);
+			if (value == NULL) fatal_error("Cannot allocate value string.\n");
+
+			word = parse_word(line, option, size);
+			if (strcmp(option, "set") == 0) word = parse_word(word, option, size);
+			word = parse_word(word, value, size);
+			if (strcmp(value, "=") == 0) word = parse_word(word, value, size);
+			options_read(option, value);
+
 			free(line); free(option); free(value);
 		}
 
@@ -308,6 +287,8 @@ void options_bound(void)
 	BOUND(options.alpha, SCORE_MIN, SCORE_MAX, "alpha");
 	BOUND(options.beta, SCORE_MIN, SCORE_MAX, "beta");
 
+	BOUND(options.probcut_d, 0.05, 0.45, "probcut_d");
+
 	BOUND(options.speed, 1e5, 1e12, "speed");
 
 	if (options.alpha > options.beta) {
@@ -330,18 +311,18 @@ void options_bound(void)
 void options_dump(FILE *f)
 {
 	const char *(play_type[3]) = {"fixed depth", "fixed time per game", "fixed time per move"};
-	const char *(boolean_string[2]) = {"false", "true"};
-	const char *(mode[4]) = {"human/edax", "edax/human", "edax/edax", "human/human"};	
+	const char *(bool_string[2]) = {"false", "true"};
+	const char *(mode[4]) = {"human/edax", "edax/human", "edax/edax", "human/human"};
 
 	fprintf(f, "search display options\n");
 	fprintf(f, "\tverbosity: %d\n", options.verbosity);
 	fprintf(f, "\tminimal depth (noise): %d\n", options.noise);
 	fprintf(f, "\tline width: %d\n", options.width);
-	fprintf(f, "\tuser input echo: %s\n", boolean_string[options.echo]);
-	fprintf(f, "\t<detailed info>: %s\n\n", boolean_string[options.info]);
+	fprintf(f, "\tuser input echo: %s\n", bool_string[options.echo]);
+	fprintf(f, "\t<detailed info>: %s\n\n", bool_string[options.info]);
 	fprintf(f, "Cassio options\n");
-	fprintf(f, "\tdisplay debug info in Cassio's 'fenetre de rapport': %s\n", boolean_string[options.debug_cassio]);
-	fprintf(f, "\tadapt Cassio requests to search & solve faster: %s\n\n", boolean_string[options.transgress_cassio]);
+	fprintf(f, "\tdisplay debug info in Cassio's 'fenetre de rapport': %s\n", bool_string[options.debug_cassio]);
+	fprintf(f, "\tadapt Cassio requests to search & solve faster: %s\n\n", bool_string[options.transgress_cassio]);
 
 	fprintf(f, "\tsearch options\n");
 	fprintf(f, "\tsize (in number of bits) of the hash table: %d\n", options.hash_table_size);
@@ -350,17 +331,17 @@ void options_dump(FILE *f)
 	fprintf(f, "\tsearch level: %d\n", options.level);
 	fprintf(f, "\tsearch alloted time:"); time_print(options.time, false, stdout); fprintf(f, "\n");
 	fprintf(f, "\tsearch with: %s\n", play_type[options.play_type]);
-	fprintf(f, "\tsearch pondering: %s\n", boolean_string[options.can_ponder]);
+	fprintf(f, "\tsearch pondering: %s\n", bool_string[options.can_ponder]);
 	fprintf(f, "\tsearch depth: %d\n", options.depth);
 	fprintf(f, "\tsearch selectivity: %d\n", options.selectivity);
 	fprintf(f, "\tsearch speed %.0f N/s\n", options.speed);
 	fprintf(f, "\tsearch nps %.0f N/s\n", options.nps);
 	fprintf(f, "\tsearch alpha: %d\n", options.alpha);
 	fprintf(f, "\tsearch beta: %d\n", options.beta);
-	fprintf(f, "\tsearch all best moves: %s\n", boolean_string[options.all_best]);
+	fprintf(f, "\tsearch all best moves: %s\n", bool_string[options.all_best]);
 	fprintf(f, "\teval file: %s\n", options.eval_file);
 	fprintf(f, "\tbook file: %s\n", options.book_file);
-	fprintf(f, "\tbook allowed: %s\n", boolean_string[options.book_allowed]);
+	fprintf(f, "\tbook allowed: %s\n", bool_string[options.book_allowed]);
 	fprintf(f, "\tbook randomness: %d\n\n", options.book_randomness);
 
 	fprintf(f, "ggs options\n");
@@ -368,12 +349,12 @@ void options_dump(FILE *f)
 	fprintf(f, "\tport: %s\n", options.ggs_port ? options.ggs_port : "?");
 	fprintf(f, "\tlogin: %s\n", options.ggs_login ? options.ggs_login : "?");
 	fprintf(f, "\tpassword: %s\n", options.ggs_password ? options.ggs_password : "?");
-	fprintf(f, "\topen: %s\n\n", boolean_string[options.ggs_open]);
+	fprintf(f, "\topen: %s\n\n", bool_string[options.ggs_open]);
 
 	fprintf(f, "PV options\n");
-	fprintf(f, "\tdebug: %s\n", boolean_string[options.pv_debug]);
-	fprintf(f, "\tcheck: %s\n", boolean_string[options.pv_check]);
-	fprintf(f, "\tguess: %s\n\n", boolean_string[options.pv_guess]);
+	fprintf(f, "\tdebug: %s\n", bool_string[options.pv_debug]);
+	fprintf(f, "\tcheck: %s\n", bool_string[options.pv_check]);
+	fprintf(f, "\tguess: %s\n\n", bool_string[options.pv_guess]);
 
 	fprintf(f, "game file: %s\n", options.game_file ? options.game_file : "?");
 
@@ -386,10 +367,10 @@ void options_dump(FILE *f)
 
 	fprintf(f, "Game play\n");
 	fprintf(f, "\tmode: %s\n", mode[options.mode]);
-	fprintf(f, "\tstart a new game after a game is over: %s\n", boolean_string[options.auto_start]);
-	fprintf(f, "\tstore each played game in the opening book: %s\n", boolean_string[options.auto_start]);
-	fprintf(f, "\tchange computer's side after each game: %s\n", boolean_string[options.auto_start]);
-	fprintf(f, "\tquit when game is over: %s\n", boolean_string[options.auto_start]);
+	fprintf(f, "\tstart a new game after a game is over: %s\n", bool_string[options.auto_start]);
+	fprintf(f, "\tstore each played game in the opening book: %s\n", bool_string[options.auto_store]);
+	fprintf(f, "\tchange computer's side after each game: %s\n", bool_string[options.auto_swap]);
+	fprintf(f, "\tquit when game is over: %s\n", bool_string[options.auto_quit]);
 	fprintf(f, "\trepeat %d games (before exiting)\n\n\n", options.repeat);
 }
 

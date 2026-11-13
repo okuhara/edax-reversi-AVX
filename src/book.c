@@ -95,17 +95,6 @@ static inline bool link_write(const Link *link, FILE *f)
 }
 
 /**
- * @brief check if a link is unvalid.
- *
- * @param link checked link.
- * @return true if link is unvalid, false otherwise.
- */
-static inline bool link_is_bad(const Link *link)
-{
-	return link->score == -SCORE_INF;
-}
-
-/**
  * struct Position
  * @brief A position stored in the book.
  */
@@ -269,36 +258,6 @@ static void position_init(Position *position)
 	position->level = 0;
 	position->done = true;
 	position->todo = false;
-}
-
-/**
- * @brief Merge a position with another one.
- *
- * A position is merged if its level is > to the destination position; or == and
- * its leaf move is not contains into the destination link moves.
- *
- * Note: link moves are not copied. This can be done later with position_link().
- *
- * @param dest Destination position.
- * @param src Source position.
- */
-static void position_merge(Position *dest, const Position *src)
-{
-	Link *l;
-
-	position_init(dest);		//??? dest->n_link = 0,
-	dest->board = src->board;
-	if (dest->level == src->level) {
-		foreach_link(l, dest) {	// so this does nothing
-			if (l->move == src->leaf.move) return;
-		}
-		dest->leaf = src->leaf;
-	} else if (dest->level > src->level) {
-		return;
-	} else {
-		dest->leaf = src->leaf;
-		dest->level = src->level;
-	}
 }
 
 /**
@@ -828,7 +787,7 @@ static int position_negamax(Position *position, Book *book)
 		GameStats stat = {0,0,0,0};
 		const int n_empties = board_count_empties(&position->board);
 		const int search_depth = LEVEL[position->level][n_empties].depth;
-		const int bias = (search_depth & 1) - (n_empties & 1);
+		const int bias = (search_depth & 1) - (n_empties & 1); // error adjustment when search depth parity differs from the number of empties parity
 
 		position->done = 1;
 
@@ -912,6 +871,40 @@ static void position_prune(Position *position, Book *book, const int player_devi
 		if (book->stats.n_todo % BOOK_INFO_RESOLUTION == 0) {
 			bprint("Book prune %d to keep\r", book->stats.n_todo);
 
+		}
+	}
+}
+
+/**
+ * @brief Mark a position to play.
+ *
+ * Here we look for all the positions with no link and mark them todo them.
+ *
+ * @param position Position to expand.
+ * @param book Opening book.
+ * @param depth Number of moves to play.
+ */
+static void position_mark_to_play(Position *position, Book *book)
+{
+	Link *l;
+	Board target;
+	Position *child;
+
+	// if position is not done yet & good enough & inside the book height limit
+	if (!position->done && board_count_empties(&position->board) >= book->options.n_empties && !board_is_game_over(&position->board)) {
+		position->done = true;
+
+		// seek for all children with no link
+		foreach_link(l, position) {
+			board_next(&position->board, l->move, &target);
+			child = book_probe(book, &target);
+			position_mark_to_play(child, book);
+		}
+
+		// expand the leaf is it has no link
+		if (position->n_link == 0) {
+			position->todo = true; book->stats.n_todo++;
+			if (book->stats.n_todo % 10 == 0) bprint("Book play %d todo\r", book->stats.n_todo);
 		}
 	}
 }
@@ -1027,29 +1020,26 @@ static void position_extend(Position *position, Book *book)
  *
  * @param position Position to expand.
  * @param book Opening book.
+ * @param n_empties Number of empties to reach.
  */
-static void position_play(Position *position, Book *book)
+static void position_play(Position *position, Book *book, const int n_empties)
 {
-	Link *l;
-	Board target;
-	Position *child;
+	Position child;
 
-	// if position is not done yet & good enough & inside the book height limit
-	if (!position->done && board_count_empties(&position->board) >= book->options.n_empties && !board_is_game_over(&position->board)) {
-		position->done = true;
+	search_cleanup(book->search);
+	while (position->leaf.move != NOMOVE && board_count_empties(&position->board) >= n_empties) {
+		position_init(&child);
 
-		// seek for all children with no link
-		foreach_link(l, position) {
-			board_next(&position->board, l->move, &target);
-			child = book_probe(book, &target);
-			position_play(child, book);
-		}
+		board_next(&position->board, position->leaf.move, &child.board);
 
-		// expand the leaf is it has no link
-		if (position->n_link == 0) {
-			position->todo = true; book->stats.n_todo++;
-			if (book->stats.n_todo % 10 == 0) bprint("Book play %d todo\r", book->stats.n_todo);
-		}
+		child.level = position->level;
+		position_link(&child, book);
+		position_search(&child, book);
+		position->leaf.score = -child.score.value;
+		position_search(position, book);                     // TODO inverse me with position_search(&child, ...?
+		position_unique(&child);
+		book_add(book, &child);
+		position = book_probe(book, &child.board);
 	}
 }
 
@@ -1099,8 +1089,39 @@ static void position_enhance(Position *position, Book *book)
 			}
 
 			if (lower >= position->score.lower || upper >= position->score.upper) {
-				position->todo = true;
+				position->todo = true; book->stats.n_todo++;
 			}
+		}
+	}
+}
+
+/**
+ * @brief Exhaust a position.
+ *
+ * Here we exhaustively add all moves to the book from this position.
+ *
+ * @param position Position to expand.
+ * @param book Opening book.
+ */
+static void position_exhaust(Position *position, Book *book)
+{
+	Board target;
+	Position *child;
+	Link *l;
+
+	if (!position->done && board_count_empties(&position->board) >= book->options.n_empties && !board_is_game_over(&position->board)) {
+		position->done = true;
+		uint64_t moves = board_get_moves(&position->board);
+
+		foreach_link(l, position) {
+			board_next(&position->board, l->move, &target);
+			moves ^= x_to_bit(l->move);
+			child = book_probe(book, &target);
+			position_exhaust(child, book);
+		}
+
+		if (moves) {
+			position->todo = true; book->stats.n_todo++;
 		}
 	}
 }
@@ -1526,7 +1547,7 @@ void book_load(Book *book, const char *file)
 		int i;
 		int r;
 
-		info("Loading book from %s...", file);
+		info("[Loading book from %s...", file);
 		r = fread(&header_edax, sizeof (unsigned int), 1, f);
 		r += fread(&header_book, sizeof (unsigned int), 1, f);
 		if (r != 2 || header_edax != EDAX || header_book != BOOK) {
@@ -1575,7 +1596,7 @@ void book_load(Book *book, const char *file)
 		random_seed(&book->random, real_clock());
 		book->need_saving = false;
 
-		info("done\n");
+		info("done]\n");
 		fclose(f);
 	} else {
 		book_new(book, options.level, 60 - get_book_depth(options.level));
@@ -1646,16 +1667,15 @@ void book_export(Book *book, const char *file)
 		return;
 	}
 
-	info("Exporting book to %s...", file);
+	info("[Exporting book to %s...", file);
 	foreach_position(p, a, book) {
 		if (!position_export(p, f)) {
 			error("cannot export book to %s", file);
-			goto book_export_end;
+			fclose(f);
+			return;
 		}
 	}
-	info("done\n");
-
-book_export_end:
+	info("done]\n");
 	fclose(f);
 }
 
@@ -1681,7 +1701,7 @@ void book_save(Book *book, const char *file)
 		return;
 	}
 
-	info("Saving book to %s...", file);
+	info("[Saving book to %s...", file);
 	book_set_date(book);
 
 	r = fwrite(&header_edax, sizeof (unsigned int), 1, f);
@@ -1696,13 +1716,12 @@ void book_save(Book *book, const char *file)
 		foreach_position(p, a, book) {
 			if (!position_write(p, f)) {
 				error("\nCannot save book to %s", file);
-				goto book_write_end;
+				fclose(f);
+				return;
 			}
 		}
 	}
-	info("done\n");
-
-book_write_end:
+	info("done]\n");
 	fclose(f);
 }
 
@@ -1721,9 +1740,12 @@ void book_merge(Book *dest, const Book *src)
 	const Position *p_src;
 	Position p_dest;
 
+	position_init(&p_dest);
 	foreach_position(p_src, a, src) {
 		if (!book_probe(dest, &p_src->board)) {
-			position_merge(&p_dest, p_src);
+			p_dest.board = p_src->board;
+			p_dest.leaf = p_src->leaf;
+			p_dest.level = p_src->level;
 			book_add(dest, &p_dest);
 		}
 	}
@@ -2056,36 +2078,45 @@ void book_extend(Book *book, const Board *board)
  * @param board The boardd positioin to add.
  * @param n_empties Play moves until this number of empty squares on the board.
  */
-void book_play(Book *book, const Board *board)
+void book_play(Book *book, const Board *board, const int n_empties)
 {
+	PositionArray *a;
+	Position *p;
+	int i = 0, k;
+	uint64_t t = real_clock();
 	Position *root = book_probe(book, board);
-	if (root) {
-		int n_diffs;
-		char file[FILENAME_MAX + 1];
+	char file[FILENAME_MAX + 1];
 
+	if (root) {
 		file_add_ext(options.book_file, ".play", file);
 		book_clean(book);
 		position_negamax(root, book);
-		do {
 
-			bprint("Book play...:\n");
-			book_clean(book);
-			position_play(root, book);
-			bprint("Book play %d todo\n", book->stats.n_todo);
+		bprint("Book play...:\n");
+		book_clean(book);
+		position_mark_to_play(root, book);
+		bprint("Book play %d todo\n", book->stats.n_todo);
 
-			book_expand(book, "Book play", file);
-			n_diffs = book->stats.n_nodes + book->stats.n_links;
+		for (a = book->array; a < book->array + book->n; ++a)
+		for (k = 0; k < a->n; ++k) { // do not use foreach_positions here! a->positions may change!
+			p = a->positions + k;
+			if (p->todo) {
+				position_play(p, book, n_empties);
+				bprint("book_play...%d/%d done: %d positions, %d links\r", ++i, book->stats.n_todo, book->stats.n_nodes, book->stats.n_links);
+				if (book->search->options.verbosity >= 2) putchar('\n'); else putchar('\r');
 
-			root = book_probe(book, board);
-			book_clean(book);
-			position_negamax(root, book);
-			if (n_diffs) book_save(book, file);
-		} while (n_diffs);
-		bprint("Book play... finished\n");
+				if (real_clock() - t > HOUR) {
+					book_save(book, file); // save every hour
+					t = real_clock();
+				}
+			}
+		}
+		book_clean(book);
+		position_negamax(root, book);
 	}
+
+	bprint("book_play...%d/%d done: %d positions, %d links\n", i, book->stats.n_todo, book->stats.n_nodes, book->stats.n_links);
 }
-
-
 
 /**
  * @brief Prune a book.
@@ -2113,7 +2144,10 @@ void book_prune(Book *book)
 		position_prune(root, book, 0, 2*SCORE_INF, -SCORE_INF, SCORE_INF);
 		bprint("Book prune %d... done\n", book->stats.n_todo);
 		for (a = book->array; a < book->array + book->n; ++a)
-		for (i = 0; i < a->n; ++i) if (!a->positions[i].done) {book_remove(book, a->positions + i); --i;}
+		for (i = 0; i < a->n; ++i) if (!a->positions[i].done) {
+			book_remove(book, a->positions + i);
+			--i;
+		}
 		foreach_position(p, a, book) position_remove_links(p, book);
 		bprint("done\n");
 	}
@@ -2172,11 +2206,11 @@ void book_enhance(Book *book, Board *board, const int midgame_error, const int e
 		position_negamax(root, book);
 
 		do {
-			bprint("Book enhance %d %d...%d %d:\n", midgame_error, endcut_error, book->stats.n_nodes, book->stats.n_links);
 			book_clean(book);
 			position_enhance(root, book);
-			n_diffs = book->stats.n_nodes + book->stats.n_links;
+			bprint("Book enhance %d %d...%d %d:\n", midgame_error, endcut_error, book->stats.n_nodes, book->stats.n_links);
 			book_expand(book, "Book enhance", file);
+			n_diffs = book->stats.n_nodes + book->stats.n_links;
 
 			root = book_probe(book, board);
 			book_clean(book);
@@ -2188,7 +2222,42 @@ void book_enhance(Book *book, Board *board, const int midgame_error, const int e
 }
 
 /**
- * @brief display some book's informations.
+ *  @brief "Exhaust" a book.
+ *
+ *  Add all positions from the current position to a certain depth into the opening book.
+ *
+ * @param book Opening book.
+ * @param board Position to start from.
+ */
+void book_exhaust(Book *book, Board *board) {
+	Position *root = book_probe(book, board);
+	if (root) {
+		int n_diffs;
+		char file[FILENAME_MAX + 1];
+
+		file_add_ext(options.book_file, ".exh", file);
+
+		book_clean(book);
+		position_negamax(root, book);
+
+		do {
+			bprint("Book exhaust\r");
+			book_clean(book);
+			position_exhaust(root, book);
+			book_expand(book, "Book exhaust", file);
+			n_diffs = book->stats.n_nodes + book->stats.n_links;
+
+			root = book_probe(book, board);
+			book_clean(book);
+			position_negamax(root, book);
+			if (n_diffs) book_save(book, file);
+		} while (n_diffs);
+		bprint("Book exhaust ...finished\n");
+	}
+}
+
+/**
+ * @brief display some book's information.
  *
  * @param book opening book.
  */
@@ -2542,7 +2611,7 @@ void book_check_base(Book *book, const Base *base)
 		book_check_game(book, &hash, base->game + i, &stat);
 	}
 	movehash_delete(&hash);
-    bprint("Positions : %llu missing, %llu good, %llu bad (%.2f%% bad)\n", stat.missing, stat.good, stat.bad, (100.0 * stat.bad)/(stat.bad + stat.good));
+	bprint("Positions : %llu missing, %llu good, %llu bad (%.2f%% bad)\n", stat.missing, stat.good, stat.bad, (100.0 * stat.bad)/(stat.bad + stat.good));
 }
 
 
@@ -2651,6 +2720,67 @@ void book_extract_positions(Book *book, const int n_empties, const int n_positio
 			}
 		}
 	}
+}
+
+/**
+ * @brief Extract book lines to a game base
+ *
+ * Recursively add move to a PV until no move are available,
+ * where we dump the PV to a game data base.
+ *
+ * @param book Opening book.
+ * @param board Starting position.
+ * @param pv Previous moves leading to the starting  position.
+ * @param base game database.
+ */
+static void extract_all(Book *book, Board *board, Line *pv, Base *base)
+{
+	MoveList movelist;
+	Move *move;
+	Board init;
+	Game game;
+	Position *position;
+
+	position = book_probe(book, board);
+	if (position && !position->done) {
+		position->done = true;
+		position_get_moves(position, board, &movelist);
+		foreach_move(move, movelist) {
+			board_update(board, move); line_push(pv, move->x);
+				extract_all(book, board, pv, base);
+			board_restore(board, move); line_pop(pv);
+		}
+	} else if (pv->n_moves) {
+		board_init(&init);
+		line_to_game(&init, pv, &game);
+		base_append(base, &game);
+		if (base->n_games % 1000 == 0) {
+			bprint("extracting %d games\r", base->n_games);
+		}
+	}
+}
+
+/**
+ * @brief Extract book to a game base
+ *
+ * This function only consider games starting by F5, the other lines being symmetrical.
+ *
+ * @param book Opening book.
+ * @param base game database.
+ */
+void book_extract_all(Book *book, Base *base)
+{
+	Line pv;
+	Board board;
+
+	book_clean(book);
+	line_init(&pv, BLACK);
+	line_push(&pv, F5);
+	board_init(&board);
+	board_next(&board, F5, &board);
+	extract_all(book, &board, &pv, base);
+
+	bprint("%d games extracted   \n", base->n_games);
 }
 
 /**

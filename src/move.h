@@ -3,7 +3,7 @@
  *
  * @brief Move & list of moves management - header file.
  *
- * @date 1998 - 2023
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @version 4.5
  */
@@ -107,4 +107,3 @@ void movehash_delete(MoveHash*);
 bool movehash_append(MoveHash*, const struct Board*, const int);
 
 #endif
-

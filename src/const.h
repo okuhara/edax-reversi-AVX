@@ -15,10 +15,10 @@
 #define MAX_THREADS 256
 
 /**
- * Maximal number of moves is 33.
+ * Maximal number of moves is 33 in legal positions, 34 in random positions.
  * For a proof, see: https://doi.org/10.51094/jxiv.480
  */
-#define MAX_MOVE 33
+#define MAX_MOVE 34
 
 /** size of the board */
 #define BOARD_SIZE 64
@@ -85,8 +85,8 @@ typedef enum {
 
 #define VERSION 4
 #define RELEASE 5
-#define VERSION_STRING "4.5.6"
-#define EDAX_NAME "Edax 4.5.6"
+#define VERSION_STRING "4.5.7"
+#define EDAX_NAME "Edax 4.5.7"
 #define BOOK 0x424f4f4b
 #define EDAX 0x45444158
 #define EVAL 0x4556414c

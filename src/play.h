@@ -3,9 +3,9 @@
  *
  * @brief Edax play control - header file.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 
@@ -102,4 +102,3 @@ const char* play_show_opening_name(Play*, const char *(*opening_get_name)(const 
 #define	play_must_pass(play)	board_is_pass(&(play)->board)
 
 #endif
-

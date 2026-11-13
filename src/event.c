@@ -10,7 +10,6 @@
 
 #include "event.h"
 #include "util.h"
-#include "options.h"
 
 #include <stdlib.h>
 
@@ -90,7 +89,7 @@ void event_free(Event *event)
  * @param event Event.
  * @param message New message.
  */
-void event_add_message(Event *event, char *message) 
+void event_add_message(Event *event, char *message)
 {
 	char **new_ring;
 	int new_size, i;
@@ -117,7 +116,7 @@ void event_add_message(Event *event, char *message)
 	}
 
 	event->ring[last] = message;
-	info("<event add [%d]: %s>\n", last, message);
+	info("[event add [%d]: %s]\n", last, message);
 
 	spin_unlock(event);
 }
@@ -144,7 +143,7 @@ void event_wait(Event *event, char **cmd, char **param)
 	free(*cmd);
 	free(*param);
 
-	info("<event wait: %s>\n", message);
+	info("[event wait: %s]\n", message);
 
 	n = strlen(message);
 	*cmd = (char*) malloc(n + 1);

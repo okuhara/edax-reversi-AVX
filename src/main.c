@@ -11,7 +11,6 @@
 
 #include "board.h"
 #include "cassio.h"
-#include "hash.h"
 #include "obftest.h"
 #include "options.h"
 #include "perft.h"
@@ -27,7 +26,7 @@
  */
 void version(void)
 {
-	fprintf(stderr, "Edax version " VERSION_STRING " " __DATE__ " " __TIME__
+	printf("Edax version " VERSION_STRING " " __DATE__ " " __TIME__
 #if defined(__linux__)
 		" for Linux"
 #elif defined(_WIN32)
@@ -35,7 +34,7 @@ void version(void)
 #elif defined(__APPLE__)
 		" for Apple"
 #endif
-		"\ncopyright 1998 - 2025 Richard Delorme, Toshihiko Okuhara\n\n");
+		"\ncopyright 1998 - 2026 Richard Delorme, Toshihiko Okuhara\n\n");
 }
 
 /**
@@ -53,7 +52,8 @@ void usage(void)
 		" -cassio Cassio protocol.\n"
 		" -solve <problem_file>    Automatic problem solver/checker.\n"
 		" -wtest <wthor_file>      Test edax using WThor's theoric score.\n"
-		" -count <level>           Count positions up to <level>.\n");
+		" -count <level>           Count positions up to <level>.\n"
+		" -complete <in> <out>     Complete a database.\n");
 	options_usage();
 }
 
@@ -68,10 +68,15 @@ void usage(void)
 int main(int argc, char **argv)
 {
 	UI *ui;
+	Search search;
+	Base base;
 	int i, r, level = 0, size = 8;
 	char *problem_file = NULL;
 	char *wthor_file = NULL;
 	char *count_type = NULL;
+	char *base_in = NULL;
+	char *base_out = NULL;
+	bool count_pass = true;
 	int n_bench = 0;
 
 	// options.n_task default to system cpu number
@@ -96,6 +101,7 @@ int main(int argc, char **argv)
 		else if (ui_switch(ui, arg)) ;
 		else if ((r = (options_read(arg, argv[i + 1]))) > 0) i += r - 1;
 		else if (strcmp(arg, "solve") == 0 && argv[i + 1]) problem_file = argv[++i];
+		else if (strcmp(arg, "complete") == 0 && argv[i + 1] && argv[i + 2]) { base_in = argv[++i]; base_out = argv[++i]; }
 		else if (strcmp(arg, "wtest") == 0 && argv[i + 1]) wthor_file = argv[++i];
 		else if (strcmp(arg, "bench") == 0 && argv[i + 1]) n_bench = atoi(argv[++i]);
 		else if (strcmp(arg, "count") == 0 && argv[i + 1]) {
@@ -103,6 +109,10 @@ int main(int argc, char **argv)
 			if (argv[i + 1]) level = string_to_int(argv[++i], 0);
 			if (argv[i + 1] && strcmp(argv[i + 1], "6x6") == 0) {
 				size = 6;
+				++i;
+			}
+			if (argv[i + 1] && strcmp(argv[i + 1], "skip-pass") == 0) {
+				count_pass = false;
 				++i;
 			}
 		}
@@ -119,7 +129,6 @@ int main(int argc, char **argv)
 
 	// solver & tester
 	if (problem_file || wthor_file || n_bench) {
-		Search search;
 		search_init(&search);
 		search.options.header = " depth|score|       time   |  nodes (N)  |   N/s    | principal variation";
 		search.options.separator = "------+-----+--------------+-------------+----------+---------------------";
@@ -129,12 +138,21 @@ int main(int argc, char **argv)
 		if (n_bench) obf_speed(&search, n_bench);
 		search_free(&search);
 
+	} else if (base_in && base_out){
+		search_init(&search);
+		base_init(&base);
+		base_load(&base, base_in);
+		base_complete(&base, &search, options.level);
+		base_save(&base, base_out, false);
+		base_free(&base);
+		search_free(&search);
+
 	} else if (count_type){
 		Board board;
 		board_init(&board);
-		if (strcmp(count_type, "games") == 0) quick_count_games(&board, level, size);
-		else if (strcmp(count_type, "positions") == 0) count_positions(&board, level, size);
-		else if (strcmp(count_type, "shapes") == 0) count_shapes(&board, level, size);
+		if (strcmp(count_type, "games") == 0) quick_count_games(&board, level, count_pass, size);
+		else if (strcmp(count_type, "positions") == 0) count_positions(&board, level, count_pass, size);
+		else if (strcmp(count_type, "shapes") == 0) count_shapes(&board, level, count_pass, size);
 
 	} else if (ui->type == UI_CASSIO) {
 		engine_loop();

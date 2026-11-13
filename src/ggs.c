@@ -15,7 +15,6 @@
 #include "ui.h"
 
 #include <assert.h>
-#include <ctype.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -83,18 +82,12 @@ typedef struct GGSMatchType {
 	int size;       /**< game size */
 } GGSMatchType;
 
-/* match off message */
-typedef struct GGSMatchOff {
-	char *id;              /**< match id */
-	GGSPlayer player[2];   /**< match players */
-} GGSMatchOff;
-
-/* match on message */
-typedef struct GGSMatchOn {
+/* match off/on message */
+typedef struct GGSMatch {
 	char *id;                   /**< match id */
 	GGSPlayer player[2];        /**< match players */
 	GGSMatchType match_type;    /**< match type */
-} GGSMatchOn;
+} GGSMatch;
 
 /* match request message */
 typedef struct GGSRequest {
@@ -144,8 +137,8 @@ typedef struct GGSEvent {
 typedef struct GGSClient {
 	GGSBoard board;             /**< ggs board */
 	GGSRequest request;         /**< ggs request */
-	GGSMatchOn match_on;        /**< ggs match on */
-	GGSMatchOff match_off;      /**< ggs match off */
+	GGSMatch match_on;          /**< ggs match on */
+	GGSMatch match_off;         /**< ggs match off */
 	GGSAdmin admin;             /**< ggs admin */
 	GGSEvent event;             /**< ggs event */
 	const char *me;             /**< Edax's name on GGS */
@@ -432,6 +425,7 @@ static bool ggs_player_set(GGSPlayer *player, const char *name, const char *rati
 	if (name == NULL || *name == '\0') return false;
 
 	parse_word(name, word, WORD_SIZE);
+	free(player->name);
 	player->name = string_duplicate(word);
 
 	rating = parse_skip_spaces(rating);
@@ -472,32 +466,19 @@ static void ggs_match_type_set(GGSMatchType *type, const char *word) {
 
 
 /**
- * @brief ggs_player_free
- *
- * Free a GGS player structure.
- *
- * @param player GGS player.
- */
-static void ggs_player_free(GGSPlayer *player) {
-	assert(player);
-	free(player->name);
-	player->name = NULL;
-}
-
-/**
- * @brief ggs_MBR_free
- *
- * Free a GGS MatchOn/Off / Board / Request structure.
+ * @brief Free a GGS MatchOn/Off / Board / Request structure.
  *
  * @param v GGS match/Board or Request structure.
  */
 static void ggs_MBR_free(void* v) {
-	GGSMatchOff *m = (GGSMatchOff*) v;
+	GGSMatch *m = (GGSMatch*) v;
 	assert(m);
 	free(m->id);
-	m->id = 0;
-	ggs_player_free(m->player);
-	ggs_player_free(m->player + 1);
+	m->id = NULL;
+	free(m->player[0].name);
+	free(m->player[1].name);
+	m->player[0].name = NULL;
+	m->player[1].name = NULL;
 }
 
 /**
@@ -531,7 +512,7 @@ static bool ggs_request(GGSRequest *request, Text *text)
 		if (strcmp("+", word) == 0) {
 			if (*line) {
 				line = parse_word(line, word, WORD_SIZE);
-				request->id = string_duplicate(word);
+				free(request->id); request->id = string_duplicate(word);
 				return true;
 			}
 		}
@@ -541,15 +522,15 @@ static bool ggs_request(GGSRequest *request, Text *text)
 }
 
 /**
- * @brief ggs_match_on
+ * @brief ggs_match
  *
- * Parse a "match on" from a GGS input text.
+ * Parse a "match on/off" from a GGS input text.
  *
  * @param match GGS match on.
  * @param text GGS input text.
  * @return 'true' if the text is a valid match start.
  */
-static bool ggs_match_on(GGSMatchOn *match, Text *text)
+static bool ggs_match(GGSMatch *match, Text *text, char * on_off)
 {
 	const char *line = text->line[0];
 	char word[WORD_SIZE];
@@ -558,7 +539,7 @@ static bool ggs_match_on(GGSMatchOn *match, Text *text)
 	if (strcmp("/os:", word) != 0) return false;
 
 	line = parse_word(line, word, WORD_SIZE);
-	if (strcmp("+", word) != 0) return false;
+	if (strcmp(on_off, word) != 0) return false;
 
 	line = parse_word(line, word, WORD_SIZE);
 	if (strcmp("match", word) != 0) return false;
@@ -579,9 +560,23 @@ static bool ggs_match_on(GGSMatchOn *match, Text *text)
 	ggs_match_type_set(&match->match_type, word);
 
 	line = parse_word(line, word, WORD_SIZE);
-	match->match_type.is_rated = (strcmp(word, "R") == 0) ? 1 : 0;
+	match->match_type.is_rated = (strcmp(word, "R") == 0 || strcmp(word, "T") == 0);
 
 	return true;
+}
+
+/**
+ * @brief ggs_match_on
+ *
+ * Parse a "match on" from a GGS input text.
+ *
+ * @param match GGS match on.
+ * @param text GGS input text.
+ * @return 'true' if the text is a valid match start.
+ */
+static bool ggs_match_on(GGSMatch *match, Text *text)
+{
+	return ggs_match(match, text, "+");
 }
 
 /**
@@ -593,31 +588,9 @@ static bool ggs_match_on(GGSMatchOn *match, Text *text)
  * @param text GGS input text.
  * @return 'true' if the text is a valid match end.
  */
-static bool ggs_match_off(GGSMatchOff *match, Text *text)
+static bool ggs_match_off(GGSMatch *match, Text *text)
 {
-	const char *line = text->line[0];
-	char word[WORD_SIZE];
-
-	line = parse_word(line, word, WORD_SIZE);
-	if (strcmp("/os:", word) != 0) return false;
-
-	line = parse_word(line, word, WORD_SIZE);
-	if (strcmp("-", word) != 0) return false;
-
-	line = parse_word(line, word, WORD_SIZE);
-	if (strcmp("match", word) != 0) return false;
-
-	line = parse_word(line, word, WORD_SIZE);
-	match->id = string_duplicate(word);
-
-	line = parse_word(line, word, WORD_SIZE);
-	if (!ggs_player_set(&(match->player[0]), line, word)) return false;
-	line = parse_skip_word(line);
-
-	line = parse_word(line, word, WORD_SIZE);
-	if (!ggs_player_set(&(match->player[1]), line, word)) return false;
-
-	return true;
+	return ggs_match(match, text, "-");
 }
 
 /**
@@ -653,7 +626,7 @@ static bool ggs_board(GGSBoard *board, Text *text)
 
 	if (*line == '\0') return false;
 	line = parse_word(line, word, WORD_SIZE);
-	board->id = string_duplicate(word);
+	free(board->id); board->id = string_duplicate(word);
 
 	if (*line == '\0') return false;
 	line = parse_word(line, word, WORD_SIZE);
@@ -666,7 +639,7 @@ static bool ggs_board(GGSBoard *board, Text *text)
 			board->komi = 0;
 		} else {
 			board->match_type.is_komi = 1;
-			ggs_parse_double(&board->komi, word + 1);
+			if (!ggs_parse_double(&board->komi, word + 1)) return false;
 		}
 	}
 
@@ -688,7 +661,7 @@ static bool ggs_board(GGSBoard *board, Text *text)
 			for (i = 0; i < board->move_list_n; i++) {
 				++ii;
 				parse_field(text->line[ii] + 6, word, WORD_SIZE, '/');
-				ggs_parse_move(board->move_list + i, word);
+				if (!ggs_parse_move(board->move_list + i, word)) return false;
 			}
 		} else ii = 2;
 	}
@@ -697,8 +670,8 @@ static bool ggs_board(GGSBoard *board, Text *text)
 
 	line = parse_skip_word(text->line[ii]);
 	line = parse_word(line, word, WORD_SIZE);
-	ggs_parse_int(&board->move_no, word);
-	ggs_parse_move(&board->move, line);
+	if (!ggs_parse_int(&board->move_no, word)) return false;
+	if (!ggs_parse_move(&board->move, line)) return false;
 
 	++ii;
 	line = parse_word(text->line[ii], word, WORD_SIZE);
@@ -748,8 +721,7 @@ static bool ggs_board(GGSBoard *board, Text *text)
  */
 static bool ggs_os_on(Text *text)
 {
-	if (strcmp(text->line[0], ": + /os 1") == 0) return true;
-	return false;
+	return strcmp(text->line[0], ": + /os 1") == 0;
 }
 
 /**
@@ -759,35 +731,11 @@ static bool ggs_os_on(Text *text)
  * PS: os = (o)thello (s)ervice
  *
  * @param text GGS input text.
- * @return 'true' if the text is a valid board.
+ * @return 'true' if the text is a valid os off.
  */
 static bool ggs_os_off(Text *text)
 {
-	if (strcmp(text->line[0], ": - /os 1") == 0) return true;
-	return false;
-}
-
-/**
- * @brief ggs_saio_delay
- *
- * Parse a "saio" from a GGS input text.
- * When Saio is building is book, it tells when it will be available again.
- * Edax will automatically re-start asking him to play again at the right moment.
- *
- * @param text GGS input text.
- * @param delay Time delay (in ms).
- * @return 'true' if the text is a valid saio delay.
- */
-static bool ggs_saio_delay(Text *text, long long *delay)
-{
-	const char *s = strstr(text->line[0], "Sorry, i will accept new games in");
-
-	if (s && strlen(s) > 35) {
-		errno = 0;
-		*delay = string_to_int(s + 34, 300) * 1000 + real_clock();
-		return (errno == 0);
-	}
-	return false;
+	return strcmp(text->line[0], ": - /os 1") == 0;
 }
 
 /**
@@ -810,7 +758,7 @@ static int ggs_admin(GGSAdmin *admin, Text *text)
 	line = parse_word(line, word, WORD_SIZE);
 	for (i = 0; *admin_list[i]; i++) {
 		if (strncmp(admin_list[i], word, strlen(admin_list[i])) == 0) {
-			admin->command = string_duplicate(line);
+			free(admin->command); admin->command = string_duplicate(line);
 			strcpy(admin->name, admin_list[i]);
 			return true;
 		}
@@ -829,8 +777,7 @@ static int ggs_admin(GGSAdmin *admin, Text *text)
  */
 static bool ggs_ready(Text *text)
 {
-	const char *line = text->line[0];
-	return strcmp(line, "READY") == 0;
+	return strcmp(text->line[0], "READY") == 0;
 }
 
 /**
@@ -843,8 +790,7 @@ static bool ggs_ready(Text *text)
  */
 static bool ggs_alert(Text *text)
 {
-	const char *line = text->line[0];
-	return strcmp(line, "ALERT") == 0;
+	return strcmp(text->line[0], "ALERT") == 0;
 }
 
 /**
@@ -857,8 +803,7 @@ static bool ggs_alert(Text *text)
  */
 static bool ggs_login(Text *text)
 {
-	const char *line = text->line[0];
-	return strcmp(line, ": Enter login (yours, or one you'd like to use).") == 0;
+	return strcmp(text->line[0], ": Enter login (yours, or one you'd like to use).") == 0;
 }
 
 /**
@@ -871,8 +816,7 @@ static bool ggs_login(Text *text)
  */
 static bool ggs_password(Text *text)
 {
-	const char *line = text->line[0];
-	return strcmp(line, ": Enter your password.") == 0;
+	return strcmp(text->line[0], ": Enter your password.") == 0;
 }
 
 /**
@@ -939,7 +883,7 @@ static void ggs_event_init(GGSEvent *event)
 	memset(&hints, 0, sizeof (struct addrinfo));
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = AI_PASSIVE;
+	hints.ai_flags = 0;
 	hints.ai_protocol = getprotobyname("tcp")->p_proto;
 	hints.ai_canonname = NULL;
 	hints.ai_addr = NULL;
@@ -1059,9 +1003,12 @@ static void ggs_client_send(GGSClient *client, const char *fmt, ...) {
 		va_end(ap);
 
 		if (message_length > 0 && message_length < size) break;
-
-		if (message_length > 0) size = message_length + 1;
-		else size *= 2;
+		else if (message_length >= size) size = message_length + 1; //  truncated message
+		else if (message_length < 0) {
+			log_send(&ggs_log, "ERROR: ", "invalid buffer sent %s", buffer);
+			printf("ERROR: invalid buffer sent %s", buffer);
+			break; // error
+		}
 		free(buffer);
 	}
 
@@ -1234,7 +1181,7 @@ static void ui_ggs_play(UI *ui, int turn) {
 		else if (result->bound[result->move].lower == result->score && result->score < result->bound[result->move].upper) bound = ">=";
 		else bound = "==";
 
-		info("<%s plays %s in game %s ; score = %d at %d@%d%% ; %lld nodes in %.1fs (%.0f nodes/s.)>\n",
+		info("[%s plays %s in game %s ; score = %d at %d@%d%% ; %lld nodes in %.1fs (%.0f nodes/s.)]\n",
 			ui->ggs->me, move, ui->ggs->board.id,
 			result->score, result->depth, selectivity_table[result->selectivity].percent,
 			result->n_nodes, 0.001 * real_time, (result->n_nodes / (0.001 * real_time + 0.001))
@@ -1359,11 +1306,11 @@ static void ui_ggs_update(UI *ui) {
 
 	// update the board... if possible
 	if (!play_move(play, ui->ggs->board.move)) {
-		info("<Updating with bad move %s>\n", move_to_string(ui->ggs->board.move, play->player, s_move));
+		info("[Updating with bad move %s]\n", move_to_string(ui->ggs->board.move, play->player, s_move));
 	}
 
 	if (!board_equal(&board, &play->board)) { // may happens when game diverges
-		info("<Resynchronize boards: diverging games>\n");
+		info("[Resynchronize boards: diverging games]\n");
 		play->board = board; play->player = turn;
 	}
 
@@ -1372,7 +1319,7 @@ static void ui_ggs_update(UI *ui) {
 		play->player = turn;
 	}
 
-	ggs_printf("[%s's turn in game %s]\n", ui->ggs->board.player[play->player].name, ui->ggs->board.id);
+	ggs_printf("<%s's turn in game %s>\n", ui->ggs->board.player[play->player].name, ui->ggs->board.id);
 
 	// playing same game... ?
 	ui->is_same_play = (!ui->ggs->board.match_type.is_synchro || board_equal(&ui->play[0].board, &ui->play[1].board));
@@ -1398,7 +1345,7 @@ static void ui_ggs_update(UI *ui) {
 void ui_init_ggs(UI *ui) {
 	const int n_task = options.n_task;
 
-	ui->ggs = (GGSClient*) malloc (sizeof (GGSClient));
+	ui->ggs = (GGSClient*) calloc (1, sizeof (GGSClient));
 	if (ui->ggs == NULL) fatal_error("ui_init_ggs: cannot allocate the GGS client\n");
 
 	play_init(ui->play, &ui->book);
@@ -1448,7 +1395,7 @@ void ui_loop_ggs(UI *ui) {
 				client->loop.cmd = string_duplicate(parse_int(param, &client->loop.i));
 				if (errno) client->loop.i = 100;
 				if (client->loop.i > 0) {
-					info("<loop %d>\n", client->loop.i);
+					info("[ggs start loop %d]\n", client->loop.i);
 					--client->loop.i;
 					ggs_client_send(client, "%s\n", client->loop.cmd);
 				}
@@ -1521,7 +1468,7 @@ void ui_loop_ggs(UI *ui) {
 				ggs_printf("[received GGS_MATCH_OFF]\n");
 
 				// store the game in the opening book (standard game only)
-				if (!client->match_on.match_type.is_rand) {
+				if (!client->match_off.match_type.is_rand) {
 					if (client->match_on.match_type.is_synchro) {
 						ggs_printf("[store match #1]\n");
 						play_store(ui->play);
@@ -1549,7 +1496,7 @@ void ui_loop_ggs(UI *ui) {
 				client->is_playing = false;
 				ggs_client_send(client, "tell /os open %d\n", options.ggs_open);
 				if (client->loop.i > 0) {
-					info("<loop %d>\n", client->loop.i);
+					info("[ggs continue loop %d]\n", client->loop.i);
 					--client->loop.i;
 					client->loop.delay = 10000 + real_clock(); // wait 10 sec.
 				}
@@ -1575,22 +1522,6 @@ void ui_loop_ggs(UI *ui) {
 			ggs_printf("[received GGS_ADMIN_CMD]\n");
 			ggs_client_send(client, client->admin.command);
 			ggs_client_send(client, "\ntell %s command processed\n", client->admin.name);
-
-		/* To request Saio a game later */
-		} else if (ggs_saio_delay(&text, &client->once.delay)) {
-			ggs_printf("[received GGS_SAIO_DELAY]\n");
-			free(client->once.cmd); client->once.cmd = NULL;
-			if (cmd != NULL && param != NULL) {
-				if (strcmp(cmd, "loop") == 0) {
-					client->once.cmd = string_duplicate(client->loop.cmd);
-				} else {
-					client->once.cmd = (char*) malloc(strlen(cmd) + strlen(param) + 3);
-					sprintf(client->once.cmd, "%s %s\n", cmd, param);
-				}
-				ggs_printf("[received GGS_SAIO_DELAY, retry request in %.1f s]\n", 0.001 * (client->once.delay - real_clock()));
-			} else {
-				client->once.delay = 0;
-			}
 
 		/* READY */
 		} else if (ggs_ready(&text)) {

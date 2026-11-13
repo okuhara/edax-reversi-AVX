@@ -50,19 +50,17 @@ typedef struct Node {
 	volatile int bestscore;      /**< bestscore */
 	volatile int alpha;          /**< alpha lower bound */
 	int beta;                    /**< beta upper bound (is constant after initialisation) */
-	bool pv_node;                /**< pv_node */
 	volatile int n_slave;	     /**< number of slaves splitted flag */
 	volatile bool stop_point;    /**< stop point flag */
+	volatile bool is_helping;	 /**< waiting flag */
 	volatile bool is_waiting;	 /**< waiting flag */
 	int depth;                   /**< depth */
-	int height;                  /**< height */
 	struct Search *search;       /**< master search structure */
 	struct Search *slave[SPLIT_MAX_SLAVES]; /**< slave search structure */
 	struct Node *parent;         /**< master node */
 	struct Move *move;           /**< move to search */
 	volatile int n_moves_done;   /**< search done */
 	volatile int n_moves_todo;   /**< search todo */
-	volatile bool is_helping;	 /**< waiting flag */
 	Task help;                   /**< helper task */
 	Lock lock;                   /**< mutex */
 	Condition cond;              /**< condition variable */
@@ -81,6 +79,7 @@ struct Move * node_next_move(Node*);
 /* task function declaration */
 void* task_loop(void*);
 void* task_help(void*);
+void task_set(Task *, Node *, Move *);
 void task_init(Task*);
 void task_free(Task*);
 void task_update(Task*);

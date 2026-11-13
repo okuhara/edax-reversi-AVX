@@ -350,7 +350,7 @@ static int search_solve_4(Search *search, int alpha)
  * @param alpha Alpha bound.
  * @return The final score, as a disc difference.
  */
-static int search_shallow(Search *search, const int alpha, bool pass1)
+static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1)
 {
 	unsigned long long moves, prioritymoves;
 	int x, prev, score, bestscore;
@@ -374,7 +374,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 			return search_solve(search);
 
 		search_pass(search);
-		bestscore = -search_shallow(search, ~alpha, true);
+		bestscore = -NWS_shallow_endgame(search, ~alpha, true);
 		// search_pass(search);
 		return bestscore;
 	}
@@ -421,7 +421,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 				search->eval.parity = parity0 ^ QUADRANT_ID[x];
 				search->empties[prev].next = search->empties[x].next;	// remove - maintain single link only
 				vboard_next(board0, x, &search->board);
-				score = -search_shallow(search, ~alpha, false);
+				score = -NWS_shallow_endgame(search, ~alpha, false);
 				search->empties[prev].next = x;	// restore
 
 				if (score > alpha) {	// (40%)
@@ -495,7 +495,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
   #endif
 			// Takuro Yamana pointed out the old implementation has a potential bug
 			// when final score includes empties for the winner. (4.5.6)
-			if (bit_count(solid) * 2 < alpha) {	// i.e. ofssolid will not alter the winner (alpha > 0 here)
+			if (((ofssolid = bit_count(solid) * 2) < alpha) || (~ofssolid > alpha))) {	// i.e. ofssolid will not alter the winner
 				solid &= search->board.player;
   #ifdef hasSSE2
 				hashboard.v2 = _mm_xor_si128(hashboard.v2, _mm_set1_epi64x(solid));
@@ -546,7 +546,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 			vboard_update(&search->board, board0, move);
 			if (search->eval.n_empties <= DEPTH_TO_SHALLOW_SEARCH) {
 				search->empties[search->empties[move->x].previous].next = search->empties[move->x].next;	// remove - maintain single link only
-				score = -search_shallow(search, ~alpha, false);
+				score = -NWS_shallow_endgame(search, ~alpha, false);
 				search->empties[search->empties[move->x].previous].next = move->x;	// restore
 			} else {
 				empty_remove(search->empties, move->x);
@@ -564,7 +564,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 		++search->eval.n_empties;
 		search->eval.parity = parity0;
 
-		if (search->stop)	// (1%)
+		if (search_get_state(search) != RUNNING)	// (1%)
 			return alpha;
 
 		vhash_store_local(hash_entry, hashboard, alpha - ofssolid, alpha - ofssolid + 1, bestscore - ofssolid, bestmove);
@@ -586,7 +586,6 @@ static int NWS_endgame_local(Search *search, const int alpha)
 			++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[bestscore]];
 	}
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
- 	assert((bestscore & 1) == 0);
 	return bestscore;
 }
 
@@ -617,7 +616,7 @@ int NWS_endgame(Search *search, const int alpha)
 	assert(bit_count(~(search->board.player|search->board.opponent)) < DEPTH_MIDGAME_TO_ENDGAME);
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
 
-	if (search->stop) return alpha;
+	if (search_get_state(search) != RUNNING) return alpha;
 
 	if (search->eval.n_empties <= DEPTH_TO_USE_LOCAL_HASH)
 		return NWS_endgame_local(search, alpha);
@@ -666,7 +665,7 @@ int NWS_endgame(Search *search, const int alpha)
 		++search->eval.n_empties;
 		search->eval.parity = parity0;
 
-		if (search->stop)	// (1%)
+		if (search_get_state(search) != RUNNING)	// (1%)
 			return alpha;
 
 		hash_data.data.wl.c.depth = search->eval.n_empties;
@@ -695,6 +694,5 @@ int NWS_endgame(Search *search, const int alpha)
 			++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[bestscore]];
 	}
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
- 	assert((bestscore & 1) == 0);
 	return bestscore;
 }

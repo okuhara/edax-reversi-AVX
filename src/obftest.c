@@ -10,7 +10,7 @@
  *    <li> A position is a set of fields, each field is terminated by a semi-colon ;. </li>
  *    <li> The first field describes the Othello board. </li>
  *    <li> The other fields contain all the playable moves with their score, separated
- * by a colon: 'move':'score'. </li>    
+ * by a colon: 'move':'score'. </li>
  * </ul>
  *
  *
@@ -18,11 +18,10 @@
  * @author Richard Delorme
  * @version 4.5
  */
-#include "search.h"
-#include "options.h"
 #include "const.h"
+#include "options.h"
+#include "search.h"
 #include "settings.h"
-
 
 /** OBF structure: Othello Board File */
 typedef struct OBF {

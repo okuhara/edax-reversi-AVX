@@ -3,9 +3,9 @@
  *
  * Histogram management.
  *
- * @date 1998 - 2017
+ * @date 1998 - 2026
  * @author Richard Delorme
- * @version 4.4
+ * @version 4.5
  */
 
 #ifndef EDAX_HISTOGRAM_H
@@ -18,4 +18,3 @@ void histogram_stats(unsigned long long h[129][65]);
 void histogram_to_ppm(const char *file, unsigned long long histogram[129][65]);
 
 #endif
-

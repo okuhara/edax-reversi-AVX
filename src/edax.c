@@ -12,7 +12,7 @@
  *   -verbose [n]          set Edax verbosity (default 1).
  *   -noise [n]            start displaying Edax search result from this depth\n  (default 5).
  *   -width [n]            display edax search results using <width> characters\n  (default 80).
- *   -hash-table-size [n]  set hashtable size (default 22 bits).
+ *   -hash-table-size [n]  set hashtable size (default 21 bits).
  *   -n-tasks [n]          control the number of parallel threads used in searching\n  (default 1).
  *   -l|level [n]          search using limited depth (default 21).
  *   -t|game-time <time>   search using limited time per game.
@@ -98,7 +98,6 @@
  */
 
 #include "cassio.h"
-#include "event.h"
 #include "histogram.h"
 #include "options.h"
 #include "opening.h"
@@ -170,11 +169,11 @@ void ui_free_edax(UI *ui)
  */
 void help_options(void)
 {
-	printf(	"Options:\n"
+	printf("Options:\n"
 		"Options must be entered in the form '[set] <option> [=] <value>', with [set] and\n[=] being optional.\n"
 		"  verbose [n]          set Edax verbosity (default 1).\n"
 		"  noise [n]            start displaying Edax search result from this depth\n  (default 5).\n"
-		"  witdh [n]            display edax search results using <width> characters\n  (default 80).\n"
+		"  width [n]            display edax search results using <width> characters\n  (default 80).\n"
 		"  hash-table-size [n]  set hashtable size (default 21 bits).\n"
 		"  n-tasks [n]          control the number of parallel threads used in searching\n  (default 1).\n"
 		"  l|level [n]          search using limited depth (default 21).\n"
@@ -195,7 +194,7 @@ void help_options(void)
  */
 void help_commands(void)
 {
-	printf(	"\nCommands:\n"
+	printf("\nCommands:\n"
 		"Commands must be entered in the form '<command> <parameters>'.\n"
 		"  i|nit               start a new game from standard initial position.\n"
 		"  n|ew                start a new game from a personalized position.\n"
@@ -221,7 +220,7 @@ void help_commands(void)
  */
 void help_book(void)
 {
-	printf(	"\nBook Commands:\n"
+	printf("\nBook Commands:\n"
 		"Book Commands must be entered in the form 'b|book <command> <parameters>'.\n"
 		"  new <n1> <n2>       create a new empty book with level <n1> and depth <n2>.\n"
 		"  load [file]         load an opening book from a binary opening file.\n"
@@ -239,28 +238,16 @@ void help_book(void)
 		"  deepen [n]          change book level & reevaluate the whole book (very slow!).\n"
 		"  fix                 fix the opening book: add missing links and negamax the\n  whole book tree.\n"
 		"  store               add the last played game to the opening book.\n"
-		"  deviate <n1> <n2>   add positions by deviating with a relative error <n1> and\n  an absolute error <n2>.\n"
-		"  enhance <n1> <n2>   add positions by improving score accuracy with a midgame\n  error <n1> and an endcut error <n2>.\n"
+		"  deviate [n1] [n2]   add positions by deviating with a relative error <n1> and\n  an absolute error <n2>.\n"
+		"  enhance [n1] [n2]   add positions by improving score accuracy with a midgame\n  error <n1> and an endcut error <n2>.\n"
 		"  fill [n]            add positions between existing positions.\n"
 		"  play                add positions by expanding leaves of positions without links\n  to next positions.\n"
 		"  extend              add positions by expanding leaves with a best score.\n"
 		"  prune               remove unreachable positions.\n"
 		"  subtree             only keep positions from the current position.\n"
-		"  add [file]          add positions from a game base file (txt, ggf, sgf or\n  wthor format).\n");
-}
+		"  add [file]          add positions from a game base file (txt, ggf, sgf or\n  wthor format).\n"
+		"  extract <d> [file]   extract the book to a game database <file>. if the <d>\n  optional argument is 'draw', only the draw\n  skeleton is extracted.\n");
 
-/**
- * @brief print base's help.
- */
-void help_base(void)
-{
-	printf( "\nGame DataBase :\n"
-		"  convert [file_in] [file_out]     convert between different format.\n"
-		"  unique [file_in] [file_out]      remove doublons in the base.\n"
-		"  check [file_in] [n]              check error in the last <n> moves.\n"
-		"  correct [file_in] [n]            correct error in the last <n> moves.\n"
-		"  complete [file_in]               complete a database by playing the last\n  missing moves.\n"
-		"  problem [file_in] [n] [file_out] build a set of <n> problems from a game\n  database.\n");
 }
 
 /**
@@ -268,7 +255,7 @@ void help_base(void)
  */
 void help_test(void)
 {
-	printf(	"\nTests:\n"
+	printf("\nTests:\n"
 		"  bench               test edax speed.\n"
 		"  microbench          test CPU cycle speed of some major functions.\n"
 		"  obftest [file]      Test from an obf file.\n"
@@ -281,6 +268,19 @@ void help_test(void)
 		"  count shapes [d]    compute the number of shapes from the current position up\n  to depth [d].\n");
 }
 
+/**
+ * @brief print base's help.
+ */
+void help_base(void)
+{
+	printf("\nGame DataBase :\n"
+		"  convert [file_in] [file_out]     convert between different format.\n"
+		"  unique [file_in] [file_out]      remove doublons in the base.\n"
+		"  check [file_in] [n]              check error in the last <n> moves.\n"
+		"  correct [file_in] [n]            correct error in the last <n> moves.\n"
+		"  complete [file_in]               complete a database by playing the last\n  missing moves.\n"
+		"  problem [file_in] [n] [file_out] build a set of <n> problems from a game\n  database.\n");
+}
 
 /**
  * @brief Display of game state.
@@ -338,6 +338,7 @@ void ui_loop_edax(UI *ui)
 					continue;
 				}
 				if (options.auto_quit) {
+					info("[auto-quit]\n");
 					break;
 				}
 				if (options.auto_start) {
@@ -447,8 +448,9 @@ void ui_loop_edax(UI *ui)
 			// direct symmetry...
 			} else if (strcmp(cmd, "symmetry") == 0) {
 				int sym = string_to_int(param, 1);
-				if (sym < 0 || sym >= 16) warn("symmetry parameter should be a number between 0 and 15\n");
-				else {
+				if (sym < 0 || sym >= 16) {
+					warn("symmetry parameter should be a number between 0 and 15\n");
+				} else {
 					if (sym & 8) play->player ^= 1;
 					play_symmetry(play, sym & 7);
 				}
@@ -489,34 +491,59 @@ void ui_loop_edax(UI *ui)
 			} else if (strcmp(cmd, "count") == 0) {
 				char count_cmd[16], *count_param;
 				int depth = 10, size = 8;
+				bool count_pass = true;
 
 				count_param = parse_word(param, count_cmd, 15);
 				count_param = parse_int(count_param, &depth);
 				BOUND(depth, 1, 90, "max-ply");
-				if (count_param) parse_int(count_param, &size);
+				if (count_param) count_param = parse_int(count_param, &size);
 				BOUND(size, 6, 8, "board-size");
+				if (count_param) parse_boolean(count_param, &count_pass);
 
 				if (strcmp(count_cmd, "games") == 0) { // game enumeration
-					quick_count_games(&play->board, depth, size);
+					quick_count_games(&play->board, depth, count_pass, size);
 				} else if (strcmp(count_cmd, "positions") == 0) { // position enumeration
-					count_positions(&play->board, depth, size);
+					count_positions(&play->board, depth, count_pass, size);
 				} else if (strcmp(count_cmd, "shapes") == 0) { // shape enumeration
-					count_shapes(&play->board, depth, size);
+					count_shapes(&play->board, depth, count_pass, size);
 				} else {
 					warn("Unknown count command: \"%s %s\"\n", cmd, param);
 				}
 
 			} else if (strcmp(cmd, "perft") == 0) {
+				char *count_param;
 				int depth = 14;
-				depth = string_to_int(param, 10); BOUND(depth, 1, 90, "max-ply");
-				count_games(&play->board, depth);
+				bool count_pass = true;
+
+				count_param = parse_int(param, &depth);
+				BOUND(depth, 1, 90, "max-ply");
+				if (count_param) parse_boolean(count_param, &count_pass);
+				count_games(&play->board, depth, count_pass);
+
+			} else if (strcmp(cmd, "divide") == 0) {
+				char *count_param;
+				int depth = 14;
+				bool count_pass = true;
+
+				count_param = parse_int(param, &depth);
+				BOUND(depth, 1, 90, "max-ply");
+				if (count_param) parse_boolean(count_param, &count_pass);
+				divide(&play->board, depth, count_pass);
 
 			// game/position enumeration
 			} else if (strcmp(cmd, "estimate") == 0) {
-				int n = 1000;
-				n = string_to_int(param, 10); BOUND(n, 1, 2000000000, "max-trials");
+				char *count_param;
+				long long n = 1000000;
+				int size = 8;
+				bool count_pass = true;
 
-				estimate_games(&play->board, n);
+				count_param = parse_longlong(param, &n);
+				BOUND(n, 1, 2000000000000, "max-trials"); // 2 trillions as max size
+				if (count_param) count_param = parse_int(count_param, &size);
+				BOUND(size, 6, 8, "board-size");
+				if (count_param) count_param = parse_boolean(count_param, &count_pass);
+
+				estimate_games(&play->board, n, count_pass, size);
 
 			// seek highest mobility
 			} else if (strcmp(cmd, "mobility") == 0) {
@@ -565,8 +592,9 @@ void ui_loop_edax(UI *ui)
 
 			// go think!
 			} else if (strcmp(cmd, "go") == 0) {
-				if (play_is_game_over(play)) printf("\n*** Game Over ***\n");
-				else {
+				if (play_is_game_over(play)) {
+					printf("\n*** Game Over ***\n");
+				} else {
 					play_go(play, true);
 					printf("\nEdax plays "); move_print(play_get_last_move(play)->x, 0, stdout); putchar('\n');
 				}
@@ -790,10 +818,17 @@ void ui_loop_edax(UI *ui)
 				// extract pv to a game database
 				} else if (strcmp(book_cmd, "extract") == 0) {
 					Base base;
-					parse_word(book_param, book_file, FILENAME_MAX);
+					bool draw_only;
+					book_param = parse_word(book_param, book_file, FILENAME_MAX);
+					draw_only = !strcmp(book_file, "draw");
+					if (draw_only) parse_word(book_param, book_file, FILENAME_MAX);
 					base_init(&base);
-					book_extract_skeleton(book, &base);
-					base_save(&base, book_file);
+					if (draw_only) {
+						book_extract_skeleton(book, &base);
+					} else {
+						book_extract_all(book, &base);
+					}
+					base_save(&base, book_file, false);
 					base_free(&base);
 
 				// add position using the "deviate algorithm"
@@ -808,6 +843,12 @@ void ui_loop_edax(UI *ui)
 					val_2 = 4; book_param = parse_int(book_param, &val_2); BOUND(val_2, 0, 129, "endcut error");
 					book_enhance(book, &play->board, val_1, val_2);
 
+				// add all positions using the "exhaust algorithm"
+				} else if (strcmp(book_cmd, "exhaust") == 0) {
+					val_1 = 2; book_param = parse_int(book_param, &val_1); BOUND(val_1, 0, 129, "midgame error");
+					val_2 = 4; book_param = parse_int(book_param, &val_2); BOUND(val_2, 0, 129, "endcut error");
+					book_exhaust(book, &play->board);
+
 				// add position by filling hole in the book
 				} else if (strcmp(book_cmd, "fill") == 0) {
 					val_1 = 1; book_param = parse_int(book_param, &val_1); BOUND(val_1, 1, 61, "fill depth");
@@ -815,7 +856,8 @@ void ui_loop_edax(UI *ui)
 
 				// add positions by expanding positions with no-link
 				} else if (strcmp(book_cmd, "play") == 0) {
-					book_play(book, &play->board);
+					val_1 = 20; book_param = parse_int(book_param, &val_1); BOUND(val_1, 0, 60, "number of empties");
+					book_play(book, &play->board, val_1);
 
 				// add positions by expanding positions with the leaf being the best move
 				} else if (strcmp(book_cmd, "extend") == 0) {
@@ -873,8 +915,7 @@ void ui_loop_edax(UI *ui)
 
 					base_load(&base, base_file);
 					base_analyze(&base, &play->search, n_empties, true);
-					remove(base_file);
-					base_save(&base, base_file);
+					base_save(&base, base_file, false);
 
 				// check erroneous games
 				} else if (strcmp(base_cmd, "check") == 0) {
@@ -887,22 +928,28 @@ void ui_loop_edax(UI *ui)
 				// terminate unfinished base
 				} else if (strcmp(base_cmd, "complete") == 0) {
 					base_load(&base, base_file);
-					base_complete(&base, &play->search);
-					remove(base_file);
-					base_save(&base, base_file);
+					base_param = parse_word(base_param, base_file, FILENAME_MAX);
+					base_complete(&base, &play->search, options.level);
+					base_save(&base, base_file, false);
 
 				// convert a base to another format
 				} else if (strcmp(base_cmd, "convert") == 0) {
 					base_load(&base, base_file);
 					base_param = parse_word(base_param, base_file, FILENAME_MAX);
-					base_save(&base, base_file);
+					base_save(&base, base_file, false);
+
+				// convert & append a base to another file
+				} else if (strcmp(base_cmd, "append") == 0) {
+					base_load(&base, base_file);
+					base_param = parse_word(base_param, base_file, FILENAME_MAX);
+					base_save(&base, base_file, true);
 
 				// make a base unique by removing identical games
 				} else if (strcmp(base_cmd, "unique") == 0) {
 					base_load(&base, base_file);
 					base_param = parse_word(base_param, base_file, FILENAME_MAX);
 					base_unique(&base);
-					base_save(&base, base_file);
+					base_save(&base, base_file, false);
 
 				// compare two game bases
 				} else if (strcmp(base_cmd, "compare") == 0) {
@@ -946,10 +993,12 @@ void ui_loop_edax(UI *ui)
 
 			} else if (strcmp(cmd, "engine-protocol") == 0 && strcmp(param, "init") == 0) {
 				free(cmd); free(param);
-				play_stop_pondering(play);
+/*				play_stop_pondering(play);
 				ui->free(ui);
 				ui_switch(ui, "cassio");
 				engine_loop();
+*/
+				warn("Please, launch Edax with the -cassio argument.");
 				return;
 
 			} else if (strcmp(cmd, "protocol_version") == 0) {
@@ -978,6 +1027,8 @@ void ui_loop_edax(UI *ui)
 			}
 		}
 	}
+
+	info("[Edax termination]\n");
 
 	/* dispay hash statistics */
 	HASH_STATS(printf("pv_table     : %12llu stores %12llu probes %12llu found probes\n", play->search.pv_table.n_store, play->search.pv_table.n_try, play->search.pv_table.n_found);)

@@ -3,7 +3,7 @@
  *
  * Opening Name aliasing.
  *
- * @date 1998 - 2020
+ * @date 1998 - 2026
  * @author Richard Delorme
  * @author Toshihiko Okuhara
  * @version 4.5
@@ -1166,7 +1166,7 @@ static const PositionName NOM_POSITION[] = {
 	{{0x0000080420300000, 0x000010181c0c0800}, "crochet intérieur"},
 	{{0x000008043a080000, 0x0000003804060000}, "Penloup-Juhem"},
 	{{0x0000080c30380000, 0x000030100c040000}, "Brightwell papillon"},
-	{{0x0000081034001000, 0x0000000c08380000}, "Bhagat, var. principale"},
+	{{0x0000081034001000, 0x0000000c08380000}, "Bhagat, var.principale"},
 	{{0x000008163a102000, 0x00201428040e0000}, "Penloup-Juhem ancienne"},
 	{{0x000008183a100000, 0x0004042404080000}, "variante du quadruplet"},
 	{{0x000008183c1e2800, 0x3c3c342640000000}, "Rose béton collée"},
@@ -1192,7 +1192,7 @@ static const PositionName NOM_POSITION[] = {
 	{{0, 0}, NULL}
 };
 
-/** The list of french opening names */
+/** The list of english opening names */
 static const PositionName POSITION_NAME[] = {
 	{{0x0000000000080800, 0x0000001c1c140000}, "heath-chimney"},
 	{{0x0000000000080800, 0x0000001c1c140000}, "\"mass-turning\""},
@@ -1282,20 +1282,23 @@ static int to_lower_no_accent(int c)
 	if (c == L'é' || c == L'è' || c == L'ê')	return 'e';
 	if (c == L'à')	return 'a';
 	if (c == L'ï')	return 'i';
-#else
+	if (c == L'ç')	return 'c';
+#else // iso-8859-1
 	c = tolower(c);
-	if (c == 'é' || c == 'è' || c == 'ê')	return 'e';
-	if (c == 'à')	return 'a';
-	if (c == 'ï')	return 'i';
+	if (c == 0xE8 || c == 0xE9 || c == 0xEA)	return 'e';
+	if (c == 0xE0)	return 'a';
+	if (c == 0xEF)	return 'i';
+	if (c == 0xE7)	return 'c';
 #endif
 	return c;
 }
 
 /**
- * Compare two string, ignoring accents, font case, etc.
+ * Compare two strings, ignoring accents, font case, etc.
  *
  * @param s1 first string.
  * @param s2 second string.
+ * @return true when the string are equal, false otherwise.
  */
 static bool match(const char *s1, const char *s2)
 {
@@ -1350,7 +1353,7 @@ const char *opening_get_line(const char *opening_name)
  * @brief Check if a board has got an english opening name.
  *
  * @param board Board.
- * return An opening name, or NULL if none has been found.
+ * @return An opening name, or NULL if none has been found.
  */
 const char *opening_get_english_name(const Board *board)
 {
@@ -1369,7 +1372,7 @@ const char *opening_get_english_name(const Board *board)
  * @brief Check if a board has got a french opening name.
  *
  * @param board Board.
- * return An opening name, or NULL if none has been found.
+ * @return An opening name, or NULL if none has been found.
  */
 const char *opening_get_french_name(const Board *board)
 {

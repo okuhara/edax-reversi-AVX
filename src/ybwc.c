@@ -30,7 +30,6 @@
 #include "ybwc.h"
 
 #include "move.h"
-#include "options.h"
 #include "util.h"
 #include "search.h"
 #include "stats.h"
@@ -71,9 +70,9 @@ void node_init(Node* node, Search *search, const int alpha, const int beta, cons
 	node->alpha = alpha;
 	node->beta = beta;
 	node->depth = depth;
-	node->height = search->height;
+	// node->height = search->height;
 	node->move = NULL;
-	node->pv_node = false;
+	// node->pv_node = false;
 	node->bestmove = NOMOVE;
 	node->bestscore = -SCORE_INF;
 	node->n_moves_todo = n_moves;
@@ -82,9 +81,9 @@ void node_init(Node* node, Search *search, const int alpha, const int beta, cons
 	node->search = search;
 	for (i = 0; i < SPLIT_MAX_SLAVES; ++i) node->slave[i] = NULL;
 	node->n_slave = 0;
+	node->stop_point = false;
 	node->is_waiting = false;
 	node->is_helping = false;
-	node->stop_point = false;
 }
 
 /**
@@ -104,42 +103,33 @@ void node_free(Node *node)
  * When asking for an idle task, this function look if a parent node is waiting
  * and has a task available to help the current search.
  *
- * @param master A parent node with an idle task.
+ * @param parent A parent node.
  * @param node Searched node.
  * @param move Searched move.
  * @return true if a helper task has been launched, false otherwise.
  */
-static bool get_helper(Node *master, Node *node, Move *move)
+static Task* get_helper(Node *parent, Node *node, Move *move)
 {
-	Task *task;
-	bool found = false;
+	Task *task = NULL;
 
-	if (master) {
-		if (master->is_waiting && !master->is_helping) {
-			lock(master);
-			if (master->n_slave && master->is_waiting && !master->is_helping) {
-				master->is_helping = true;
-				task = &master->help;
-				task_init(task) ;
-				task->is_helping = true;
-				task->node = node;
-				task->move = move;
-				search_clone(task->search, node->search);
-				lock(node);
-					node->slave[node->n_slave++] = task->search;
-				unlock(node);
-				task->run = true;
-				found = true;
-
-				condition_broadcast(master);
+	while (parent && task == NULL) {
+		// is parent available ?
+		if (parent->n_slave < SPLIT_MAX_SLAVES && parent->is_waiting && !parent->is_helping) {
+			lock(parent);
+			if (parent->n_slave < SPLIT_MAX_SLAVES && parent->is_waiting && !parent->is_helping) {
+				parent->is_helping = true;
+				task = &parent->help;
+				task_init(task);
+				task_set(task, node, move);
+				condition_broadcast(parent);
 			}
-			unlock(master);
-		} else {
-			found = get_helper(master->parent, node, move);
+			unlock(parent);
 		}
+		// if parent node is not available seek for an helper node from grand-parent node
+		parent = parent->parent;
 	}
 
-	return found;
+	return task;
 }
 
 /**
@@ -176,16 +166,11 @@ bool node_split(Node *node, Move *move)
 	 && node->n_moves_todo >=  SPLIT_MIN_MOVES_TODO) {  // do not split the last move(s), to diminish waiting time
 		YBWC_STATS(atomic_add(&statistics.n_split_try, 1);)
 
-		if (get_helper(node->parent, node, move)) {
+		if ((task = get_helper(node->parent, node, move)) != NULL) {
 			YBWC_STATS(atomic_add(&statistics.n_master_helper, 1);)
 			return true;
 		} else if ((task = task_stack_get_idle_task(search->tasks)) != NULL) {
-			task->node = node;
-			task->move = move;
-			search_clone(task->search, search);
-			lock(node);
-				node->slave[node->n_slave++] = task->search;
-			unlock(node);
+			task_set(task, node, move);
 			YBWC_STATS(atomic_add(&statistics.n_split_success, 1);)
 
 			lock(task);
@@ -215,7 +200,7 @@ void node_wait_slaves(Node* node)
 
 	lock(node);
 	// stop slaves ?
-	if ((node->alpha >= node->beta || node->search->stop) && node->n_slave) {
+	if ((node->alpha >= node->beta || search_get_state(node->search) != RUNNING) && node->n_slave) {
 		for (i = 0; i < node->n_slave; ++i) {
 			search_stop_all(node->slave[i], STOP_PARALLEL_SEARCH);
 			YBWC_STATS(atomic_add(&statistics.n_stopped_slave, 1);)
@@ -240,8 +225,8 @@ void node_wait_slaves(Node* node)
 	}
 
 	// wake-up master thread!
-	if (node->search->stop == STOP_PARALLEL_SEARCH && node->stop_point) {
-		node->search->stop = RUNNING;
+	if (search_get_state(node->search) == STOP_PARALLEL_SEARCH && node->stop_point) {
+		search_set_state(node->search, RUNNING);
 		node->stop_point = false;
 		YBWC_STATS(atomic_add(&statistics.n_wake_up, 1);)
 	}
@@ -260,15 +245,16 @@ void node_wait_slaves(Node* node)
  */
 void node_update(Node* node, Move *move)
 {
-	Search *search = node->search;
+	Search *search;
 	const int score = move->score;
 	int i;
 
 	lock(node);
-	if (!search->stop && score > node->bestscore) {
+	search = node->search;
+	if (search_get_state(search) == RUNNING && score > node->bestscore) {
 		node->bestscore = score;
 		node->bestmove = move->x;
-		if (node->height == 0) {
+		if (search->height == 0) {
 			record_best_move(search, move, node->alpha, node->beta, node->depth);
 			search->result->n_moves_left--;
 		}
@@ -324,7 +310,7 @@ Move* node_first_move(Node *node, MoveList *movelist)
 static Move* node_next_move_lockless(Node *node)
 {
 	Move *move;
-	if (node->move && node->alpha < node->beta && !node->search->stop) {
+	if (node->move && node->alpha < node->beta && search_get_state(node->search) == RUNNING) {
 		++node->n_moves_done; --node->n_moves_todo;
 		move = node->move = move_next(node->move);
 	} else {
@@ -353,6 +339,23 @@ Move* node_next_move(Node *node)
 }
 
 /**
+ * @brief task_set copy the search state to the task.
+ *
+ * @param task The task to setup.
+ * @param node The node to attach to the task.
+ * @param move The movelist to attach to the task.
+ */
+void task_set(Task *task, Node *node, Move *move)
+{
+	task->node = node;
+	task->move = move;
+	search_clone(task->search, node->search);
+	lock(node);
+	node->slave[node->n_slave++] = task->search;
+	unlock(node);
+}
+
+/**
  * @brief A parallel search within a Task structure.
  *
  * Here we share the search with a main parent task.
@@ -369,11 +372,11 @@ void task_search(Task *task)
 	Board board0;
 	int i;
 
-	search_set_state(search, node->search->stop);
+	search_set_state(search, search_get_state(node->search));
 
 	YBWC_STATS(++task->n_calls;)
 
-	while (move && !search->stop) {
+	while (move && search_get_state(search) == RUNNING) {
 		const int alpha = node->alpha;
 		if (alpha >= node->beta) break;
 
@@ -383,30 +386,29 @@ void task_search(Task *task)
 			move->score = -NWS_midgame(search, -alpha - 1, node->depth - 1, node);
 			if (alpha < move->score && move->score < node->beta) {
 				move->score = -PVS_midgame(search, -node->beta, -alpha, node->depth - 1, node);
-				assert(node->pv_node == true);
 			}
 		search_restore_midgame(search, move->x, &eval0);
 		search->board = board0;
-		if (node->height == 0) {
+		if (search->height == 0) {
 			move->cost = search_get_pv_cost(search);
 			move->score = search_bound(search, move->score);
 			if (log_is_open(&search_log)) show_current_move(search_log.f, search, move, alpha, node->beta, true);
 		}
 
 		lock(node);
-		if (!search->stop && move->score > node->bestscore) {
+		if (search_get_state(search) == RUNNING && move->score > node->bestscore) {
 			node->bestscore = move->score;
 			node->bestmove = move->x;
-			if (node->height == 0) {
+			if (search->height == 0) {
 				record_best_move(search, move, alpha, node->beta, node->depth);
 				search->result->n_moves_left--;
 				if (search->options.verbosity == 4) pv_debug(search, move, stdout);
 			}
 			if (node->bestscore > node->alpha) {
 				node->alpha = node->bestscore;
-				if (node->alpha >= node->beta && node->search->stop == RUNNING) { // stop the master thread?
+				if (node->alpha >= node->beta && search_get_state(node->search) == RUNNING) { // stop the master thread?
 					node->stop_point = true;
-					node->search->stop = STOP_PARALLEL_SEARCH;
+					search_set_state(node->search, STOP_PARALLEL_SEARCH);
 					YBWC_STATS(atomic_add(&statistics.n_stopped_master, 1);)
 				}
 			}
@@ -499,7 +501,7 @@ static Search* task_search_create(Task *task)
 	// eval_init(search->eval);
 	spin_init(search);
 	search->task = task;
-	search->stop = STOP_END;
+	search_set_state(search, STOP_END);
 
 	return search;
 }
@@ -587,8 +589,8 @@ void task_stack_init(TaskStack *stack, const int n)
 
 		// init the tasks.
 		for (i = 0; i < stack->n; ++i) {
+			task_init(stack->task + i);
 			if (i) {
-				task_init(stack->task + i);
 				thread_create(&stack->task[i].thread, task_loop, stack->task + i);
 				if (options.cpu_affinity) thread_set_cpu(stack->task[i].thread, i); /* CPU 0 to n - 1 */
 			}

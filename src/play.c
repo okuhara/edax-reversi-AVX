@@ -386,7 +386,7 @@ void play_hint(Play *play, int n)
 	search_set_board(search, &play->board, play->player);
 	search_set_level(search, options.level, search->eval.n_empties);
 	if (n > search->movelist.n_moves) n = search->movelist.n_moves;
-	info("<hint %d moves>\n", n);
+	info("[hint %d moves]\n", n);
 
 	if (options.book_allowed && book_get_moves(play->book, &play->board, &book_moves)) {
 		foreach_move (m, book_moves) if (n) {
@@ -418,7 +418,7 @@ void play_hint(Play *play, int n)
 		} else {
 			if (options.verbosity == 0) search->observer(search->result);
 		}
-		if (search->stop != STOP_END) break;
+		if (search_get_state(search) != STOP_END) break;
 		movelist_exclude(&search->movelist, search->result->move);
 	}
 	if (options.verbosity) {
@@ -470,9 +470,9 @@ void* play_ponder_run(void *v)
 				search_set_level(search, options.level, search->eval.n_empties);
 				search_run(search);
 				if (options.info && play->state == IS_PONDERING) {
-					printf("[ponder after %s id.%d: ", move_to_string(move.x, player, m), search->id);
-					result_print(search->result, stdout);
-					printf("]\n");
+					fprintf(stderr, "[ponder after %s id.%d: ", move_to_string(move.x, player, m), search->id);
+					result_print(search->result, stderr);
+					fprintf(stderr, "]\n");
 				}
 			board_restore(&board, &move);
 		} else {
@@ -483,9 +483,9 @@ void* play_ponder_run(void *v)
 			search_run(search);
 			log_print(&xboard_log, "edax (ponder)> search ended\n");
 			if (options.info && play->state == IS_PONDERING) {
-				printf("[ponder (without move) id.%d: ", search->id);
-				result_print(search->result, stdout);
-				printf("]\n");
+				fprintf(stderr, "[ponder (without move) id.%d: ", search->id);
+				result_print(search->result, stderr);
+				fprintf(stderr, "]\n");
 			}
 		}
 
@@ -876,7 +876,7 @@ static int play_book_alternative(Play *play, Move *played, Move* alternative)
 
 		if (exclude && exclude->x == played->x) {
 			played->score = exclude->score;
-			// also remove moves leading to symetrical positions
+			// also remove moves leading to symmetrical positions
 			board_next(&play->board, played->x, &board);
 			board_unique(&board, &excluded);
 			foreach_move (move, movelist) {

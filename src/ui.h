@@ -30,6 +30,7 @@ typedef struct UI {
 	int type;                  /**< type of UI */
 	int mode;                  /**< computer's color mode TODO: remove me*/
 	Event event;               /**< event */
+	bool is_running;           /**< ui status */
 
 	void (*init)(struct UI*);  /**< init function */
 	void (*loop)(struct UI*);  /**< main loop function */

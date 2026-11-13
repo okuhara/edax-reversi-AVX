@@ -349,7 +349,6 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	node_init(&node, search, alpha, beta, depth, movelist->n_moves, NULL);
-	node.pv_node = true;
 	search->node_type[0] = PV_NODE;
 	search->time.can_update = false;
 
@@ -408,13 +407,13 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 					assert(SCORE_MIN <= node.bestscore && node.bestscore <= SCORE_MAX);
 				}
 				if (search->options.verbosity == 4) pv_debug(search, move, stdout);
-				if (search_time(search) > search->time.maxi && node.bestscore > alpha) search->stop = STOP_TIMEOUT;
+				if (search_time(search) > search->time.maxi && node.bestscore > alpha) search_set_state(search, STOP_TIMEOUT);
 			}
 			node_wait_slaves(&node);
 		}
 	}
 
-	if (!search->stop) {
+	if (search_get_state(search) == RUNNING) {
 		hash_code = board_get_hash_code(&search->board);
 		hash_get(&search->pv_table, &search->board, hash_code, &hash_data.data);
 		if (movelist->n_moves) {	// 4.5.1
@@ -520,7 +519,7 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 
 				score = PVS_root(search, low, high, depth);
 
-				if (search->stop) break;
+				if (search_get_state(search) != RUNNING) break;
 
 				if (score <= low && score > alpha && left > 0) {
 					left *= 2;
@@ -532,7 +531,7 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 			}
 		}
 		// emergency stop
-		if (search->stop) break;
+		if (search_get_state(search) != RUNNING) break;
 
 		// check PV if alpha < score < beta
 		if (is_depth_solving(depth, search->eval.n_empties)
@@ -560,7 +559,8 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 		if (score == old_score) break;
 	}
 
-	if (!search->stop) record_best_move(search, movelist_first(&search->movelist), alpha, beta, depth);
+	// if (search_get_state(search) == RUNNING) record_best_move(search, movelist_first(&search->movelist), alpha, beta, depth);
+
 	search->result->time = search_time(search);
 	search->result->n_nodes = search_count_nodes(search);
 	if (options.noise <= depth && search->options.verbosity >= 2) {
@@ -685,14 +685,12 @@ void iterative_deepening(Search *search, int alpha, int beta)
 	// reuse last search ?
 	if (hash_get_from_board(&search->pv_table, &search->board, &hash_data)) {
 		char s[2][3];
-		if (search->options.verbosity >= 2) {
-			info("<hash: value = [%+02d, %+02d] ; bestmove = %s, %s ; level = %d@%d%% ; date = %d ; cost = %d>\n",
-				hash_data.lower, hash_data.upper,
-				move_to_string(hash_data.move[0], search->player, s[0]),
-				move_to_string(hash_data.move[1], search->player, s[1]),
-				hash_data.wl.c.depth, selectivity_table[hash_data.wl.c.selectivity].percent,
-				hash_data.wl.c.date, hash_data.wl.c.cost);
-		}
+		info("[hash: value = [%+02d, %+02d] ; bestmove = %s, %s ; level = %d@%d%% ; date = %d ; cost = %d]\n",
+			hash_data.lower, hash_data.upper,
+			move_to_string(hash_data.move[0], search->player, s[0]),
+			move_to_string(hash_data.move[1], search->player, s[1]),
+			hash_data.wl.c.depth, selectivity_table[hash_data.wl.c.selectivity].percent,
+			hash_data.wl.c.date, hash_data.wl.c.cost);
 		if (log_is_open(&search_log)) {
 			log_print(&search_log, "--- Next Search ---: ");
 			hash_print(&hash_data, search_log.f);
@@ -738,7 +736,7 @@ void iterative_deepening(Search *search, int alpha, int beta)
 	// sort moves & display initial value
 	tmp_selectivity = search->selectivity; search->selectivity = old_selectivity;
 	if (!movelist_is_empty(movelist)) {
-		if (end == 0) { // shuffle the movelist
+		if (end < 0) { // shuffle the movelist
 			foreach_move(move, *movelist) move->score = (random_get(&search->random) & 0x7fffffff);
 			// randomness is not perfect as several moves may share the same value, but this should be rare enough not to care about it.
 		} else { // sort the moves
@@ -763,8 +761,8 @@ void iterative_deepening(Search *search, int alpha, int beta)
 		search->observer(search->result);
 	}
 
-	// special case : level 0
-	if (end == 0) {
+	// special case : level 0 & -1
+	if (end <= 0) {
 		return;
 	}
 
@@ -778,18 +776,17 @@ void iterative_deepening(Search *search, int alpha, int beta)
 	search->depth = end;
 
 	// switch to endgame
-	if (search->options.depth >= search->eval.n_empties) search->depth = search->eval.n_empties;
+	if (search->options.depth >= search->eval.n_empties) search->depth = end = search->eval.n_empties;
 
 	// iterative selectivity
 	t = (search->options.time - search_time(search));
 	has_time = (solvable_depth(t / 10, search_count_tasks(search)) > search->depth);
 	for (; search->selectivity <= search->options.selectivity; ++search->selectivity) {
-		if (search->depth == search->eval.n_empties && 
-		(  (search->depth < 21 && search->selectivity >= 1)
-		|| (search->depth < 24 && search->selectivity >= 2)
-		|| (search->depth < 27 && search->selectivity >= 3)
-		|| (search->depth < 30 && search->selectivity >= (has_time ? 2 : 4))
-		|| (abs(score) >= SCORE_MAX))) { // jump to exact endgame (to solve faster) ?
+		if ((search->depth < 21 && search->selectivity >= 1)
+		 || (search->depth < 24 && search->selectivity >= 2)
+		 || (search->depth < 27 && search->selectivity >= 3)
+		 || (search->depth < 30 && search->selectivity >= (has_time ? 2 : 4))
+		 || (abs(score) >= SCORE_MAX)) { // jump to options.selectivity (usually exact endgame) (to solve faster) ?
 			search->selectivity = search->options.selectivity;
 		}
 		if (search->selectivity == search->options.selectivity) search_adjust_time(search, true);
@@ -817,7 +814,7 @@ void* search_run(void *v)
 	Search *search = (Search*) v;
 	Move *move;
 
-	search->stop = RUNNING;
+	search_set_state(search, RUNNING);
 
 	//initialisations
 	search->n_nodes = 0;
@@ -855,26 +852,26 @@ void* search_run(void *v)
 	search->result->n_nodes = search_count_nodes(search);
 	if (search->options.verbosity) {
 		if (search->options.verbosity == 1 || options.noise > search->result->depth) search->observer(search->result);
-		if (search->stop == STOP_TIMEOUT) {info("[Search out of time]\n");}
-		else if (search->stop == STOP_ON_DEMAND) {info("[Search stopped on user demand]\n");}
-		else if (search->stop == STOP_PONDERING) {info("[Pondering stopped]\n");}
-		else if (search->stop == RUNNING) {info("[Search completed]\n");}
+		if (search_get_state(search) == STOP_TIMEOUT) {info("[Search out of time]\n");}
+		else if (search_get_state(search) == STOP_ON_DEMAND) {info("[Search stopped on user demand]\n");}
+		else if (search_get_state(search) == STOP_PONDERING) {info("[Pondering stopped]\n");}
+		else if (search_get_state(search) == RUNNING) {info("[Search completed]\n");}
 	}
 
 	if (log_is_open(&search_log)) {
 		lock(&search_log);
 		log_print(&search_log, "\n*** Search id: %d ", search->id);
-		if (search->stop == STOP_TIMEOUT) log_print(&search_log, "out of time");
-		else if (search->stop == STOP_ON_DEMAND) log_print(&search_log, "stopped on user demand");
-		else if (search->stop == STOP_PONDERING) log_print(&search_log, "stop pondering");
-		else if (search->stop == STOP_PARALLEL_SEARCH) log_print(&search_log, "### BUG: stop parallel search reached root! ###");
-		else if (search->stop == RUNNING) log_print(&search_log, "completed");
-		else log_print(&search_log, "### BUG: unkwown stop condition %d ###", search->stop);
+		if (search_get_state(search) == STOP_TIMEOUT) log_print(&search_log, "out of time");
+		else if (search_get_state(search) == STOP_ON_DEMAND) log_print(&search_log, "stopped on user demand");
+		else if (search_get_state(search) == STOP_PONDERING) log_print(&search_log, "stop pondering");
+		else if (search_get_state(search) == STOP_PARALLEL_SEARCH) log_print(&search_log, "### BUG: stop parallel search reached root! ###");
+		else if (search_get_state(search) == RUNNING) log_print(&search_log, "completed");
+		else log_print(&search_log, "### BUG: unkwown stop condition %d ###", search_get_state(search));
 		log_print(&search_log, " ***\n\n");
 		unlock(&search_log);
 	}
 
-	if (search->stop == RUNNING) search->stop = STOP_END;
+	if (search_get_state(search) == RUNNING) search_set_state(search, STOP_END);
 	search->time.spent += search_clock(search);
 	search->result->time = search->time.spent;
 

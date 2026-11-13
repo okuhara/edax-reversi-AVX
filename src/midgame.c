@@ -596,7 +596,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	assert(parent != NULL);
 
 	search_check_timeout(search);
-	if (search->stop)
+	if (search_get_state(search) != RUNNING)
 		return alpha;
 
 	if (search->eval.n_empties == 0)
@@ -623,10 +623,6 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	nodes_org = search->n_nodes + search->child_nodes;
 	search_get_movelist(search, &movelist);
 
-	// transposition cutoff
-	if (hash_get(&search->hash_table, &search->board, hash_code, &hash_data.data) || hash_get(&search->pv_table, &search->board, hash_code, &hash_data.data))
-		if (search_TC_NWS(&hash_data.data, depth, search->selectivity, alpha, &score)) return score;
-
 	if (movelist_is_empty(&movelist)) { // no moves ?
 		node_init(&node, search, alpha, alpha + 1, depth, movelist.n_moves, parent);
 		if (can_move(search->board.opponent, search->board.player)) { // pass ?
@@ -638,6 +634,10 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		}
 
 	} else {
+		// transposition cutoff
+		if (hash_get(&search->hash_table, &search->board, hash_code, &hash_data.data) || hash_get(&search->pv_table, &search->board, hash_code, &hash_data.data))
+			if (search_TC_NWS(&hash_data.data, depth, search->selectivity, alpha, &score)) return score;
+
 		// probcut
 		if (search_probcut(search, alpha, depth, parent, &score)) return score;
 
@@ -669,7 +669,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	}
 
 	// save the best result in hash tables
-	if (!search->stop) {
+	if (search_get_state(search) == RUNNING) {
 		if (depth <= ((search->eval.n_empties <= depth) ? DEPTH_MIDGAME_TO_ENDGAME : 4))
 			hash_data.data.wl.c.selectivity = NO_SELECTIVITY; // hack
 		else hash_data.data.wl.c.selectivity = search->selectivity;
@@ -737,7 +737,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 
 	// end of search ?
 	search_check_timeout(search);
-	if (search->stop) return alpha;
+	if (search_get_state(search) != RUNNING) return alpha;
 	else if (search->eval.n_empties == 0)
 		return search_solve_0(search);
 	else if (USE_PV_EXTENSION && search->eval.n_empties <= search->depth_pv_extension)
@@ -748,10 +748,14 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 	nodes_org = search_count_nodes(search);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
+	// transposition prefetch
+	hash_code = board_get_hash_code(&search->board);
+	hash_prefetch(&search->pv_table, hash_code);
+	hash_prefetch(&search->hash_table, hash_code);
+
+	// move list & node initialization
 	search_get_movelist(search, &movelist);
 	node_init(&node, search, alpha, beta, depth, movelist.n_moves, parent);
-	node.pv_node = true;
-	hash_code = board_get_hash_code(&search->board);
 
 	// special cases
 	if (movelist_is_empty(&movelist)) {
@@ -795,7 +799,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 		// first move
 		board0 = search->board;
 		eval0 = search->eval;
-		if ((move = node_first_move(&node, &movelist))) { // why if there ?
+		if ((move = node_first_move(&node, &movelist))) {
 			search_update_midgame(search, move); search->node_type[search->height] = PV_NODE;
 			move->score = -PVS_midgame(search, -beta, -alpha, depth - 1, &node);
 			search_restore_midgame(search, move->x, &eval0);
@@ -808,7 +812,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 					const int alpha = node.alpha;
 					search_update_midgame(search, move);
 					move->score = -NWS_midgame(search, -alpha - 1, depth - 1, &node);
-					if (!search->stop && alpha < move->score && move->score < beta) {
+					if ((search_get_state(search) == RUNNING) && alpha < move->score && move->score < beta) {
 						search->node_type[search->height] = PV_NODE;
 						move->score = -PVS_midgame(search, -beta, -alpha, depth - 1, &node);
 					}
@@ -822,7 +826,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 	}
 
 	// save the best result in hash tables
-	if (!search->stop) {
+	if (search_get_state(search) == RUNNING) {
 		if (depth <= ((search->eval.n_empties <= depth) ? DEPTH_MIDGAME_TO_ENDGAME : 4))
 			hash_data.data.wl.c.selectivity = NO_SELECTIVITY;
 		else	hash_data.data.wl.c.selectivity = search->selectivity;

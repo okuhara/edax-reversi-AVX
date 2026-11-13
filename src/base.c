@@ -17,6 +17,12 @@
 #include <stdio.h>
 #include <time.h>
 
+#ifdef __unix__
+	#include <unistd.h>
+#elif defined(_WIN32)
+	#include <process.h>
+#endif
+
 /**
  * @brief Set wthor header.
  *
@@ -145,8 +151,7 @@ static void wthor_players_load(WthorBase *base, const char *file)
 		return;
 	}
 
-	if (wthor_header_read(&header, f)) {;
-
+	if (wthor_header_read(&header, f)) {
 		base->n_players = header.n;
 
 		base->player = (char (*)[20]) malloc(base->n_players * sizeof (*base->player));
@@ -189,7 +194,6 @@ static void wthor_players_save(WthorBase *base, const char *file)
 	}
 
 	if (wthor_header_write(&header, f)) {
-
 		for (i = 0; i < base->n_players; ++i) {
 			r += fwrite(base->player[i], 20, 1, f);
 		}
@@ -353,10 +357,10 @@ bool wthor_load(WthorBase *base, const char *file)
 
 			base->game = (WthorGame*) malloc(base->n_games * sizeof (WthorGame));
 			if (base->game) {
-				r = (fread(base->game, sizeof (WthorGame), base->n_games, f) == (unsigned) base->n_games);
+				r = (fread(base->game, sizeof (WthorGame), base->n_games, f) == (size_t) base->n_games);
 				if (!r) warn("Error while reading %s\n", file);
 			} else {
-				warn("Cannot allocate whor games\n");
+				warn("Cannot allocate wthor games\n");
 			}
 		}
 		fclose(f);
@@ -366,7 +370,7 @@ bool wthor_load(WthorBase *base, const char *file)
 		warn("Cannot open file %s\n", file);
 	}
 
-	return r != 0;
+	return r;
 }
 
 /**
@@ -400,11 +404,12 @@ bool wthor_save(WthorBase *base, const char *file)
 
 	if ((f = fopen(file, "wb")) != NULL) {
 		wthor_header_set(&base->header, base->n_games, 0, 0);
-		r = wthor_header_write(&base->header, f);
-		if (base->game) {
-			r += (fwrite(base->game, sizeof (WthorGame), base->n_games, f) == (unsigned) base->n_games);
+		if (wthor_header_write(&base->header, f) && base->game) {
+			r = (fwrite(base->game, sizeof (WthorGame), base->n_games, f) == (size_t) base->n_games);
+			if (!r) {
+				warn("Error while writing %s\n", file);
+			}
 		}
-		if (r != base->n_games) warn("Error while writing %s\n", file);
 		fclose(f);
 	} else {
 		warn("Cannot open file %s\n", file);
@@ -771,14 +776,14 @@ bool base_load(Base *base, const char *file)
 		return false;
 	}
 
-	info("loading games...");
+	info("[loading games...]\r");
 	if (load == game_import_wthor) wthor_header_read(&header, f);
 	for (;;) {
 		load(&game, f);
 		if (ferror(f) || feof(f)) break;
 		base_append(base, &game);
 	}
-	info("done (%d games loaded)\n", base->n_games);
+	info("[loading games done (%d games loaded)]\n", base->n_games);
 
 	fclose(f);
 
@@ -791,7 +796,7 @@ bool base_load(Base *base, const char *file)
  * @param base Game base.
  * @param file Game filename.
  */
-void base_save(const Base *base, const char *file)
+void base_save(const Base *base, const char *file, const bool append)
 {
 	void (*save)(const Game*, FILE*);
 	FILE *f;
@@ -806,7 +811,8 @@ void base_save(const Base *base, const char *file)
 	else if (strcmp(ext, ".sgf") == 0) save = game_export_sgf;
 	else if (strcmp(ext, ".pgn") == 0) save = game_export_pgn;
 	else if (strcmp(ext, ".wtb") == 0) {
-		wthor_load(&wbase, file);
+		if (append) wthor_load(&wbase, file);
+		else wthor_init(&wbase);
 		base_to_wthor(base, &wbase);
 		wthor_save(&wbase, file);
 		wthor_free(&wbase);
@@ -818,7 +824,7 @@ void base_save(const Base *base, const char *file)
 	}
 
 	base_init(&old);
-	base_load(&old, file);
+	if (append) base_load(&old, file);
 	for (i = 0; i < base->n_games; ++i) {
 		base_append(&old, base->game + i);
 	}
@@ -924,20 +930,35 @@ void base_analyze(Base *base, Search *search, const int n_empties, const bool ap
  * @param search Search engine.
  * @param level Search level.
  */
-void base_complete(Base *base, Search *search)
+void base_complete(Base *base, Search *search, const int level)
 {
-	int i, n;
-	int completed;
+	int i = 0, n = 0;
+	int64_t t = real_clock();
+	const long long DELAY = 20 * 60 * 1000LL; // 20 minutes
+	char tmp_file[32];
+	int pid;
 
-	for (i = n = 0; i < base->n_games; ++i) {
-		completed = 0;
-		if (game_complete(base->game + i, search) > 0) completed = 1;
-		n += completed;
-		if (completed || (i % 1000) == 0) {
-			printf("%d/%d games completed (%.1f %% done).\r", n, i + 1, 100.0 * (i + 1) / base->n_games); fflush(stdout);
+	// create a tmp_file
+	#if defined(_WIN32)
+		pid = _getpid();
+	#elif defined(__unix__)
+		pid = getpid();
+	#else
+		pid = time(NULL);
+	#endif
+	snprintf(tmp_file, 32, "base-%06d.txt", pid % 1000000);
+
+	while (i < base->n_games) {
+		if (game_complete(base->game + i, search, level) > 0) ++n;
+		++i;
+		printf("%d - %d games completed / %d (%.1f %% done).\r", i, n, base->n_games, 100.0 * i / base->n_games);
+		if (real_clock() - t > DELAY) { // as completion can be very long, save the base every 20 minutes.
+			t = real_clock();
+			base_save(base, tmp_file, false);
 		}
+		fflush(stdout);
 	}
-	printf("%d/%d games completed (all done).          \n", n, i + 1);
+	printf("%d - %d games completed / %d (all done).          \n", i, n, base->n_games);
 }
 
 /**

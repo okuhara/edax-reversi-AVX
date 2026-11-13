@@ -12,6 +12,7 @@
 #include "ui.h"
 #include "util.h"
 #include <assert.h>
+#include <signal.h>
 
 void gtp_preprocess(char *line);
 
@@ -93,7 +94,7 @@ static void ui_read_input(UI *ui)
 		string_to_lowercase(cmd);
 		if (strcmp(cmd, "stop") == 0) {
 			event_clear_messages(event);
-			info("<stop>\n");
+			info("[stop]\n");
 			play_stop(play);
 			if (ui->type == UI_GGS) play_stop(play + 1);
 		} else if (ui->type == UI_NBOARD && strcmp(cmd, "ping") == 0) {
@@ -127,11 +128,14 @@ static void* ui_read_input_loop(void *v)
 {
 	UI *const ui = (UI*) v;
 
+	ui->is_running = true;
+
 	while (ui->event.loop && !feof(stdin) && !ferror(stdin)) {
 		ui_read_input(ui);
 	}
 
-	info("<exit ui_read_input>\n");
+	ui->is_running = false;
+	info("[exit ui_read_input]\n");
 
 	return NULL;
 }
@@ -205,8 +209,8 @@ bool ui_event_exist(UI *ui)
  */
 void ui_event_init(UI *ui)
 {
+	ui->is_running = false;
 	event_init(&ui->event);
-	
 	thread_create(&ui->event.thread, ui_read_input_loop, ui);
 	thread_detach(ui->event.thread);
 }
@@ -219,5 +223,11 @@ void ui_event_init(UI *ui)
  */
 void ui_event_free(UI *ui)
 {
+#ifdef __unix__
+	if (ui->is_running) {
+		info("[terminating ui event thread]\n");
+		pthread_kill((pthread_t) ui->event.thread, SIGINT);
+	}
+#endif
 	event_free(&ui->event);
 }

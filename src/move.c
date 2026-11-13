@@ -42,21 +42,17 @@ const unsigned char SQUARE_VALUE[] = {
  * @brief Get a symetric square coordinate
  *
  * @param x Square coordinate.
- * @param sym symmetry.
- * @return Symetric square coordinate.
+ * @param sym Symmetry.
+ * @return Symmetric square coordinate.
  */
 int symmetry(int x, const int sym)
 {
 	if (A1 <= x && x <= H8) {
-		if (sym & 1) {
-			x = x ^ 7;
-		}
-		if (sym & 2) {
-			x = x ^ 070;
-		}
-		if (sym & 4) {
-			x = (x >> 3) + (x & 7) * 8;
-		}
+
+		if (sym & 1) x ^= 7;
+		if (sym & 2) x ^= 070; // 070 = 56
+		if (sym & 4) x = ((x >> 3) | ((x & 7) << 3));
+
 		assert(A1 <= x && x <= H8);
 	}
 

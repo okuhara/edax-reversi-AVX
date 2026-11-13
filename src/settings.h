@@ -119,23 +119,19 @@
 #define USE_PREVIOUS_SEARCH true
 
 /** Allow type puning */
-#ifndef USE_TYPE_PUNING
-// #ifndef ANDROID
-#define USE_TYPE_PUNING 1
-// #endif
-#endif
+#define USE_TYPE_PUNING true
 
 /** Hash-n-way. */
 #define HASH_N_WAY 4
 
+/** PV extension (solve PV alone sooner) */
+#define USE_PV_EXTENSION true
+
 /** hash align */
 #define HASH_ALIGNED 1
 
-/** Thread local hash size per thread (in number of bits) */
+/** Thread local hash table size per thread (in number of bits) */
 #define THREAD_LOCAL_HASH_SIZE 10
-
-/** PV extension (solve PV alone sooner) */
-#define USE_PV_EXTENSION true
 
 /** Swith from endgame to shallow search (faster but less node efficient) at this depth. */
 #define DEPTH_TO_SHALLOW_SEARCH 6
@@ -159,16 +155,16 @@
 #define SORT_ALPHA_DELTA 8
 
 /** Try Node splitting (for parallel search) down to that depth. */
-#define SPLIT_MIN_DEPTH 5
+#define SPLIT_MIN_DEPTH 8
 
 /** Stop Node splitting (for parallel search) when few move remains.  */
-#define SPLIT_MIN_MOVES_TODO 1
+#define SPLIT_MIN_MOVES_TODO 4
 
 /** Stop Node splitting (for parallel search) after a few splitting.  */
 #define SPLIT_MAX_SLAVES 3
 
 /** Branching factor (to adjust alloted time). */
-#define BRANCHING_FACTOR 2.24
+#define BRANCHING_FACTOR 2.0
 
 /** Parallelisable work. */
 #define SMP_W 49.0

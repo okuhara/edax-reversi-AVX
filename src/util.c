@@ -15,7 +15,6 @@
 #include "board.h"
 #include "move.h"
 #include "util.h"
-#include "options.h"
 #include "const.h"
 
 #include <assert.h>
@@ -27,7 +26,6 @@
 #include <errno.h>
 #include <string.h>
 #include <stdbool.h>
-#include <signal.h>
 #include <time.h>
 
 #if defined(__unix__) || defined(__APPLE__)
@@ -184,16 +182,26 @@ long long time_read(FILE *f)
 }
 
 /**
+ * @brief Print a time_t as YYYY/MM/DD HH:MM:SS.
+ * @param f Output stream.
+ */
+void date_print(const time_t t, FILE *f)
+{
+	struct tm *tm = localtime(&t);
+
+	fprintf(f, "%4d/%02d/%02d %02d:%02d:%02d", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
+}
+
+/**
  * @brief Print local time.
  * @param f Output stream.
  */
 void time_stamp(FILE *f)
 {
-	time_t t = time(NULL);
-	struct tm *tm;
-	tm = localtime(&t);
-
-	fprintf(f, "[%4d/%2d/%2d %2d:%2d:%2d] ", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
+	putc('[', f);
+	date_print(time(NULL), f);
+	putc(']', f);
+	putc(' ', f);
 }
 
 /**
@@ -786,6 +794,34 @@ char* parse_int(const char *string, int *result)
 		} else if (n > INT_MAX) {
 			n = INT_MAX;
 			errno = ERANGE;
+		}
+
+		*result = n;
+
+		return end;
+	}
+	return (char*) string;
+}
+
+/**
+ * @brief Parse a long long integer.
+ *
+ * @param string String to parse
+ * @param result long long int output value.
+ * @return The remaining of the input string.
+ */
+char* parse_longlong(const char *string, long long *result)
+{
+	if (string) {
+		char *s = parse_skip_spaces(string);
+		char *end = s;
+		long long n = 0;
+
+		if (*s) n = strtoll(s, &end, 10);
+
+		if (end == s) {
+			errno = EINVAL;
+			return end;
 		}
 
 		*result = n;

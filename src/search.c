@@ -387,7 +387,7 @@ void search_init(Search *search)
 	search->id = 0;
 
 	/* running state */
-	search->stop = STOP_END;
+	search_set_state(search, STOP_END);
 
 	/* hash_table */
 	search->options.hash_size = 0;
@@ -407,7 +407,7 @@ void search_init(Search *search)
 	/* evaluation function */
 	// eval_init(search->eval);
 
-	// radom generator
+	// random generator
 	random_seed(&search->random, real_clock());
 
 	/* task stack */
@@ -467,7 +467,7 @@ void search_init(Search *search)
 }
 
 /**
- * @brief Free the search allocated ressource.
+ * @brief Free the search allocated resources.
  *
  * Free a previously initialized search structure.
  * @param search search.
@@ -548,7 +548,7 @@ void search_setup(Search *search)
 void search_clone(Search *search, Search *master)
 {
 	search->id = -1;	// (4.6)
-	search->stop = STOP_END;
+	search_set_state(search, STOP_END);
 	search->player = master->player;
 	search->board = master->board;
 	search_setup(search);
@@ -623,7 +623,7 @@ void search_set_level(Search *search, const int level, const int n_empties)
 	// post-condition:
 	assert(0 <= search->options.depth && search->options.depth <= 60);
 	assert(0 <= search->options.selectivity && search->options.selectivity <= 5);
-	info("<set level (game level=%d, empties=%d) => position level=%d@%d>\n", level, n_empties, search->options.depth, selectivity_table[search->options.selectivity].percent);
+	info("[set level (game level=%d, empties=%d) => position level=%d@%d]\n", level, n_empties, search->options.depth, selectivity_table[search->options.selectivity].percent);
 }
 
 /**
@@ -719,7 +719,7 @@ void search_time_init(Search *search)
 		search->time.maxi = t * 99 / 100;
 		search->time.mini = t * 9 / 10;
 		if (search->options.verbosity >= 2) {
-			info("<Time-alloted: mini = %.2f; maxi = %.2f; extra = %.2f>\n", 0.001 * search->time.mini,  0.001 * search->time.maxi,  0.001 * search->time.extra);
+			info("[Time-alloted: mini = %.2f; maxi = %.2f; extra = %.2f]\n", 0.001 * search->time.mini,  0.001 * search->time.maxi,  0.001 * search->time.extra);
 		}
 	} else {
 		long long t = search->options.time;
@@ -730,8 +730,8 @@ void search_time_init(Search *search)
 		search->time.maxi = t * 3 / 4;
 		search->time.mini = t / 4;
 		if (search->options.verbosity >= 2) {
-			info("<Time-init: rt = %.2f; sd = %d; d = %d; t = %.2f>\n", 0.001 * search->options.time, sd, d, 0.001 * t);
-			info("<Time-alloted: mini = %.2f; maxi = %.2f; extra = %.2f>\n", 0.001 * search->time.mini,  0.001 * search->time.maxi,  0.001 * search->time.extra);
+			info("[Time-init: rt = %.2f; sd = %d; d = %d; t = %.2f]\n", 0.001 * search->options.time, sd, d, 0.001 * t);
+			info("[Time-alloted: mini = %.2f; maxi = %.2f; extra = %.2f]\n", 0.001 * search->time.mini,  0.001 * search->time.maxi,  0.001 * search->time.extra);
 		}
 	}
 	search->time.extended = false;
@@ -741,7 +741,7 @@ void search_time_init(Search *search)
 /**
  * @brief Reset the alloted time.
  *
- * Adjust the time when continuing the search from pondering.
+ * Set the time when continuing the search from pondering.
  *
  * @param search Search.
  * @param initial_board Initial board.
@@ -757,7 +757,7 @@ void search_time_reset(Search *search, const Board *initial_board)
 		search->time.maxi = spent + t * 99 / 100;
 		search->time.mini = spent + t * 9 / 10;
 		if (search->options.verbosity >= 2) {
-			info("<Time-alloted: mini = %.2f; maxi = %.2f; extra = %.2f>\n", 0.001 * search->time.mini,  0.001 * search->time.maxi,  0.001 * search->time.extra);
+			info("[Time-alloted: mini = %.2f; maxi = %.2f; extra = %.2f]\n", 0.001 * search->time.mini,  0.001 * search->time.maxi,  0.001 * search->time.extra);
 		}
 	} else {
 		long long t = search->options.time;
@@ -768,15 +768,13 @@ void search_time_reset(Search *search, const Board *initial_board)
 		search->time.maxi = spent + t * 3 / 4;
 		search->time.mini = spent + t / 4;
 		if (search->options.verbosity >= 2) {
-			info("<Time-reset: spent = %.2f rt = %.2f; sd = %d; d = %d; t = %.2f>\n", 0.001 * spent, 0.001 * search->options.time, sd, d, 0.001 * t);
-			info("<Time-alloted: mini = %.2f; maxi = %.2f; extra = %.2f>\n", 0.001 * search->time.mini,  0.001 * search->time.maxi,  0.001 * search->time.extra);
+			info("[Time-reset: spent = %.2f rt = %.2f; sd = %d; d = %d; t = %.2f]\n", 0.001 * spent, 0.001 * search->options.time, sd, d, 0.001 * t);
+			info("[Time-alloted: mini = %.2f; maxi = %.2f; extra = %.2f]\n", 0.001 * search->time.mini,  0.001 * search->time.maxi,  0.001 * search->time.extra);
 		}
 	}
 	search->time.extended = false;
 	search->time.can_update = true;
 }
-
-
 
 
 /**
@@ -808,7 +806,7 @@ void search_adjust_time(Search *search, const bool once)
  */
 bool search_continue(Search *search)
 {
-	return search->stop == RUNNING && search_time(search) <= search->time.mini;
+	return search_get_state(search) == RUNNING && search_time(search) <= search->time.mini;
 }
 
 /**
@@ -823,14 +821,14 @@ void search_check_timeout(Search *search)
 
 	assert(master->master == master);
 
-	if (master->stop != STOP_TIMEOUT) {
+	if (search_get_state(master) != STOP_TIMEOUT) {
 
 		t = search_time(master);
 
 		if (t > master->time.extra) {
 
-			if (master->stop != RUNNING) {
-				printf("*** MASTER ALREADY STOPPED FOR ANOTHER REASON (%d) ***\n", master->stop);
+			if (search_get_state(master) != RUNNING) {
+				printf("*** MASTER ALREADY STOPPED FOR ANOTHER REASON (%d) ***\n", search_get_state(master));
 			}
 
 			if (!master->time.extended && master->time.can_update) {
@@ -848,11 +846,11 @@ void search_check_timeout(Search *search)
 		}
 	}
 
-	if (search->stop != STOP_TIMEOUT) {
+	if (search_get_state(search) != STOP_TIMEOUT) {
 		t = search_time(master);
 		if (t > master->time.extra) {
-			printf("*** SEARCH STILL RUNNING ? (%d) ***\n", search->stop);
-			search->stop = STOP_TIMEOUT;
+			printf("*** SEARCH STILL RUNNING ? (%d) ***\n", search_get_state(search));
+			search_set_state(search, STOP_TIMEOUT);
 		}
 	}
 }
@@ -1083,7 +1081,7 @@ long long search_clock(Search *search)
  */
 long long search_time(Search *search)
 {
-	if (search->stop != STOP_END) return search_clock(search) + search->time.spent;
+	if (search_get_state(search) != STOP_END) return search_clock(search) + search->time.spent;
 	else return search->time.spent;
 }
 
@@ -1267,7 +1265,7 @@ bool search_TC_PVS(HashData *data, const int depth, const int selectivity, int *
  *
  * @param data Transposition data.
  * @param depth Search depth.
- * @param selectivity Search selecticity level.
+ * @param selectivity Search selectivity level.
  * @param alpha Alpha bound.
  * @param score Score to return in case of a cutoff is found.
  * @return 'true' if a cutoff is found, false otherwise.
@@ -1369,6 +1367,7 @@ void search_share(const Search *src, Search *dest)
 {
 	hash_copy(&src->pv_table, &dest->pv_table);
 	hash_copy(&src->hash_table, &dest->hash_table);
+	hash_copy(&src->shallow_table, &dest->shallow_table);
 }
 
 /**
@@ -1392,12 +1391,12 @@ void search_stop_all(Search *search, const Stop stop)
 {
 	int i;
 
-	spin_lock(search);
-		search->stop = stop;
-		for (i = 0; i < search->n_child; ++i) {
-			search_stop_all(search->child[i], stop);
-		}
-	spin_unlock(search);
+	// spin_lock(search);
+	search_set_state(search, stop);
+	for (i = 0; i < search->n_child; ++i) {
+		search_stop_all(search->child[i], stop);
+	}
+	// spin_unlock(search);
 }
 
 /**
@@ -1406,12 +1405,23 @@ void search_stop_all(Search *search, const Stop stop)
  * @param search Search.
  * @param stop State.
  */
+#ifndef search_set_state
 void search_set_state(Search *search, const Stop stop)
 {
 	spin_lock(search);
 	search->stop = stop;
 	spin_unlock(search);
 }
+
+Stop search_get_state(Search *search)
+{
+	Stop stop;
+	spin_lock(search);
+	stop = search->stop;
+	spin_unlock(search);
+	return stop;
+}
+#endif
 
 /**
  * @brief Guess the bestmove of a given board.
@@ -1434,4 +1444,3 @@ int search_guess(Search *search, const Board *board)
 
 	return move;
 }
-

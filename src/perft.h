@@ -15,11 +15,12 @@
 
 struct Board;
 struct Line;
-void count_games(const struct Board*, const int);
-void quick_count_games(const struct Board*, const int, const int);
-void count_positions(const struct Board*, const int, const int);
-void count_shapes(const struct Board*, const int, const int);
-void estimate_games(const struct Board*, const long long);
+void divide(const Board*, const int depth, const bool);
+void count_games(const struct Board*, const int, const bool);
+void quick_count_games(const struct Board*, const int, const bool, const int);
+void count_positions(const struct Board*, const int, const bool, const int);
+void count_shapes(const struct Board*, const int, const bool, const int);
+void estimate_games(const struct Board*, const long long, const bool, const int);
 void seek_highest_mobility(const struct Board*, const unsigned long long);
 bool seek_position(const struct Board*, const struct Board*, struct Line*);
 

@@ -24,8 +24,6 @@
 #include "event.h"
 #include "options.h"
 #include "search.h"
-#include "settings.h"
-#include "ybwc.h"
 #include "stats.h"
 #include "util.h"
 #include <assert.h>
@@ -264,6 +262,7 @@ static Search* engine_create_search(void)
  * @param beta Beta bound.
  * @param depth Target depth to reach.
  * @param precision Target precision to reach.
+ * @return the result of he search as a score.
  */
 static int engine_open(Search *search, const Board *board, const int player, const int alpha, const int beta, const int depth, const int precision)
 {
@@ -273,7 +272,7 @@ static int engine_open(Search *search, const Board *board, const int player, con
 	int score = 0;
 
 	search->time.spent = -time_clock();
-	search->stop = RUNNING;
+	search_set_state(search, RUNNING);
 
 	// set alphabeta bounds
 	options.alpha = alpha;
@@ -361,9 +360,9 @@ static void engine_close(Search *search)
 	statistics_sum_nodes(search);
 
 	// in case nothing have been sent yet...
-	if (*last_line_sent == '\0' && search->stop == RUNNING) engine_observer(search->result);
+	if (*last_line_sent == '\0' && search_get_state(search) == RUNNING) engine_observer(search->result);
 
-	search->stop = STOP_END;
+	search_set_state(search, STOP_END);
 }
 
 /**
@@ -378,6 +377,7 @@ void* engine_init(void)
 	Engine *engine;
 
 	log_open(&engine_log, options.ui_log_file);
+	debug("engine_init");
 
 	engine = (Engine*) malloc(sizeof (Engine));
 	if (engine == NULL) {
@@ -700,7 +700,7 @@ void engine_loop(void)
 			engine_send("ready.");
 
 		} else if (strcmp(cmd, "get-version") == 0) {
-			engine_send("version: Edax %s", VERSION_STRING);
+			engine_send("version: %s", EDAX_NAME);
 			engine_send("ready.");
 
 		} else if (strcmp(cmd, "new-position") == 0) {

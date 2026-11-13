@@ -552,9 +552,17 @@ int get_rand_bit(unsigned long long b, Random *r)
 	if (n == 0) return -1;
 
 	n = random_get(r) % n;
-	foreach_bit(x, b) if (n-- == 0) return x;
 
+#if 0 && defined(__BMI2__)
+
+	return _tzcnt_u64(_pdep_u64(1ull << n, b));
+
+#else
+
+	foreach_bit(x, b) if (n-- == 0) return x;
 	return -2; // impossible.
+
+#endif
 }
 
 /**

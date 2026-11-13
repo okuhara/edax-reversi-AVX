@@ -30,6 +30,7 @@ long long real_clock(void);
 long long cpu_clock(void);
 void time_print(long long, bool, FILE*);
 long long time_read(FILE*);
+void date_print(const time_t, FILE*);
 void time_stamp(FILE*);
 void relax(int);
 
@@ -64,6 +65,7 @@ char* parse_move(const char*, const struct Board*, struct Move*);
 char* parse_game(const char*, const struct Board*, struct Line*);
 char* parse_boolean(const char*, bool*);
 char* parse_int(const char*, int*);
+char* parse_longlong(const char*, long long *);
 char* parse_real(const char*, double*);
 char* parse_command(const char*, char*, char*, const unsigned int);
 char* parse_find(const char*, const int);
@@ -379,7 +381,6 @@ int get_cpu_number(void);
  * @brief Display a message.
  */
 #define info(...) if (options.info) { \
-	extern Log ggs_log; \
 	fprintf(stderr, __VA_ARGS__); \
 } else (void) 0
 
