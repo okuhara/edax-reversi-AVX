@@ -837,13 +837,13 @@ static void* ggs_event_loop(void *v)
 	while (event->loop) {
 		r = recv(event->socket, buffer, BUCKET_SIZE, 0);
 		if (r > 0) {
-			lock(event);
+			lock(&event->lock);
 				l = strlen(event->buffer);
 				event->buffer = (char*) realloc(event->buffer, r + l + 1);
 				memcpy(event->buffer + l, buffer, r);
 				event->buffer[l + r] = '\0';
 				*buffer = '\0';
-			unlock(event);
+			unlock(&event->lock);
 		} else {
 			event->loop = false;
 		}
@@ -864,7 +864,7 @@ static void ggs_event_init(GGSEvent *event)
 	struct addrinfo hints;
 	struct addrinfo *result, *rp = NULL;
 
-	lock_init(event);
+	lock_init(&event->lock);
 	event->loop = true;
 	event->buffer = (char*) calloc(1, 1);
 
@@ -930,7 +930,7 @@ static void ggs_event_free(GGSEvent *event)
 #endif
 	thread_join(event->thread);
 	free(event->buffer);
-	lock_free(event);
+	lock_free(&event->lock);
 }
 
 /**
@@ -948,7 +948,7 @@ static bool ggs_event_peek(GGSEvent *event, Text *text)
 	bool ok = false;
 	const char *s;
 
-	lock(event);
+	lock(&event->lock);
 	if (*event->buffer) {
 		s = ggs_parse_text(event->buffer, text);
 		if (s > event->buffer) {
@@ -956,7 +956,7 @@ static bool ggs_event_peek(GGSEvent *event, Text *text)
 			ok = (*event->buffer != '|');
 		}
 	}
-	unlock(event);
+	unlock(&event->lock);
 
 	return ok;
 }

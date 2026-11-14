@@ -59,16 +59,11 @@ typedef struct Hash {
 	HashData data;
 } Hash;
 
-/** HashLock : lock for table entries */
-typedef struct HashLock {
-	SpinLock spin;
-} HashLock;
-
 /** HashTable: position storage */
 typedef struct HashTable {
 	void *memory;                 /*!< allocated memory */
 	Hash *hash;                   /*!< hash table */
-	HashLock *lock;               /*!< table with locks */
+	SpinLock *lock;               /*!< table with locks */
 	unsigned long long hash_mask; /*!< a bit mask for hash entries */
 	unsigned int lock_mask;       /*!< a bit mask for lock entries */
 	unsigned int n_hash;          /*!< hash table size */

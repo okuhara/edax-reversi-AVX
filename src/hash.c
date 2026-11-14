@@ -75,7 +75,7 @@ void hash_init(HashTable *hash_table, const unsigned long long size)
 	hash_table->n_lock = 1 << (31 - lzcnt_u32(get_cpu_number() | 1) + 8);	// round down to 2 ^ n, then * 256
 	hash_table->lock_mask = hash_table->n_lock - 1;
 	// hash_table->n_lock += n_way + 1;
-	hash_table->lock = (HashLock*) malloc(hash_table->n_lock * sizeof (HashLock));
+	hash_table->lock = (SpinLock*) malloc(hash_table->n_lock * sizeof (SpinLock));
 
 	for (i = 0; i < hash_table->n_lock; ++i) spin_init(hash_table->lock + i);
 }
@@ -162,7 +162,7 @@ void hash_free(HashTable *hash_table)
 	free(hash_table->memory);
 	hash_table->hash = NULL;
 	for (i = 0; i < hash_table->n_lock; ++i) spin_free(hash_table->lock + i);
-	free(hash_table->lock);
+	free((void *) hash_table->lock);
 }
 
 /**
@@ -287,7 +287,7 @@ static void data_new(HashData *data, HashStoreData *storedata)
  * @param storedata.score Best score.
  * @param storedata.move Best move.
  */
-static void hash_new(Hash *hash, HashLock *lock, const Board *board, HashStoreData *storedata)
+static void hash_new(Hash *hash, SpinLock *lock, const Board *board, HashStoreData *storedata)
 {
 	spin_lock(lock);
 	HASH_STATS(if (date == hash->data.date) ++statistics.n_hash_remove;)
@@ -315,7 +315,7 @@ static void hash_new(Hash *hash, HashLock *lock, const Board *board, HashStoreDa
  * @param storedata.data.upper Upper score bound.
  * @param storedata.move Best move.
  */
-static void hash_set(Hash *hash, HashLock *lock, const Board *board, HashStoreData *storedata)
+static void hash_set(Hash *hash, SpinLock *lock, const Board *board, HashStoreData *storedata)
 {
 	storedata->data.move[1] = NOMOVE;
 	spin_lock(lock);
@@ -350,7 +350,7 @@ static void hash_set(Hash *hash, HashLock *lock, const Board *board, HashStoreDa
  * @param storedata.move Best move.
  * @return true if an entry has been updated, false otherwise.
  */
-static bool hash_update(Hash *hash, HashLock *lock, const Board *board, HashStoreData *storedata)
+static bool hash_update(Hash *hash, SpinLock *lock, const Board *board, HashStoreData *storedata)
 {
 	bool ok = false;
 
@@ -392,7 +392,7 @@ static bool hash_update(Hash *hash, HashLock *lock, const Board *board, HashStor
  * @param storedata.move Best move.
  * @return true if an entry has been replaced, false otherwise.
  */
-static bool hash_replace(Hash *hash, HashLock *lock, const Board *board, HashStoreData *storedata)
+static bool hash_replace(Hash *hash, SpinLock *lock, const Board *board, HashStoreData *storedata)
 {
 	bool ok = false;
 
@@ -421,7 +421,7 @@ static bool hash_replace(Hash *hash, HashLock *lock, const Board *board, HashSto
  * @param storedata.data.upper Upper score bound.
  * @param storedata.move Best move.
  */
-static bool hash_reset(Hash *hash, HashLock *lock, const Board *board, HashStoreData *storedata)
+static bool hash_reset(Hash *hash, SpinLock *lock, const Board *board, HashStoreData *storedata)
 {
 	bool ok = false;
 
@@ -456,7 +456,7 @@ static bool hash_reset(Hash *hash, HashLock *lock, const Board *board, HashStore
 void hash_feed(HashTable *hash_table, const Board *board, const unsigned long long hash_code, HashStoreData *storedata)
 {
 	Hash *hash, *worst;
-	HashLock *lock; 
+	SpinLock *lock;
 	int i;
 
 	storedata->data.wl.c.date = hash_table->date ? hash_table->date : 1;
@@ -512,7 +512,7 @@ void hash_store(HashTable *hash_table, const Board *board, const unsigned long l
 {
 	int i;
 	Hash *worst, *hash;
-	HashLock *lock;
+	SpinLock *lock;
 
 	worst = hash = hash_table->hash + (hash_code & hash_table->hash_mask);
 	lock = hash_table->lock + (hash_code & hash_table->lock_mask);
@@ -551,7 +551,7 @@ void hash_force(HashTable *hash_table, const Board *board, const unsigned long l
 {
 	int i;
 	Hash *worst, *hash;
-	HashLock *lock;
+	SpinLock *lock;
 
 	worst = hash = hash_table->hash + (hash_code & hash_table->hash_mask);
 	lock = hash_table->lock + (hash_code & hash_table->lock_mask);
@@ -583,7 +583,7 @@ bool hash_get(HashTable *hash_table, const Board *board, const unsigned long lon
 {
 	int i;
 	Hash *hash;
-	HashLock *lock;
+	SpinLock *lock;
 	bool ok = false;
 
 	HASH_STATS(++statistics.n_hash_search;)

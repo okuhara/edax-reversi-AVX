@@ -41,7 +41,7 @@ void pv_debug(Search *search, const Move *bestmove, FILE *f)
 	char s[4];
 	int player = BLACK;
 
-	spin_lock(search->result);
+	spin_lock(&search->result->spin);
 
 	board = search->board;
 	if (search->height == 1) { // hack to call this function from height 1 or 0
@@ -69,7 +69,7 @@ void pv_debug(Search *search, const Move *bestmove, FILE *f)
 	}
 	fputc('\n', f);
 
-	spin_unlock(search->result);
+	spin_unlock(&search->result->spin);
 }
 
 /**
@@ -162,7 +162,7 @@ void record_best_move(Search *search, const Move *bestmove, const int alpha, con
 
 	board = search->board;
 
-	spin_lock(result);
+	spin_lock(&result->spin);
 
 	has_changed = (result->move != bestmove->x || result->depth != depth || result->selectivity != search->selectivity);
 
@@ -210,10 +210,10 @@ void record_best_move(Search *search, const Move *bestmove, const int alpha, con
 	result->time = search_time(search);
 	result->n_nodes = search_count_nodes(search);
 
-	spin_unlock(result);
+	spin_unlock(&result->spin);
 
 	if (log_is_open(&search_log)) {
-		lock(&search_log);
+		lock(&search_log.lock);
 			log_print(&search_log, "id = %d ; ", search->id);
 			log_print(&search_log, "level = %2d@%2d%% ; ", result->depth, selectivity_table[result->selectivity].percent);
 			log_print(&search_log, "ab = [%+03d, %+03d]:\n", alpha, beta);
@@ -228,7 +228,7 @@ void record_best_move(Search *search, const Move *bestmove, const int alpha, con
 			pv_debug(search, bestmove, search_log.f);
 			log_print(&search_log, "\n\n");
 			fflush(search_log.f);
-		unlock(&search_log);
+		unlock(&search_log.lock);
 	}
 
 	if (has_changed && options.noise <= depth && search->options.verbosity == 3) search->observer(search->result);
@@ -678,7 +678,7 @@ void iterative_deepening(Search *search, int alpha, int beta)
 	old_depth = 0; old_selectivity = search->selectivity;
 
 	if (log_is_open(&search_log)) {
-		lock(&search_log);
+		lock(&search_log.lock);
 		log_print(&search_log, "\n\n*** Search: id: %d ***\n", search->id);
 	}
 
@@ -730,7 +730,7 @@ void iterative_deepening(Search *search, int alpha, int beta)
 		log_print(&search_log,"date: pv = %d, main = %d %s\n", search->pv_table.date, search->hash_table.date, search->options.keep_date ? "(keep)":"");
 		log_print(&search_log,"iterating from level %d@%d\n", start, selectivity_table[search->selectivity].percent);
 		log_print(&search_log, "alloted time: mini=%.1fs maxi=%.1fs extra=%.1fs\n", 0.001 * search->time.mini, 0.001 * search->time.maxi, 0.001 * search->time.extra);
-		unlock(&search_log);
+		unlock(&search_log.lock);
 	}
 
 	// sort moves & display initial value
@@ -859,7 +859,7 @@ void* search_run(void *v)
 	}
 
 	if (log_is_open(&search_log)) {
-		lock(&search_log);
+		lock(&search_log.lock);
 		log_print(&search_log, "\n*** Search id: %d ", search->id);
 		if (search_get_state(search) == STOP_TIMEOUT) log_print(&search_log, "out of time");
 		else if (search_get_state(search) == STOP_ON_DEMAND) log_print(&search_log, "stopped on user demand");
@@ -868,7 +868,7 @@ void* search_run(void *v)
 		else if (search_get_state(search) == RUNNING) log_print(&search_log, "completed");
 		else log_print(&search_log, "### BUG: unkwown stop condition %d ###", search_get_state(search));
 		log_print(&search_log, " ***\n\n");
-		unlock(&search_log);
+		unlock(&search_log.lock);
 	}
 
 	if (search_get_state(search) == RUNNING) search_set_state(search, STOP_END);

@@ -36,7 +36,7 @@ typedef struct {
  */
 static void xboard_observer(Result *result)
 {
-	spin_lock(result);
+	spin_lock(&result->spin);
 
 	printf("%2d ", result->depth);
 	printf("%4d ", 100 * result->score);
@@ -61,7 +61,7 @@ static void xboard_observer(Result *result)
 		putc('\n', xboard_log.f);
 		fflush(xboard_log.f);
 	}
-	spin_unlock(result);
+	spin_unlock(&result->spin);
 }
 
 /**
@@ -377,10 +377,10 @@ static void xboard_loop_analyze(UI *ui)
 		log_print(&xboard_log, "xboard (analyze)> %s %s\n", cmd, param);
 
 		if (strcmp(cmd, ".") == 0) {
-			spin_lock(search->result);
+			spin_lock(&search->result->spin);
 			xboard_send("stat01: %d %lld %d %d %d\n",
 				search_time(search) / 10, search_count_nodes(search), search->depth, search->result->n_moves_left, search->result->n_moves);
-			spin_unlock(search->result);
+			spin_unlock(&search->result->spin);
 
 		} else if (strcmp(cmd, "hint") == 0) {
 			xboard_hint(play);

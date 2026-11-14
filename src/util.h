@@ -115,207 +115,201 @@ void random_seed(Random*, const unsigned long long);
  */
 #if defined(__unix__) || (defined(_WIN32) && defined(USE_PTHREAD)) || defined(__APPLE__)
 
-#include <pthread.h>
+	#include <pthread.h>
 
-/** Typedef mutex to a personalized type for portability */
-typedef pthread_t Thread;
+	/** Typedef thread to a personalized type for portability */
+	typedef pthread_t Thread;
 
-/** Typedef mutex to a personalized type for portability */
-typedef pthread_mutex_t Lock;
+	/** Typedef mutex to a personalized type for portability */
+	typedef pthread_mutex_t Lock;
 
-/** typedef conditional variable */
-typedef pthread_cond_t Condition;
+	/** typedef conditional variable */
+	typedef pthread_cond_t Condition;
 
-/** @macro to detach a thread */
-#define thread_detach(thread) pthread_detach(thread)
+	/** @macro to detach a thread */
+	#define thread_detach(thread) pthread_detach(thread)
 
-#if DEBUG && defined(__unix__) && !defined(__APPLE__)
-/** @macro Lock a mutex with a macro for genericity */
-#define lock(c) if (pthread_mutex_lock(&(c)->lock)) { \
-	error("lock"); \
-} else (void) 0
+  #if DEBUG && defined(__unix__) && !defined(__APPLE__)
+	/** @macro Lock a mutex with a macro for genericity */
+	#define lock(c) if (pthread_mutex_lock(c)) { \
+		error("lock"); \
+	} else (void) 0
 
-/** @macro unlock a mutex with a macro for genericity */
-#define unlock(c) if (pthread_mutex_unlock(&(c)->lock)) { \
-	error("unlock"); \
-} else (void) 0
+	/** @macro unlock a mutex with a macro for genericity */
+	#define unlock(c) if (pthread_mutex_unlock(c)) { \
+		error("unlock"); \
+	} else (void) 0
 
-/** @macro Initialize a mutex with a macro for genericity. */
-#define lock_init(c) do {\
-	pthread_mutexattr_t attr;\
-	pthread_mutexattr_init(&attr);\
-	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK_NP);\
-	pthread_mutex_init(&(c)->lock, &attr);\
-} while (0)
+	/** @macro Initialize a mutex with a macro for genericity. */
+	#define lock_init(c) do {\
+		pthread_mutexattr_t attr;\
+		pthread_mutexattr_init(&attr);\
+		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK_NP);\
+		pthread_mutex_init((c), &attr);\
+	} while (0)
 
-/** @macro Free a mutex with a macro for genericity. */
-#define lock_free(c) if (pthread_mutex_destroy(&(c)->lock)) { \
-	error("lock_free"); \
-} else (void) 0
+	/** @macro Free a mutex with a macro for genericity. */
+	#define lock_free(c) if (pthread_mutex_destroy(c)) { \
+		error("lock_free"); \
+	} else (void) 0
 
-#else //NDEBUG
+  #else //NDEBUG
 
-/** @macro Lock a mutex with a macro for genericity */
-#define lock(c) pthread_mutex_lock(&(c)->lock)
+	/** @macro Lock a mutex with a macro for genericity */
+	#define lock(c) pthread_mutex_lock(c)
 
-/** @macro unlock a mutex with a macro for genericity */
-#define unlock(c) pthread_mutex_unlock(&(c)->lock)
+	/** @macro unlock a mutex with a macro for genericity */
+	#define unlock(c) pthread_mutex_unlock(c)
 
-/** @macro Initialize a mutex with a macro for genericity. */
-#define lock_init(c) pthread_mutex_init(&(c)->lock, NULL)
+	/** @macro Initialize a mutex with a macro for genericity. */
+	#define lock_init(c) pthread_mutex_init((c), NULL)
 
-/** @macro Free a mutex with a macro for genericity. */
-#define lock_free(c) pthread_mutex_destroy(&(c)->lock)
+	/** @macro Free a mutex with a macro for genericity. */
+	#define lock_free(c) pthread_mutex_destroy(c)
 
-#endif
+  #endif
 
-#ifdef __APPLE__ // Mac OS spinlock
+  #ifdef __APPLE__ // Mac OS spinlock
 
-#include <libkern/OSAtomic.h>
+	#include <libkern/OSAtomic.h>
 
-/** Typedef spinlock (=fast mutex) to a personalized type for portability */
-typedef OSSpinLock SpinLock;
+	/** Typedef spinlock (=fast mutex) to a personalized type for portability */
+	typedef OSSpinLock SpinLock;
 
-/** @macro Lock a spinlock with a macro for genericity */
-#define spin_lock(c) OSSpinLockLock(&(c)->spin)
+	/** @macro Lock a spinlock with a macro for genericity */
+	#define spin_lock(c) OSSpinLockLock(c)
 
-/** @macro unlock a spinlock with a macro for genericity */
-#define spin_unlock(c) OSSpinLockUnlock(&(c)->spin)
+	/** @macro unlock a spinlock with a macro for genericity */
+	#define spin_unlock(c) OSSpinLockUnlock(c)
 
-/** @macro Initialize a spinlock with a macro for genericity. */
-#define spin_init(c)  do {(c)->spin = OS_SPINLOCK_INIT;} while (0)
+	/** @macro Initialize a spinlock with a macro for genericity. */
+	#define spin_init(c)  do {*(c) = OS_SPINLOCK_INIT;} while (0)
 
-/** @macro Free a spinlock with a macro for genericity. */
-#define spin_free(c)   // FIXME ?? should this stay empty ?
+	/** @macro Free a spinlock with a macro for genericity. */
+	#define spin_free(c)   // FIXME ?? should this stay empty ?
 
+  #elif defined(__USE_XOPEN2K) // Posix spinlock
 
-#elif defined(__USE_XOPEN2K) // Posix spinlock
+	/** Typedef spinlock (=fast mutex) to a personalized type for portability */
+	typedef pthread_spinlock_t SpinLock;
 
-/** Typedef spinlock (=fast mutex) to a personalized type for portability */
-typedef pthread_spinlock_t SpinLock;
+	/** @macro Lock a spinlock with a macro for genericity */
+	#define spin_lock(c) pthread_spin_lock(c)
 
-/** @macro Lock a spinlock with a macro for genericity */
-#define spin_lock(c) pthread_spin_lock(&(c)->spin)
+	/** @macro unlock a spinlock with a macro for genericity */
+	#define spin_unlock(c) pthread_spin_unlock(c)
 
-/** @macro unlock a spinlock with a macro for genericity */
-#define spin_unlock(c) pthread_spin_unlock(&(c)->spin)
+	/** @macro Initialize a spinlock with a macro for genericity. */
+	#define spin_init(c) pthread_spin_init((c), PTHREAD_PROCESS_PRIVATE)
 
-/** @macro Initialize a spinlock with a macro for genericity. */
-#define spin_init(c) pthread_spin_init(&(c)->spin, PTHREAD_PROCESS_PRIVATE)
+	/** @macro Free a spinlock with a macro for genericity. */
+	#define spin_free(c) pthread_spin_destroy(c)
 
-/** @macro Free a spinlock with a macro for genericity. */
-#define spin_free(c) pthread_spin_destroy(&(c)->spin)
+  #else // No spin lock available, use mutex instead
 
-#else // No spin lock available, use mutex instead
+	/** Typedef spinlock (=fast mutex) to a personalized type for portability */
+	typedef pthread_mutex_t SpinLock;
 
-/** Typedef spinlock (=fast mutex) to a personalized type for portability */
-typedef pthread_mutex_t SpinLock;
+	/** @macro Lock a spinlock with a macro for genericity */
+	#define spin_lock(c) pthread_mutex_lock(c)
 
-/** @macro Lock a spinlock with a macro for genericity */
-#define spin_lock(c) pthread_mutex_lock(&(c)->spin)
+	/** @macro unlock a mutex with a macro for genericity */
+	#define spin_unlock(c) pthread_mutex_unlock(c)
 
-/** @macro unlock a mutex with a macro for genericity */
-#define spin_unlock(c) pthread_mutex_unlock(&(c)->spin)
+	/** @macro Initialize a mutex with a macro for genericity. */
+	#define spin_init(c) pthread_mutex_init((c), NULL)
 
-/** @macro Initialize a mutex with a macro for genericity. */
-#define spin_init(c) pthread_mutex_init(&(c)->spin, NULL)
+	/** @macro Free a mutex with a macro for genericity. */
+	#define spin_free(c) pthread_mutex_destroy(c)
 
-/** @macro Free a mutex with a macro for genericity. */
-#define spin_free(c) pthread_mutex_destroy(&(c)->spin)
+  #endif
 
-#endif
+	/** init a condition */
+	#define condition_init(c) pthread_cond_init((c), NULL)
 
-/** init a condition */
-#define condition_init(c) pthread_cond_init(&(c)->cond, NULL)
+	/** wait for a condition change */
+	#define condition_wait(c,lock) pthread_cond_wait((c), (lock))
 
-/** wait for a condition change */
-#define condition_wait(c) pthread_cond_wait(&(c)->cond, &(c)->lock)
+	/** signal a condition change */
+	#define condition_signal(c) pthread_cond_signal(c)
 
-/** signal a condition change */
-#define condition_signal(c) pthread_cond_signal(&(c)->cond)
+	/** boardcast a condition change */
+	#define condition_broadcast(c) pthread_cond_broadcast(c)
 
-/** boardcast a condition change */
-#define condition_broadcast(c) pthread_cond_broadcast(&(c)->cond)
-
-/** free a condition */
-#define condition_free(c) pthread_cond_destroy(&(c)->cond)
+	/** free a condition */
+	#define condition_free(c) pthread_cond_destroy(c)
 
 #elif defined(_WIN32)
 
-#include <winsock2.h>
-#include <windows.h>
+	#include <winsock2.h>
+	#include <windows.h>
 
-/** Typedef to a personalized Thread type for portability */
-typedef HANDLE Thread;
+	/** Typedef to a personalized Thread type for portability */
+	typedef HANDLE Thread;
 
-/** Typedef to a personalized Lock type for portability */
-typedef CRITICAL_SECTION Lock;
+	/** Typedef to a personalized Lock type for portability */
+	typedef CRITICAL_SECTION Lock;
 
-/** Typedef to a personalized SpinLock type for portability */
-typedef CRITICAL_SECTION SpinLock;
+	/** Typedef to a personalized SpinLock type for portability */
+	typedef CRITICAL_SECTION SpinLock;
 
-/** Some buggy compilers need the following declarations */
-#if defined __MINGW32__ && (_WIN32_WINNT < 0x0600)
+  /** Some buggy compilers need the following declarations */
+  #if defined __MINGW32__ && (_WIN32_WINNT < 0x0600)
 
-#if (__MINGW64_VERSION_MAJOR < 3)
-typedef DWORD CONDITION_VARIABLE;
-#endif
-void InitializeConditionVariable(CONDITION_VARIABLE*);
-void WakeConditionVariable(CONDITION_VARIABLE*);
-void WakeAllConditionVariable(CONDITION_VARIABLE*);
-BOOL SleepConditionVariableCS(CONDITION_VARIABLE*, CRITICAL_SECTION*, DWORD);
+    #if (__MINGW64_VERSION_MAJOR < 3)
+	typedef DWORD CONDITION_VARIABLE;
+    #endif
+	void InitializeConditionVariable(CONDITION_VARIABLE*);
+	void WakeConditionVariable(CONDITION_VARIABLE*);
+	void WakeAllConditionVariable(CONDITION_VARIABLE*);
+	BOOL SleepConditionVariableCS(CONDITION_VARIABLE*, CRITICAL_SECTION*, DWORD);
 
-#endif
+  #endif
 
-#if defined(_WIN64) || defined(_WIN32)
+	/** Typedef to a personalized Condition type for portability */
+	typedef CONDITION_VARIABLE Condition;
 
-/** Typedef to a personalized Condition type for portability */
-typedef CONDITION_VARIABLE Condition;
+	/** init a condition */
+	#define condition_init(c) InitializeConditionVariable(c)
 
-/** init a condition */
-#define condition_init(c) InitializeConditionVariable(&(c)->cond)
+	/** wait for a condition change */
+	#define condition_wait(c,lock) SleepConditionVariableCS((c), (lock), INFINITE)
 
-/** wait for a condition change */
-#define condition_wait(c) SleepConditionVariableCS(&(c)->cond, &(c)->lock, INFINITE)
+	/** signal a condition change */
+	#define condition_signal(c) WakeConditionVariable(c)
 
-/** signal a condition change */
-#define condition_signal(c) WakeConditionVariable(&(c)->cond)
+	/** signal a condition change */
+	#define condition_broadcast(c) WakeAllConditionVariable(c)
 
-/** signal a condition change */
-#define condition_broadcast(c) WakeAllConditionVariable(&(c)->cond)
+	/** free a condition */
+	#define condition_free(c)
 
-/** free a condition */
-#define condition_free(c)
+	/** @macro to detach a thread */
+	#define thread_detach(thread) CloseHandle(thread)
 
-#endif
+	/** @macro Lock a spinlock with a macro for genericity */
+	#define lock(c) EnterCriticalSection(c)
 
-/** @macro to detach a thread */
-#define thread_detach(thread) CloseHandle(thread)
+	/** @macro unlock a mutex with a macro for genericity */
+	#define unlock(c) LeaveCriticalSection(c)
 
-/** @macro Lock a spinlock with a macro for genericity */
-#define lock(c) EnterCriticalSection(&(c)->lock)
+	/** @macro Initialize a mutex with a macro for genericity. */
+	#define lock_init(c) InitializeCriticalSection(c)
 
-/** @macro unlock a mutex with a macro for genericity */
-#define unlock(c) LeaveCriticalSection(&(c)->lock)
+	/** @macro Initialize a mutex with a macro for genericity. */
+	#define lock_free(c) DeleteCriticalSection(c)
 
-/** @macro Initialize a mutex with a macro for genericity. */
-#define lock_init(c) InitializeCriticalSection(&(c)->lock)
+	/** @macro Lock a spinlock with a macro for genericity */
+	#define spin_lock(c) EnterCriticalSection(c)
 
-/** @macro Initialize a mutex with a macro for genericity. */
-#define lock_free(c) DeleteCriticalSection(&(c)->lock)
+	/** @macro unlock a mutex with a macro for genericity */
+	#define spin_unlock(c) LeaveCriticalSection(c)
 
-/** @macro Lock a spinlock with a macro for genericity */
-#define spin_lock(c) EnterCriticalSection(&(c)->spin)
+	/** @macro Initialize a mutex with a macro for genericity. */
+	#define spin_init(c) InitializeCriticalSection(c)
 
-/** @macro unlock a mutex with a macro for genericity */
-#define spin_unlock(c) LeaveCriticalSection(&(c)->spin)
-
-/** @macro Initialize a mutex with a macro for genericity. */
-#define spin_init(c) InitializeCriticalSection(&(c)->spin)
-
-/** @macro Initialize a mutex with a macro for genericity. */
-#define spin_free(c) DeleteCriticalSection(&(c)->spin)
-
+	/** @macro Initialize a mutex with a macro for genericity. */
+	#define spin_free(c) DeleteCriticalSection(c)
 
 #endif
 
@@ -428,13 +422,13 @@ typedef struct Log {
 
 /** @brief open a log file if allowed. */
 #define log_open(l, file) if ((l)->f == NULL && file != NULL) { \
-	lock_init(l); \
+	lock_init(&(l)->lock); \
 	(l)->f = fopen(file, "w"); \
 } else (void) 0
 
 /** @brief Close an opened log file. */
 #define log_close(l) if ((l)->f) { \
-	lock_free(l); \
+	lock_free(&(l)->lock); \
 	fclose((l)->f); \
 	(l)->f = NULL; \
 } else (void) 0

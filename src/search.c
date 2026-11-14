@@ -434,14 +434,14 @@ void search_init(Search *search)
 	search->master = search; /* main search */
 
 	/* lock */
-	spin_init(search);
+	spin_init(&search->spin);
 
 	/* result */
 	search->result = (Result*) malloc(sizeof (Result));
 	if (search->result == NULL) {
 		fatal_error("Cannot allocate a task stack\n");
 	}
-	spin_init(search->result);
+	spin_init(&search->result->spin);
 	search->result->move = NOMOVE;
 
 	search->n_nodes = 0;
@@ -482,9 +482,9 @@ void search_free(Search *search)
 
 	task_stack_free(search->tasks);
 	free(search->tasks);
-	spin_free(search);
+	spin_free(&search->spin);
 
-	spin_free(search->result);
+	spin_free(&search->result->spin);
 	free(search->result);
 
 	log_close(&search_log);
@@ -571,10 +571,10 @@ void search_clone(Search *search, Search *master)
 	search->n_nodes = 0;
 	search->child_nodes = 0;
 	search->stability_bound = master->stability_bound;
-	spin_lock(master);
+	spin_lock(&master->spin);
 	assert(master->n_child < MAX_THREADS);
 	master->child[master->n_child++] = search;
-	spin_unlock(master);
+	spin_unlock(&master->spin);
 	search->parent = master;
 	search->master = master->master;
 }
@@ -833,12 +833,12 @@ void search_check_timeout(Search *search)
 
 			if (!master->time.extended && master->time.can_update) {
 				Result *result = master->result;
-				spin_lock(result);
+				spin_lock(&result->spin);
 				if ((!master->time.extended && master->time.can_update)
 				&& (result->bound[result->move].lower < result->score || result->depth == 0)) {
 					search_adjust_time(master, true);
 				}
-				spin_unlock(result);
+				spin_unlock(&result->spin);
 			}
 			if (t > search->time.extra) {
 				search_stop_all(master, STOP_TIMEOUT);
@@ -1133,7 +1133,7 @@ void result_print(Result *result, FILE *f)
 	const int PRINTED_WIDTH = 52;
 #endif
 
-	spin_lock(result);
+	spin_lock(&result->spin);
 
 	if (result->bound[result->move].lower < result->score && result->score == result->bound[result->move].upper) bound = '<';
 	else if (result->bound[result->move].lower == result->score && result->score < result->bound[result->move].upper) bound = '>';
@@ -1152,7 +1152,7 @@ void result_print(Result *result, FILE *f)
 	line_print(&result->pv, options.width - PRINTED_WIDTH, " ", f);
 	fflush(f);
 
-	spin_unlock(result);
+	spin_unlock(&result->spin);
 }
 
 #if 0	// not used
@@ -1391,12 +1391,12 @@ void search_stop_all(Search *search, const Stop stop)
 {
 	int i;
 
-	// spin_lock(search);
+	// spin_lock(&search->spin);
 	search_set_state(search, stop);
 	for (i = 0; i < search->n_child; ++i) {
 		search_stop_all(search->child[i], stop);
 	}
-	// spin_unlock(search);
+	// spin_unlock(&search->spin);
 }
 
 /**
@@ -1408,17 +1408,17 @@ void search_stop_all(Search *search, const Stop stop)
 #ifndef search_set_state
 void search_set_state(Search *search, const Stop stop)
 {
-	spin_lock(search);
+	spin_lock(&search->spin);
 	search->stop = stop;
-	spin_unlock(search);
+	spin_unlock(&search->spin);
 }
 
 Stop search_get_state(Search *search)
 {
 	Stop stop;
-	spin_lock(search);
+	spin_lock(&search->spin);
 	stop = search->stop;
-	spin_unlock(search);
+	spin_unlock(&search->spin);
 	return stop;
 }
 #endif

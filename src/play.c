@@ -37,9 +37,9 @@ void play_init(Play *play, Book *book)
 	play->time[1].left = options.time;
 	play->time[1].extra = 0;
 	play_new(play);
-	lock_init(&play->ponder);
+	lock_init(&play->ponder.lock);
 	play->ponder.launched = false;
-	spin_init(&play->result);
+	spin_init(&play->result.spin);
 	play->ponder.verbose = false;
 	memset(play->error_message, 0, PLAY_MESSAGE_MAX_LENGTH);
 	play_force_init(play, "F5");
@@ -449,7 +449,7 @@ void* play_ponder_run(void *v)
 	Move move;
 	char m[4];
 
-	lock(&play->ponder);
+	lock(&play->ponder.lock);
 	if (play->state == IS_PONDERING || play->state == IS_ANALYZING) {
 		board = play->board;
 		player = play->player;
@@ -493,7 +493,7 @@ void* play_ponder_run(void *v)
 		play->state = IS_WAITING;
 		search->options.keep_date = false;
 	}
-	unlock(&play->ponder);
+	unlock(&play->ponder.lock);
 
 	return NULL;
 }
@@ -560,11 +560,11 @@ void play_undo(Play *play)
 {
 	if (play->i_game > 0) {
 		play_stop_pondering(play);
-		lock(&play->ponder);
+		lock(&play->ponder.lock);
 		play_force_restore(play);
 		board_restore(&play->board, &play->game[--play->i_game]);
 		play->player ^= 1;
-		unlock(&play->ponder);
+		unlock(&play->ponder.lock);
 	}
 }
 

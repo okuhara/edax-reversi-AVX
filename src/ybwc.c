@@ -64,8 +64,8 @@ void node_init(Node* node, Search *search, const int alpha, const int beta, cons
 	assert(SCORE_MIN <= beta && beta <= SCORE_MAX);
 	assert(alpha < beta);
 
-	lock_init(node);
-	condition_init(node);
+	lock_init(&node->lock);
+	condition_init(&node->cond);
 
 	node->alpha = alpha;
 	node->beta = beta;
@@ -93,8 +93,8 @@ void node_init(Node* node, Search *search, const int alpha, const int beta, cons
  */
 void node_free(Node *node)
 {
-	lock_free(node);
-	condition_free(node);
+	lock_free(&node->lock);
+	condition_free(&node->cond);
 }
 
 /**
@@ -115,15 +115,15 @@ static Task* get_helper(Node *parent, Node *node, Move *move)
 	while (parent && task == NULL) {
 		// is parent available ?
 		if (parent->n_slave < SPLIT_MAX_SLAVES && parent->is_waiting && !parent->is_helping) {
-			lock(parent);
+			lock(&parent->lock);
 			if (parent->n_slave < SPLIT_MAX_SLAVES && parent->is_waiting && !parent->is_helping) {
 				parent->is_helping = true;
 				task = &parent->help;
 				task_init(task);
 				task_set(task, node, move);
-				condition_broadcast(parent);
+				condition_broadcast(&parent->cond);
 			}
-			unlock(parent);
+			unlock(&parent->lock);
 		}
 		// if parent node is not available seek for an helper node from grand-parent node
 		parent = parent->parent;
@@ -173,10 +173,10 @@ bool node_split(Node *node, Move *move)
 			task_set(task, node, move);
 			YBWC_STATS(atomic_add(&statistics.n_split_success, 1);)
 
-			lock(task);
+			lock(&task->lock);
 				task->run = true;
-				condition_signal(task);
-			unlock(task);
+				condition_signal(&task->cond);
+			unlock(&task->lock);
 
 			return true;
 		}
@@ -198,7 +198,7 @@ void node_wait_slaves(Node* node)
 {
 	int i;
 
-	lock(node);
+	lock(&node->lock);
 	// stop slaves ?
 	if ((node->alpha >= node->beta || search_get_state(node->search) != RUNNING) && node->n_slave) {
 		for (i = 0; i < node->n_slave; ++i) {
@@ -212,7 +212,7 @@ void node_wait_slaves(Node* node)
 	while (node->n_slave) {
 		node->is_waiting = true;
 		assert(node->is_helping == false);
-		condition_wait(node);
+		condition_wait(&node->cond, &node->lock);
 
 		if (node->is_helping) {
 			assert(node->help.run);
@@ -230,7 +230,7 @@ void node_wait_slaves(Node* node)
 		node->stop_point = false;
 		YBWC_STATS(atomic_add(&statistics.n_wake_up, 1);)
 	}
-	unlock(node);
+	unlock(&node->lock);
 }
 
 
@@ -249,7 +249,7 @@ void node_update(Node* node, Move *move)
 	const int score = move->score;
 	int i;
 
-	lock(node);
+	lock(&node->lock);
 	search = node->search;
 	if (search_get_state(search) == RUNNING && score > node->bestscore) {
 		node->bestscore = score;
@@ -266,7 +266,7 @@ void node_update(Node* node, Move *move)
 			YBWC_STATS(atomic_add(&statistics.n_stopped_slave, 1);)
 		}
 	}
-	unlock(node);
+	unlock(&node->lock);
 }
 
 /**
@@ -283,7 +283,7 @@ void node_update(Node* node, Move *move)
 Move* node_first_move(Node *node, MoveList *movelist)
 {
 	Move *move;
-	lock(node);
+	lock(&node->lock);
 		node->n_moves_todo = movelist->n_moves;
 		node->n_moves_done = 0;
 		node->move = movelist_first(movelist);
@@ -293,7 +293,7 @@ Move* node_first_move(Node *node, MoveList *movelist)
 		} else {
 			move = NULL;
 		}
-	unlock(node);
+	unlock(&node->lock);
 	return move;
 }
 
@@ -331,9 +331,9 @@ static Move* node_next_move_lockless(Node *node)
 Move* node_next_move(Node *node)
 {
 	Move *move;
-	lock(node);
+	lock(&node->lock);
 		move = node_next_move_lockless(node);
-	unlock(node);
+	unlock(&node->lock);
 
 	return move;
 }
@@ -350,9 +350,9 @@ void task_set(Task *task, Node *node, Move *move)
 	task->node = node;
 	task->move = move;
 	search_clone(task->search, node->search);
-	lock(node);
+	lock(&node->lock);
 	node->slave[node->n_slave++] = task->search;
-	unlock(node);
+	unlock(&node->lock);
 }
 
 /**
@@ -395,7 +395,7 @@ void task_search(Task *task)
 			if (log_is_open(&search_log)) show_current_move(search_log.f, search, move, alpha, node->beta, true);
 		}
 
-		lock(node);
+		lock(&node->lock);
 		if (search_get_state(search) == RUNNING && move->score > node->bestscore) {
 			node->bestscore = move->score;
 			node->bestmove = move->x;
@@ -414,12 +414,12 @@ void task_search(Task *task)
 			}
 		}
 		move = node_next_move_lockless(node);
-		unlock(node);
+		unlock(&node->lock);
 	}
 
 	search_set_state(search, STOP_END);
 
-	spin_lock(search->parent);
+	spin_lock(&search->parent->spin);
 		for (i = 0; i < search->parent->n_child; ++i) {
 			if (search->parent->child[i] == search) {
 				--search->parent->n_child;
@@ -429,9 +429,9 @@ void task_search(Task *task)
 		}
 		search->parent->child_nodes += search_count_nodes(search);
 		YBWC_STATS(task->n_nodes += search->n_nodes;)
-	spin_unlock(search->parent);
+	spin_unlock(&search->parent->spin);
 
-	lock(node);
+	lock(&node->lock);
 		task->run = false;
 		for (i = 0; i < node->n_slave; ++i) {
 			if (node->slave[i] == search) {
@@ -440,8 +440,8 @@ void task_search(Task *task)
 				break;
 			}
 		}
-		condition_broadcast(node);
-	unlock(node);
+		condition_broadcast(&node->cond);
+	unlock(&node->lock);
 }
 
 
@@ -461,12 +461,12 @@ void* task_loop(void *param)
 {
 	Task *task = (Task*) param;
 
-	lock(task);
+	lock(&task->lock);
 	task->loop = true;
 
 	while (task->loop) {
 		if (!task->run) {
-			condition_wait(task);
+			condition_wait(&task->cond, &task->lock);
 		}
 		if (task->run) {
 			task_search(task);
@@ -474,7 +474,7 @@ void* task_loop(void *param)
 		}
 	}
 
-	unlock(task);
+	unlock(&task->lock);
 
 	return NULL;
 }
@@ -499,7 +499,7 @@ static Search* task_search_create(Task *task)
 	search->n_child = 0;
 	search->parent = NULL;
 	// eval_init(search->eval);
-	spin_init(search);
+	spin_init(&search->spin);
 	search->task = task;
 	search_set_state(search, STOP_END);
 
@@ -515,7 +515,7 @@ static void task_search_destroy(Search *search)
 {
 	mm_free(search->thread_hash.hash);
 	// eval_free(search->eval);
-	spin_free(search);
+	spin_free(&search->spin);
 	mm_free(search);
 }
 
@@ -529,8 +529,8 @@ static void task_search_destroy(Search *search)
  */
 void task_init(Task *task)
 {
-	lock_init(task);
-	condition_init(task);
+	lock_init(&task->lock);
+	condition_init(&task->cond);
 
 	task->loop = false;
 	task->run = false;
@@ -552,11 +552,11 @@ void task_free(Task *task)
 	assert(task->run == false);
 	if (task->loop) {
 		task->loop = false; // stop the main loop
-		condition_signal(task);
+		condition_signal(&task->cond);
 		thread_join(task->thread);
 	}
-	lock_free(task);
-	condition_free(task);
+	lock_free(&task->lock);
+	condition_free(&task->cond);
 	task_search_destroy(task->search); // free other resources
 	task->search = NULL;
 }
@@ -571,7 +571,7 @@ void task_stack_init(TaskStack *stack, const int n)
 {
 	int i;
 
-	spin_init(stack);
+	spin_init(&stack->spin);
 
 	stack->n = n; // number of additional task
 	stack->n_idle = 0;
@@ -624,7 +624,7 @@ void task_stack_free(TaskStack *stack)
 	free(stack->stack); stack->stack = NULL;
 	stack->n = 0;
 	stack->n_idle = 0;
-	spin_free(stack);
+	spin_free(&stack->spin);
 }
 
 /**
@@ -649,7 +649,7 @@ Task* task_stack_get_idle_task(TaskStack *stack)
 {
 	Task *task;
 
-	spin_lock(stack);
+	spin_lock(&stack->spin);
 
 	if (stack->n_idle) {
 		task = stack->stack[--stack->n_idle];
@@ -657,7 +657,7 @@ Task* task_stack_get_idle_task(TaskStack *stack)
 		task = NULL;
 	}
 
-	spin_unlock(stack);
+	spin_unlock(&stack->spin);
 
 	return task;
 }
@@ -670,9 +670,9 @@ Task* task_stack_get_idle_task(TaskStack *stack)
  */
 void task_stack_put_idle_task(TaskStack *stack, Task *task)
 {
-	spin_lock(stack);
+	spin_lock(&stack->spin);
 
 	stack->stack[stack->n_idle++] = task;
 
-	spin_unlock(stack);
+	spin_unlock(&stack->spin);
 }

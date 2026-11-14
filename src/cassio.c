@@ -128,9 +128,9 @@ static void engine_get_input(Engine *engine)
 			}
 			// add the message (including quit) to a queue for later processing.
 			event_add_message(event, buffer);
-			lock(event);
-				condition_signal(event);
-			unlock(event);
+			lock(&event->lock);
+				condition_signal(&event->cond);
+			unlock(&event->lock);
 
 		}
 	} else if (*protocol == '\0') {

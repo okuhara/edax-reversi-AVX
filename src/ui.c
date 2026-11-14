@@ -111,10 +111,10 @@ static void ui_read_input(UI *ui)
 		}
 	}
 	if (buffer) {
-		lock(event);
+		lock(&event->lock);
 			event_add_message(event, buffer);
-			condition_signal(event);
-		unlock(event);
+			condition_signal(&event->cond);
+		unlock(&event->lock);
 	}
 }
 
@@ -194,9 +194,9 @@ bool ui_event_exist(UI *ui)
 {
 	bool ok;
 
-	spin_lock(&ui->event);
+	spin_lock(&ui->event.spin);
 	ok = event_exist(&ui->event);
-	spin_unlock(&ui->event);	
+	spin_unlock(&ui->event.spin);
 
 	return ok;
 }

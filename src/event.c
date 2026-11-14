@@ -29,9 +29,9 @@ void event_init(Event *event)
 	event->ring = (char**) malloc(event->size * sizeof (char*));
 	if (event->ring == NULL) fatal_error("cannot allocate event buffers\n");
 	for (i = 0; i < event->size; ++i) event->ring[i] = NULL;
-	spin_init(event);
-	lock_init(event);
-	condition_init(event);
+	spin_init(&event->spin);
+	lock_init(&event->lock);
+	condition_init(&event->cond);
 
 	event->loop = true;
 }
@@ -45,7 +45,7 @@ void event_clear_messages(Event *event)
 {
 	int i;
 
-	spin_lock(event);
+	spin_lock(&event->spin);
 
 	for (i = 0; i < event->size; ++i) {
 		free(event->ring[i]);
@@ -54,7 +54,7 @@ void event_clear_messages(Event *event)
 	event->first = 0;
 	event->end = 0;
 
-	spin_unlock(event);
+	spin_unlock(&event->spin);
 }
 
 
@@ -67,7 +67,7 @@ void event_free(Event *event)
 {
 	int i;
 
-	spin_lock(event);
+	spin_lock(&event->spin);
 
 	for (i = 0; i < event->size; ++i) {
 		free(event->ring[i]);
@@ -76,11 +76,11 @@ void event_free(Event *event)
 	event->end = 0;
 	free(event->ring);
 
-	lock_free(event);
-	condition_free(event);
+	lock_free(&event->lock);
+	condition_free(&event->cond);
 
-	spin_unlock(event);
-	spin_free(event);
+	spin_unlock(&event->spin);
+	spin_free(&event->spin);
 }
 
 /**
@@ -95,7 +95,7 @@ void event_add_message(Event *event, char *message)
 	int new_size, i;
 	int last;
 
-	spin_lock(event);
+	spin_lock(&event->spin);
 
 	last = event->end;
 	event->end = (event->end + 1) % event->size;
@@ -118,7 +118,7 @@ void event_add_message(Event *event, char *message)
 	event->ring[last] = message;
 	info("[event add [%d]: %s]\n", last, message);
 
-	spin_unlock(event);
+	spin_unlock(&event->spin);
 }
 
 
@@ -134,11 +134,11 @@ void event_wait(Event *event, char **cmd, char **param)
 	int n;
 	char *message;
 
-	lock(event);
+	lock(&event->lock);
 	while ((message = event_peek_message(event)) == NULL) {
-		condition_wait(event);
+		condition_wait(&event->cond, &event->lock);
 	}
-	unlock(event);
+	unlock(&event->lock);
 
 	free(*cmd);
 	free(*param);
@@ -156,11 +156,11 @@ void event_wait_enter(Event *event)
 {
 	char *message;
 	puts("Press [Enter] to continue");
-	lock(event);
+	lock(&event->lock);
 	while ((message = event_peek_message(event)) == NULL) {
-		condition_wait(event);
+		condition_wait(&event->cond, &event->lock);
 	}
-	unlock(event);
+	unlock(&event->lock);
 	free(message);
 }
 
@@ -187,7 +187,7 @@ char *event_peek_message(Event *event)
 {
 	char *message;
 
-	spin_lock(event);
+	spin_lock(&event->spin);
 
 	if (event_exist(event)) {
 		message = event->ring[event->first];
@@ -197,7 +197,7 @@ char *event_peek_message(Event *event)
 		message = NULL;
 	}
 
-	spin_unlock(event);
+	spin_unlock(&event->spin);
 
 	return message;
 }

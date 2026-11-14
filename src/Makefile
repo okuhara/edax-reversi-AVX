@@ -20,7 +20,7 @@ ifeq ($(ARCH),)
 endif
 
 ifeq ($(COMP),)
-	COMP = icc
+	COMP = clang
 endif
 
 ifeq ($(OS),)
