@@ -14,6 +14,7 @@ Each eval2 and newedax version contains all changes of the nikque version on the
 
 | nikque | eval2 | newedax |
 |---|---|---|
+| nikque.28 | eval2.16 | newedax.15 |
 | nikque.27 | eval2.15 | newedax.12 |
 | nikque.26 | eval2.14 | newedax.11 |
 | nikque.25 | eval2.13 | newedax.10 |
@@ -34,6 +35,28 @@ Each eval2 and newedax version contains all changes of the nikque version on the
 ---
 
 # nikque line
+
+## v4.5.5-nikque.28
+
+**A fix of the exact search: a wrong score (and move) at level 60, rarely, from 17 empties on.** Nothing else is changed.
+
+**Fix**
+
+- An exact search (a level whose depth is the number of empties, with no selectivity) first searches the position with selectivity (probcut), then exactly. Between those iterations, a node of the midgame search at the depth where the endgame search starts (`DEPTH_MIDGAME_TO_ENDGAME`, 15 empties) was stored in the hash table as exact, because its moves are searched by the endgame search. When that node has to pass, the search of the opponent stays in the midgame search at the same depth, where probcut can cut it: that score was stored as exact and taken by the exact iteration. The exact score of the root, and its move, could then be wrong (by a few discs). About 1 to 2 exact searches in 100,000 at 17 empties gave a wrong score (with 1 or 4 threads, with any hash table size: the same positions every time). Now such a node (a pass) is stored with the selectivity of the search (`NWS_midgame` of `midgame.c`).
+- The same error is in Edax 4.5.5 and 4.5.6 of Toshihiko Okuhara (edax-reversi-AVX, also its master of 2026-11-03), from which this version comes (267 of the 1,205 positions below are wrong with the 4.5.5 program and with 4.5.6 built from its source; 0 with the same fix). Edax 4.6 and 4.7 of Richard Delorme do not have it (0 of 1,205).
+
+**Compatibility**
+
+- `eval.dat` and the book file format do not change. The scores of exact searches that were right do not change; the node counts change a little (fforum-20-39 with 1 thread: 77,639,600 nodes, 77,639,567 with v4.5.5-nikque.27, the same scores and moves). Midgame searches that do not reach the endgame depth are not changed.
+- A book whose positions were searched exactly (the leaves of 20 empties and less at level 18, for instance) with an earlier version can hold such wrong scores (rarely).
+
+**Checked**: 1,205 positions whose exact scores were wrong (most with 17 empties; the scores of an independent solver): all right now with the 5 Windows release programs (1 thread, hash 2^20), and with 1 and 4 threads and hash 2^20 and 2^24 with the same fix in the C++23 port (newedax); 1,640 positions of 17 to 22 empties give the same scores as before. The release programs solve fforum-20-39 with the same scores and moves as v4.5.5-nikque.27.
+
+**Not checked**: the strength; a real book.
+
+[Tests and measurements](docs/validation/nikque.en.md#v455-nikque28)
+
+---
 
 ## v4.5.5-nikque.27
 
@@ -1037,6 +1060,28 @@ This is the first release, based on upstream Edax v4.5.5. It adds `book deviate2
 # eval2 line
 
 The nikque line plus a new evaluation function (mobility weights), published from the `eval2` branch. Each version contains all changes of the nikque versions listed in the "Versions" table above.
+
+## v4.5.5-eval2.16
+
+**A fix of the exact search: a wrong score (and move) at level 60, rarely, from 17 empties on.** Nothing else is changed.
+
+**Fix**
+
+- An exact search (a level whose depth is the number of empties, with no selectivity) first searches the position with selectivity (probcut), then exactly. Between those iterations, a node of the midgame search at the depth where the endgame search starts (`DEPTH_MIDGAME_TO_ENDGAME`, 15 empties) was stored in the hash table as exact, because its moves are searched by the endgame search. When that node has to pass, the search of the opponent stays in the midgame search at the same depth, where probcut can cut it: that score was stored as exact and taken by the exact iteration. The exact score of the root, and its move, could then be wrong (by a few discs). About 1 to 2 exact searches in 100,000 at 17 empties gave a wrong score (with 1 or 4 threads, with any hash table size: the same positions every time). Now such a node (a pass) is stored with the selectivity of the search (`NWS_midgame` of `midgame.c`).
+- The same error is in Edax 4.5.5 and 4.5.6 of Toshihiko Okuhara (edax-reversi-AVX, also its master of 2026-11-03), from which this version comes (267 of the 1,205 positions below are wrong with the 4.5.5 program and with 4.5.6 built from its source; 0 with the same fix). Edax 4.6 and 4.7 of Richard Delorme do not have it (0 of 1,205).
+
+**Compatibility**
+
+- `eval.dat` and the book file format do not change. The scores of exact searches that were right do not change; the node counts change a little (fforum-20-39 with 1 thread: 78,733,311 nodes, 78,733,223 with v4.5.5-eval2.15, the same scores and moves). Midgame searches that do not reach the endgame depth are not changed.
+- A book whose positions were searched exactly (the leaves of 20 empties and less at level 18, for instance) with an earlier version can hold such wrong scores (rarely).
+
+**Checked**: 1,205 positions whose exact scores were wrong (most with 17 empties; the scores of an independent solver): all right now with the 5 Windows release programs (1 thread, hash 2^20), and with 1 and 4 threads and hash 2^20 and 2^24 with the same fix in the C++23 port (newedax); 1,640 positions of 17 to 22 empties give the same scores as before. The release programs solve fforum-20-39 with the same scores and moves as v4.5.5-eval2.15.
+
+**Not checked**: the strength; a real book.
+
+[Tests and measurements](docs/validation/eval2.en.md#v455-eval216)
+
+---
 
 ## v4.5.5-eval2.15
 

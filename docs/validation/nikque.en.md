@@ -5,6 +5,16 @@ Tests and measurements done for each version, moved without changes from the for
 For what changed, see the [release notes](../../RELEASE-NOTES.md). "Above" and "below" in the text refer to positions in the former document.
 
 
+## v4.5.5-nikque.28
+
+Checks:
+
+- The 5 Windows release programs (PGO) solve the 1,205 positions whose exact scores were wrong (`-l 60`, 1 thread, hash 2^20; the scores of an independent solver) with 0 wrong scores (267 with the programs of v4.5.5-nikque.27). A test build of the same source gives the same scores as before on 1,640 positions of 17 to 22 empties (almost the same node counts); with the same fix, the C++23 port (newedax) gets all 1,205 right with 1 and 4 threads and hash tables of 2^20 and 2^24.
+- Search: the 5 Windows release programs solve fforum-20-39 with 1 thread with the same depths, scores and moves as v4.5.5-nikque.27 (77,639,600 nodes, 77,639,567 with v4.5.5-nikque.27); the 7 Cassio cases pass. The 3 DLLs: the API checks (`tests/libedax_test.c`, 279 checks), 0 failures. Suite F of `book-reproducible`: the same books as v4.5.5-nikque.27, except the save date.
+- `tests/regression.c` `core` (96 exact searches against an independent solver) passes with 1 and 4 threads.
+- Built by the release workflow (run 43743338167): the library test (251 checks, 0 failures) and fforum-1-19 on macOS.
+- Speed: not measured.
+
 ## v4.5.5-nikque.27
 
 Checks:
