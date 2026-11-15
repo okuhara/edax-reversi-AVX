@@ -721,8 +721,11 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 
 	// save the best result in hash tables
 	if (!search->stop) {
-		if (depth <= ((search->eval.n_empties <= depth) ? DEPTH_MIDGAME_TO_ENDGAME : 4))
-			hash_data.data.wl.c.selectivity = NO_SELECTIVITY; // hack
+		// hack: an endgame node of DEPTH_MIDGAME_TO_ENDGAME is exact, its moves being searched by NWS_endgame; not after
+		// a pass, whose search stays here at the same depth and may be cut by probcut: stored as exact, that score was
+		// taken by the exact search after a selective one (a wrong score at level 60 from 17 empties on)
+		if ((search->eval.n_empties <= depth) ? (depth <= DEPTH_MIDGAME_TO_ENDGAME && !movelist_is_empty(&movelist)) : depth <= 4)
+			hash_data.data.wl.c.selectivity = NO_SELECTIVITY;
 		else hash_data.data.wl.c.selectivity = search->selectivity;
 		hash_data.data.wl.c.depth = depth;
 		hash_data.data.wl.c.cost = last_bit(search->n_nodes + search->child_nodes - nodes_org);
