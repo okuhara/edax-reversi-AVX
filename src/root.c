@@ -829,8 +829,8 @@ void* search_run(void *v)
 	search->height = 0;
 	search->node_type[search->height] = PV_NODE;
 	search->depth_pv_extension = get_pv_extension(0, search->eval.n_empties);
-	search->stability_bound.upper = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player);
-	search->stability_bound.lower = 2 * get_stability(search->board.player, search->board.opponent) - SCORE_MAX;
+	search->stability_bound.upper = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player, &search->eval.full_lines);
+	search->stability_bound.lower = 2 * get_stability(search->board.player, search->board.opponent, &search->eval.full_lines) - SCORE_MAX;
 	search->result->score = search_bound(search, search_eval_0(search));
 	search->result->n_moves_left = search->result->n_moves = search->movelist.n_moves;
 	search->result->book_move = false;

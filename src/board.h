@@ -71,18 +71,13 @@ int get_mobility(const unsigned long long, const unsigned long long);
 	unsigned long long get_potential_moves(const unsigned long long, const unsigned long long);
 #endif
 
+void update_full_lines(V4DI*, unsigned long long, int);
+// void restore_full_lines(V4DI*, int);
+
 void edge_stability_init(void);
 unsigned long long get_stable_edge(const unsigned long long, const unsigned long long);
-#ifndef __AVX2__	// public for android dispatch
-	void get_full_lines(const unsigned long long, unsigned long long [4]);
-  #if !(defined(hasMMX) && !defined(hasSSE2))
-	int get_spreaded_stability(unsigned long long, unsigned long long, unsigned long long [4]);
-  #endif
-#endif
-unsigned long long get_all_full_lines(const unsigned long long);
-
-int get_stability(const unsigned long long, const unsigned long long);
-int get_stability_fulls(const unsigned long long, const unsigned long long, unsigned long long [5]);
+void get_full_lines(const unsigned long long, V4DI*);
+int get_stability(const unsigned long long, const unsigned long long, const V4DI*);
 int get_edge_stability(const unsigned long long, const unsigned long long);
 int get_corner_stability(const unsigned long long);
 unsigned long long board_get_hash_code(const Board*);

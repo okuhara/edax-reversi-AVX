@@ -98,6 +98,76 @@ const unsigned long long quadrant_mask[] = {
 	0xFFFFFFFF00000000, 0xFFFFFFFF0F0F0F0F, 0xFFFFFFFFF0F0F0F0, 0xFFFFFFFFFFFFFFFF
 };
 
+/** coordinate to 4 lines */
+const V4DI X_TO_LINES[66] = {
+	{{ 0x00000000000000ff, 0x0101010101010101, 0x8040201008040201, 0x0000000000000001 }},
+	{{ 0x00000000000000ff, 0x0202020202020202, 0x0080402010080402, 0x0000000000000102 }},
+	{{ 0x00000000000000ff, 0x0404040404040404, 0x0000804020100804, 0x0000000000010204 }},
+	{{ 0x00000000000000ff, 0x0808080808080808, 0x0000008040201008, 0x0000000001020408 }},
+	{{ 0x00000000000000ff, 0x1010101010101010, 0x0000000080402010, 0x0000000102040810 }},
+	{{ 0x00000000000000ff, 0x2020202020202020, 0x0000000000804020, 0x0000010204081020 }},
+	{{ 0x00000000000000ff, 0x4040404040404040, 0x0000000000008040, 0x0001020408102040 }},
+	{{ 0x00000000000000ff, 0x8080808080808080, 0x0000000000000080, 0x0102040810204080 }},
+	{{ 0x000000000000ff00, 0x0101010101010101, 0x4020100804020100, 0x0000000000000102 }},
+	{{ 0x000000000000ff00, 0x0202020202020202, 0x8040201008040201, 0x0000000000010204 }},
+	{{ 0x000000000000ff00, 0x0404040404040404, 0x0080402010080402, 0x0000000001020408 }},
+	{{ 0x000000000000ff00, 0x0808080808080808, 0x0000804020100804, 0x0000000102040810 }},
+	{{ 0x000000000000ff00, 0x1010101010101010, 0x0000008040201008, 0x0000010204081020 }},
+	{{ 0x000000000000ff00, 0x2020202020202020, 0x0000000080402010, 0x0001020408102040 }},
+	{{ 0x000000000000ff00, 0x4040404040404040, 0x0000000000804020, 0x0102040810204080 }},
+	{{ 0x000000000000ff00, 0x8080808080808080, 0x0000000000008040, 0x0204081020408000 }},
+	{{ 0x0000000000ff0000, 0x0101010101010101, 0x2010080402010000, 0x0000000000010204 }},
+	{{ 0x0000000000ff0000, 0x0202020202020202, 0x4020100804020100, 0x0000000001020408 }},
+	{{ 0x0000000000ff0000, 0x0404040404040404, 0x8040201008040201, 0x0000000102040810 }},
+	{{ 0x0000000000ff0000, 0x0808080808080808, 0x0080402010080402, 0x0000010204081020 }},
+	{{ 0x0000000000ff0000, 0x1010101010101010, 0x0000804020108040, 0x0001020408102040 }},
+	{{ 0x0000000000ff0000, 0x2020202020202020, 0x0000008040201008, 0x0102040810204080 }},
+	{{ 0x0000000000ff0000, 0x4040404040404040, 0x0000000080402010, 0x0204081020408000 }},
+	{{ 0x0000000000ff0000, 0x8080808080808080, 0x0000000000804020, 0x0408102040800000 }},
+	{{ 0x00000000ff000000, 0x0101010101010101, 0x1008040201000000, 0x0000000001020408 }},
+	{{ 0x00000000ff000000, 0x0202020202020202, 0x2010080402010000, 0x0000000102040810 }},
+	{{ 0x00000000ff000000, 0x0404040404040404, 0x4020100804020100, 0x0000010204081020 }},
+	{{ 0x00000000ff000000, 0x0808080808080808, 0x8040201008040201, 0x0001020408102040 }},
+	{{ 0x00000000ff000000, 0x1010101010101010, 0x0080402010080402, 0x0102040810204080 }},
+	{{ 0x00000000ff000000, 0x2020202020202020, 0x0000804020100804, 0x0204081020408000 }},
+	{{ 0x00000000ff000000, 0x4040404040404040, 0x0000008040201008, 0x0408102040800000 }},
+	{{ 0x00000000ff000000, 0x8080808080808080, 0x0000000080402010, 0x0810204080000000 }},
+	{{ 0x000000ff00000000, 0x0101010101010101, 0x0804020100000000, 0x0000000102040810 }},
+	{{ 0x000000ff00000000, 0x0202020202020202, 0x1008040201000000, 0x0000010204081020 }},
+	{{ 0x000000ff00000000, 0x0404040404040404, 0x2010080402010000, 0x0001020408102040 }},
+	{{ 0x000000ff00000000, 0x0808080808080808, 0x4020100804020100, 0x0102040810204080 }},
+	{{ 0x000000ff00000000, 0x1010101010101010, 0x8040201008040201, 0x0204081020408000 }},
+	{{ 0x000000ff00000000, 0x2020202020202020, 0x0080402010080402, 0x0408102040800000 }},
+	{{ 0x000000ff00000000, 0x4040404040404040, 0x0000804020100804, 0x0810204080000000 }},
+	{{ 0x000000ff00000000, 0x8080808080808080, 0x0000008040201008, 0x1020408000000000 }},
+	{{ 0x0000ff0000000000, 0x0101010101010101, 0x0402010000000000, 0x0000010204081020 }},
+	{{ 0x0000ff0000000000, 0x0202020202020202, 0x0804020100000000, 0x0001020408102040 }},
+	{{ 0x0000ff0000000000, 0x0404040404040404, 0x1008040201000000, 0x0102040810204080 }},
+	{{ 0x0000ff0000000000, 0x0808080808080808, 0x2010080402010000, 0x0204081020408000 }},
+	{{ 0x0000ff0000000000, 0x1010101010101010, 0x4020100804020100, 0x0408102040800000 }},
+	{{ 0x0000ff0000000000, 0x2020202020202020, 0x8040201008040201, 0x0810204080000000 }},
+	{{ 0x0000ff0000000000, 0x4040404040404040, 0x0080402010080402, 0x1020408000000000 }},
+	{{ 0x0000ff0000000000, 0x8080808080808080, 0x0000804020100804, 0x2040800000000000 }},
+	{{ 0x00ff000000000000, 0x0101010101010101, 0x0201000000000000, 0x0001020408102040 }},
+	{{ 0x00ff000000000000, 0x0202020202020202, 0x0402010000000000, 0x0102040810204080 }},
+	{{ 0x00ff000000000000, 0x0404040404040404, 0x0804020100000000, 0x0204081020408000 }},
+	{{ 0x00ff000000000000, 0x0808080808080808, 0x1008040201000000, 0x0408102040800000 }},
+	{{ 0x00ff000000000000, 0x1010101010101010, 0x2010080402010000, 0x0810204080000000 }},
+	{{ 0x00ff000000000000, 0x2020202020202020, 0x4020100804020100, 0x1020408000000000 }},
+	{{ 0x00ff000000000000, 0x4040404040404040, 0x8040201008040201, 0x2040800000000000 }},
+	{{ 0x00ff000000000000, 0x8080808080808080, 0x0080402010080402, 0x4080000000000000 }},
+	{{ 0xff00000000000000, 0x0101010101010101, 0x0100000000000000, 0x0102040810204080 }},
+	{{ 0xff00000000000000, 0x0202020202020202, 0x0201000000000000, 0x0204081020408000 }},
+	{{ 0xff00000000000000, 0x0404040404040404, 0x0402010000000000, 0x0408102040800000 }},
+	{{ 0xff00000000000000, 0x0808080808080808, 0x0804020100000000, 0x0810204080000000 }},
+	{{ 0xff00000000000000, 0x1010101010101010, 0x1008040201000000, 0x1020408000000000 }},
+	{{ 0xff00000000000000, 0x2020202020202020, 0x2010080402010000, 0x2040800000000000 }},
+	{{ 0xff00000000000000, 0x4040404040404040, 0x4020100804020100, 0x4080000000000000 }},
+	{{ 0xff00000000000000, 0x8080808080808080, 0x8040201008040201, 0x8000000000000000 }},
+	{{ 0x0000000000000000, 0x0000000000000000, 0x0000000000000000, 0x0000000000000000 }},	// pass
+	{{ 0x0000000000000000, 0x0000000000000000, 0x0000000000000000, 0x0000000000000000 }}
+};
+
 /** level with no selectivity */
 const int NO_SELECTIVITY = 5;
 
@@ -512,7 +582,7 @@ void search_setup(Search *search)
 		D4, E4, D5, E5,                    /* center */
 	};
 	const Board *board = &search->board;
-	unsigned long long E = ~(board->player | board->opponent);
+	unsigned long long occupied = board->player | board->opponent;
 	int i, x, prev;
 
 	search->eval.n_empties = 0;
@@ -521,7 +591,7 @@ void search_setup(Search *search)
 	prev = NOMOVE;
 	for (i = 0; i < BOARD_SIZE; ++i) {    /* add empty squares */
 		x = presorted_x[i];
-		if (E & x_to_bit(x)) {
+		if (!(occupied & x_to_bit(x))) {
 			search->eval.parity ^= QUADRANT_ID[x];
 			search->empties[prev].next = x;
 			search->empties[x].previous = prev;
@@ -534,6 +604,8 @@ void search_setup(Search *search)
 
 	search->empties[PASS].next = NOMOVE;
 	search->empties[PASS].previous = NOMOVE;
+
+	get_full_lines(occupied, &search->eval.full_lines);	// (4.5.7)
 
 	// init the evaluation function
 	eval_set(&search->eval, &search->board);
@@ -923,6 +995,7 @@ void search_update_endgame(Search *search, const Move *move)
 	search_swap_parity(search, move->x);
 	empty_remove(search->empties, move->x);
 	board_update(&search->board, move);
+	update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, move->x);
 	--search->eval.n_empties;
 
 }
@@ -938,6 +1011,7 @@ void search_restore_endgame(Search *search, const Move *move)
 	search_swap_parity(search, move->x);
 	empty_restore(search->empties, move->x);
 	board_restore(&search->board, move);
+	restore_full_lines(&search->eval.full_lines, x);
 	++search->eval.n_empties;
 }
 
@@ -968,6 +1042,7 @@ void search_update_midgame(Search *search, const Move *move)
 	empty_remove(search->empties, move->x);
 	board_update(&search->board, move);
 	eval_update(move->x, move->flipped, &search->eval);
+	update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, move->x);
 	assert(search->eval.n_empties > 0);
 	--search->eval.n_empties;
 	++search->height;
@@ -991,6 +1066,7 @@ void search_restore_midgame(Search *search, int x, const Eval *eval0)
 	// eval_restore(search->eval, move);
 	search->eval = *eval0;
 	// board_restore(&search->board, move);
+	// restore_full_lines(&search->eval.full_lines, x);
 	empty_restore(search->empties, x);
 	assert(search->height > 0);
 	--search->height;
@@ -1169,7 +1245,7 @@ bool search_SC_PVS(Search *search, int *alpha, int *beta, int *score)
 {
 	if (USE_SC && *beta >= PVS_STABILITY_THRESHOLD[search->eval.n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
-		*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player);
+		*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player, &search->eval.full_lines);
 		if (*score <= *alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return true;
@@ -1192,7 +1268,7 @@ bool search_SC_NWS(Search *search, const int alpha, int *score)
 {
 	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
-		*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player);
+		*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player, &search->eval.full_lines);
 		if (*score <= alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return true;
@@ -1214,7 +1290,7 @@ bool search_SC_NWS_4(Search *search, const int alpha, int *score)
 {
 	if (USE_SC && alpha < -NWS_STABILITY_THRESHOLD[4]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
-		*score = 2 * get_stability(search->board.opponent, search->board.player) - SCORE_MAX;
+		*score = 2 * get_stability(search->board.opponent, search->board.player, &search->eval.full_lines) - SCORE_MAX;
 		if (*score > alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
 			return true;
@@ -1310,6 +1386,7 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 
 		Move *move;
 		Board next;
+		V4DI full;
 		HashData etc;
 		HashStoreData hash_data;
 		unsigned long long etc_hash_code;
@@ -1330,7 +1407,9 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 			SEARCH_UPDATE_ALL_NODES(search->n_nodes);
 
 			if (USE_SC && alpha <= -NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {
-				*score = 2 * get_stability(next.opponent, next.player) - SCORE_MAX;
+				full = search->eval.full_lines;
+				update_full_lines(&full, next.opponent | next.player, move->x);
+				*score = 2 * get_stability(next.opponent, next.player, &full) - SCORE_MAX;
 				if (*score > alpha) {
 					hash_data.score = *score;
 					hash_data.data.move[0] = move->x;

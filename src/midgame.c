@@ -844,7 +844,8 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 		if (search->eval.n_empties <= depth && depth <= DEPTH_TO_USE_LOCAL_HASH && depth > DEPTH_TO_SHALLOW_SEARCH) {
 			vBoard hashboard;
   #ifdef USE_SOLID
-			unsigned long long solid = get_all_full_lines(search->board.player | search->board.opponent) & 0x3c7effffffff7e3c;
+			unsigned long long solid = search->eval.full_lines.ull[0] & search->eval.full_lines.ull[1]
+				& search->eval.full_lines.ull[2] & search->eval.full_lines.ull[3] & 0x3c7effffffff7e3c;
 			int ofssolid = bit_count(solid) * 2;
 			// apply only if ofssolid will not alter the winner, i.e. the window is apart enough from 0.
 			if (((alpha > ofssolid) && (node.bestscore > ofssolid)) || ((beta < -ofssolid) && (node.bestscore < -ofssolid))) {

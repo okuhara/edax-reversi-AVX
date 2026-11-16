@@ -139,6 +139,7 @@ struct Node;
 
 extern const unsigned char QUADRANT_ID[];
 extern const unsigned long long quadrant_mask[];
+extern const V4DI X_TO_LINES[];
 extern const Selectivity selectivity_table[];
 extern const int NO_SELECTIVITY;
 extern const signed char NWS_STABILITY_THRESHOLD[];

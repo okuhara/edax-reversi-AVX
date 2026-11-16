@@ -34,7 +34,8 @@ typedef union {
 } EVAL_FEATURE_V;
 
 typedef struct Eval {
-	EVAL_FEATURE_V feature;                       /**!< discs' features (96) */
+	EVAL_FEATURE_V feature;                       /**!< discs' features (48*2) */
+	V4DI full_lines;                              /**< full lines (4*8) (4.5.7) */
 	int n_empties;                                /**< number of empty squares (4) */
 	unsigned int parity;                          /**< parity (4) */
 } Eval;

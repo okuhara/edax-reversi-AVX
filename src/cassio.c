@@ -269,6 +269,7 @@ static int engine_open(Search *search, const Board *board, const int player, con
 	int k;
 	HashData hash_data;
 	Move *move;
+	V4DI full;
 	int score = 0;
 
 	search->time.spent = -time_clock();
@@ -294,8 +295,9 @@ static int engine_open(Search *search, const Board *board, const int player, con
 	search->height = 0;
 	search->node_type[search->height] = PV_NODE;
 	search->result->score = 0;
-	search->stability_bound.upper = SCORE_MAX - 2 * get_stability(board->opponent, board->player);
-	search->stability_bound.lower = 2 * get_stability(board->player, board->opponent) - SCORE_MAX;
+	get_full_lines(board->player | board->opponent, &full);
+	search->stability_bound.upper = SCORE_MAX - 2 * get_stability(board->opponent, board->player, &full);
+	search->stability_bound.lower = 2 * get_stability(board->player, board->opponent, &full) - SCORE_MAX;
 
 	// set the board
 	if (player != search->player || !board_equal(&search->board, board)) {

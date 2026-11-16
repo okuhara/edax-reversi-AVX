@@ -307,7 +307,7 @@ unsigned long long get_moves_mmx(const unsigned long long P, const unsigned long
  *
  */
 #ifdef hasMMX
-void get_full_lines(const unsigned long long disc_, unsigned long long full[4])
+void get_full_lines(const unsigned long long disc_, V4DI *full)
 {
 	__m64	disc = *(__m64 *) &disc_;
 	__m64	full_l, full_r;
@@ -323,33 +323,32 @@ void get_full_lines(const unsigned long long disc_, unsigned long long full[4])
 	full_r = _m_pand(full_r, _m_por(((__m64 *) e7)[3], _m_psllqi(full_r, 14)));
 	full_l = _m_pand(full_l, _m_por(((__m64 *) e7)[4], _m_psrlqi(full_l, 28)));
 	full_r = _m_pand(full_r, _m_por(((__m64 *) e7)[5], _m_psllqi(full_r, 28)));
-	((__m64 *) full)[3] = _m_pand(full_l, full_r);
+	full->v1[3] = _m_pand(full_l, full_r);
 
 	// get_full_lines_mmx(full_d9, disc, 9, e9);
 	full_l = _m_pand(disc, _m_por(((__m64 *) e9)[0], _m_psrlqi(disc, 9)));
 	full_r = _m_pand(disc, _m_por(((__m64 *) e9)[1], _m_psllqi(disc, 9)));
 	full_l = _m_pand(full_l, _m_por(((__m64 *) e9)[2], _m_psrlqi(full_l, 18)));
 	full_r = _m_pand(full_r, _m_por(((__m64 *) e9)[3], _m_psllqi(full_r, 18)));
-	((__m64 *) full)[2] = _m_pand(_m_pand(full_l, full_r), _m_por(((__m64 *) e9)[4], _m_por(_m_psrlqi(full_l, 36), _m_psllqi(full_r, 36))));
+	full->v1[2] = _m_pand(_m_pand(full_l, full_r), _m_por(((__m64 *) e9)[4], _m_por(_m_psrlqi(full_l, 36), _m_psllqi(full_r, 36))));
 
 	// get_full_lines_mmx(full_h, disc, 1, e1);
-	((__m64 *) full)[0] = _m_pcmpeqb(kFF, disc);
+	full->v1[0] = _m_pcmpeqb(kFF, disc);
 	_mm_empty();
 
 	// get_full_lines_mmx(full_v, disc, 8, e8);
 	full_v = (unsigned int) disc_ & (unsigned int)(disc_ >> 32);
 	full_v &= (full_v >> 16) | (full_v << 16);	// ror 16
 	full_v &= (full_v >> 8) | (full_v << 24);	// ror 8
-	full[1] = full_v | ((unsigned long long) full_v << 32);
+	full->ull[1] = full_v | ((unsigned long long) full_v << 32);
 }
 
 // returns all full in full[4] in addition to stability count
-int get_stability_fulls(unsigned long long P, unsigned long long O, unsigned long long full[5])
+int get_stability(const unsigned long long P, const unsigned long long O, const V4DI *full)
 {
 	__m64	P_central, stable, stable_h, stable_v, stable_d7, stable_d9, old_stable, m;
 	unsigned int	OL, OH, PL, PH, t, a1a8, h1h8, SL, SH;
-
-	get_full_lines(P | O, full);
+	unsigned long long all_full;
 
 	OL = (unsigned int) O;	OH = (unsigned int)(O >> 32);
 	PL = (unsigned int) P;	PH = (unsigned int)(P >> 32);
@@ -357,9 +356,9 @@ int get_stability_fulls(unsigned long long P, unsigned long long O, unsigned lon
 	P_central = _m_punpckldq(_m_from_int(SL), _m_from_int(SH));
 
 	// P_central & allfull
-	full[4] = full[0] & full[1] & full[2] & full[3];
-	SL &= (unsigned int) full[4];
-	SH &= (unsigned int)(full[4] >> 32);
+	all_full = full->ull[0] & full->ull[1] & full->ull[2] & full->ull[3];
+	SL &= (unsigned int) all_full;
+	SH &= (unsigned int)(all_full >> 32);
 
 	// compute the exact stable edges (from precomputed tables)
 	a1a8 = edge_stability[((((PL & 0x01010101) + ((PH & 0x01010101) << 4)) * 0x01020408) >> 24) * 256
@@ -379,10 +378,10 @@ int get_stability_fulls(unsigned long long P, unsigned long long O, unsigned lon
 	if (t) {
 		do {
 			old_stable = stable;
-			stable_h = _m_por(_m_por(_m_psrlqi(stable, 1), _m_psllqi(stable, 1)), ((__m64 *) full)[0]);
-			stable_v = _m_por(_m_por(_m_psrlqi(stable, 8), _m_psllqi(stable, 8)), ((__m64 *) full)[1]);
-			stable_d7 = _m_por(_m_por(_m_psrlqi(stable, 7), _m_psllqi(stable, 7)), ((__m64 *) full)[3]);
-			stable_d9 = _m_por(_m_por(_m_psrlqi(stable, 9), _m_psllqi(stable, 9)), ((__m64 *) full)[2]);
+			stable_h = _m_por(_m_por(_m_psrlqi(stable, 1), _m_psllqi(stable, 1)), full->v1[0]);
+			stable_v = _m_por(_m_por(_m_psrlqi(stable, 8), _m_psllqi(stable, 8)), full->v1[1]);
+			stable_d7 = _m_por(_m_por(_m_psrlqi(stable, 7), _m_psllqi(stable, 7)), full->v1[3]);
+			stable_d9 = _m_por(_m_por(_m_psrlqi(stable, 9), _m_psllqi(stable, 9)), full->v1[2]);
 			stable = _m_por(stable, _m_pand(_m_pand(_m_pand(_m_pand(stable_h, stable_v), stable_d7), stable_d9), P_central));
 			m = _m_pxor(stable, old_stable);
 		} while (_m_to_int(_m_packsswb(m, m)) != 0);
@@ -398,14 +397,6 @@ int get_stability_fulls(unsigned long long P, unsigned long long O, unsigned lon
 	}
 	_mm_empty();
 	return t;
-}
-
-// returns stability count only
-int get_stability(const unsigned long long P, const unsigned long long O)
-{
-	unsigned long long full[5];
-
-	return get_stability_fulls(P, O, full);
 }
 #endif // hasMMX
 

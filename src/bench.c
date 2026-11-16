@@ -313,6 +313,7 @@ static void bench_stability(void)
 	const char *b = "OOOOOOOOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOXXXXXXOOOOOOOOO O";
 	char m[4];
 	Board board;
+	V4DI full;
 	int i, x;
 	volatile int v;
 	const int N_WARMUP = 1000;
@@ -348,7 +349,8 @@ static void bench_stability(void)
 		for (i = 0; i < N_WARMUP; ++i) {
 			board.player &= ~x_to_bit(x);
 			board.opponent &= ~x_to_bit(x);
-			v += get_stability(board.player, board.opponent);
+			get_full_lines(board.player | board.opponent, &full);
+			v += get_stability(board.player, board.opponent, &full);
 		}
 
 		board_set(&board, b);
@@ -356,7 +358,8 @@ static void bench_stability(void)
 		for (i = 0; i < N_REPEAT; ++i) {
 			board.player &= ~x_to_bit(x);
 			board.opponent &= ~x_to_bit(x);
-			v += get_stability(board.player, board.opponent);
+			get_full_lines(board.player | board.opponent, &full);
+			v += get_stability(board.player, board.opponent, &full);
 		}
 		c += click();
 
