@@ -933,7 +933,7 @@ void base_analyze(Base *base, Search *search, const int n_empties, const bool ap
 void base_complete(Base *base, Search *search, const int level)
 {
 	int i = 0, n = 0;
-	int64_t t = real_clock();
+	long long t = real_clock();
 	const long long DELAY = 20 * 60 * 1000LL; // 20 minutes
 	char tmp_file[32];
 	int pid;

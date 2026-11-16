@@ -1111,7 +1111,7 @@ static void position_exhaust(Position *position, Book *book)
 
 	if (!position->done && board_count_empties(&position->board) >= book->options.n_empties && !board_is_game_over(&position->board)) {
 		position->done = true;
-		uint64_t moves = board_get_moves(&position->board);
+		unsigned long long moves = board_get_moves(&position->board);
 
 		foreach_link(l, position) {
 			board_next(&position->board, l->move, &target);
@@ -1823,7 +1823,7 @@ void book_deepen(Book *book)
 	PositionArray *a;
 	Position *p;
 	int i = 0;
-	unsigned long long t = real_clock();
+	long long t = real_clock();
 	char file[FILENAME_MAX + 1];
 
 	file_add_ext(options.book_file, ".dep", file);
@@ -1859,7 +1859,7 @@ void book_correct_solved(Book *book)
 	PositionArray *a;
 	Position *p;
 	int i = 0;
-	unsigned long long t = real_clock();
+	long long t = real_clock();
 	char file[FILENAME_MAX + 1];
 	Link old_leaf;
 	int n_error = 0;
@@ -1907,7 +1907,7 @@ static void book_expand(Book *book, const char *action, const char *tmp_file)
 	PositionArray *a;
 	Position *p;
 	int i = 0, k;
-	unsigned long long t = real_clock();
+	long long t = real_clock();
 
 	bprint("%s...\r", action);
 
@@ -2083,7 +2083,7 @@ void book_play(Book *book, const Board *board, const int n_empties)
 	PositionArray *a;
 	Position *p;
 	int i = 0, k;
-	uint64_t t = real_clock();
+	long long t = real_clock();
 	Position *root = book_probe(book, board);
 	char file[FILENAME_MAX + 1];
 
