@@ -895,28 +895,26 @@ void get_full_lines(const unsigned long long disc, V4DI *full)
 #ifdef __AVX2__
 int get_stability(const unsigned long long P, const unsigned long long O, const V4DI *full)
 {
-	__m128i PO = _mm_set_epi64x(P, O);
 	unsigned long long stable = get_stable_edge(P, O);	// compute the exact stable edges
-	__m128i PP = _mm_unpackhi_epi64(PO, PO);
-	__m128i P_central = _mm_and_si128(PP, _mm_set_epi64x(0, 0x007e7e7e7e7e7e00));
-	__m128i	v2_stable, v2_old_stable;
+	unsigned long long P_central = P & 0x007e7e7e7e7e7e00;
+	__m128i	v2_stable, v2_old_stable, v2_P_central;
 	__m256i	v4_stable;
 	const __m256i shift1897 = _mm256_set_epi64x(7, 9, 8, 1);
 
-	__m128i v2_full = _mm_and_si128(full->v2[0], full->v2[1]);
-	stable |= _mm_cvtsi128_si64(_mm_and_si128(P_central, _mm_and_si128(v2_full, _mm_unpackhi_epi64(v2_full, v2_full))));
+	stable |= (P_central & full->ull[0] & full->ull[1] & full->ull[2] & full->ull[3]);
 
 	if (stable == 0)
 		return 0;
 
 	v2_stable = _mm_cvtsi64_si128(stable);	// compute the other stable discs
+	v2_P_central = _mm_cvtsi64_si128(P_central);
 	do {
 		v2_old_stable = v2_stable;
 		v4_stable = _mm256_broadcastq_epi64(v2_stable);
 		v4_stable = _mm256_or_si256(_mm256_or_si256(_mm256_srlv_epi64(v4_stable, shift1897), _mm256_sllv_epi64(v4_stable, shift1897)), full->v4);
 		v2_stable = _mm_and_si128(_mm256_castsi256_si128(v4_stable), _mm256_extracti128_si256(v4_stable, 1));
 		v2_stable = _mm_and_si128(v2_stable, _mm_unpackhi_epi64(v2_stable, v2_stable));
-		v2_stable = _mm_or_si128(v2_old_stable, _mm_and_si128(v2_stable, P_central));
+		v2_stable = _mm_or_si128(v2_old_stable, _mm_and_si128(v2_stable, v2_P_central));
 	} while (!_mm_testc_si128(v2_old_stable, v2_stable));
 
 	return bit_count(_mm_cvtsi128_si64(v2_stable));
