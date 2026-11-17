@@ -172,6 +172,20 @@ f5f4e3
 - 打てない手のある行は、警告が出て、学習されません。
 - 結果は `<book のファイル名>.store` に保存されます。
 
+**途中から続ける**（v4.5.5-nikque.29 から）：
+
+- `.store` に保存するたびに、`<book のファイル名>.learn` という小さなテキストファイルも書きます。中身は、棋譜のファイルの何行目まで学習したか、その行の中身の確かめの値、そのときの book の局面の数・level・深さです。
+- 途中で止まったとき（Edax を閉じた、PC が止まった など）は、`.store` か終了のときに保存された book を `book load` で読み、**同じ棋譜のファイルで** `book learn` をもう一度実行します。学習済みの行を飛ばし、残りの行だけを打って学習します。
+
+```
+Book learn: the first 120 lines of learn.txt (118 games) were learned by a run that did not end: they are skipped
+```
+
+- **ファイルの最後まで学習すると、`.learn` は消えます。**
+- 今の book が `.learn` の記録と違う（局面の数・level・深さが違う）とき、または棋譜のファイルの最初の行が記録と違うときは、警告を出して、ファイルの初めから学習します。棋譜のファイルの後ろに行を足しても、続きから学習できます。
+- 設定 `book-store-auto-save = off`（`.store` を保存しない）では、`.learn` も書きません。
+- v4.5.5-nikque.28 までの版には `.learn` がなく、もう一度実行すると、全部の行を初めから打ち直していました（`book-randomness` があると、前とは別の対局になります）。
+
 ### 棋譜の学習を同時に行う：book-store-tasks
 
 `book store`・`book add`・`book learn` は、設定 `book-store-tasks` に従って、**複数の棋譜の局面の探索を同時に**進めます。

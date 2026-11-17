@@ -325,7 +325,25 @@ book の中の Leaf の評価値は、その Leaf を作ったときの探索の
 - 探索は、その局面に記録されている level で行います。同時に行う数は、`book-expand-tasks` に従います。
 - 途中経過と結果は、`<book のファイル名>.leaf`・`.leaf2`・`.leaf3`・`.leaf4` に保存されます。
 - **途中で保存されたファイルは、「一部の Leaf だけ新しく、negamax はまだ」の状態**です。読み込んで使うときは、`book negamax` を実行してください。
-- 続きから再開するしくみはありません。もう一度実行すると、最初から計算し直します。
+- **途中で保存された book から、続きを計算できます**（v4.5.5-nikque.29 から）。くわしくは下の「途中から続ける」を見てください。
+
+### 途中から続ける（v4.5.5-nikque.29 から）
+
+計算し直した Leaf には、book の中に**印**が付きます。
+
+- 途中で止まったとき（Edax を閉じた、PC が止まった など）は、途中経過のファイル（`.leaf` など）か、終了のときに保存された book を `book load` で読み、**同じコマンドをもう一度**実行します。
+- 印の付いた Leaf は計算し直さず、残りの Leaf だけを計算します。始めに、印の付いた数が出ます。
+
+```
+Book leaf recalculate4: 1234 leaves already searched again by a run that did not end: they are not searched again
+```
+
+- **コマンドが最後まで終わると、印はすべて外れます**。終わった book には印がありません。
+- 同じ回の中でも、前の回で計算し直した Leaf は、次の回で計算し直しません（`book-leaf-recalculate-rounds` が 2 以上のとき。探索が 1 スレッドなら、計算し直しても同じ値です）。
+- `leaf recalculate`・`2`・`3`・`4` は、同じ印を使います。途中で止まった後は、同じコマンドと同じ X・Y で続けてください。
+- 印は、book のファイルの各局面の level の欄（1 バイト。level は 0〜60）の上の 2 ビットに書きます。ファイルの大きさは変わりません。
+- **印の付いた book は、v4.5.5-nikque.28 までの版では読めません**（壊れた book として扱われます）。印の付いた book を古い版や他の道具で使いたいときは、新しい版でコマンドを最後まで終わらせてください。
+- v4.5.5-nikque.28 までの版には印がなく、もう一度実行すると、最初から計算し直していました。
 
 表示の例（小さい book）：
 
@@ -388,6 +406,14 @@ Correcting solved positions...0 done (0 error found)
 - その後、`book fix` と同じ処理を行います。
 - 直した数が `error found` に出ます。
 - 途中経過は `.err` に保存されます。
+- **途中で保存された book から、続きを確かめられます**（v4.5.5-nikque.29 から）。確かめ直した局面には印が付きます。途中で止まったときは、`.err` か終了のときに保存された book を `book load` で読み、もう一度 `book correct` を実行します。印の付いた局面は飛ばし、残りだけを探索します。始めに次のように出ます。
+
+```
+Correcting solved positions: 50000 already done by a run that did not end, 150000 left
+```
+
+- **全部の局面を確かめ終わると、印はすべて外れます**。印のしくみと、古い版で読めないことは、8.6 の「途中から続ける」と同じです。
+- v4.5.5-nikque.28 までの版には印がなく、もう一度実行すると、完全読みの局面を全部、最初から探索し直していました。大きな book では何日もかかるため、途中で止まると、それまでの探索が無駄になっていました。
 
 正しく作られた book なら、`0 error found` になるはずのコマンドです。古い版の不具合や、途中で止めた探索の結果が入った疑いがあるときに使います。
 
@@ -397,15 +423,19 @@ Correcting solved positions...0 done (0 error found)
 - v4.5.5-nikque.13 で直っています。
 - 古い版で `book correct` をかけて壊れた book は、v4.5.5-nikque.13 の `book correct` をかけると直りました（テスト用の小さい book での確認です）。
 
-### book deepen：使わないでください
+### book deepen：level の低い局面を、book の level で探索し直す
 
-組み込みの説明には「book の level を変えて、全体を評価し直す」とありますが、**そのとおりには働きません**。
+level が book の level より浅い局面について、level を book の level に上げ、Leaf をその level で探索し直します（v4.5.5-nikque.29 から）。
 
-- 局面の level が book の level と違う局面の Leaf を探索し直します。
-- しかし、探索は「その局面の今の level」で行い、level も書き換えません。
-- これは元の Edax からの実装です。
+- 「浅い」とは、その局面の空きの数で、探索の深さが小さいか、深さが同じで枝刈りが多い（selectivity が低い）ことです。
+- book の level より深い局面は、そのままにします。
+- 探索し直した局面は、level が book の level になります。途中で止まったときは、途中経過のファイル（`.dep`）か終了のときに保存された book を読んで、もう一度 `book deepen` を実行すると、残りの局面だけを探索します（level そのものが印になります）。
+- book の level は、`book new` で決めた値か、`book import` で読んだ局面の level のいちばん高い値です。book の level を変えるコマンドはありません。そのため、使う場面は、level の違う局面が混ざった book（level の違う book を `book merge` したもの、取り込んだもの）に限られます。
 
-book の level を上げたいときは、新しい level の book を作り直すことになります。
+**v4.5.5-nikque.28 までの版では、このコマンドは働きませんでした。**
+
+- level が book の level と違う局面の Leaf を探索し直しましたが、探索は「その局面の今の level」で行い、level も書き換えませんでした。何も深くならず、もう一度実行すると、同じ局面を全部、探索し直しました。
+- これは元の Edax（4.3）からの実装です。
 
 ### book verbose：表示の量
 
@@ -461,7 +491,7 @@ book の中から、空きが 52 で、最善の手が 1 つに決まってい�
 | `book export ファイル`・`book import ファイル` | テキストファイルに書き出す・読み戻す |
 | `book leaf recalculate`（`2`・`3`・`4`）`X Y` | Leaf の評価値を計算し直す |
 | `book correct` | 完全読みの局面を確かめ直す |
-| `book deepen` | （使わない） |
+| `book deepen` | level の低い局面を book の level で探索し直す |
 | `book extract ファイル` | 最善の手順を棋譜のファイルに書き出す |
 | `book problem 空き 個数` | 局面を問題の形で表示する |
 | `book feed-hash` | book の値をハッシュ表に入れる |

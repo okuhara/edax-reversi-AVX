@@ -280,6 +280,7 @@ book を育てる・保守するコマンドは、途中経過や結果を、`bo
 | 拡張子 | 作るコマンド |
 |---|---|
 | `.store` | `book store`・`book learn`（設定 `book-store-auto-save = off` で作らない） |
+| `.learn` | `book learn`（学習した行の記録。小さなテキストファイル。最後まで学習すると消える） |
 | `.gam` | `book add` |
 | `.dev`・`.dev2`・`.dev3` | `book deviate`・`book deviate2`・`book deviate3` |
 | `.enh` | `book enhance` |

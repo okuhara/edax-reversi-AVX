@@ -85,7 +85,7 @@
 | `book leaf recalculate2`・`book leaf recalculate4` | `book deviate2` と同じ | Leaf を計算し直す | `.leaf2`・`.leaf4` | [8.6](08-book-maintenance.md) |
 | `book leaf expand` | ［X Y］。X は 0〜129、Y は 0〜7740 | どの Link よりも良い Leaf を広げる。X Y を付けると `book deviate3 X Y` の範囲だけ | `.lexp` | [7.4](07-book-learning.md) |
 | `book correct` | | 完全読みの局面を確かめ直す | `.err` | [8.7](08-book-maintenance.md) |
-| `book deepen` | | （使わない） | `.dep` | [8.7](08-book-maintenance.md) |
+| `book deepen` | | level の低い局面を book の level で探索し直す | `.dep` | [8.7](08-book-maintenance.md) |
 | `book extract` | ファイル | 最善の手順を棋譜に書き出す | | [8.8](08-book-maintenance.md) |
 | `book problem` | ［空き］（24） ［個数］（10） | 局面を問題の形で表示 | | [8.8](08-book-maintenance.md) |
 | `book feed-hash` | | book の値をハッシュ表に入れる | | [8.7](08-book-maintenance.md) |

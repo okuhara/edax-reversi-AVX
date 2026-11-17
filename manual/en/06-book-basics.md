@@ -245,6 +245,7 @@ The commands that grow or maintain the book save their progress and their result
 | Extension | Written by |
 |---|---|
 | `.store` | `book store`, `book learn` (not written with the setting `book-store-auto-save = off`) |
+| `.learn` | `book learn` (the lines learned: a small text file, removed when the whole file is learned) |
 | `.gam` | `book add` |
 | `.dev`, `.dev2`, `.dev3` | `book deviate`, `book deviate2`, `book deviate3` |
 | `.enh` | `book enhance` |

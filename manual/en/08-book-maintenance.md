@@ -283,7 +283,25 @@ The `book leaf recalculate` family searches the leaves again and replaces their 
 - Each search runs at the level recorded in its position. The number of parallel searches follows `book-expand-tasks`.
 - The progress and the result are saved to `<book file name>.leaf`, `.leaf2`, `.leaf3`, `.leaf4`.
   - **A file saved partway is in the state "some leaves are updated, negamax not done yet"**. Run `book negamax` after loading it.
-  - There is no way to resume: running the command again starts over from the beginning.
+  - **A book saved partway can be continued** (since v4.5.5-nikque.29): see "Continuing a run that did not end" below.
+
+### Continuing a run that did not end (since v4.5.5-nikque.29)
+
+Each recomputed leaf gets a **mark** in the book.
+
+- When a run stops before its end (Edax closed, the PC stopped...), load the intermediate file (`.leaf`...) or the book saved at the exit with `book load`, and run **the same command again**.
+- The marked leaves are not searched again: only the others are. The number of marked leaves is shown first:
+
+```
+Book leaf recalculate4: 1234 leaves already searched again by a run that did not end: they are not searched again
+```
+
+- **When the command ends, all the marks are removed.** A finished book has no mark.
+- Within a run too, a leaf recomputed in a pass is not recomputed in the next passes (`book-leaf-recalculate-rounds` of 2 or more; with one-thread searches, it would get the same value).
+- `leaf recalculate`, `2`, `3` and `4` use the same mark. After a run stopped, continue with the same command and the same X and Y.
+- The marks are the two upper bits of the level byte of each position in the book file (the level is 0 to 60). The file size does not change.
+- **A book with marks cannot be read by the versions up to v4.5.5-nikque.28** (they see a damaged book). To use such a book with an older version or another tool, let the command end with the new version first.
+- Up to v4.5.5-nikque.28 there was no mark: running the command again started over from the beginning.
 
 Example output (small book):
 
@@ -335,20 +353,32 @@ This re-searches the leaf of every position in the exact range (positions whose 
 
 - The number of corrections is shown as `error found`.
 - The progress is saved to `.err`.
+- **A book saved partway can be continued** (since v4.5.5-nikque.29). Each position checked gets a mark. When a run stops before its end, load `.err` or the book saved at the exit with `book load`, and type `book correct` again: the marked positions are skipped, and only the others are searched. It first shows:
+
+```
+Correcting solved positions: 50000 already done by a run that did not end, 150000 left
+```
+
+- **When every position has been checked, all the marks are removed.** The marks, and the older versions that cannot read a book with marks, are as in "Continuing a run that did not end" in 8.6.
+- Up to v4.5.5-nikque.28 there was no mark: a new run searched every solved position again from the beginning. On a large book that takes days, so a run that stopped lost all its work.
 
 On a correctly built book, this command should report `0 error found`. Use it when you suspect that bugs in an old version, or results of interrupted searches, went into the book.
 
 **Up to v4.5.5-nikque.12, this command removed the leaves of game-over and pass positions and corrupted the book's scores.** `error found` showed a large number, and scores became ±127. This is fixed in v4.5.5-nikque.13. A book damaged by `book correct` in an old version was repaired by `book correct` in v4.5.5-nikque.13 (verified on a small test book).
 
-### book deepen: do not use it
+### book deepen: searching the positions of a lower level again with the level of the book
 
-The built-in help says it "changes the level of the book and re-evaluates everything", but **it does not work that way**.
+The positions whose level searches less deep than the level of the book get the level of the book, and their leaves are searched again with it (since v4.5.5-nikque.29).
 
-- It re-searches the leaves of positions whose level differs from the book's level.
-- However, the search runs at that position's current level, and the level is not updated.
-- This is how it works in the original Edax.
+- "Less deep": at the number of empty squares of the position, a smaller depth, or the same depth with more pruning (a lower selectivity).
+- The positions of a deeper level than the book are left as they are.
+- A position searched again keeps the level of the book. When a run stops before its end, load the intermediate file (`.dep`) or the book saved at the exit, and type `book deepen` again: only the positions left are searched (the level itself is the mark).
+- The level of a book is the one given to `book new`, or the highest level of the positions read by `book import`. No command changes it, so the command is for books that hold positions of several levels (books of different levels merged with `book merge`, imported books).
 
-To raise the level of a book, you have to build a new book at the new level.
+**Up to v4.5.5-nikque.28, this command did not work.**
+
+- It re-searched the leaves of the positions whose level differed from the book's level, but with the current level of each position, and did not change the level: nothing became deeper, and a new run searched all these positions again.
+- This was the code of the original Edax (4.3).
 
 ### book verbose: how much is printed
 
@@ -400,7 +430,7 @@ This prints up to 3 book positions with 52 empty squares in which the best move 
 | `book export file`, `book import file` | Write to a text file, read back |
 | `book leaf recalculate` (`2`, `3`, `4`) `X Y` | Compute the scores of the leaves again |
 | `book correct` | Verify the exactly solved positions |
-| `book deepen` | (do not use) |
+| `book deepen` | Search again the positions of a lower level with the level of the book |
 | `book extract file` | Write the best lines to a game file |
 | `book problem empties count` | Show positions as problems |
 | `book feed-hash` | Put the values of the book into the hash table |

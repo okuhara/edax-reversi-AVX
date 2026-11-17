@@ -125,6 +125,13 @@ static inline bool link_is_bad(const Link *link)
 /** Number of links stored inside the Position itself (99% of positions of a large book). */
 #define POSITION_INLINE_LINKS 4
 
+/** Type of the bit-fields of a Position (one byte: GCC and Clang take an unsigned char as an extension of C99). */
+#if defined(__GNUC__)
+	#define POSITION_BITS __extension__ unsigned char
+#else
+	#define POSITION_BITS unsigned char
+#endif
+
 /**
  * struct Position
  * @brief A position stored in the book.
@@ -144,11 +151,24 @@ typedef struct Position {
 	} score;                   /**< Position value & bounds (saved as 16-bit values; see score_char()) */
 	Link leaf;                 /**< best remaining move */
 	unsigned char n_link;      /**< linking moves number */
-	unsigned char level;       /**< search level */
+	POSITION_BITS level : 6;   /**< search level (0 to 60) */
+	POSITION_BITS marks : 2;   /**< progress marks of book correct and book leaf recalculate (see below) */
 	unsigned char state;       /**< book epoch and done/todo flags (see below) */
 } Position;                    /* 48 bytes on 64-bit targets (56 in v4.5.5-nikque.4, 64 before) */
 
 typedef char position_size_check[(sizeof (void*) != 8 || sizeof (Position) == 48) ? 1 : -1];
+
+/*
+ * Progress marks. book correct marks each solved position that it has searched again, and book leaf
+ * recalculate each position whose leaf it has searched again. A marked position is not searched again by
+ * the same command: run on a book saved before the command ended (a timed save, or the save at the exit),
+ * the command goes on with the positions left. When the command ends, it removes all its marks, and a
+ * finished book has none. The marks are saved in the two upper bits of the byte of the level (0 to 60):
+ * the versions up to v4.5.5-nikque.28 read a book with marks as a damaged book.
+ */
+#define POSITION_MARK_CORRECTED 1    /**< book correct: this solved position was searched again */
+#define POSITION_MARK_RECALCULATED 2 /**< book leaf recalculate: the leaf of this position was searched again */
+#define POSITION_LEVEL_BITS 0x3f     /**< bits of the level in the saved byte (the marks are above) */
 
 /*
  * The state of a position holds the book epoch at which its done/todo flags were set, so that
@@ -377,6 +397,7 @@ static void position_init(Position *position)
 
 	position->n_link = 0;
 	position->level = 0;
+	position->marks = 0;
 	position->state = 1 | POSITION_DONE; // done at epoch 1 (as before)
 }
 
@@ -538,7 +559,8 @@ static bool position_read(Position *position, BookStream *s)
 		position->score.lower = score_char(lower);
 		position->score.upper = score_char(upper);
 	}
-	position->level = h[39];
+	position->level = h[39] & POSITION_LEVEL_BITS;
+	position->marks = h[39] >> 6; // (progress marks: see POSITION_MARK_CORRECTED)
 
 	position->state = 0;
 
@@ -647,7 +669,7 @@ static bool position_write(const Position *position, BookStream *s)
 		memcpy(h + 36, &upper, 2);
 	}
 	h[38] = position->n_link;
-	h[39] = position->level;
+	h[39] = (unsigned char) (position->level | position->marks << 6);
 	if (n) memcpy(h + POSITION_FIXED_SIZE, position_links(position), sizeof (Link) * n);
 	memcpy(h + POSITION_FIXED_SIZE + sizeof (Link) * n, &position->leaf, sizeof (Link));
 
@@ -1883,13 +1905,14 @@ static bool position_is_solved(const Position *p)
  * @return true if the leaf of the position can be searched again by book leaf recalculate:
  * a move that is not a link yet, or the pass of a position without move whose next position is not in
  * the book (its score comes from a search too; up to v4.5.5-nikque.12 such a leaf was never searched again).
- * The end of the game has no leaf move, and its score does not depend on eval.dat.
+ * The end of the game has no leaf move, and its score does not depend on eval.dat. A leaf already searched
+ * again by this command, or by a run of it that did not end (POSITION_MARK_RECALCULATED), is not searched again.
  */
 static bool leaf_recalc_wanted(const Position *p)
 {
 	const int n_moves = get_mobility(p->board.player, p->board.opponent);
 
-	if (p->leaf.move == NOMOVE || position_is_solved(p)) return false;
+	if (p->leaf.move == NOMOVE || position_is_solved(p) || (p->marks & POSITION_MARK_RECALCULATED)) return false;
 	if (n_moves == 0) return p->n_link == 0 && p->leaf.move == PASS;
 	return p->n_link < n_moves;
 }
@@ -4775,9 +4798,52 @@ static void book_deviate_save_progress(Book *book, const char *file, const long 
 }
 
 /**
+ * @brief Remove a progress mark from every position of a book (the command that set it has ended).
+ *
+ * @param book opening book.
+ * @param mark POSITION_MARK_CORRECTED or POSITION_MARK_RECALCULATED.
+ * @return the number of positions that had the mark.
+ */
+static long long book_unmark(Book *book, const int mark)
+{
+	PositionArray *a;
+	Position *p;
+	long long n = 0;
+
+	foreach_position(p, a, book) {
+		if (p->marks & mark) {
+			p->marks = (unsigned char) (p->marks & ~mark);
+			++n;
+		}
+	}
+	if (n) book->need_saving = true;
+	return n;
+}
+
+/**
+ * @brief Tell if a level searches a position deeper than another level.
+ *
+ * @param level Level.
+ * @param than The other level.
+ * @param n_empties Empty squares of the position.
+ * @return true if the depth of level is greater, or if it is the same with a higher selectivity (fewer cuts).
+ */
+static bool level_is_deeper(const int level, const int than, const int n_empties)
+{
+	const int depth = LEVEL[level][n_empties].depth, than_depth = LEVEL[than][n_empties].depth;
+
+	return depth > than_depth || (depth == than_depth && LEVEL[level][n_empties].selectivity > LEVEL[than][n_empties].selectivity);
+}
+
+/**
  * @brief Deepen a book.
  *
- * Research all non link best move.
+ * The positions whose level searches less deep than the level of the book get the level of the book, and
+ * their leaves are searched again with it. A position searched again keeps this level: run on a book
+ * saved before it ended (a timed save, or the save at the exit), the command goes on with the positions
+ * left. (Up to v4.5.5-nikque.28, the positions of another level kept their level, and were searched
+ * again with it: nothing became deeper, and a new run searched every position again. A position with a
+ * deeper level than the book was searched again with its own level too: it is now left as it is.)
  *
  * @param book opening book.
  */
@@ -4788,18 +4854,20 @@ void book_deepen(Book *book)
 	int i = 0;
 	unsigned long long t = real_clock();
 	char file[FILENAME_MAX + 1];
-	
+
 	file_add_ext(options.book_file, ".dep", file);
 
-	bprint("Deepening book...\r"); 
+	bprint("Deepening book...\r");
 	foreach_position(p, a, book) {
 		int n_empties = board_count_empties(&p->board);
-		if (LEVEL[p->level][n_empties].depth != LEVEL[book->options.level][n_empties].depth
-		 || LEVEL[p->level][n_empties].selectivity != LEVEL[book->options.level][n_empties].selectivity) { // No! compare depth & selectivity;
+		if (level_is_deeper(book->options.level, p->level, n_empties)) {
+			p->level = book->options.level; // (the level of the search, and the mark of a position done)
+			p->marks = 0; // (a new search: the marks of book correct and book leaf recalculate are for the former leaf)
 			position_forget_leaf(p); // (also the score of a position without move and without link: it is searched again)
 			position_search(p, book);
+			book->need_saving = true; // (the level changed, also when no search was needed)
 			if (++i % 10 == 0) {
-				bprint("Deepening book...%d\r", i); 
+				bprint("Deepening book...%d\r", i);
 			}
 			if (book_save_interval_elapsed((long long)t)) {
 				book_save_progress(book, file); // timed progress save
@@ -4810,12 +4878,17 @@ void book_deepen(Book *book)
 	bprint("Deepening book...%d done\n", i);
 }
 
-static bool book_correct_concurrent(Book*, const char*, int*, int*);
+static bool book_correct_concurrent(Book*, const char*, long long, int*, int*);
 
 /**
  * @brief Correct wrong solved score in the book.
  *
  * Correct erroneous solved positions. Edax may be unstable and introduce bugs from time to time...
+ *
+ * Each solved position searched again gets the mark POSITION_MARK_CORRECTED, and a marked position is not
+ * searched again: run on a book saved before it ended (the timed saves to <book-file>.err, or the save at
+ * the exit), book correct goes on with the positions left. When every solved position is done, the marks
+ * are removed. (Up to v4.5.5-nikque.28, every run searched all the solved positions again.)
  *
  * @param book opening book.
  */
@@ -4829,24 +4902,35 @@ void book_correct_solved(Book *book)
 	Link old_leaf;
 	int n_error = 0;
 	char s[4];
-	
+	long long n_left = 0, n_marked = 0;
+
 	file_add_ext(options.book_file, ".err", file);
+
+	foreach_position(p, a, book) {
+		if (position_is_solved(p)) {
+			if (p->marks & POSITION_MARK_CORRECTED) ++n_marked; else ++n_left;
+		}
+	}
+	if (n_marked) bprint("Correcting solved positions: %lld already done by a run that did not end, %lld left\n", n_marked, n_left);
 
 #ifndef BOOK_TEST_CORRECT_OLD
 	// several positions at the same time (book-expand-tasks), when the memory for the searches is available
-	if (book_correct_concurrent(book, file, &i, &n_error)) {
+	if (book_correct_concurrent(book, file, n_left, &i, &n_error)) {
+		book_unmark(book, POSITION_MARK_CORRECTED);
 		bprint("Correcting solved positions...%d done (%d error found)\n", i, n_error);
 		return;
 	}
 #endif
 
-	bprint("Correcting solved positions...\r"); 
+	bprint("Correcting solved positions...\r");
 	foreach_position(p, a, book) {
-		int n_empties = board_count_empties(&p->board);
-		if (LEVEL[p->level][n_empties].depth == n_empties && LEVEL[p->level][n_empties].selectivity == NO_SELECTIVITY) { // No! compare depth & selectivity;
+		if (position_is_solved(p) && !(p->marks & POSITION_MARK_CORRECTED)) {
+			const int n_empties = board_count_empties(&p->board);
 			old_leaf = p->leaf;
 			position_forget_leaf(p); // (also the score of a position without move and without link: it is searched again)
 			position_search(p, book);
+			p->marks = (unsigned char) (p->marks | POSITION_MARK_CORRECTED); // (saved with the position: a new run does not search it again)
+			book->need_saving = true;
 			if (p->leaf.score != old_leaf.score) {
 				++n_error;
 				bprint("\nError found:\n");
@@ -4863,6 +4947,7 @@ void book_correct_solved(Book *book)
 			}
 		}
 	}
+	book_unmark(book, POSITION_MARK_CORRECTED); // (every solved position is done)
 	bprint("Correcting solved positions...%d done (%d error found)\n", i, n_error);
 }
 
@@ -5574,7 +5659,7 @@ static void* book_correct_worker(void *v)
 		while (s->a < book->array + book->n) {
 			if (s->k >= s->a->n) { ++s->a; s->k = 0; continue; }
 			p = s->a->positions + s->k++;
-			if (position_is_solved(p)) break;
+			if (position_is_solved(p) && !(p->marks & POSITION_MARK_CORRECTED)) break;
 			p = NULL;
 		}
 		if (p == NULL) { unlock(s); break; }
@@ -5593,7 +5678,9 @@ static void* book_correct_worker(void *v)
 			position_forget_leaf(p);
 			r = position_search_with(p, w->search);
 		}
-		if (r) book->need_saving = true;
+		(void) r;
+		p->marks = (unsigned char) (p->marks | POSITION_MARK_CORRECTED); // (saved with the position: a new run does not search it again)
+		book->need_saving = true;
 		++s->n_done;
 		if (p->leaf.score != old_leaf.score) {
 			++s->n_error;
@@ -5619,21 +5706,18 @@ static void* book_correct_worker(void *v)
  *
  * @param book opening book.
  * @param tmp_file Temporary file name (timed saves).
+ * @param n_solved Number of solved positions to search (without the mark POSITION_MARK_CORRECTED).
  * @param n_done Number of positions searched (out).
  * @param n_error Number of positions with another score (out).
  * @return false if the positions are to be searched one after the other (nothing was done).
  */
-static bool book_correct_concurrent(Book *book, const char *tmp_file, int *n_done, int *n_error)
+static bool book_correct_concurrent(Book *book, const char *tmp_file, const long long n_solved, int *n_done, int *n_error)
 {
 	CorrectShared shared;
 	CorrectWorker *w;
-	PositionArray *a;
-	Position *p;
-	long long n_solved = 0;
 	int n_workers, i;
 
 	if (options.n_task < 2 || book_one_search_at_a_time()) return false;
-	foreach_position(p, a, book) if (position_is_solved(p)) ++n_solved;
 	if (MIN(book_expand_task_count(book, n_solved), n_solved) < 2) return false;
 	n_workers = book_expand_pool_get(book, n_solved); // (the searches of book_expand_concurrent)
 	if (n_workers < 2) { search_pool_release(&expand_pool); return false; }
@@ -6342,6 +6426,7 @@ static void* leaf_recalc_worker(void *v)
 			search_cleanup(w->search);
 			position_search_with(p, w->search);
 		}
+		p->marks = (unsigned char) (p->marks | POSITION_MARK_RECALCULATED); // (saved with the position: a new run does not search it again)
 		book->need_saving = true;
 #ifdef BOOK_TEST_LEAF_LOG // test builds: every searched leaf, before and after
 		fprintf(stderr, "<leaf %016llx %016llx %d %d %d %d>\n", p->board.player, p->board.opponent, old_leaf.move, old_leaf.score, p->leaf.move, p->leaf.score);
@@ -6412,6 +6497,12 @@ static void book_leaf_recalc_search(Book *book, const char *name, const char *tm
  * of the round before); a round that changes no leaf is the last one (the next would walk the same
  * positions). 1, the default, is the single round of v4.5.5-nikque.12.
  *
+ * Each leaf searched again gets the mark POSITION_MARK_RECALCULATED, and a marked leaf is not searched
+ * again, in the next rounds nor in a new run: run on a book saved before it ended (the timed saves, or the
+ * save at the exit), the command goes on with the leaves left. When the command ends, the marks are
+ * removed. (Up to v4.5.5-nikque.28, a new run searched every leaf again, and a round searched again the
+ * leaves of the rounds before that its walk reached: the same results, with one-thread searches.)
+ *
  * @param book opening book.
  * @param board Position to start from.
  * @param kind Command (1 to 4).
@@ -6428,10 +6519,16 @@ void book_leaf_recalculate(Book *book, Board *board, const int kind, const int x
 	char file[FILENAME_MAX + 1];
 	const int n_rounds = MAX(1, options.book_leaf_recalculate_rounds);
 	int i_round;
+	bool complete = true; // every walk got its list of leaves (else the marks are kept, for a new run)
+	long long n_marked = 0;
+	PositionArray *a;
+	Position *p;
 
 	if (kind < 1 || kind > 4 || root == NULL) return;
 	name = names[kind - 1];
 	file_add_ext(options.book_file, exts[kind - 1], file);
+	foreach_position(p, a, book) if (p->marks & POSITION_MARK_RECALCULATED) ++n_marked;
+	if (n_marked) bprint("%s: %lld leaves already searched again by a run that did not end: they are not searched again\n", name, n_marked);
 	book_clean(book);
 	book_negamax_position(root, book);
 
@@ -6487,13 +6584,16 @@ void book_leaf_recalculate(Book *book, Board *board, const int kind, const int x
 		leaf_recalc_mode = LEAF_RECALC_OFF;
 		if (!book->todo_list.valid) listed = false;
 		if (!listed) warn("%s: not enough memory for the list of the leaves\n", name);
+		if (!listed) complete = false;
 
 		book_clean(book);
 		book_negamax_position(root, book);
 		// another round only if this one changed a leaf (else the walks would be the same), and got its lists
 		if (i_round >= n_rounds || !listed || stats.n_score + stats.n_move == n_changed) break;
 	}
-	if (stats.n_done) book_save_progress(book, file);
+	if (complete && !book->failed) n_marked = book_unmark(book, POSITION_MARK_RECALCULATED); // (the command ended)
+	else n_marked = 0;
+	if (stats.n_done || n_marked) book_save_progress(book, file);
 	if (n_rounds > 1) {
 		bprint("%s %d %d...finished: %lld leaves, %lld scores changed (%lld up, %lld down, largest +%d / -%d), %lld moves changed, %d rounds\n",
 			name, x, y, stats.n_done, stats.n_score, stats.n_up, stats.n_down, stats.max_up, stats.max_down, stats.n_move, i_round);

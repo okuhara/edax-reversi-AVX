@@ -60,7 +60,7 @@
  *   -a|analyze [n]       retro-analyze the game using the opening book.
  *   -randomness [n]      play more various but worse move from the opening book.
  *   -depth [n]           change book depth (up to which to add positions).
- *   -deepen [n]          change book level & reevalute the whole book (very slow!).
+ *   -deepen              search again with the level of the book the positions of a lower level.
  *   -fix                 fix the opening book: add missing links and negamax the\n  whole book tree.
  *   -store               add the last played game to the opening book.
  *   -deviate <n1> <n2>   add positions by deviating with a relative error <n1> and\n  an absolute error <n2>.
@@ -240,7 +240,7 @@ void help_book(void)
 		"  a|analyze [n]       retro-analyze the game using the opening book.\n"
 		"  randomness [n]      play more various but worse move from the opening book.\n"
 		"  depth [n]           change book depth (up to which to add positions).\n"
-		"  deepen [n]          change book level & reevalute the whole book (very slow!).\n"
+		"  deepen              search again with the level of the book the positions of a lower level.\n"
 		"  fix                 fix the opening book: add missing links and negamax the\n  whole book tree.\n"
 		"  store               add the last played game to the opening book.\n"
 		"  deviate <n1> <n2>   add positions by deviating with a relative error <n1> and\n  an absolute error <n2>.\n"

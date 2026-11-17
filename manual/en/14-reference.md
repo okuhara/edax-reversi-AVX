@@ -85,7 +85,7 @@ These are entered after `book` (or `b`). The word that follows may be in upper c
 | `book leaf recalculate2`, `book leaf recalculate4` | as `book deviate2` | Compute the leaves again | `.leaf2`, `.leaf4` | [8.6](08-book-maintenance.md) |
 | `book leaf expand` | [X Y]. X: 0 to 129, Y: 0 to 7740 | Expand the leaves better than every link. With X Y: in the range of `book deviate3 X Y` only | `.lexp` | [7.4](07-book-learning.md) |
 | `book correct` | | Verify the exactly solved positions | `.err` | [8.7](08-book-maintenance.md) |
-| `book deepen` | | (do not use) | `.dep` | [8.7](08-book-maintenance.md) |
+| `book deepen` | | Search again the positions of a lower level with the level of the book | `.dep` | [8.7](08-book-maintenance.md) |
 | `book extract` | file | Write the best lines as games | | [8.8](08-book-maintenance.md) |
 | `book problem` | [empties] (24) [count] (10) | Show positions as problems | | [8.8](08-book-maintenance.md) |
 | `book feed-hash` | | Put the values of the book into the hash table | | [8.7](08-book-maintenance.md) |
