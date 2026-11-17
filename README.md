@@ -29,7 +29,7 @@ There are three lines. They share the same commands, settings and book format.
 |---|---|---|
 | **v4.5.5-nikque.N** | The main line: bug fixes and new book commands, with the upstream evaluation (`eval.dat`) | Branch `edax-4.5.5-fixes` (default). Latest release |
 | **v4.5.5-eval2.N** | nikque + a new evaluation function (adds mobility; about +17 to +22 Elo against upstream `eval.dat`). Scores differ from the nikque line | Branch `eval2`, releases `v4.5.5-eval2.N` |
-| **Heath** (formerly newedax) | The eval2 line ported to C++23, same results | [Nikque/Heath](https://github.com/Nikque/Heath) |
+| **Heath** (formerly newedax) | The eval2 line ported to C++23; a new 64-slot evaluation since v4.5.5-newedax.13 | [Nikque/Heath](https://github.com/Nikque/Heath) |
 
 Each eval2 and Heath release includes all changes of the nikque release it names (for example, eval2.10 = nikque.22 + eval2).
 
@@ -84,7 +84,7 @@ Windows なら、まず `wEdax-x86-64.exe` を使ってください。AVX2 対�
 |---|---|---|
 | **v4.5.5-nikque.N** | 本線。不具合の修正と book のコマンドの追加。評価関数（`eval.dat`）は元のまま | ブランチ `edax-4.5.5-fixes`（既定）、最新の Release |
 | **v4.5.5-eval2.N** | nikque に新しい評価関数を足したもの（着手可能数を追加。元の `eval.dat` に対して約 +17〜22 Elo）。評価値は nikque と異なる | ブランチ `eval2` |
-| **Heath**（旧名 newedax） | eval2 を C++23 に移したもの。結果は同じ | [Nikque/Heath](https://github.com/Nikque/Heath) |
+| **Heath**（旧名 newedax） | eval2 を C++23 に移したもの。v4.5.5-newedax.13 から 64 枠の新しい評価関数 | [Nikque/Heath](https://github.com/Nikque/Heath) |
 
 eval2・Heath の各版は、対応する nikque の版の変更をすべて含みます（例：eval2.10 = nikque.22 + eval2）。
 

@@ -442,6 +442,14 @@ Book play...1/153 done: 1 positions, 1 links
 
 そのうえで、同じコマンド（`book deviate2 5 5` など）をもう一度実行します。
 
+同じコマンドで続けたとき、済んだ所をもう一度探索するかどうか：
+
+- `book deviate` 系・`book enhance`・`book leaf expand`・`book fill`・`book fill2`・`book play`・`book add`：広げた手や足した局面は book に残っているので、済んだ所は探索し直しません（たどり直す手間だけかかります）。
+- `book correct`・`book leaf recalculate` 系：探索し直した局面に book の中で印が付き、印のない局面だけを探索します（v4.5.5-nikque.29 から。[8.6](08-book-maintenance.md)・[8.7](08-book-maintenance.md)）。印の付いた途中の book は、v4.5.5-nikque.28 までの版では読めません。
+- `book learn <ファイル>`：`<book のファイル名>.learn` に学習した行の数が書かれ、同じファイルなら学習済みの行を飛ばします（v4.5.5-nikque.29 から。[7.2](07-book-learning.md) の book learn）。
+- `book deepen`：book の level にした局面は探索し直しません（v4.5.5-nikque.29 から。[8.7](08-book-maintenance.md)）。
+- v4.5.5-nikque.28 までの版では、`book correct`・`book leaf recalculate` 系・`book learn`・`book deepen` は、続けても最初から全部をやり直していました。
+
 ## 7.6 同時に広げる：book-expand-tasks
 
 低い level の探索は短いので、1 つの探索に多くのスレッドを使っても、あまり速くなりません（[5.5](05-search.md)）。設定 `book-expand-tasks` で**複数の Leaf を同時に**広げると、CPU を使い切れます。`book deviate`・`book deviate2`・`book deviate3`・`book enhance`・`book play` に効きます。

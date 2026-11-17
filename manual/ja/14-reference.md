@@ -65,7 +65,7 @@
 | `book store` | | 今の対局を入れる | `.store` | [7.2](07-book-learning.md) |
 | `book add` | ファイル | 棋譜のファイルを入れる | `.gam` | [7.2](07-book-learning.md) |
 | `book check` | ファイル | 棋譜を book と比べる | | [7.2](07-book-learning.md) |
-| `book learn` | ファイル | 手順のリストを打ち継いで入れる | `.store` | [7.2](07-book-learning.md) |
+| `book learn` | ファイル | 手順のリストを打ち継いで入れる | `.store`・`.learn` | [7.2](07-book-learning.md) |
 | `book deviate` | ［X］（2） ［Y］（4）。X は −129〜129、Y は 0〜65 | 自動で広げる（片方が外れる変化） | `.dev` | [7.3](07-book-learning.md) |
 | `book deviate2` | ［X］（2） ［Y］（4）。X は 0〜129、Y は 0〜7740 | 自動で広げる（失点の合計。完全読みの Leaf を除く） | `.dev2` | [7.3](07-book-learning.md) |
 | `book deviate3` | 同じ | 同じ（完全読みの Leaf も含む） | `.dev3` | [7.3](07-book-learning.md) |

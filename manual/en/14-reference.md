@@ -65,7 +65,7 @@ These are entered after `book` (or `b`). The word that follows may be in upper c
 | `book store` | | Add the current game | `.store` | [7.2](07-book-learning.md) |
 | `book add` | file | Add a file of games | `.gam` | [7.2](07-book-learning.md) |
 | `book check` | file | Compare games with the book | | [7.2](07-book-learning.md) |
-| `book learn` | file | Play out a list of lines and add them | `.store` | [7.2](07-book-learning.md) |
+| `book learn` | file | Play out a list of lines and add them | `.store`, `.learn` | [7.2](07-book-learning.md) |
 | `book deviate` | [X] (2) [Y] (4). X from −129 to 129, Y from 0 to 65 | Automatic expansion (lines where one side is off) | `.dev` | [7.3](07-book-learning.md) |
 | `book deviate2` | [X] (2) [Y] (4). X from 0 to 129, Y from 0 to 7740 | Automatic expansion (total of the losses; leaves of exactly solved positions excluded) | `.dev2` | [7.3](07-book-learning.md) |
 | `book deviate3` | the same | The same (leaves of exactly solved positions included) | `.dev3` | [7.3](07-book-learning.md) |

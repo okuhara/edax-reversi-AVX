@@ -399,6 +399,14 @@ The automatic expansion commands run for a long time. **If they stop (power fail
 
 Then type the same command again (`book deviate2 5 5`, for example).
 
+Whether the same command, typed again, searches again what was done:
+
+- `book deviate` and the like, `book enhance`, `book leaf expand`, `book fill`, `book fill2`, `book play`, `book add`: the moves expanded and the positions added are in the book, so what was done is not searched again (only walked again).
+- `book correct` and the `book leaf recalculate` family: each position searched again gets a mark in the book, and only the positions without a mark are searched (since v4.5.5-nikque.29; [8.6](08-book-maintenance.md), [8.7](08-book-maintenance.md)). A book saved with marks cannot be read by v4.5.5-nikque.28 and earlier.
+- `book learn <file>`: `<book file name>.learn` tells the lines learned, and with the same file these lines are skipped (since v4.5.5-nikque.29; book learn in [7.2](07-book-learning.md)).
+- `book deepen`: the positions given the level of the book are not searched again (since v4.5.5-nikque.29; [8.7](08-book-maintenance.md)).
+- Up to v4.5.5-nikque.28, `book correct`, the `book leaf recalculate` family, `book learn` and `book deepen` started over from the beginning.
+
 ## 7.6 Expanding several leaves in parallel: book-expand-tasks
 
 Low-level searches are short, so giving many threads to one search does not make it much faster ([5.5](05-search.md)). With the setting `book-expand-tasks`, **several leaves are expanded in parallel**, which makes full use of the CPU. It applies to `book deviate`, `book deviate2`, `book deviate3`, `book enhance` and `book play`.
