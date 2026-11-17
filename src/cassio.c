@@ -295,7 +295,7 @@ static int engine_open(Search *search, const Board *board, const int player, con
 	search->height = 0;
 	search->node_type[search->height] = PV_NODE;
 	search->result->score = 0;
-	get_full_lines(board->player | board->opponent, &full);
+	get_full_lines(&full, board->player | board->opponent);
 	search->stability_bound.upper = SCORE_MAX - 2 * get_stability(board->opponent, board->player, &full);
 	search->stability_bound.lower = 2 * get_stability(board->player, board->opponent, &full) - SCORE_MAX;
 

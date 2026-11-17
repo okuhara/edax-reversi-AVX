@@ -962,7 +962,7 @@ static unsigned long long get_full_lines_v(unsigned long long full)
 
   #endif
 
-void get_full_lines(const unsigned long long disc, V4DI *full)
+void get_full_lines(V4DI *full, const unsigned long long disc)
 {
 	unsigned long long l7, l9, r7, r9;	// full lines
 

@@ -74,9 +74,19 @@ int get_mobility(const unsigned long long, const unsigned long long);
 void update_full_lines(V4DI*, unsigned long long, int);
 // void restore_full_lines(V4DI*, int);
 
+#ifdef USE_INCREMENTAL_FULL_LINES
+	#define	incremental_update_full_lines(full,disc,pos)	update_full_lines((full), (disc), (pos))
+	#define	incremental_restore_full_lines(full,full0)	(*(full) = (full0))
+	#define	get_full_lines_on_demand(full,disc)
+#else
+	#define	incremental_update_full_lines(full,disc,pos)
+	#define	incremental_restore_full_lines(full,full0)	((void) (full0))
+	#define	get_full_lines_on_demand(full,disc)	get_full_lines((full), (disc))
+#endif
+
 void edge_stability_init(void);
 unsigned long long get_stable_edge(const unsigned long long, const unsigned long long);
-void get_full_lines(const unsigned long long, V4DI*);
+void get_full_lines(V4DI*, const unsigned long long);
 int get_stability(const unsigned long long, const unsigned long long, const V4DI*);
 int get_edge_stability(const unsigned long long, const unsigned long long);
 int get_corner_stability(const unsigned long long);

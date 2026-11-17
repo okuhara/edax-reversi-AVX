@@ -605,7 +605,7 @@ void search_setup(Search *search)
 	search->empties[PASS].next = NOMOVE;
 	search->empties[PASS].previous = NOMOVE;
 
-	get_full_lines(occupied, &search->eval.full_lines);	// (4.5.7)
+	get_full_lines(&search->eval.full_lines, occupied);	// (4.5.7)
 
 	// init the evaluation function
 	eval_set(&search->eval, &search->board);
@@ -1042,7 +1042,7 @@ void search_update_midgame(Search *search, const Move *move)
 	empty_remove(search->empties, move->x);
 	board_update(&search->board, move);
 	eval_update(move->x, move->flipped, &search->eval);
-	update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, move->x);
+	incremental_update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, move->x);
 	assert(search->eval.n_empties > 0);
 	--search->eval.n_empties;
 	++search->height;
@@ -1066,7 +1066,7 @@ void search_restore_midgame(Search *search, int x, const Eval *eval0)
 	// eval_restore(search->eval, move);
 	search->eval = *eval0;
 	// board_restore(&search->board, move);
-	// restore_full_lines(&search->eval.full_lines, x);
+	// incremental_restore_full_lines(&search->eval.full_lines, eval0.full_lines);
 	empty_restore(search->empties, x);
 	assert(search->height > 0);
 	--search->height;
@@ -1245,6 +1245,7 @@ bool search_SC_PVS(Search *search, int *alpha, int *beta, int *score)
 {
 	if (USE_SC && *beta >= PVS_STABILITY_THRESHOLD[search->eval.n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
+		get_full_lines_on_demand(&search->eval.full_lines, search->board.opponent | search->board.player);
 		*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player, &search->eval.full_lines);
 		if (*score <= *alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
@@ -1268,6 +1269,7 @@ bool search_SC_NWS(Search *search, const int alpha, int *score)
 {
 	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
+		get_full_lines_on_demand(&search->eval.full_lines, search->board.opponent | search->board.player);
 		*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player, &search->eval.full_lines);
 		if (*score <= alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
@@ -1290,6 +1292,7 @@ bool search_SC_NWS_4(Search *search, const int alpha, int *score)
 {
 	if (USE_SC && alpha < -NWS_STABILITY_THRESHOLD[4]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
+		get_full_lines_on_demand(&search->eval.full_lines, search->board.opponent | search->board.player);
 		*score = 2 * get_stability(search->board.opponent, search->board.player, &search->eval.full_lines) - SCORE_MAX;
 		if (*score > alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
@@ -1393,6 +1396,7 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 		HashTable *hash_table = &search->hash_table;
 		const int etc_depth = depth - 1;
 		const int beta = alpha + 1;
+		bool use_sc = (USE_SC && alpha <= -NWS_STABILITY_THRESHOLD[search->eval.n_empties]);
 
 		hash_data.data.wl.c.depth = depth;
 		hash_data.data.wl.c.selectivity = selectivity;
@@ -1401,12 +1405,14 @@ bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_
 		hash_data.beta = beta;
 
 		CUTOFF_STATS(++statistics.n_etc_try;)
+		if (use_sc)
+			get_full_lines_on_demand(&search->eval.full_lines, search->board.opponent | search->board.player);
 		foreach_move (move, *movelist) {
 			next.opponent = search->board.player ^ (move->flipped | x_to_bit(move->x));
 			next.player = search->board.opponent ^ move->flipped;
 			SEARCH_UPDATE_ALL_NODES(search->n_nodes);
 
-			if (USE_SC && alpha <= -NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {
+			if (use_sc) {
 				full = search->eval.full_lines;
 				update_full_lines(&full, next.opponent | next.player, move->x);
 				*score = 2 * get_stability(next.opponent, next.player, &full) - SCORE_MAX;

@@ -755,13 +755,13 @@ int get_edge_stability(const unsigned long long P, const unsigned long long O)
  * CPU (or AVX2) rotate for vertical get_full_lines.
  * Diag-7 is converted to diag-9 using vertical mirroring.
  * 
- * @param disc all discs on the board.
  * @param full all 1 if full line, otherwise all 0.
+ * @param disc all discs on the board.
  */
   #ifdef __AVX2__
 
 // returns v4_full in __m256i, reduced in caller
-void get_full_lines(const unsigned long long disc, V4DI *full)
+void get_full_lines(V4DI *full, const unsigned long long disc)
 {
 	__m128i l1, l79, l8;
 	__m256i v4_disc, lr79;
@@ -837,7 +837,7 @@ void get_full_lines(const unsigned long long disc, V4DI *full)
 
   #elif defined(__ARM_NEON)
 
-void get_full_lines(const unsigned long long disc, V4DI *full)
+void get_full_lines(V4DI *full, const unsigned long long disc)
 {
 	unsigned long long l8;
 	uint8x8_t l01;
@@ -860,7 +860,7 @@ void get_full_lines(const unsigned long long disc, V4DI *full)
 
   #else	// 1 CPU, 3 SSE
 
-void get_full_lines(const unsigned long long disc, V4DI *full)
+void get_full_lines(V4DI *full, const unsigned long long disc)
 {
 	unsigned long long rdisc = vertical_mirror(disc);
 	unsigned long long l8;

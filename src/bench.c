@@ -349,7 +349,7 @@ static void bench_stability(void)
 		for (i = 0; i < N_WARMUP; ++i) {
 			board.player &= ~x_to_bit(x);
 			board.opponent &= ~x_to_bit(x);
-			get_full_lines(board.player | board.opponent, &full);
+			get_full_lines(&full, board.player | board.opponent);
 			v += get_stability(board.player, board.opponent, &full);
 		}
 
@@ -358,7 +358,7 @@ static void bench_stability(void)
 		for (i = 0; i < N_REPEAT; ++i) {
 			board.player &= ~x_to_bit(x);
 			board.opponent &= ~x_to_bit(x);
-			get_full_lines(board.player | board.opponent, &full);
+			get_full_lines(&full, board.player | board.opponent);
 			v += get_stability(board.player, board.opponent, &full);
 		}
 		c += click();

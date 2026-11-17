@@ -307,7 +307,7 @@ unsigned long long get_moves_mmx(const unsigned long long P, const unsigned long
  *
  */
 #ifdef hasMMX
-void get_full_lines(const unsigned long long disc_, V4DI *full)
+void get_full_lines(V4DI *full, const unsigned long long disc_)
 {
 	__m64	disc = *(__m64 *) &disc_;
 	__m64	full_l, full_r;

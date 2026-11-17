@@ -399,10 +399,10 @@ static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1)
 				prioritymoves &= ~x_to_bit(x);
 				search->empties[prev].next = search->empties[x].next;	// remove - maintain single link only
 				vboard_next(board0, x, &search->board);
-				update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, x);
+				incremental_update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, x);
 				score = search_solve_4(search, alpha);
 				search->empties[prev].next = x;	// restore
-				search->eval.full_lines = full0;
+				incremental_restore_full_lines(&search->eval.full_lines, full0);
 
 				if (score > alpha)	// (49%)
 					return score;
@@ -425,10 +425,10 @@ static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1)
 				search->eval.parity = parity0 ^ QUADRANT_ID[x];
 				search->empties[prev].next = search->empties[x].next;	// remove - maintain single link only
 				vboard_next(board0, x, &search->board);
-				update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, x);
+				incremental_update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, x);
 				score = -NWS_shallow_endgame(search, ~alpha, false);
 				search->empties[prev].next = x;	// restore
-				search->eval.full_lines = full0;
+				incremental_restore_full_lines(&search->eval.full_lines, full0);
 
 				if (score > alpha) {	// (40%)
 					// search->board = board0.board;
@@ -483,9 +483,10 @@ static int NWS_endgame_local(Search *search, const int alpha)
 	ofssolid = 0;
 #ifdef USE_SOLID
 	if (USE_SC && alpha >= NWS_STABILITY_SOLID_THRESHOLD) {	// (7%)
-		unsigned long long full[5], solid;
+		unsigned long long solid;
 
 		CUTOFF_STATS(++statistics.n_stability_try;)
+		get_full_lines_on_demand(search->board.opponent | search->board.player, &search->eval.full_lines);
 		score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player, &search->eval.full_lines);
 		if (score <= alpha) {	// (3%)
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
@@ -553,7 +554,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 		foreach_best_move(move, movelist) {
 			search->eval.parity = parity0 ^ QUADRANT_ID[move->x];
 			vboard_update(&search->board, board0, move);
-			update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, move->x);
+			incremental_update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, move->x);
 			if (search->eval.n_empties <= DEPTH_TO_SHALLOW_SEARCH) {
 				search->empties[search->empties[move->x].previous].next = search->empties[move->x].next;	// remove - maintain single link only
 				score = -NWS_shallow_endgame(search, ~alpha, false);
@@ -564,7 +565,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 				empty_restore(search->empties, move->x);
 			}
 			search->board = board0.bb;
-			search->eval.full_lines = full0;
+			incremental_restore_full_lines(&search->eval.full_lines, full0);
 
 			if (score > bestscore) {	// (63%)
 				bestscore = score;
@@ -665,11 +666,11 @@ int NWS_endgame(Search *search, const int alpha)
 			search->eval.parity = parity0 ^ QUADRANT_ID[move->x];
 			empty_remove(search->empties, move->x);
 			vboard_update(&search->board, board0, move);
-			update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, move->x);
+			incremental_update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, move->x);
 			score = -NWS_endgame(search, ~alpha);
 			empty_restore(search->empties, move->x);
 			search->board = board0.bb;
-			search->eval.full_lines = full0;
+			incremental_restore_full_lines(&search->eval.full_lines, full0);
 
 			if (score > bestscore) {	// (63%)
 				bestscore = score;
