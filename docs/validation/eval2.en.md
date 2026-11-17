@@ -13,7 +13,7 @@ Checks:
 - The 14 book suites of the reproducibility work (A, B, F, G, MB, UA, UB, UF, S1, S2, S3, S3off, M1, L18; 1 thread, without `book-reproducible`), with a build of this source and with the release program of v4.5.5-eval2.16: the same files except the save date in 13 suites; S3 (`book learn` with the random seed of the clock) differs from run to run with either program, and with `-book-seed 1` both give the same books twice.
 - `tests/regression.c`: the 50 cases pass (a build of this source, one logical CPU).
 - The 5 Windows release programs (PGO) solve fforum-20-39 with 1 thread with the same depths, scores, moves and node counts as v4.5.5-eval2.16 (78,733,311 nodes); the 1,205 positions of the exact-search fix: 0 wrong scores; the 7 Cassio cases pass. The 3 DLLs: the API checks (`tests/libedax_test.c`, 279 checks), 0 failures. Suite F of `book-reproducible`: the same books as v4.5.5-eval2.16, except the save date. The programs are 4 to 7 KB larger.
-- Built by the release workflow (run 44138713593).
+- Built by the release workflow (run 44156978523): the library test (251 checks, 0 failures) and fforum-1-19 on macOS, with the same node counts as v4.5.5-eval2.16.
 - Speed: not measured (the search is not changed).
 
 ## v4.5.5-eval2.16
