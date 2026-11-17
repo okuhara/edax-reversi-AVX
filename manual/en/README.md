@@ -2,7 +2,7 @@
 
 [日本語](../ja/README.md)
 
-Version described: **v4.5.5-nikque.28** (`Nikque/edax-reversi-AVX`). Some parts do not apply to earlier versions; those places say "since v4.5.5-nikque.N".
+Version described: **v4.5.5-nikque.29** (`Nikque/edax-reversi-AVX`). Some parts do not apply to earlier versions; those places say "since v4.5.5-nikque.N".
 
 Edax is a program that plays Othello (Reversi). It can also analyse games, solve endgames exactly and build opening data (a *book*). This manual starts with launching the program and playing one game, and goes on step by step to growing and maintaining a book of several hundred million positions.
 
@@ -49,7 +49,7 @@ If you are new, read chapters 1, 2 and 3 in order. If you want to build a book, 
 ## How reliable this manual is
 
 - This manual was first written from the source code of v4.5.5-nikque.13 and from actual runs of the Windows version.
-- Changes in later versions (v4.5.5-nikque.14 to 28) were added from their source code and from runs. New commands and settings are marked "since v4.5.5-nikque.N".
+- Changes in later versions (v4.5.5-nikque.14 to 29) were added from their source code and from runs. New commands and settings are marked "since v4.5.5-nikque.N".
 - The screen examples are real output (long ones are shortened).
 - Anything that was not verified by running it is marked as such.
 - Speed and memory figures are given together with the PC and the book they were measured on. **A figure measured on a small book does not predict the figure for a large one.**

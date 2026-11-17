@@ -6,14 +6,15 @@ User-facing changes of each version. The "Compatibility" part of each entry says
 
 - [nikque line](#nikque-line) (main line, default branch `edax-4.5.5-fixes`)
 - [eval2 line](#eval2-line) (new evaluation function, branch `eval2`)
-- For the C++23 port, see the [newedax release notes](https://github.com/Nikque/newedax/blob/main/RELEASE-NOTES.md)
+- For the C++23 port, see the [Heath (formerly newedax) release notes](https://github.com/Nikque/Heath/blob/main/RELEASE-NOTES.md)
 
 ## Versions
 
-Each eval2 and newedax version contains all changes of the nikque version on the same row.
+Each eval2 and Heath (formerly newedax) version contains all changes of the nikque version on the same row.
 
-| nikque | eval2 | newedax |
+| nikque | eval2 | Heath (newedax) |
 |---|---|---|
+| nikque.29 | eval2.17 | heath.16 |
 | nikque.28 | eval2.16 | newedax.15 |
 | nikque.27 | eval2.15 | newedax.12 |
 | nikque.26 | eval2.14 | newedax.11 |
@@ -35,6 +36,30 @@ Each eval2 and newedax version contains all changes of the nikque version on the
 ---
 
 # nikque line
+
+## v4.5.5-nikque.29
+
+**`book correct`, `book leaf recalculate` and `book learn` go on from a book saved before they ended (marks in the book, removed when the command ends); `book deepen` works.**
+
+**Changes**
+
+- **`book correct` goes on from a book saved before it ended.** Each solved position searched again gets a mark in the book (saved with the book); a new run on a book saved before the command ended (the timed saves to `<book-file>.err`, or the save at the exit) searches only the positions without a mark. When every solved position is done, all the marks are removed. Up to v4.5.5-nikque.28, every run searched all the solved positions again from the beginning: on a large book that takes days, a run that stopped lost all its work.
+- **`book leaf recalculate` (2, 3, 4) goes on the same way**: each leaf searched again gets a mark, a new run skips the marked leaves, and the marks are removed when the command ends. Within a run, a leaf searched in a round is not searched again in the next rounds (`book-leaf-recalculate-rounds` 2 or more; with one-thread searches it got the same value).
+- **`book learn <file>` goes on from the lines learned.** Each time the book is saved to `<book-file>.store`, a small text file `<book-file>.learn` tells how many lines of the file of games are learned in it (with a check value of these lines and the number of positions, the level and the depth of the book). `book learn` with the same file on this book skips these lines; the file is removed when the whole file is learned. Up to v4.5.5-nikque.28, a new run played all the games of the file again (other games with `book-randomness`).
+- **`book deepen` works.** It searched again the positions of another level than the book with their own level, and did not change their level: nothing became deeper, and a new run searched them all again (the code of the original Edax 4.3). Now the positions whose level searches less deep than the level of the book get that level and are searched again with it; a new run does not search them again. Positions of a deeper level are left as they are.
+
+**Compatibility**
+
+- The marks are the two upper bits of the level byte of a position in the book file (the level is 0 to 60): the file size and format do not change, and a book without marks is the same as before. **A book saved before `book correct` or `book leaf recalculate` ended holds marks, and the versions up to v4.5.5-nikque.28 read it as a damaged book**; a finished book has no mark. Other tools that read book files directly need to ignore these two bits (nikque GUI 0.4.6 does).
+- `eval.dat` and the search do not change: the same scores, moves and node counts (fforum-20-39 with 1 thread: 77,639,600 nodes, as v4.5.5-nikque.28). The books made by the other commands are the same as with v4.5.5-nikque.28.
+
+**Checked**: a new test (`tests/book-resume.py`, 40 checks): `book correct` with 1 and 2 threads, `book deepen`, `book leaf recalculate3`, `book learn` (also a run stopped while it learns, then a new run on the book it saved to `.store`), and that v4.5.5-nikque.28 reads a book with marks as a damaged book. The 14 book suites of the earlier releases (1 thread) give the same books as v4.5.5-nikque.28 (except the save date; suite S3 learns with a random seed from the clock: with `-book-seed 1` the same books). `tests/regression.c` (50 cases) passes. The 5 Windows release programs solve fforum-20-39 with the same depths, scores, moves and node counts (77,639,600) as v4.5.5-nikque.28, and the 1,205 positions of the exact-search fix with 0 wrong scores; the 3 DLLs pass the 279 API checks.
+
+**Not checked**: a real book; the strength (the search is not changed).
+
+[Tests and measurements](docs/validation/nikque.en.md#v455-nikque29)
+
+---
 
 ## v4.5.5-nikque.28
 
@@ -1060,6 +1085,30 @@ This is the first release, based on upstream Edax v4.5.5. It adds `book deviate2
 # eval2 line
 
 The nikque line plus a new evaluation function (mobility weights), published from the `eval2` branch. Each version contains all changes of the nikque versions listed in the "Versions" table above.
+
+## v4.5.5-eval2.17
+
+**`book correct`, `book leaf recalculate` and `book learn` go on from a book saved before they ended (marks in the book, removed when the command ends); `book deepen` works.** The changes of v4.5.5-nikque.29 ([nikque.29](#v455-nikque29)).
+
+**Changes**
+
+- **`book correct` goes on from a book saved before it ended.** Each solved position searched again gets a mark in the book (saved with the book); a new run on a book saved before the command ended (the timed saves to `<book-file>.err`, or the save at the exit) searches only the positions without a mark. When every solved position is done, all the marks are removed. Up to v4.5.5-nikque.28, every run searched all the solved positions again from the beginning: on a large book that takes days, a run that stopped lost all its work.
+- **`book leaf recalculate` (2, 3, 4) goes on the same way**: each leaf searched again gets a mark, a new run skips the marked leaves, and the marks are removed when the command ends. Within a run, a leaf searched in a round is not searched again in the next rounds (`book-leaf-recalculate-rounds` 2 or more; with one-thread searches it got the same value).
+- **`book learn <file>` goes on from the lines learned.** Each time the book is saved to `<book-file>.store`, a small text file `<book-file>.learn` tells how many lines of the file of games are learned in it (with a check value of these lines and the number of positions, the level and the depth of the book). `book learn` with the same file on this book skips these lines; the file is removed when the whole file is learned. Up to v4.5.5-nikque.28, a new run played all the games of the file again (other games with `book-randomness`).
+- **`book deepen` works.** It searched again the positions of another level than the book with their own level, and did not change their level: nothing became deeper, and a new run searched them all again (the code of the original Edax 4.3). Now the positions whose level searches less deep than the level of the book get that level and are searched again with it; a new run does not search them again. Positions of a deeper level are left as they are.
+
+**Compatibility**
+
+- The marks are the two upper bits of the level byte of a position in the book file (the level is 0 to 60): the file size and format do not change, and a book without marks is the same as before. **A book saved before `book correct` or `book leaf recalculate` ended holds marks, and the versions up to v4.5.5-eval2.16 read it as a damaged book**; a finished book has no mark. Other tools that read book files directly need to ignore these two bits (nikque GUI 0.4.6 does).
+- `eval.dat` and the search do not change: the same scores, moves and node counts (fforum-20-39 with 1 thread: 78,733,311 nodes, as v4.5.5-eval2.16). The books made by the other commands are the same as with v4.5.5-eval2.16.
+
+**Checked**: a new test (`tests/book-resume.py`, 40 checks): `book correct` with 1 and 2 threads, `book deepen`, `book leaf recalculate3`, `book learn` (also a run stopped while it learns, then a new run on the book it saved to `.store`), and that v4.5.5-eval2.16 reads a book with marks as a damaged book. The 14 book suites of the earlier releases (1 thread) give the same books as v4.5.5-eval2.16 (except the save date; suite S3 learns with a random seed from the clock: with `-book-seed 1` the same books). `tests/regression.c` (50 cases) passes. The 5 Windows release programs solve fforum-20-39 with the same depths, scores, moves and node counts (78,733,311) as v4.5.5-eval2.16, and the 1,205 positions of the exact-search fix with 0 wrong scores; the 3 DLLs pass the 279 API checks.
+
+**Not checked**: a real book; the strength (the search is not changed).
+
+[Tests and measurements](docs/validation/eval2.en.md#v455-eval217)
+
+---
 
 ## v4.5.5-eval2.16
 

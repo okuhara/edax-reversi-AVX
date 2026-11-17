@@ -5,6 +5,17 @@ Tests and measurements done for each version, moved without changes from the for
 For what changed, see the [release notes](../../RELEASE-NOTES.md). "Above" and "below" in the text refer to positions in the former document.
 
 
+## v4.5.5-nikque.29
+
+Checks:
+
+- `tests/book-resume.py` (new, 40 checks, 1 thread on one logical CPU): `book correct` with 1 and 2 threads (24 solved positions of 14 empties; half of them marked with a wrong score: only the 12 others are searched, the wrong scores stay, the marks go; a third run finds the 12 wrong scores), `book deepen` (11 positions of level 1 get the level 60 of the book; a second run searches none), `book leaf recalculate3` (every position marked: no leaf searched; half marked with a wrong score: they keep it; the marks go), `book learn` (a file of 6 games; a progress file of its first 3 lines: the 3 others only; the progress of another book or another file is not used; a run stopped as soon as its progress file was written, then a new run on the book saved to `.store`: the other lines only), and v4.5.5-nikque.28 reads a book with marks as a damaged book.
+- The 14 book suites of the reproducibility work (A, B, F, G, MB, UA, UB, UF, S1, S2, S3, S3off, M1, L18; 1 thread, without `book-reproducible`), with a build of this source and with the release program of v4.5.5-nikque.28: the same files except the save date in 13 suites; S3 (`book learn` with the random seed of the clock) differs from run to run with either program, and with `-book-seed 1` both give the same books twice.
+- `tests/regression.c`: the 50 cases pass (a build of this source, one logical CPU).
+- The 5 Windows release programs (PGO) solve fforum-20-39 with 1 thread with the same depths, scores, moves and node counts as v4.5.5-nikque.28 (77,639,600 nodes); the 1,205 positions of the exact-search fix: 0 wrong scores; the 7 Cassio cases pass. The 3 DLLs: the API checks (`tests/libedax_test.c`, 279 checks), 0 failures. Suite F of `book-reproducible`: the same books as v4.5.5-nikque.28, except the save date. The programs are 4 to 7 KB larger.
+- Built by the release workflow (run 44136939697).
+- Speed: not measured (the search is not changed).
+
 ## v4.5.5-nikque.28
 
 Checks:

@@ -29,13 +29,14 @@ There are three lines. They share the same commands, settings and book format.
 |---|---|---|
 | **v4.5.5-nikque.N** | The main line: bug fixes and new book commands, with the upstream evaluation (`eval.dat`) | Branch `edax-4.5.5-fixes` (default). Latest release |
 | **v4.5.5-eval2.N** | nikque + a new evaluation function (adds mobility; about +17 to +22 Elo against upstream `eval.dat`). Scores differ from the nikque line | Branch `eval2`, releases `v4.5.5-eval2.N` |
-| **newedax** | The eval2 line ported to C++23, same results | [Nikque/newedax](https://github.com/Nikque/newedax) |
+| **Heath** (formerly newedax) | The eval2 line ported to C++23, same results | [Nikque/Heath](https://github.com/Nikque/Heath) |
 
-Each eval2 and newedax release includes all changes of the nikque release it names (for example, eval2.10 = nikque.22 + eval2).
+Each eval2 and Heath release includes all changes of the nikque release it names (for example, eval2.10 = nikque.22 + eval2).
 
 ## Main changes from upstream
 
 - **Book learning fixed**: `book deviate` could crash or lose positions (a dangling pointer); `book merge`, `book fix` and book saving were made safe (temporary file, damaged records rejected, a book file held by another program at the start never replaced).
+- **Book commands go on from a saved book** (v4.5.5-nikque.29): `book correct`, `book leaf recalculate` and `book learn` continue from a book saved before they ended (marks removed when they end); `book deepen` works.
 - **Exact search fixed** (v4.5.5-nikque.28): at level 60 from 17 empties on, the exact score (and move) could rarely be wrong (a score cut by probcut after a pass was stored as exact); the same error is in Edax 4.5.5 and 4.5.6 of Toshihiko Okuhara.
 - **New learning commands**: `book deviate2` / `book deviate3` (limits on loss per move and in total).
 - **Faster learning on many cores**: several book positions are expanded at the same time (`book-expand-tasks`, `book-store-tasks`); with 32 threads at level 18, up to about 4.7 times faster.
@@ -83,13 +84,14 @@ Windows なら、まず `wEdax-x86-64.exe` を使ってください。AVX2 対�
 |---|---|---|
 | **v4.5.5-nikque.N** | 本線。不具合の修正と book のコマンドの追加。評価関数（`eval.dat`）は元のまま | ブランチ `edax-4.5.5-fixes`（既定）、最新の Release |
 | **v4.5.5-eval2.N** | nikque に新しい評価関数を足したもの（着手可能数を追加。元の `eval.dat` に対して約 +17〜22 Elo）。評価値は nikque と異なる | ブランチ `eval2` |
-| **newedax** | eval2 を C++23 に移したもの。結果は同じ | [Nikque/newedax](https://github.com/Nikque/newedax) |
+| **Heath**（旧名 newedax） | eval2 を C++23 に移したもの。結果は同じ | [Nikque/Heath](https://github.com/Nikque/Heath) |
 
-eval2・newedax の各版は、対応する nikque の版の変更をすべて含みます（例：eval2.10 = nikque.22 + eval2）。
+eval2・Heath の各版は、対応する nikque の版の変更をすべて含みます（例：eval2.10 = nikque.22 + eval2）。
 
 ### 元の Edax からの主な変更
 
 - **book の学習の不具合を修正**：`book deviate` が解放済みのメモリを読み、学習が止まったり局面が抜けたりすることがありました。`book merge`・`book fix`・book の保存も安全にしました（一時ファイル経由、壊れたレコードを拒否、起動のときにほかのプログラムが開いていた book は置き換えない）。
+- **book のコマンドを途中から続けられるように**（v4.5.5-nikque.29）：`book correct`・`book leaf recalculate`・`book learn` が、途中で保存された book から続けられます（終わると印は外れます）。`book deepen` が働くようになりました。
 - **完全読みの不具合を修正**（v4.5.5-nikque.28）：空き 17 マス以上の level 60 で、まれに評価値（と手）を誤っていました（パスの後に probcut で打ち切った値を正確な値として残していた）。同じ誤りは奥原俊彦氏の Edax 4.5.5・4.5.6 にもあります。
 - **学習のコマンドを追加**：`book deviate2`・`book deviate3`（1 手ごと・合計の損失で範囲を指定）。
 - **多コアでの学習を高速化**：複数の局面を同時に展開します（`book-expand-tasks`、`book-store-tasks`）。32 スレッド・level 18 で最大約 4.7 倍。

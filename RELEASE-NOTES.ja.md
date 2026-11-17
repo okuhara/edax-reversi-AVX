@@ -6,14 +6,15 @@
 
 - [nikque 系列](#nikque-系列)（本線。既定のブランチ `edax-4.5.5-fixes`）
 - [eval2 系列](#eval2-系列)（新しい評価関数。ブランチ `eval2`）
-- C++23 版の newedax は [newedax の修正一覧](https://github.com/Nikque/newedax/blob/main/RELEASE-NOTES.ja.md)
+- C++23 版の Heath（旧名 newedax）は [Heath の修正一覧](https://github.com/Nikque/Heath/blob/main/RELEASE-NOTES.ja.md)
 
 ## 版の対応
 
-eval2・newedax の各版は、同じ行の nikque の版の変更をすべて含みます。
+eval2・Heath（旧名 newedax）の各版は、同じ行の nikque の版の変更をすべて含みます。
 
-| nikque | eval2 | newedax |
+| nikque | eval2 | Heath (newedax) |
 |---|---|---|
+| nikque.29 | eval2.17 | heath.16 |
 | nikque.28 | eval2.16 | newedax.15 |
 | nikque.27 | eval2.15 | newedax.12 |
 | nikque.26 | eval2.14 | newedax.11 |
@@ -35,6 +36,30 @@ eval2・newedax の各版は、同じ行の nikque の版の変更をすべて�
 ---
 
 # nikque 系列
+
+## v4.5.5-nikque.29
+
+**`book correct`・`book leaf recalculate`・`book learn` が、途中で保存された book から続けられるようになりました（book の中の印。コマンドが終わると外れます）。`book deepen` が働くようになりました。**
+
+**変更**
+
+- **`book correct` が、途中で保存された book から続けられるようになりました。** 確かめ直した完全読みの局面には book の中に印が付き（book と一緒に保存されます）、途中で保存された book（`<book-file>.err` への時間ごとの保存、終了のときの保存）でもう一度実行すると、印のない局面だけを探索します。全部の局面を確かめ終わると、印はすべて外れます。v4.5.5-nikque.28 までは、実行するたびに完全読みの局面を全部、最初から探索し直していました。大きな book では何日もかかるため、途中で止まると、それまでの探索が無駄になっていました。
+- **`book leaf recalculate`（2・3・4）も同じように続けられます。** 計算し直した Leaf に印が付き、もう一度実行すると印のある Leaf を飛ばし、コマンドが終わると印は外れます。同じ実行の中でも、前の回で計算し直した Leaf は次の回で計算し直しません（`book-leaf-recalculate-rounds` が 2 以上のとき。1 スレッドの探索なら同じ値でした）。
+- **`book learn <ファイル>` が、学習済みの行から続けられるようになりました。** `<book-file>.store` に保存するたびに、小さなテキストファイル `<book-file>.learn` に、棋譜のファイルの何行目まで学習したか（その行の確かめの値と、book の局面の数・level・深さ）を書きます。同じファイルでこの book に `book learn` を実行すると、その行を飛ばします。ファイルの最後まで学習すると `.learn` は消えます。v4.5.5-nikque.28 までは、もう一度実行すると全部の棋譜を打ち直していました（`book-randomness` があると別の対局になります）。
+- **`book deepen` が働くようになりました。** これまでは、level が book と違う局面を、その局面の今の level で探索し直し、level も書き換えませんでした。何も深くならず、もう一度実行すると全部を探索し直していました（元の Edax 4.3 からの実装）。いまは、level が book の level より浅い局面に book の level を与え、その level で探索し直します。もう一度実行しても探索し直しません。深い level の局面はそのままです。
+
+**互換性**
+
+- 印は、book のファイルの各局面の level の 1 バイト（level は 0〜60）の上の 2 ビットです。ファイルの大きさと形式は変わらず、印のない book は前と同じです。**`book correct`・`book leaf recalculate` が終わる前に保存された book には印があり、v4.5.5-nikque.28 までの版では壊れた book として読まれません。** 終わった book には印がありません。book のファイルを自分で読むほかの道具は、この 2 ビットを無視する必要があります（nikque GUI 0.4.6 は対応済み）。
+- `eval.dat` と探索は変わりません。評価値・手・ノード数は同じです（fforum-20-39、1 スレッド：77,639,600 ノード。v4.5.5-nikque.28 と同じ）。ほかのコマンドが作る book は v4.5.5-nikque.28 と同じです。
+
+**確かめたこと**：新しい試験（`tests/book-resume.py`、40 項目）：1 スレッドと 2 スレッドの `book correct`、`book deepen`、`book leaf recalculate3`、`book learn`（学習の途中で止め、`.store` に保存された book から続けるものも）、v4.5.5-nikque.28 が印の付いた book を壊れた book として読むこと。これまでの公開で使った book の試験一式 14 組（1 スレッド）は v4.5.5-nikque.28 と同じ book になりました（保存の日時のほか。S3 は時計の乱数の種で学習する組で、`-book-seed 1` では同じ book）。`tests/regression.c`（50 項目）は通りました。配布の Windows の 5 種は、fforum-20-39 を v4.5.5-nikque.28 と同じ深さ・評価値・手・ノード数（77,639,600）で解き、完全読みの直しの 1,205 局面を誤り 0 で解きました。DLL 3 種は API の 279 項目を通りました。
+
+**確かめていないこと**：実際の大きな book、強さ（探索は変えていません）。
+
+[テストと実測の記録](docs/validation/nikque.ja.md#v455-nikque29)
+
+---
 
 ## v4.5.5-nikque.28
 
@@ -1060,6 +1085,30 @@ Edax をほかのプログラムから使えるライブラリ libedax を追加
 # eval2 系列
 
 nikque 系列に新しい評価関数（着手可能数の重み）を足した系列です。ブランチ `eval2` から公開しています。各版は、上の「版の対応」の表のとおり、nikque の版の変更をすべて含みます。
+
+## v4.5.5-eval2.17
+
+**`book correct`・`book leaf recalculate`・`book learn` が、途中で保存された book から続けられるようになりました（book の中の印。コマンドが終わると外れます）。`book deepen` が働くようになりました。** v4.5.5-nikque.29 の変更です（[nikque.29](#v455-nikque29)）。
+
+**変更**
+
+- **`book correct` が、途中で保存された book から続けられるようになりました。** 確かめ直した完全読みの局面には book の中に印が付き（book と一緒に保存されます）、途中で保存された book（`<book-file>.err` への時間ごとの保存、終了のときの保存）でもう一度実行すると、印のない局面だけを探索します。全部の局面を確かめ終わると、印はすべて外れます。v4.5.5-nikque.28 までは、実行するたびに完全読みの局面を全部、最初から探索し直していました。大きな book では何日もかかるため、途中で止まると、それまでの探索が無駄になっていました。
+- **`book leaf recalculate`（2・3・4）も同じように続けられます。** 計算し直した Leaf に印が付き、もう一度実行すると印のある Leaf を飛ばし、コマンドが終わると印は外れます。同じ実行の中でも、前の回で計算し直した Leaf は次の回で計算し直しません（`book-leaf-recalculate-rounds` が 2 以上のとき。1 スレッドの探索なら同じ値でした）。
+- **`book learn <ファイル>` が、学習済みの行から続けられるようになりました。** `<book-file>.store` に保存するたびに、小さなテキストファイル `<book-file>.learn` に、棋譜のファイルの何行目まで学習したか（その行の確かめの値と、book の局面の数・level・深さ）を書きます。同じファイルでこの book に `book learn` を実行すると、その行を飛ばします。ファイルの最後まで学習すると `.learn` は消えます。v4.5.5-nikque.28 までは、もう一度実行すると全部の棋譜を打ち直していました（`book-randomness` があると別の対局になります）。
+- **`book deepen` が働くようになりました。** これまでは、level が book と違う局面を、その局面の今の level で探索し直し、level も書き換えませんでした。何も深くならず、もう一度実行すると全部を探索し直していました（元の Edax 4.3 からの実装）。いまは、level が book の level より浅い局面に book の level を与え、その level で探索し直します。もう一度実行しても探索し直しません。深い level の局面はそのままです。
+
+**互換性**
+
+- 印は、book のファイルの各局面の level の 1 バイト（level は 0〜60）の上の 2 ビットです。ファイルの大きさと形式は変わらず、印のない book は前と同じです。**`book correct`・`book leaf recalculate` が終わる前に保存された book には印があり、v4.5.5-nikque.28 までの版では壊れた book として読まれません。** 終わった book には印がありません。book のファイルを自分で読むほかの道具は、この 2 ビットを無視する必要があります（nikque GUI 0.4.6 は対応済み）。
+- `eval.dat` と探索は変わりません。評価値・手・ノード数は同じです（fforum-20-39、1 スレッド：78,733,311 ノード。v4.5.5-eval2.16 と同じ）。ほかのコマンドが作る book は v4.5.5-eval2.16 と同じです。
+
+**確かめたこと**：新しい試験（`tests/book-resume.py`、40 項目）：1 スレッドと 2 スレッドの `book correct`、`book deepen`、`book leaf recalculate3`、`book learn`（学習の途中で止め、`.store` に保存された book から続けるものも）、v4.5.5-eval2.16 が印の付いた book を壊れた book として読むこと。これまでの公開で使った book の試験一式 14 組（1 スレッド）は v4.5.5-eval2.16 と同じ book になりました（保存の日時のほか。S3 は時計の乱数の種で学習する組で、`-book-seed 1` では同じ book）。`tests/regression.c`（50 項目）は通りました。配布の Windows の 5 種は、fforum-20-39 を v4.5.5-eval2.16 と同じ深さ・評価値・手・ノード数（78,733,311）で解き、完全読みの直しの 1,205 局面を誤り 0 で解きました。DLL 3 種は API の 279 項目を通りました。
+
+**確かめていないこと**：実際の大きな book、強さ（探索は変えていません）。
+
+[テストと実測の記録](docs/validation/eval2.ja.md#v455-eval217)
+
+---
 
 ## v4.5.5-eval2.16
 
