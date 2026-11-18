@@ -39,23 +39,38 @@ Each eval2 and Heath (formerly newedax) version contains all changes of the nikq
 
 ## v4.5.5-nikque.29
 
-**`book correct`, `book leaf recalculate` and `book learn` go on from a book saved before they ended (marks in the book, removed when the command ends); `book deepen` works.**
+`book correct`, `book leaf recalculate` and `book learn` can now continue from a book saved before they finished. `book deepen` now works.
 
 **Changes**
 
-- **`book correct` goes on from a book saved before it ended.** Each solved position searched again gets a mark in the book (saved with the book); a new run on a book saved before the command ended (the timed saves to `<book-file>.err`, or the save at the exit) searches only the positions without a mark. When every solved position is done, all the marks are removed. Up to v4.5.5-nikque.28, every run searched all the solved positions again from the beginning: on a large book that takes days, a run that stopped lost all its work.
-- **`book leaf recalculate` (2, 3, 4) goes on the same way**: each leaf searched again gets a mark, a new run skips the marked leaves, and the marks are removed when the command ends. Within a run, a leaf searched in a round is not searched again in the next rounds (`book-leaf-recalculate-rounds` 2 or more; with one-thread searches it got the same value).
-- **`book learn <file>` goes on from the lines learned.** Each time the book is saved to `<book-file>.store`, a small text file `<book-file>.learn` tells how many lines of the file of games are learned in it (with a check value of these lines and the number of positions, the level and the depth of the book). `book learn` with the same file on this book skips these lines; the file is removed when the whole file is learned. Up to v4.5.5-nikque.28, a new run played all the games of the file again (other games with `book-randomness`).
-- **`book deepen` works.** It searched again the positions of another level than the book with their own level, and did not change their level: nothing became deeper, and a new run searched them all again (the code of the original Edax 4.3). Now the positions whose level searches less deep than the level of the book get that level and are searched again with it; a new run does not search them again. Positions of a deeper level are left as they are.
+- `book correct` can now continue from a book saved before it finished.
+  - Each solved position it checks again gets a mark in the book (the mark is saved with the book).
+  - When you run it again on a book saved before it finished (the timed saves to `<book-file>.err`, or the save at exit), it searches only the positions without a mark.
+  - When every solved position has been checked, all the marks are removed.
+  - Up to v4.5.5-nikque.28, every run searched all the solved positions again from the beginning. On a large book this takes days, so a run that stopped lost all its work.
+- `book leaf recalculate` (2, 3, 4) can continue in the same way.
+  - Each leaf it recomputes gets a mark. A new run skips the marked leaves. The marks are removed when the command ends.
+  - Within one run, a leaf recomputed in one round is not recomputed in the next rounds (when `book-leaf-recalculate-rounds` is 2 or more). With one-thread searches it got the same value.
+- `book learn <file>` can now continue from the lines already learned.
+  - Each time the book is saved to `<book-file>.store`, a small text file `<book-file>.learn` records how many lines of the game file have been learned. It also records a check value of these lines, and the number of positions, the level and the depth of the book.
+  - `book learn` with the same file on this book skips the lines already learned.
+  - When the whole file has been learned, `.learn` is removed.
+  - Up to v4.5.5-nikque.28, a new run played all the games of the file again (with `book-randomness`, they became different games).
+
+**Fixes**
+
+- `book deepen` made nothing deeper (the code of the original Edax 4.3). It searched the positions whose level differs from the book again with their own level, and did not change their level. A new run searched them all again.
+- Now positions whose level is shallower than the book level get the book level and are searched again with it. A new run does not search them again. Positions with a deeper level are left as they are.
 
 **Compatibility**
 
-- The marks are the two upper bits of the level byte of a position in the book file (the level is 0 to 60): the file size and format do not change, and a book without marks is the same as before. **A book saved before `book correct` or `book leaf recalculate` ended holds marks, and the versions up to v4.5.5-nikque.28 read it as a damaged book**; a finished book has no mark. Other tools that read book files directly need to ignore these two bits (nikque GUI 0.4.6 does).
-- `eval.dat` and the search do not change: the same scores, moves and node counts (fforum-20-39 with 1 thread: 77,639,600 nodes, as v4.5.5-nikque.28). The books made by the other commands are the same as with v4.5.5-nikque.28.
+- The marks are the two upper bits of the level byte of each position in the book file (the level is 0 to 60). The file size and format do not change. A book without marks is the same as before.
+- **A book saved before `book correct` or `book leaf recalculate` finished holds marks. Versions up to v4.5.5-nikque.28 treat it as a damaged book and cannot load it.** A finished book has no marks.
+- Other tools that read book files directly need to ignore these two bits (nikque GUI 0.4.6 does).
+- `eval.dat` and the search do not change. Scores, moves and node counts are the same as in v4.5.5-nikque.28.
+- Books made by the other commands are the same as with v4.5.5-nikque.28.
 
-**Checked**: a new test (`tests/book-resume.py`, 40 checks): `book correct` with 1 and 2 threads, `book deepen`, `book leaf recalculate3`, `book learn` (also a run stopped while it learns, then a new run on the book it saved to `.store`), and that v4.5.5-nikque.28 reads a book with marks as a damaged book. The 14 book suites of the earlier releases (1 thread) give the same books as v4.5.5-nikque.28 (except the save date; suite S3 learns with a random seed from the clock: with `-book-seed 1` the same books). `tests/regression.c` (50 cases) passes. The 5 Windows release programs solve fforum-20-39 with the same depths, scores, moves and node counts (77,639,600) as v4.5.5-nikque.28, and the 1,205 positions of the exact-search fix with 0 wrong scores; the 3 DLLs pass the 279 API checks.
-
-**Not checked**: a real book; the strength (the search is not changed).
+**Not checked**: a real large book; the strength (the search is not changed).
 
 [Tests and measurements](docs/validation/nikque.en.md#v455-nikque29)
 
@@ -63,19 +78,25 @@ Each eval2 and Heath (formerly newedax) version contains all changes of the nikq
 
 ## v4.5.5-nikque.28
 
-**A fix of the exact search: a wrong score (and move) at level 60, rarely, from 17 empties on.** Nothing else is changed.
+Fixed a rare wrong score (and move) in exact searches at level 60 with 17 or more empties. Nothing else changes.
 
-**Fix**
+**Fixes**
 
-- An exact search (a level whose depth is the number of empties, with no selectivity) first searches the position with selectivity (probcut), then exactly. Between those iterations, a node of the midgame search at the depth where the endgame search starts (`DEPTH_MIDGAME_TO_ENDGAME`, 15 empties) was stored in the hash table as exact, because its moves are searched by the endgame search. When that node has to pass, the search of the opponent stays in the midgame search at the same depth, where probcut can cut it: that score was stored as exact and taken by the exact iteration. The exact score of the root, and its move, could then be wrong (by a few discs). About 1 to 2 exact searches in 100,000 at 17 empties gave a wrong score (with 1 or 4 threads, with any hash table size: the same positions every time). Now such a node (a pass) is stored with the selectivity of the search (`NWS_midgame` of `midgame.c`).
-- The same error is in Edax 4.5.5 and 4.5.6 of Toshihiko Okuhara (edax-reversi-AVX, also its master of 2026-11-03), from which this version comes (267 of the 1,205 positions below are wrong with the 4.5.5 program and with 4.5.6 built from its source; 0 with the same fix). Edax 4.6 and 4.7 of Richard Delorme do not have it (0 of 1,205).
+- About 1 to 2 in 100,000 exact searches at 17 empties gave a wrong root score and move (wrong by a few discs). This happened with 1 or 4 threads and with any hash table size, on the same positions every time.
+- Cause: an exact search (a level whose depth is the number of empties, with no selectivity) first searches with selectivity (probcut), then exactly. Between those iterations, a node of the midgame search at the depth where the endgame search starts (`DEPTH_MIDGAME_TO_ENDGAME`, 15 empties) was stored in the hash table as exact, because its children are searched by the endgame search.
+- When that node is a pass, the opponent's search stays in the midgame search at the same depth, where probcut can cut it. That value was stored as exact and used by the exact iteration.
+- A pass node is now stored with the selectivity of the search (`NWS_midgame` in `midgame.c`).
 
 **Compatibility**
 
-- `eval.dat` and the book file format do not change. The scores of exact searches that were right do not change; the node counts change a little (fforum-20-39 with 1 thread: 77,639,600 nodes, 77,639,567 with v4.5.5-nikque.27, the same scores and moves). Midgame searches that do not reach the endgame depth are not changed.
-- A book whose positions were searched exactly (the leaves of 20 empties and less at level 18, for instance) with an earlier version can hold such wrong scores (rarely).
+- `eval.dat` and the book file format do not change.
+- Exact scores that were right do not change. Node counts change a little (fforum-20-39 with 1 thread: 77,639,600; 77,639,567 with v4.5.5-nikque.27; the same scores and moves).
+- Midgame searches that do not reach the endgame depth do not change.
 
-**Checked**: 1,205 positions whose exact scores were wrong (most with 17 empties; the scores of an independent solver): all right now with the 5 Windows release programs (1 thread, hash 2^20), and with 1 and 4 threads and hash 2^20 and 2^24 with the same fix in the C++23 port (newedax); 1,640 positions of 17 to 22 empties give the same scores as before. The release programs solve fforum-20-39 with the same scores and moves as v4.5.5-nikque.27.
+**Notes**
+
+- A book with positions searched exactly by an earlier version (for example, leaves with 20 empties or fewer at level 18) may rarely hold such wrong scores.
+- The same error is in Edax 4.5.5 and 4.5.6 by Toshihiko Okuhara (edax-reversi-AVX, including its master of 2026-11-03), on which this version is based. Edax 4.6 and 4.7 by Richard Delorme do not have it.
 
 **Not checked**: the strength; a real book.
 
@@ -85,35 +106,54 @@ Each eval2 and Heath (formerly newedax) version contains all changes of the nikq
 
 ## v4.5.5-nikque.27
 
-A book file that another program holds when Edax starts is no longer taken for a damaged one and replaced. Other bugs found in a review are fixed (the book files that could not be loaded, `book import`, `book merge`, the `export` of the `book deviate` family, libedax and others), and the code was rearranged without changing what it does.
+A book file that another program holds open when Edax starts is no longer treated as damaged and replaced. Other bugs found in a review are fixed, and the code was reorganized without changing its behaviour.
 
 **Changes**
 
-- A book file that exists but cannot be opened at the start (another program has it open without sharing, there is no permission to read it, …): Edax waits about 2 seconds and tries again. If it still cannot open it, it starts with a new book as before, but **never saves to that file** (neither `book save` nor the save at exit) and makes no `.damaged` file (`Cannot open opening book …; it is not loaded, and no save replaces it`). Once the other program has closed it, `book load` loads it. Up to nikque.26 such a file was taken for a damaged one: a later save moved it to `.damaged` and replaced it with the new book.
-- Each book file that could not be loaded keeps its mark until it is loaded or kept aside (before, the failure of another file moved the mark to it, and a save then replaced the first file without keeping it as `.damaged`). The same file given under a name written another way (`./`, `\` for `/`, another case on Windows, a full name) is found too.
-- libedax: `edax_book_file_status(file)` (new) tells what became of a book file that was to be loaded: 0 it may be replaced, 1 it could not be read (damaged), 2 it could not be opened (it is never replaced). Called after the initialization, it lets a program stop instead of learning into an empty book.
-- libedax: a book file of non-ASCII name (in a folder of Japanese name, for instance) that could not be opened at the start is no longer replaced at the end by a book of one position.
-- libedax: `edax_book_deviate_export` numbers the positions of the current book for each export (after `edax_book_load` or `edax_book_merge`, lines could be left out without an error). An `edax_stop` that comes between two searches of `edax_hint` is kept. `edax_book_add_board` clears the failure mark of the last book function. `edax_book_new` and `book new` keep the depth between 1 and 61, as `book depth` does.
-- `book import`: a line whose leaf score is out of -64 to 64 is skipped as a line that cannot be read (300 was read as 44).
-- `book merge`: a position written in another orientation (by another tool) is added where it is looked for, and the moves to it are linked (before, no move led to it after the merge). A file that holds the same position in two orientations is refused (`duplicated position`), as it already was in the other order.
-- The `export` of the `book deviate` family: a file name between double quotes may hold spaces; a name too long, a quote that is not closed and a word other than `export` after the numbers are errors, and the book is not expanded (before, a typo such as `exprot` was skipped and the book expanded, and a long name was cut). Above 254, the total loss gives the same warning from libedax as from the commands.
-- `book moveinfo` without enough memory ends with `@error id=N memory=1` and `@end id=N error=1` (before, the lines of the moves it could not analyse were left out without an error). The result of `book reducecount` gives its memory to another analysis that needs it; `book reduce` then counts again, with the same result. A walk of more than 2^31 items stops with an error instead of following a wrong parent.
-- A time written `5:` (the time of a game, the xboard level, the GGS clocks) is 5 minutes (it was 5 minutes 5 seconds).
-- When the name of the folder of the executable is too long for the path of its `config.ini`, no `config.ini` is read, and the warning says so (before, the `config.ini` of the current folder was read, with a wrong warning).
-- Upstream parts: the table and the statistics of `weval` (`histogram`) no longer divide by 0 (`nan`, `inf`) for a row, a column or a table of 0 or 1 position; the usage of `eval_builder` tells `show` as it is read; `time_left` of GTP tells a wrong color as the other commands do.
-- Tests: `tests/libedax_test.c` has 279 checks (61 more, 28 of them on Windows only), `tests/book-analyze.c` 3 more tests, `tests/regression.c` new cases; a case of `tests/regression.c` whose file cannot be opened fails with the exit code 2 instead of crashing.
-- The code of `book.c`, `book_analyze.c`, libedax, `play.c`, `options.c`, `base.c`, `util.c`, a few other files and the tests was rearranged (shared functions instead of code written several times), without changing what it does.
+- libedax: added `edax_book_file_status(file)`. It tells what happened to a book file that was to be loaded.
+  - 0: it may be replaced. 1: it could not be read (damaged). 2: it could not be opened (it is not replaced).
+  - Called after initialization, it lets a program stop instead of starting to learn into an empty book.
+- The `export` of the `book deviate` family: a file name in double quotes (`"…"`) may contain spaces.
+- The result counted by `book reducecount` is released when another analysis needs the memory (a following `book reduce` then counts again, with the same result).
+- The code of `book.c`, `book_analyze.c`, libedax, `play.c`, `options.c`, `base.c`, `util.c`, a few other files and the tests was reorganized without changing its behaviour (shared functions instead of code written several times).
 - Manual: 4.1, 6.6, 7.3, 8.4, 8.5, 12.2, 12.4 and 13.1.
+
+**Fixes**
+
+- Up to nikque.26, a book file that exists but cannot be opened at startup (another program has it open without sharing, no permission to read it, …) was treated as damaged. A later save moved it to `.damaged` and replaced it with the new book.
+  - Edax now waits about 2 seconds and tries again.
+  - If it still cannot open the file, it starts with a new book as before, but **never saves to that file** (neither `book save` nor the save at exit). It makes no `.damaged` file either.
+  - The message is `Cannot open opening book …; it is not loaded, and no save replaces it`. Once the other program has closed the file, `book load` loads it.
+- When another book file failed to load, a later save replaced the first file that could not be loaded, without keeping it as `.damaged`. Now each book file that could not be loaded is remembered until it is loaded or set aside. The same file is also found under a name written another way (`./`, `\` for `/`, different case on Windows, a full path).
+- libedax: a book file with a non-ASCII name (for example, Japanese) that could not be opened at startup was replaced at the end by a book of one position.
+- libedax: after `edax_book_load` or `edax_book_merge`, `edax_book_deviate_export` could leave lines out without an error. It now numbers the positions of the current book for each export.
+- libedax: an `edax_stop` that arrives between the two searches of `edax_hint` is no longer lost.
+- libedax: `edax_book_add_board` clears the failure flag of the previous book function.
+- `edax_book_new` and `book new` keep the depth between 1 and 61, as `book depth` does.
+- `book import`: a line whose leaf score is outside -64 to 64 was read wrongly (300 was read as 44). It is now skipped as an unreadable line.
+- `book merge`: after a merge, no move led to a position written in another orientation by another tool. That position is now stored where it is looked up, and the moves to it are linked.
+- `book merge`: a file that holds the same position in two orientations is refused (`duplicated position`). In the other order it was already refused.
+- The `export` of the `book deviate` family: a typo such as `exprot` was skipped and the book was expanded, and a long name was silently cut. Now a name that is too long, an unclosed quote, or any word other than `export` after the numbers is an error, and the book is not expanded.
+- The `export` of the `book deviate` family: when the total loss exceeds 254, libedax gives the same warning as the commands.
+- `book moveinfo`: without enough memory, it left out the lines of the moves it could not analyse and ended without an error. It now ends with `@error id=N memory=1` and `@end id=N error=1`.
+- A walk of more than 2^31 items stops with an error instead of following a wrong parent.
+- A time written `5:` (game time, the xboard level, the GGS clocks) was read as 5 minutes 5 seconds. It is now read as 5 minutes.
+- When the folder name of the executable is too long to build the path of `config.ini`, the `config.ini` of the current folder was read, with a wrong warning. Now no `config.ini` is read, and the warning says so.
+- Upstream parts:
+  - The table and the statistics (`histogram`) of `weval` no longer divide by 0 (`nan`, `inf`) for a row, a column or a table with 0 or 1 position.
+  - The usage text of `eval_builder` now matches how it actually reads its arguments.
+  - GTP `time_left` reports a wrong color, as the other commands do.
 
 **Compatibility**
 
 - The search results, `eval.dat` and the book file format do not change.
-- The answers differ from nikque.26 only in the cases above. The error messages of the book give a line of the source (`book.c : book_load : …`), which changed.
-- libedax: when the book file of the settings could not be opened at the start, no save replaces it (`edax_book_save_checked` and `edax_book_keep_unread_file` give 0). A program that saves the book itself should look at `edax_book_file_status` after the initialization.
+- Answers differ from nikque.26 only in the cases listed in **Changes** and **Fixes** of this version.
+- The source line numbers in book error messages (`book.c : book_load : …`) changed.
+- libedax: when the book file of the settings could not be opened at startup, no save replaces it (`edax_book_save_checked` and `edax_book_keep_unread_file` return 0).
 
-**Checked**: before and after the changes, on test books with 1 and 4 threads, the book commands (76 cases) write the same files and give the same answers, the analysis commands (20,046) give the same answers, and 25 cases of the other commands give the same output (but the time and the line numbers of `book.c`); the new checks of the bugs fail with the code before the fixes, but a few that cannot hit the bug on purpose (checked with test copies of the code). The 279 checks of the test of libedax and the unit tests of the analyses pass; the gcc build (WSL) gives the same warnings as before, and its libraries pass 251 checks (all but the checks for Windows only).
+**Notes**: a program that saves the book itself through libedax should check `edax_book_file_status` after initialization.
 
-**Not checked**: the time and the memory on a real book.
+**Not checked**: time and memory on a real book.
 
 [Tests and measurements](docs/validation/nikque.en.md#v455-nikque27)
 
@@ -121,24 +161,33 @@ A book file that another program holds when Edax starts is no longer taken for a
 
 ## v4.5.5-nikque.26
 
-`book deviate`, `book deviate2` and `book deviate3` can write the lines they walk to a text file without expanding the book (`export`).
+`book deviate`, `book deviate2` and `book deviate3` gain `export`, which writes the lines they walk to a text file without expanding the book.
 
 **Changes**
 
-- With `export <file> [leaf|ends|all]` after the numbers (for instance `book deviate2 2 4 export lines.txt ends`), the command writes the lines it walks from the current position and expands nothing: `leaf` (when left out) the positions whose leaf it would expand in its first round, `ends` the ends of the lines, `all` all the positions of the lines.
-- One position a line, the moves from the start in small letters (the passes are not written). A position reached by several lines is written once, with the line of the fewest moves (`book deviate`) or of the smallest total loss (`book deviate2`, `book deviate3`).
-- libedax: `edax_book_deviate_export`.
-- The answer to a `stop id=N` with nothing to stop is `@cancel id=N state=none export=1` (the mark of the export). An earlier version does not read the words after `export` and expands the book: a user interface should look for this mark before sending one.
-- Manual: 7.3 (the export) and 12.4 (the mark). `help book` has it too.
+- With `export <file> [leaf|ends|all]` after the numbers, the command writes the lines it walks from the current position, without expanding the book (for example `book deviate2 2 4 export lines.txt ends`).
+
+| Option | Positions written |
+|---|---|
+| `leaf` (default) | Positions with a leaf the command would expand in its first round |
+| `ends` | The ends of the lines |
+| `all` | All the positions of the lines |
+
+- One position per line, written as the moves from the start in lowercase (passes are not written).
+- A position reached by several lines is written once. Its line is the one with the fewest moves (`book deviate`) or the smallest total loss in discs (`book deviate2`, `book deviate3`).
+- libedax: added `edax_book_deviate_export`.
+- The answer to an analysis `stop id=N` with nothing to stop is now `@cancel id=N state=none export=1`. `export=1` marks a version that supports the export.
+- Manual: 7.3 (the export) and 12.4 (`export=1`). `help book` describes it too.
 
 **Compatibility**
 
-- The commands without `export` are the same as in nikque.25. The search results, `eval.dat` and the book file format do not change.
-- The answer `@cancel id=N state=none` ends with `export=1`.
+- Commands without `export` behave as in nikque.25.
+- The answer `@cancel id=N state=none` now ends with `export=1`.
+- The search results, `eval.dat` and the book file format do not change.
 
-**Checked**: the lines written are compared with sets computed apart in Python (the positions with a leaf to expand, the ends, all the positions of the lines): on 41 positions of 3 test books, the 4,545 cases (3 commands, 5 ranges, 3 kinds) are all the same; every line can be played from the start, its moves follow the walk, and its total loss is the smallest. The 218 checks of the test of libedax pass.
+**Notes**: earlier versions ignore the words from `export` on and expand the book. A GUI should check for `export=1` before sending `export`.
 
-**Not checked**: the time and the memory on a real book.
+**Not checked**: time and memory on a real book.
 
 [Tests and measurements](docs/validation/nikque.en.md#v455-nikque26)
 
@@ -146,22 +195,24 @@ A book file that another program holds when Edax starts is no longer taken for a
 
 ## v4.5.5-nikque.25
 
-An umigame number marked `exact=0` is the same whatever the build (the C library).
+Umigame numbers marked `exact=0` are now the same whatever the build environment (the C library).
 
 **Changes**
 
-- When terms (the candidates of the count) are dropped because there are more than 128 of them, the terms of the same size are put in a fixed order, so that the terms kept are the same with any build. Before, the sort (`qsort`) left the order of equal terms open, so that a number marked `exact=0` could differ between Windows and Linux.
-- Manual: 12.4 says so.
+- Manual: 12.4.
+
+**Fixes**
+
+- An umigame number marked `exact=0` could differ between Windows and Linux, for example. The sort (`qsort`) did not fix the order of terms with equal values.
+- When terms (the candidates of the count) are dropped because there are more than 128, terms of the same size are now put in a fixed order. The terms kept are the same in every environment.
 
 **Compatibility**
 
-- The umigame numbers not marked `exact=0` and the other answers are the same as in nikque.24.
-- A number marked `exact=0` may differ from nikque.24 (both are upper bounds; of the 46,092 `@` lines of 2 test books in 5 conditions, one changed: `umi=3:15 exact=0` → `umi=2:15 exact=0`).
+- Umigame numbers not marked `exact=0`, and all other answers, are the same as in nikque.24.
+- A number marked `exact=0` may differ from nikque.24 (both are upper bounds).
 - The search results, `eval.dat` and the book file format do not change.
 
-**Checked**: the numbers and the `exact` marks are the same when the terms are put in random orders before they are sorted (test `umigame-order`: 200 graphs of about 1,300 positions and the 1,744 graphs after their nodes up to 2 moves, in 3 orders; before the fix some numbers changed). gcc (WSL) and MSVC give the same numbers in the test of dropped terms (39 in `umigame-large`; 40 and 37 before). The earlier tests all pass.
-
-**Not checked**: the speed on a real book, the behaviour in the GUI.
+**Not checked**: speed on a real book; behaviour in the GUI.
 
 [Tests and measurements](docs/validation/nikque.en.md#v455-nikque25)
 
@@ -169,26 +220,29 @@ An umigame number marked `exact=0` is the same whatever the build (the C library
 
 ## v4.5.5-nikque.24
 
-The umigame numbers and the numbers of positions of the candidate moves of the GUI, `book levels` and `book missing` are taken over from the answers of the positions before, so that the same counts are not made again.
+The umigame numbers and position counts of the GUI's candidate-move table, `book levels` and `book missing` are taken over from the answers for the previous position, so the same counts are not computed again.
 
 **Changes**
 
-- Umigame numbers (`part=umi` of `book moveinfo`): when the graph of the position after a move is counted, the values of the positions 1 and 2 moves further in it are taken out and kept, so that their graphs are not built again when they become the current position.
-  - Kept: every position with `umi=best`; the positions reached with a loss of 0 with `umi=loss`; with `umi=range`, the positions with the same side to move as the position after the move (all of them when `lo=-hi`).
+- Umigame numbers (`part=umi` of `book moveinfo`): when the graph of the position after a move is counted, the values of the positions 1 and 2 moves further in it are also taken out and kept. When one of those positions becomes the current position, its graph is not built again.
+  - With `umi=best`, every position is kept.
+  - With `umi=loss`, the positions reached with a loss of 0 are kept.
+  - With `umi=range`, the positions with the same side to move as the position after the move are kept (all of them when `lo=-hi`).
   - Nothing is kept from a graph whose terms were dropped (`exact=0`). A value whose terms are dropped when it is taken out is not used either.
-  - On the games of 3 test books, with their positions looked at from the first move on, the nodes of the graphs built went down by about 38% to 46% with `umi=best`, and by about 4% to 53% with `umi=loss x=2 y=4`.
-- Numbers of positions (`part=count`) and `book levels`: the answer of each position (the number of positions and the number per level) is kept until the book changes. `book levels` sent when a position after a move already counted has become the current position does not walk the book.
-- `book missing`: when the kept precision stages already tell that the range asked (`x=`, `y=`) finds nothing, it answers 0 lines without walking. With the defaults of the GUI (`base=deviate`, ranges `1/1` to `5/5`, `x=2 y=4`) this does not apply, as there is no range 2/4; it applies with `base=deviate2` and `deviate3`, or with a range 2/4.
-- Manual: 12.4 describes the three changes above.
+  - The nodes of the graphs built went down by about 38% to 46% with `umi=best`, and by about 4% to 53% with `umi=loss x=2 y=4` (on the games of 3 test books).
+- Position counts (`part=count`) and `book levels`: the answer for each position (the number of positions and the number per level) is kept until the book changes. When the position after a counted move becomes the current position, `book levels` does not walk the book.
+- `book missing`: when the kept precision stages already show that the range asked (`x=`, `y=`) finds nothing, it answers 0 lines without walking.
+  - With the GUI defaults (`base=deviate`, ranges `1/1` to `5/5`, `x=2 y=4`) this does not apply, because there is no range 2/4.
+  - It applies with `base=deviate2` or `deviate3`, or when the ranges include 2/4.
+- Manual: 12.4 describes these three changes.
 
 **Compatibility**
 
-- The answers of `book moveinfo`, `book levels` and `book missing` are the same as in nikque.23, except that an umigame number marked `exact=0` when counted from its position alone may become the exact value kept from the position before (not marked, smaller or equal).
+- The answers of `book moveinfo`, `book levels` and `book missing` are the same as in nikque.23.
+- One exception: an umigame number marked `exact=0` when counted from its position alone may become the exact value kept from the previous position (not marked, smaller or equal).
 - The search results, `eval.dat` and the book file format do not change.
 
-**Checked**: the answers taken over were compared with the answers found from each position alone, for every move (umigame numbers: 40,000 random graphs, 100 random books and 3 test books, 6 conditions, 3 orders of the positions; numbers of positions: 200 random books and 3 test books; `book missing`: 100 random books and 1 test book; no difference). The `@` lines of the same commands as nikque.23 (2 test books, 5 conditions) are the same.
-
-**Not checked**: the speed on a real book, the behaviour in the GUI.
+**Not checked**: speed on a real book; behaviour in the GUI.
 
 [Tests and measurements](docs/validation/nikque.en.md#v455-nikque24)
 
@@ -196,31 +250,36 @@ The umigame numbers and the numbers of positions of the candidate moves of the G
 
 ## v4.5.5-nikque.23
 
-The precision of the candidate moves of the GUI (`stage=` of `book moveinfo`) is taken over from the answers of the positions before and after, so that less is walked. A book command typed without `book` gets a hint on how to type it. The manual and the documents were rewritten.
+The precision of the GUI's candidate-move table (`stage=` of `book moveinfo`) is taken over from the answers for the positions before and after, so less of the book is walked. A book command typed without `book` now gets a hint, and the manual and documents were rewritten.
 
 **Changes**
 
-- Precision stages of `book moveinfo`: what the kept stage of the current position and the kept stages of the next positions of the position after a move already tell is not walked again. The answers (`stage=`, `missing=`) are the same as in nikque.22.
-  - When the current position is complete for a range, the position after a move of loss 0 is complete for that range too (with `base=deviate`, when the value of the position after the move is the opposite of the value of the current position).
-  - With `base=deviate2` and `deviate3`, the smallest loss to a leaf (the total loss to its position plus the loss of the leaf move) is kept for each position. It is built from the values of the next positions, and it is passed on to them.
-  - Whether a line of best moves reaches a solved position is found from the answers of the next positions.
-  - On a test book of about 410,000 positions, with every position looked at in the order of the book, the walks of the ranges went down by about 14% with `deviate` and about 29% with `deviate2` and `deviate3`, and the walks of the best lines by about 99% (how much depends on the order in which the positions are looked at).
-- A book command typed at the top level (`leaf expand 30 30`, `fill2 2`, …) adds `(book command: type "book leaf expand 30 30" or "b leaf expand 30 30")` to the warning. Names that are also top-level commands, settings or `base` commands (`new`, `load`, `save`, `play`, `info`, `check`, …) get no hint.
+- Precision stages of `book moveinfo`: whatever the kept stage of the current position and the kept stages of the positions after the next move already tell is decided without walking.
+  - If the current position is complete for a range, the position after a move with loss 0 is complete for that range too (with `base=deviate`, when the score of the position after the move is the negated score of the current position).
+  - With `base=deviate2` and `deviate3`, the smallest loss to a leaf is kept for each position. The loss to a leaf is the total loss to its position plus the loss of the leaf move. It is built from the values of the next positions and passed on to them.
+  - Whether the line of best moves reaches a solved position is decided from the answers of the next positions.
+  - Walks of the ranges went down by about 14% with `deviate` and about 29% with `deviate2` and `deviate3`, and walks of the best lines by about 99% (on a test book; the reduction depends on the order in which positions are viewed).
+- A book command typed at the top level (`leaf expand 30 30`, `fill2 2`, …) adds `(book command: type "book leaf expand 30 30" or "b leaf expand 30 30")` to the warning.
+- Names that are also top-level commands, settings or `base` commands (`new`, `load`, `save`, `play`, `info`, `check`, …) get no hint.
 - Manual:
-  - Every book command is written in the form `book …` (`book leaf expand 30 30` and so on, each row of the table of 14.2 too).
-  - The wording was reviewed in Japanese and English (the facts are the same). Mistakes of chapters 12 and 14 in English (the name of `book leaf recalculate`, the rule of `"…"`, …) and the time of a save in 9.4 (about 30 seconds → 18 to 28 seconds) were fixed.
-  - 12.4 and 13.2 describe the two changes above.
-- Documents: the README and the release notes were rewritten, the test and measurement records moved to `docs/validation/`, and `README-NIKQUE.*` was removed. The package holds `README.md` instead of `README-NIKQUE.*`. The first comment lines of `config.ini` point to chapter 4 of the manual.
+  - Every book command is written in the form `book …` (`book leaf expand 30 30` and so on, including each row of the table in 14.2).
+  - The wording was reviewed in Japanese and English (the facts are the same).
+  - Mistakes in English chapters 12 and 14 (the name of `book leaf recalculate`, the rule for `"…"`, …) were fixed.
+  - The save time in 9.4 was fixed (about 30 seconds → 18 to 28 seconds).
+  - 12.4 and 13.2 describe the precision-stage takeover and the hint in the warning.
+- Documents:
+  - The README and the release notes were rewritten.
+  - The test and measurement records moved to `docs/validation/`.
+  - `README-NIKQUE.*` was removed. The release package contains `README.md` instead of `README-NIKQUE.*`.
+  - The first comment lines of `config.ini` point to chapter 4 of the manual.
 
 **Compatibility**
 
-- The answers of `book moveinfo` are the same as in nikque.22.
-- The warning line of an unknown command gets a hint at its end only for the names of book commands (its first part `WARNING: Unknown command/Illegal move: "…"` is the same).
+- The answers of `book moveinfo` (`stage=`, `missing=`) are the same as in nikque.22.
+- The warning line for an unknown command gets a hint at its end only for names of book commands. Its first part, `WARNING: Unknown command/Illegal move: "…"`, is the same.
 - The search results, `eval.dat` and the book file format do not change.
 
-**Checked**: the stages taken over were compared with the stages walked from each position alone, for every move (200 random books and 2 test books, 3 bases, 3 orders of the positions; no difference). The answers of `book moveinfo` to the same commands are the same as those of nikque.22.
-
-**Not checked**: the speed on a real book, the behaviour in the GUI.
+**Not checked**: speed on a real book; behaviour in the GUI.
 
 [Tests and measurements](docs/validation/nikque.en.md#v455-nikque23)
 
@@ -1088,23 +1147,24 @@ The nikque line plus a new evaluation function (mobility weights), published fro
 
 ## v4.5.5-eval2.17
 
-**`book correct`, `book leaf recalculate` and `book learn` go on from a book saved before they ended (marks in the book, removed when the command ends); `book deepen` works.** The changes of v4.5.5-nikque.29 ([nikque.29](#v455-nikque29)).
+The changes of v4.5.5-nikque.29 are included ([nikque.29](#v455-nikque29)). `book correct`, `book leaf recalculate` and `book learn` can now go on from a book saved before they ended. `book deepen` now works.
 
 **Changes**
 
-- **`book correct` goes on from a book saved before it ended.** Each solved position searched again gets a mark in the book (saved with the book); a new run on a book saved before the command ended (the timed saves to `<book-file>.err`, or the save at the exit) searches only the positions without a mark. When every solved position is done, all the marks are removed. Up to v4.5.5-nikque.28, every run searched all the solved positions again from the beginning: on a large book that takes days, a run that stopped lost all its work.
-- **`book leaf recalculate` (2, 3, 4) goes on the same way**: each leaf searched again gets a mark, a new run skips the marked leaves, and the marks are removed when the command ends. Within a run, a leaf searched in a round is not searched again in the next rounds (`book-leaf-recalculate-rounds` 2 or more; with one-thread searches it got the same value).
-- **`book learn <file>` goes on from the lines learned.** Each time the book is saved to `<book-file>.store`, a small text file `<book-file>.learn` tells how many lines of the file of games are learned in it (with a check value of these lines and the number of positions, the level and the depth of the book). `book learn` with the same file on this book skips these lines; the file is removed when the whole file is learned. Up to v4.5.5-nikque.28, a new run played all the games of the file again (other games with `book-randomness`).
-- **`book deepen` works.** It searched again the positions of another level than the book with their own level, and did not change their level: nothing became deeper, and a new run searched them all again (the code of the original Edax 4.3). Now the positions whose level searches less deep than the level of the book get that level and are searched again with it; a new run does not search them again. Positions of a deeper level are left as they are.
+- `book correct` and `book leaf recalculate` (2, 3, 4) can now go on from a book saved before they ended. Each position or leaf that is done gets a mark in the book, and a new run skips the marked ones. The marks are removed when the command ends (the same as nikque.29).
+- `book learn <file>` can now go on from the lines already learned (the same as nikque.29).
+- `book deepen` now works. Positions whose level is shallower than the level of the book get the level of the book and are searched again with it (the same as nikque.29).
+- There is no new change of the eval2 line alone.
 
 **Compatibility**
 
-- The marks are the two upper bits of the level byte of a position in the book file (the level is 0 to 60): the file size and format do not change, and a book without marks is the same as before. **A book saved before `book correct` or `book leaf recalculate` ended holds marks, and the versions up to v4.5.5-eval2.16 read it as a damaged book**; a finished book has no mark. Other tools that read book files directly need to ignore these two bits (nikque GUI 0.4.6 does).
-- `eval.dat` and the search do not change: the same scores, moves and node counts (fforum-20-39 with 1 thread: 78,733,311 nodes, as v4.5.5-eval2.16). The books made by the other commands are the same as with v4.5.5-eval2.16.
+- The marks are the two upper bits of the level byte of each position in the book file (the level is 0 to 60). The file size and format do not change. A book without marks is the same as before.
+- **A book saved before `book correct` or `book leaf recalculate` ended holds marks, and the versions up to v4.5.5-eval2.16 read it as a damaged book and do not load it.** A finished book has no marks.
+- Other tools that read book files directly need to ignore these two bits (nikque GUI 0.4.6 does).
+- `eval.dat` and the search do not change. Scores, moves and node counts are the same as v4.5.5-eval2.16 (fforum-20-39 with 1 thread: 78,733,311 nodes).
+- The books made by the other commands are the same as with v4.5.5-eval2.16.
 
-**Checked**: a new test (`tests/book-resume.py`, 40 checks): `book correct` with 1 and 2 threads, `book deepen`, `book leaf recalculate3`, `book learn` (also a run stopped while it learns, then a new run on the book it saved to `.store`), and that v4.5.5-eval2.16 reads a book with marks as a damaged book. The 14 book suites of the earlier releases (1 thread) give the same books as v4.5.5-eval2.16 (except the save date; suite S3 learns with a random seed from the clock: with `-book-seed 1` the same books). `tests/regression.c` (50 cases) passes. The 5 Windows release programs solve fforum-20-39 with the same depths, scores, moves and node counts (78,733,311) as v4.5.5-eval2.16, and the 1,205 positions of the exact-search fix with 0 wrong scores; the 3 DLLs pass the 279 API checks.
-
-**Not checked**: a real book; the strength (the search is not changed).
+**Not checked**: a real large book; the strength (the search is not changed).
 
 [Tests and measurements](docs/validation/eval2.en.md#v455-eval217)
 
@@ -1112,19 +1172,19 @@ The nikque line plus a new evaluation function (mobility weights), published fro
 
 ## v4.5.5-eval2.16
 
-**A fix of the exact search: a wrong score (and move) at level 60, rarely, from 17 empties on.** Nothing else is changed.
+The changes of v4.5.5-nikque.28 are included ([nikque.28](#v455-nikque28)). An exact search at level 60 from 17 empties on could, rarely, give a wrong score (and move); this is fixed. Nothing else is changed.
 
-**Fix**
+**Fixes**
 
-- An exact search (a level whose depth is the number of empties, with no selectivity) first searches the position with selectivity (probcut), then exactly. Between those iterations, a node of the midgame search at the depth where the endgame search starts (`DEPTH_MIDGAME_TO_ENDGAME`, 15 empties) was stored in the hash table as exact, because its moves are searched by the endgame search. When that node has to pass, the search of the opponent stays in the midgame search at the same depth, where probcut can cut it: that score was stored as exact and taken by the exact iteration. The exact score of the root, and its move, could then be wrong (by a few discs). About 1 to 2 exact searches in 100,000 at 17 empties gave a wrong score (with 1 or 4 threads, with any hash table size: the same positions every time). Now such a node (a pass) is stored with the selectivity of the search (`NWS_midgame` of `midgame.c`).
-- The same error is in Edax 4.5.5 and 4.5.6 of Toshihiko Okuhara (edax-reversi-AVX, also its master of 2026-11-03), from which this version comes (267 of the 1,205 positions below are wrong with the 4.5.5 program and with 4.5.6 built from its source; 0 with the same fix). Edax 4.6 and 4.7 of Richard Delorme do not have it (0 of 1,205).
+- Exact searches rarely gave a wrong score and move at the root (wrong by a few discs). The fix is the same as nikque.28.
+- The same error is in Edax 4.5.5 and 4.5.6 of Toshihiko Okuhara, from which this version comes.
 
 **Compatibility**
 
-- `eval.dat` and the book file format do not change. The scores of exact searches that were right do not change; the node counts change a little (fforum-20-39 with 1 thread: 78,733,311 nodes, 78,733,223 with v4.5.5-eval2.15, the same scores and moves). Midgame searches that do not reach the endgame depth are not changed.
-- A book whose positions were searched exactly (the leaves of 20 empties and less at level 18, for instance) with an earlier version can hold such wrong scores (rarely).
-
-**Checked**: 1,205 positions whose exact scores were wrong (most with 17 empties; the scores of an independent solver): all right now with the 5 Windows release programs (1 thread, hash 2^20), and with 1 and 4 threads and hash 2^20 and 2^24 with the same fix in the C++23 port (newedax); 1,640 positions of 17 to 22 empties give the same scores as before. The release programs solve fforum-20-39 with the same scores and moves as v4.5.5-eval2.15.
+- `eval.dat` and the book file format do not change.
+- Exact scores that were right do not change. Node counts change a little (fforum-20-39 with 1 thread: 78,733,311 nodes, 78,733,223 with v4.5.5-eval2.15; the same scores and moves).
+- Midgame searches that do not reach the endgame depth do not change.
+- A book with positions searched exactly by an earlier version (for example the leaves of 20 empties and less at level 18) can, rarely, hold such wrong scores.
 
 **Not checked**: the strength; a real book.
 
@@ -1138,12 +1198,17 @@ The changes of v4.5.5-nikque.27 are included ([nikque.27](#v455-nikque27)).
 
 **Changes**
 
-- The fixes of nikque.27 (a book file held by another program at the start is not replaced, `edax_book_file_status` of libedax, `book import`, `book merge`, the `export` of the `book deviate` family, `book moveinfo` without memory and the others) and its rearranged code (the same as nikque.27).
+- The fix that keeps a book file held by another program at start-up from being replaced is included.
+- `edax_book_file_status` of libedax is included.
+- The fixes of `book import`, `book merge`, the `export` of the `book deviate` family, `book moveinfo` when memory runs out, and others are included.
+- The rearranged code is included.
+- All of these are the same as nikque.27.
 
 **Compatibility**
 
-- The evaluation and `eval.dat` are those of eval2.1 (the same file).
-- The results of the search (scores and node counts) are those of eval2.14. The answers differ from eval2.14 only in the cases of nikque.27.
+- The evaluation function and `eval.dat` are those of eval2.1 (the same file).
+- The results of the search (scores and node counts) are the same as eval2.14.
+- The answers differ from eval2.14 only in the cases of nikque.27.
 
 [Tests and measurements](docs/validation/eval2.en.md#v455-eval215)
 
@@ -1155,12 +1220,16 @@ The changes of v4.5.5-nikque.26 are included ([nikque.26](#v455-nikque26)).
 
 **Changes**
 
-- The `export` of `book deviate`, `book deviate2` and `book deviate3` (the lines they walk written to a file, the book not expanded), `edax_book_deviate_export` of libedax and the mark `@cancel id=N state=none export=1` (the same as nikque.26).
+- The `export` of `book deviate`, `book deviate2` and `book deviate3` is included. It writes the lines the command walks to a file, without expanding the book.
+- `edax_book_deviate_export` of libedax is included.
+- The mark `@cancel id=N state=none export=1` is included.
+- All of these are the same as nikque.26.
 
 **Compatibility**
 
-- The evaluation and `eval.dat` are those of eval2.1 (the same file).
-- The results of the search (scores and node counts) are those of eval2.13. The commands without `export` are the same as in eval2.13.
+- The evaluation function and `eval.dat` are those of eval2.1 (the same file).
+- The results of the search (scores and node counts) are the same as eval2.13.
+- The commands without `export` are the same as in eval2.13.
 
 [Tests and measurements](docs/validation/eval2.en.md#v455-eval214)
 
@@ -1172,12 +1241,12 @@ The changes of v4.5.5-nikque.25 are included ([nikque.25](#v455-nikque25)).
 
 **Changes**
 
-- An umigame number marked `exact=0` is the same whatever the build (the same as nikque.25).
+- The fix that makes umigame numbers marked `exact=0` the same whatever the build environment is included (the same as nikque.25).
 
 **Compatibility**
 
 - The evaluation function and `eval.dat` are those of eval2.1 (the same file).
-- The results of the search (scores and node counts) are those of eval2.12.
+- The results of the search (scores and node counts) are the same as eval2.12.
 - Except the numbers marked `exact=0`, the answers are the same as in eval2.12.
 
 [Tests and measurements](docs/validation/eval2.en.md#v455-eval213)
@@ -1190,14 +1259,15 @@ The changes of v4.5.5-nikque.24 are included ([nikque.24](#v455-nikque24)).
 
 **Changes**
 
-- The umigame numbers, the numbers of positions, `book levels` and `book missing` taken over from the positions before (the same as in nikque.24).
+- The umigame numbers, the numbers of positions, `book levels` and `book missing` are taken over from earlier answers (the same as nikque.24).
 - Manual: 12.4 has the same text as the nikque manual.
 
 **Compatibility**
 
 - The evaluation function and `eval.dat` are those of eval2.1 (the same file).
-- The results of the search (scores and node counts) are those of eval2.11.
-- The answers of `book moveinfo`, `book levels` and `book missing` are the same as in eval2.11 (with the same exception as nikque.24 for the umigame numbers marked `exact=0`).
+- The results of the search (scores and node counts) are the same as eval2.11.
+- The answers of `book moveinfo`, `book levels` and `book missing` are the same as in eval2.11.
+- The umigame numbers marked `exact=0` have the same exception as in nikque.24.
 
 [Tests and measurements](docs/validation/eval2.en.md#v455-eval212)
 
@@ -1209,14 +1279,16 @@ The changes of v4.5.5-nikque.23 are included ([nikque.23](#v455-nikque23)).
 
 **Changes**
 
-- The precision stages of `book moveinfo` taken over, and the hint for a book command typed without `book` (the same as nikque.23).
-- Manual: every book command is written in the form `book …`. The review of the wording of the nikque manual was applied to the eval2 manual too (the version described, the names of the versions, the version of `eval.dat` and the places of the records follow eval2, and the figures measured with nikque versions say so).
-- The rewriting of the documents of nikque.23 (README, release notes, places of the records, `README-NIKQUE.*` removed) is not in eval2.
+- The precision stages of `book moveinfo` are taken over from earlier answers (the same as nikque.23).
+- A book command entered without `book` now gets a hint (the same as nikque.23).
+- Manual: every book command is written in the form `book …`.
+- Manual: the review of the wording of the nikque manual is applied to the eval2 manual too. The version described, the names of the versions, the version of `eval.dat` and the places of the records follow eval2. Figures measured with nikque versions say so.
+- The rewriting of the documents in nikque.23 (README, release notes, places of the records, `README-NIKQUE.*` removed) is not in eval2.
 
 **Compatibility**
 
 - The evaluation function and `eval.dat` are those of eval2.1 (the same file).
-- The results of the search (scores and node counts) are those of eval2.10.
+- The results of the search (scores and node counts) are the same as eval2.10.
 - The answers of `book moveinfo` are the same as in eval2.10.
 
 [Tests and measurements](docs/validation/eval2.en.md#v455-eval211)

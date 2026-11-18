@@ -16,6 +16,12 @@ Checks:
 - Built by the release workflow (run 44136939697).
 - Speed: not measured (the search is not changed).
 
+### Moved from the release notes
+
+- `eval.dat` and the search do not change: the same scores, moves and node counts (fforum-20-39 with 1 thread: 77,639,600 nodes, as v4.5.5-nikque.28). The books made by the other commands are the same as with v4.5.5-nikque.28.
+
+**Checked**: a new test (`tests/book-resume.py`, 40 checks): `book correct` with 1 and 2 threads, `book deepen`, `book leaf recalculate3`, `book learn` (also a run stopped while it learns, then a new run on the book it saved to `.store`), and that v4.5.5-nikque.28 reads a book with marks as a damaged book. The 14 book suites of the earlier releases (1 thread) give the same books as v4.5.5-nikque.28 (except the save date; suite S3 learns with a random seed from the clock: with `-book-seed 1` the same books). `tests/regression.c` (50 cases) passes. The 5 Windows release programs solve fforum-20-39 with the same depths, scores, moves and node counts (77,639,600) as v4.5.5-nikque.28, and the 1,205 positions of the exact-search fix with 0 wrong scores; the 3 DLLs pass the 279 API checks.
+
 ## v4.5.5-nikque.28
 
 Checks:
@@ -25,6 +31,12 @@ Checks:
 - `tests/regression.c` `core` (96 exact searches against an independent solver) passes with 1 and 4 threads.
 - Built by the release workflow (run 43743338167): the library test (251 checks, 0 failures) and fforum-1-19 on macOS.
 - Speed: not measured.
+
+### Moved from the release notes
+
+- The same error is in Edax 4.5.5 and 4.5.6 of Toshihiko Okuhara (edax-reversi-AVX, also its master of 2026-11-03), from which this version comes (267 of the 1,205 positions below are wrong with the 4.5.5 program and with 4.5.6 built from its source; 0 with the same fix). Edax 4.6 and 4.7 of Richard Delorme do not have it (0 of 1,205).
+
+**Checked**: 1,205 positions whose exact scores were wrong (most with 17 empties; the scores of an independent solver): all right now with the 5 Windows release programs (1 thread, hash 2^20), and with 1 and 4 threads and hash 2^20 and 2^24 with the same fix in the C++23 port (newedax); 1,640 positions of 17 to 22 empties give the same scores as before. The release programs solve fforum-20-39 with the same scores and moves as v4.5.5-nikque.27.
 
 ## v4.5.5-nikque.27
 
@@ -37,6 +49,12 @@ Checks:
 - Size (against v4.5.5-nikque.26): the 5 Windows programs −1,024 to +1,536 bytes, the 3 DLLs +1,536 to +3,584 bytes. Built by the release workflow: the Linux programs −8,192 to +4,128 and libraries +0 to +8,192, the macOS programs +64 and −4,040 and library +480, Windows ARM64 +3,072, the Android programs −712 and +344 and libraries +504 and +16 bytes.
 - Speed: not measured.
 
+### Moved from the release notes
+
+- Tests: `tests/libedax_test.c` has 279 checks (61 more, 28 of them on Windows only), `tests/book-analyze.c` 3 more tests, `tests/regression.c` new cases; a case of `tests/regression.c` whose file cannot be opened fails with the exit code 2 instead of crashing.
+
+**Checked**: before and after the changes, on test books with 1 and 4 threads, the book commands (76 cases) write the same files and give the same answers, the analysis commands (20,046) give the same answers, and 25 cases of the other commands give the same output (but the time and the line numbers of `book.c`); the new checks of the bugs fail with the code before the fixes, but a few that cannot hit the bug on purpose (checked with test copies of the code). The 279 checks of the test of libedax and the unit tests of the analyses pass; the gcc build (WSL) gives the same warnings as before, and its libraries pass 251 checks (all but the checks for Windows only).
+
 ## v4.5.5-nikque.26
 
 Checks:
@@ -47,6 +65,10 @@ Checks:
 - The search, the evaluation, the book learning and the file format are not changed (only the export and its mark in `book_analyze.c`, the reading of the command and `help book` in `edax.c`, and the function of libedax are new). The node counts above check that the search is the same.
 - Size (against v4.5.5-nikque.25): the 5 Windows programs +4,096 to +5,120 bytes, the 3 DLLs +17,920 to +19,456 bytes. Built by the release workflow: the Linux programs +8,192 to +12,288 and libraries +8,192 to +12,288, the macOS programs +0 and +8,200 and library +33,024, Windows ARM64 +6,656, the Android programs +7,496 and +3,656 and libraries +8,520 and +4,384 bytes (the functions of the export).
 - Speed: not measured.
+
+### Moved from the release notes
+
+**Checked**: the lines written are compared with sets computed apart in Python (the positions with a leaf to expand, the ends, all the positions of the lines): on 41 positions of 3 test books, the 4,545 cases (3 commands, 5 ranges, 3 kinds) are all the same; every line can be played from the start, its moves follow the walk, and its total loss is the smallest. The 218 checks of the test of libedax pass.
 
 ## v4.5.5-nikque.25
 
@@ -60,6 +82,12 @@ Checks:
 - The search, the evaluation, the book learning and the file format are not changed (only the order in which `book_analyze.c` drops the terms of an umigame number is changed). The node counts above check that the search is the same.
 - Size (against v4.5.5-nikque.24): the 5 Windows programs +0 to +1,536 bytes, the 3 DLLs the same size. Built by the release workflow: the Linux and macOS executables and libraries the same size, Android executables +32 and +32 bytes and libraries +32 and +16 bytes, Windows ARM64 +512 bytes.
 - Speed: not measured.
+
+### Moved from the release notes
+
+- A number marked `exact=0` may differ from nikque.24 (both are upper bounds; of the 46,092 `@` lines of 2 test books in 5 conditions, one changed: `umi=3:15 exact=0` → `umi=2:15 exact=0`).
+
+**Checked**: the numbers and the `exact` marks are the same when the terms are put in random orders before they are sorted (test `umigame-order`: 200 graphs of about 1,300 positions and the 1,744 graphs after their nodes up to 2 moves, in 3 orders; before the fix some numbers changed). gcc (WSL) and MSVC give the same numbers in the test of dropped terms (39 in `umigame-large`; 40 and 37 before). The earlier tests all pass.
 
 ## v4.5.5-nikque.24
 
@@ -76,6 +104,12 @@ Checks:
 - Size (against v4.5.5-nikque.23): the 5 Windows programs +0 to +2,048 bytes, the 3 DLLs the same size. Built by the release workflow: Linux executables +0 to +4,096 bytes and libraries +4,096 bytes, macOS executables +0 and +4,096 bytes and library +0 bytes, Android executables +1,488 and +832 bytes and libraries +1,504 and +848 bytes, Windows ARM64 +512 bytes.
 - Speed: not measured (the time of the umigame numbers, the numbers of positions, `book levels` and `book missing` was measured neither on a real book nor in the GUI; what went down was counted by the nodes of the graphs built and the walks).
 
+### Moved from the release notes
+
+- On the games of 3 test books, with their positions looked at from the first move on, the nodes of the graphs built went down by about 38% to 46% with `umi=best`, and by about 4% to 53% with `umi=loss x=2 y=4`.
+
+**Checked**: the answers taken over were compared with the answers found from each position alone, for every move (umigame numbers: 40,000 random graphs, 100 random books and 3 test books, 6 conditions, 3 orders of the positions; numbers of positions: 200 random books and 3 test books; `book missing`: 100 random books and 1 test book; no difference). The `@` lines of the same commands as nikque.23 (2 test books, 5 conditions) are the same.
+
 ## v4.5.5-nikque.23
 
 Checks:
@@ -89,6 +123,12 @@ Checks:
 - The search, the evaluation, the book learning and the file format are not changed (the code changed finds the precision stages of `book moveinfo`, and writes the warning of an unknown command). The node counts above check that the search is the same.
 - Size (against v4.5.5-nikque.22): the 5 Windows programs +2,560 to +3,072 bytes, the 3 DLLs +512 bytes. Built by the release workflow: Linux executables +12,288 to +16,384 bytes and libraries +8,192 bytes, macOS executables +4,096 and +16,528 bytes and library +0 bytes, Android executables +2,536 and +4,368 bytes and libraries +2,368 and +4,352 bytes, Windows ARM64 +4,608 bytes.
 - Speed: not measured (the time of `book moveinfo` was measured neither on a real book nor in the GUI).
+
+### Moved from the release notes
+
+- On a test book of about 410,000 positions, with every position looked at in the order of the book, the walks of the ranges went down by about 14% with `deviate` and about 29% with `deviate2` and `deviate3`, and the walks of the best lines by about 99% (how much depends on the order in which the positions are looked at).
+
+**Checked**: the stages taken over were compared with the stages walked from each position alone, for every move (200 random books and 2 test books, 3 bases, 3 orders of the positions; no difference). The answers of `book moveinfo` to the same commands are the same as those of nikque.22.
 
 ## v4.5.5-nikque.22
 

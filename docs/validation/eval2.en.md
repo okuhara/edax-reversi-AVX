@@ -16,6 +16,10 @@ Checks:
 - Built by the release workflow (run 44156978523): the library test (251 checks, 0 failures) and fforum-1-19 on macOS, with the same node counts as v4.5.5-eval2.16.
 - Speed: not measured (the search is not changed).
 
+### Moved from the release notes
+
+**Checked**: a new test (`tests/book-resume.py`, 40 checks): `book correct` with 1 and 2 threads, `book deepen`, `book leaf recalculate3`, `book learn` (also a run stopped while it learns, then a new run on the book it saved to `.store`), and that v4.5.5-eval2.16 reads a book with marks as a damaged book. The 14 book suites of the earlier releases (1 thread) give the same books as v4.5.5-eval2.16 (except the save date; suite S3 learns with a random seed from the clock: with `-book-seed 1` the same books). `tests/regression.c` (50 cases) passes. The 5 Windows release programs solve fforum-20-39 with the same depths, scores, moves and node counts (78,733,311) as v4.5.5-eval2.16, and the 1,205 positions of the exact-search fix with 0 wrong scores; the 3 DLLs pass the 279 API checks.
+
 ## v4.5.5-eval2.16
 
 Checks:
@@ -25,6 +29,10 @@ Checks:
 - `tests/regression.c` `core` (96 exact searches against an independent solver) passes with 1 and 4 threads.
 - Built by the release workflow (run 43743485109): the library test (251 checks, 0 failures) and fforum-1-19 on macOS.
 - Speed: not measured.
+
+### Moved from the release notes
+
+**Checked**: 1,205 positions whose exact scores were wrong (most with 17 empties; the scores of an independent solver): all right now with the 5 Windows release programs (1 thread, hash 2^20), and with 1 and 4 threads and hash 2^20 and 2^24 with the same fix in the C++23 port (newedax); 1,640 positions of 17 to 22 empties give the same scores as before. The release programs solve fforum-20-39 with the same scores and moves as v4.5.5-eval2.15.
 
 ## v4.5.5-eval2.15
 
