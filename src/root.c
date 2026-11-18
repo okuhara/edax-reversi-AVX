@@ -552,7 +552,7 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 			continue;
 		}
 		if (is_depth_solving(depth, search->eval.n_empties) && (score & 1)) {
-			log_print(&search_log, "*** UNEXPECTED ODD SCORE (score=%+d) => re-research id %d ***\n", score, search->id);			
+			log_print(&search_log, "*** UNEXPECTED ODD SCORE (score=%+d) => re-research id %d ***\n", score, search->id);
 			cassio_debug("wrong odd score => re-research.\n");
 			continue;
 		}

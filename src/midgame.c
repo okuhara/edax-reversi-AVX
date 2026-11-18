@@ -632,6 +632,8 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		} else { // game-over !
 			node.bestscore = search_solve(search);
 		}
+		if (search_get_state(search) != RUNNING)
+			node.bestscore = alpha;
 
 	} else {
 		// transposition cutoff
@@ -666,34 +668,31 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 			}
 		}
 		node_wait_slaves(&node);
-	}
 
-	// save the best result in hash tables
-	if (search_get_state(search) == RUNNING) {
-		// hack: an endgame node of DEPTH_MIDGAME_TO_ENDGAME is exact, its moves being searched by NWS_endgame; not after
-		// a pass, whose search stays here at the same depth and may be cut by probcut: stored as exact, that score was
-		// taken by the exact search after a selective one (a wrong score at level 60 from 17 empties on)
-		if ((search->eval.n_empties <= depth) ? (depth <= DEPTH_MIDGAME_TO_ENDGAME && !movelist_is_empty(&movelist)) : depth <= 4)
-			hash_data.data.wl.c.selectivity = NO_SELECTIVITY;
-		else hash_data.data.wl.c.selectivity = search->selectivity;
-		hash_data.data.wl.c.depth = depth;
-		hash_data.data.wl.c.cost = last_bit(search->n_nodes + search->child_nodes - nodes_org);
-		hash_data.data.move[0] = node.bestmove;
-		hash_data.alpha = alpha;
-		hash_data.beta = alpha + 1;
-		hash_data.score = node.bestscore;
+		// save the best result in hash tables
+		if (search_get_state(search) == RUNNING) {
+			if (depth <= ((search->eval.n_empties <= depth) ? DEPTH_MIDGAME_TO_ENDGAME : 4))
+				hash_data.data.wl.c.selectivity = NO_SELECTIVITY; // hack
+			else hash_data.data.wl.c.selectivity = search->selectivity;
+			hash_data.data.wl.c.depth = depth;
+			hash_data.data.wl.c.cost = last_bit(search->n_nodes + search->child_nodes - nodes_org);
+			hash_data.data.move[0] = node.bestmove;
+			hash_data.alpha = alpha;
+			hash_data.beta = alpha + 1;
+			hash_data.score = node.bestscore;
 
-		if (search->height <= PV_HASH_HEIGHT) hash_store(&search->pv_table, &search->board, hash_code, &hash_data);
-		hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
+			if (search->height <= PV_HASH_HEIGHT) hash_store(&search->pv_table, &search->board, hash_code, &hash_data);
+			hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
 
-		SQUARE_STATS(foreach_move(move, &movelist))
-		SQUARE_STATS(++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];)
-		SQUARE_STATS(if (node.bestscore > alpha) ++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[node->bestmove]];)
+			SQUARE_STATS(foreach_move(move, &movelist))
+			SQUARE_STATS(++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];)
+			SQUARE_STATS(if (node.bestscore > alpha) ++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[node->bestmove]];)
 
-	 	assert(SCORE_MIN <= node.bestscore && node.bestscore <= SCORE_MAX);
+			assert(SCORE_MIN <= node.bestscore && node.bestscore <= SCORE_MAX);
 
-	} else {
-		node.bestscore = alpha;
+		} else {
+			node.bestscore = alpha;
+		}
 	}
 
 	node_free(&node);
@@ -773,6 +772,8 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 			node.bestscore = search_solve(search);
 			node.bestmove = NOMOVE;
 		}
+		if (search_get_state(search) != RUNNING)
+			node.bestscore = alpha;
 
 	} else { // normal PVS
 		if (movelist.n_moves > 1) {
@@ -826,55 +827,55 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 			}
 			node_wait_slaves(&node);
 		}
-	}
 
-	// save the best result in hash tables
-	if (search_get_state(search) == RUNNING) {
-		if (depth <= ((search->eval.n_empties <= depth) ? DEPTH_MIDGAME_TO_ENDGAME : 4))
-			hash_data.data.wl.c.selectivity = NO_SELECTIVITY;
-		else	hash_data.data.wl.c.selectivity = search->selectivity;
-		hash_data.data.wl.c.depth = depth;
-		hash_data.data.wl.c.cost = last_bit(search_count_nodes(search) - nodes_org);
-		hash_data.data.move[0] = node.bestmove;
-		hash_data.alpha = alpha;
-		hash_data.beta = beta;
-		hash_data.score = node.bestscore;
+		// save the best result in hash tables
+		if (search_get_state(search) == RUNNING) {
+			if (depth <= ((search->eval.n_empties <= depth) ? DEPTH_MIDGAME_TO_ENDGAME : 4))
+				hash_data.data.wl.c.selectivity = NO_SELECTIVITY;
+			else	hash_data.data.wl.c.selectivity = search->selectivity;
+			hash_data.data.wl.c.depth = depth;
+			hash_data.data.wl.c.cost = last_bit(search_count_nodes(search) - nodes_org);
+			hash_data.data.move[0] = node.bestmove;
+			hash_data.alpha = alpha;
+			hash_data.beta = beta;
+			hash_data.score = node.bestscore;
 
-		hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
-		hash_store(&search->pv_table, &search->board, hash_code, &hash_data);
+			hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
+			hash_store(&search->pv_table, &search->board, hash_code, &hash_data);
 
-		// lacal hash (main thread only)
-		if (search->eval.n_empties <= depth && depth <= DEPTH_TO_USE_LOCAL_HASH && depth > DEPTH_TO_SHALLOW_SEARCH) {
-			vBoard hashboard;
+			// lacal hash (main thread only)
+			if (search->eval.n_empties <= depth && depth <= DEPTH_TO_USE_LOCAL_HASH && depth > DEPTH_TO_SHALLOW_SEARCH) {
+				vBoard hashboard;
   #ifdef USE_SOLID
-			unsigned long long solid = search->eval.full_lines.ull[0] & search->eval.full_lines.ull[1]
-				& search->eval.full_lines.ull[2] & search->eval.full_lines.ull[3] & 0x3c7effffffff7e3c;
-			int ofssolid = bit_count(solid) * 2;
-			// apply only if ofssolid will not alter the winner, i.e. the window is apart enough from 0.
-			if (((alpha > ofssolid) && (node.bestscore > ofssolid)) || ((beta < -ofssolid) && (node.bestscore < -ofssolid))) {
-				solid &= search->board.player;
-				if (solid) {
-					ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
-					hashboard.bb.player = search->board.player ^ solid;	// normalize solid to opponent
-					hashboard.bb.opponent = search->board.opponent ^ solid;
-					vhash_store_local(search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask),
-						hashboard, alpha - ofssolid, beta - ofssolid, node.bestscore - ofssolid, node.bestmove);
+				unsigned long long solid = search->eval.full_lines.ull[0] & search->eval.full_lines.ull[1]
+					& search->eval.full_lines.ull[2] & search->eval.full_lines.ull[3] & 0x3c7effffffff7e3c;
+				int ofssolid = bit_count(solid) * 2;
+				// apply only if ofssolid will not alter the winner, i.e. the window is apart enough from 0.
+				if (((alpha > ofssolid) && (node.bestscore > ofssolid)) || ((beta < -ofssolid) && (node.bestscore < -ofssolid))) {
+					solid &= search->board.player;
+					if (solid) {
+						ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
+						hashboard.bb.player = search->board.player ^ solid;	// normalize solid to opponent
+						hashboard.bb.opponent = search->board.opponent ^ solid;
+						vhash_store_local(search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask),
+							hashboard, alpha - ofssolid, beta - ofssolid, node.bestscore - ofssolid, node.bestmove);
+					}
 				}
-			}
   #endif
-			hashboard.bb = search->board;
-			vhash_store_local(search->thread_hash.hash + (hash_code & search->thread_hash.hash_mask),
-				hashboard, alpha, beta, node.bestscore, node.bestmove);
+				hashboard.bb = search->board;
+				vhash_store_local(search->thread_hash.hash + (hash_code & search->thread_hash.hash_mask),
+					hashboard, alpha, beta, node.bestscore, node.bestmove);
+			}
+
+			SQUARE_STATS(foreach_move(move, movelist))
+			SQUARE_STATS(++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];)
+			SQUARE_STATS(if (node.bestscore > alpha) ++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[node.bestmove]];)
+
+			assert(SCORE_MIN <= node.bestscore && node.bestscore <= SCORE_MAX);
+
+		} else {
+			node.bestscore = alpha;
 		}
-
-		SQUARE_STATS(foreach_move(move, movelist))
-		SQUARE_STATS(++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];)
-		SQUARE_STATS(if (node.bestscore > alpha) ++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[node.bestmove]];)
-
-	 	assert(SCORE_MIN <= node.bestscore && node.bestscore <= SCORE_MAX);
-
-	} else {
-		node.bestscore = alpha;
 	}
 
 	node_free(&node);
