@@ -50,10 +50,10 @@ eval2・Heath（旧名 newedax）の各版は、同じ行の nikque の版の変
 
 **互換性**
 
-- 印は、book のファイルの各局面の level の 1 バイト（level は 0〜60）の上の 2 ビットです。ファイルの大きさと形式は変わらず、印のない book は前と同じです。**`book correct`・`book leaf recalculate` が終わる前に保存された book には印があり、v4.5.5-nikque.28 までの版では壊れた book として読まれません。** 終わった book には印がありません。book のファイルを自分で読むほかの道具は、この 2 ビットを無視する必要があります（nikque GUI 0.4.6 は対応済み）。
+- 印は、book のファイルの各局面の level の 1 バイト（level は 0〜60）の上の 2 ビットです。ファイルの大きさと形式は変わらず、印のない book は前と同じです。**`book correct`・`book leaf recalculate` が終わる前に保存された book には印があり、v4.5.5-nikque.28 までの版では壊れた book とみなされ、読み込めません。** 終わった book には印がありません。book のファイルを自分で読むほかの道具は、この 2 ビットを無視する必要があります（nikque GUI 0.4.6 は対応済み）。
 - `eval.dat` と探索は変わりません。評価値・手・ノード数は同じです（fforum-20-39、1 スレッド：77,639,600 ノード。v4.5.5-nikque.28 と同じ）。ほかのコマンドが作る book は v4.5.5-nikque.28 と同じです。
 
-**確かめたこと**：新しい試験（`tests/book-resume.py`、40 項目）：1 スレッドと 2 スレッドの `book correct`、`book deepen`、`book leaf recalculate3`、`book learn`（学習の途中で止め、`.store` に保存された book から続けるものも）、v4.5.5-nikque.28 が印の付いた book を壊れた book として読むこと。これまでの公開で使った book の試験一式 14 組（1 スレッド）は v4.5.5-nikque.28 と同じ book になりました（保存の日時のほか。S3 は時計の乱数の種で学習する組で、`-book-seed 1` では同じ book）。`tests/regression.c`（50 項目）は通りました。配布の Windows の 5 種は、fforum-20-39 を v4.5.5-nikque.28 と同じ深さ・評価値・手・ノード数（77,639,600）で解き、完全読みの直しの 1,205 局面を誤り 0 で解きました。DLL 3 種は API の 279 項目を通りました。
+**確かめたこと**：新しい試験（`tests/book-resume.py`、40 項目）：1 スレッドと 2 スレッドの `book correct`、`book deepen`、`book leaf recalculate3`、`book learn`（学習の途中で止め、`.store` に保存された book から続けるものも）、v4.5.5-nikque.28 が印の付いた book を壊れた book とみなして読み込まないこと。これまでの公開で使った book の試験一式 14 組（1 スレッド）は v4.5.5-nikque.28 と同じ book になりました（保存の日時のほか。S3 は時計の乱数の種で学習する組で、`-book-seed 1` では同じ book）。`tests/regression.c`（50 項目）は通りました。配布の Windows の 5 種は、fforum-20-39 を v4.5.5-nikque.28 と同じ深さ・評価値・手・ノード数（77,639,600）で解き、完全読みの直しの 1,205 局面を誤り 0 で解きました。DLL 3 種は API の 279 項目を通りました。
 
 **確かめていないこと**：実際の大きな book、強さ（探索は変えていません）。
 
@@ -1099,10 +1099,10 @@ nikque 系列に新しい評価関数（着手可能数の重み）を足した�
 
 **互換性**
 
-- 印は、book のファイルの各局面の level の 1 バイト（level は 0〜60）の上の 2 ビットです。ファイルの大きさと形式は変わらず、印のない book は前と同じです。**`book correct`・`book leaf recalculate` が終わる前に保存された book には印があり、v4.5.5-nikque.28 までの版では壊れた book として読まれません。** 終わった book には印がありません。book のファイルを自分で読むほかの道具は、この 2 ビットを無視する必要があります（nikque GUI 0.4.6 は対応済み）。
+- 印は、book のファイルの各局面の level の 1 バイト（level は 0〜60）の上の 2 ビットです。ファイルの大きさと形式は変わらず、印のない book は前と同じです。**`book correct`・`book leaf recalculate` が終わる前に保存された book には印があり、v4.5.5-eval2.16 までの版では壊れた book とみなされ、読み込めません。** 終わった book には印がありません。book のファイルを自分で読むほかの道具は、この 2 ビットを無視する必要があります（nikque GUI 0.4.6 は対応済み）。
 - `eval.dat` と探索は変わりません。評価値・手・ノード数は同じです（fforum-20-39、1 スレッド：78,733,311 ノード。v4.5.5-eval2.16 と同じ）。ほかのコマンドが作る book は v4.5.5-eval2.16 と同じです。
 
-**確かめたこと**：新しい試験（`tests/book-resume.py`、40 項目）：1 スレッドと 2 スレッドの `book correct`、`book deepen`、`book leaf recalculate3`、`book learn`（学習の途中で止め、`.store` に保存された book から続けるものも）、v4.5.5-eval2.16 が印の付いた book を壊れた book として読むこと。これまでの公開で使った book の試験一式 14 組（1 スレッド）は v4.5.5-eval2.16 と同じ book になりました（保存の日時のほか。S3 は時計の乱数の種で学習する組で、`-book-seed 1` では同じ book）。`tests/regression.c`（50 項目）は通りました。配布の Windows の 5 種は、fforum-20-39 を v4.5.5-eval2.16 と同じ深さ・評価値・手・ノード数（78,733,311）で解き、完全読みの直しの 1,205 局面を誤り 0 で解きました。DLL 3 種は API の 279 項目を通りました。
+**確かめたこと**：新しい試験（`tests/book-resume.py`、40 項目）：1 スレッドと 2 スレッドの `book correct`、`book deepen`、`book leaf recalculate3`、`book learn`（学習の途中で止め、`.store` に保存された book から続けるものも）、v4.5.5-eval2.16 が印の付いた book を壊れた book とみなして読み込まないこと。これまでの公開で使った book の試験一式 14 組（1 スレッド）は v4.5.5-eval2.16 と同じ book になりました（保存の日時のほか。S3 は時計の乱数の種で学習する組で、`-book-seed 1` では同じ book）。`tests/regression.c`（50 項目）は通りました。配布の Windows の 5 種は、fforum-20-39 を v4.5.5-eval2.16 と同じ深さ・評価値・手・ノード数（78,733,311）で解き、完全読みの直しの 1,205 局面を誤り 0 で解きました。DLL 3 種は API の 279 項目を通りました。
 
 **確かめていないこと**：実際の大きな book、強さ（探索は変えていません）。
 
