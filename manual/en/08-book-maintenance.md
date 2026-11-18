@@ -206,7 +206,10 @@ Related features:
 
 - You can check the numbers first with `book reducecount id=N x=X y=Y`. It does not change the book ([12.4](12-integration.md)). It counts with the same recomputed values as `book reduce`, so the numbers match.
 - If `book reduce` runs after the count, with the book unchanged, from the same position and with the same X Y, it reuses the count's result without recomputing the values or traversing again (since v4.5.5-nikque.22; setting `book-reduce-reuse`).
-- The result of the count (about 2 bytes a position) is kept until `book reduce`, a command that changes the book, or the next `book reducecount`. When another analysis (`book moveinfo`, ...) needs the memory of its marks meanwhile, the result gives it and is forgotten (up to v4.5.5-nikque.26 it was kept until the book changed, and the marks of the other analyses could take about 16 bytes each). `book reduce` then recomputes and traverses again, with the same positions kept.
+- The result of the count (about 2 bytes per position) is kept until `book reduce`, a command that changes the book, or the next `book reducecount`.
+- If another analysis (`book moveinfo`, ...) needs memory for its marks meanwhile, the result is discarded and its memory is given to that analysis.
+  - `book reduce` then recomputes and traverses again. The same positions are kept.
+  - Up to v4.5.5-nikque.26, the result was kept until the book changed. The marks of the other analyses could take about 16 bytes each.
 - After most positions have been removed, the book shrinks its number of buckets and releases memory (since v4.5.5-nikque.22; setting `book-reduce-shrink`). The positions are then saved in a different order (the positions themselves are the same).
 
 ### Cautions when trimming
@@ -252,7 +255,10 @@ The last line of the file contains the book's depth (since v4.5.5-nikque.13).
 
 Notes:
 
-- If the file cannot be opened or contains no positions, the current book is kept (`was not imported; current book retained` is printed). Lines that cannot be read as a position are skipped, and the import continues. A line whose leaf score is out of -64 to 64 is one of them (up to v4.5.5-nikque.26, 300 was read as 44, for example).
+- If the file cannot be opened or contains no positions, the current book is kept (`was not imported; current book retained` is printed).
+- Lines that cannot be read as a position are skipped, and the import continues.
+  - A line whose leaf score is outside -64 to 64 is one of them.
+  - Up to v4.5.5-nikque.26, such a score was read wrongly: 300 was read as 44, for example.
 - Because the links are rebuilt, the imported book may differ in some leaves from the book before export. In a test with a book of 2,246 positions, a second export made after the import differed in 7 lines.
 - **A file without the `% depth` line** (exported by a version up to v4.5.5-nikque.12, or made by hand):
   - The depth becomes **the smallest depth that contains the deepest position**.
@@ -285,24 +291,6 @@ The `book leaf recalculate` family searches the leaves again and replaces their 
   - **A file saved partway is in the state "some leaves are updated, negamax not done yet"**. Run `book negamax` after loading it.
   - **A book saved partway can be continued** (since v4.5.5-nikque.29): see "Continuing a run that did not end" below.
 
-### Continuing a run that did not end (since v4.5.5-nikque.29)
-
-Each recomputed leaf gets a **mark** in the book.
-
-- When a run stops before its end (Edax closed, the PC stopped...), load the intermediate file (`.leaf`...) or the book saved at the exit with `book load`, and run **the same command again**.
-- The marked leaves are not searched again: only the others are. The number of marked leaves is shown first:
-
-```
-Book leaf recalculate4: 1234 leaves already searched again by a run that did not end: they are not searched again
-```
-
-- **When the command ends, all the marks are removed.** A finished book has no mark.
-- Within a run too, a leaf recomputed in a pass is not recomputed in the next passes (`book-leaf-recalculate-rounds` of 2 or more; with one-thread searches, it would get the same value).
-- `leaf recalculate`, `2`, `3` and `4` use the same mark. After a run stopped, continue with the same command and the same X and Y.
-- The marks are the two upper bits of the level byte of each position in the book file (the level is 0 to 60). The file size does not change.
-- **A book with marks cannot be read by the versions up to v4.5.5-nikque.28** (they see a damaged book). To use such a book with an older version or another tool, let the command end with the new version first.
-- Up to v4.5.5-nikque.28 there was no mark: running the command again started over from the beginning.
-
 Example output (small book):
 
 ```
@@ -318,6 +306,29 @@ The last line gives:
 - the number of leaves recomputed;
 - the number of scores that changed (how many went up, how many went down, and the largest changes);
 - the number of moves that changed.
+
+### Continuing a run that did not end (since v4.5.5-nikque.29)
+
+Each recomputed leaf gets a **mark** in the book.
+
+When a run stops before its end (Edax closed, the PC stopped, …), continue it as follows:
+
+1. Load the intermediate file (`.leaf`, …) or the book saved at the exit with `book load`.
+2. Run **the same command again**. The marked leaves are not searched again; only the others are. The number of marked leaves is shown first:
+
+```
+Book leaf recalculate4: 1234 leaves already searched again by a run that did not end: they are not searched again
+```
+
+- **When the command ends, all the marks are removed.** A finished book has no mark.
+- Within a run too, a leaf recomputed in a pass is not recomputed in the later passes.
+  - This applies when `book-leaf-recalculate-rounds` is 2 or more.
+  - With one-thread searches, the leaf would get the same value again.
+- `leaf recalculate`, `2`, `3` and `4` use the same mark. After a run has stopped, continue with the same command and the same X and Y.
+- The marks are the two upper bits of the level byte of each position in the book file (the level is 0 to 60). The file size does not change.
+- **A book with marks cannot be read by the versions up to v4.5.5-nikque.28** (they treat it as damaged).
+  - To use such a book with an older version or another tool, first let the command end with the new version.
+- Up to v4.5.5-nikque.28 there was no mark. Running the command again started over from the beginning.
 
 ### One pass may not be enough: book-leaf-recalculate-rounds
 
@@ -353,14 +364,18 @@ This re-searches the leaf of every position in the exact range (positions whose 
 
 - The number of corrections is shown as `error found`.
 - The progress is saved to `.err`.
-- **A book saved partway can be continued** (since v4.5.5-nikque.29). Each position checked gets a mark. When a run stops before its end, load `.err` or the book saved at the exit with `book load`, and type `book correct` again: the marked positions are skipped, and only the others are searched. It first shows:
+- **A book saved partway can be continued** (since v4.5.5-nikque.29).
+  - Each position checked gets a mark.
+  - When a run stops before its end, load `.err` or the book saved at the exit with `book load`. Then type `book correct` again.
+  - The marked positions are skipped, and only the others are searched. It first shows:
 
 ```
 Correcting solved positions: 50000 already done by a run that did not end, 150000 left
 ```
 
-- **When every position has been checked, all the marks are removed.** The marks, and the older versions that cannot read a book with marks, are as in "Continuing a run that did not end" in 8.6.
-- Up to v4.5.5-nikque.28 there was no mark: a new run searched every solved position again from the beginning. On a large book that takes days, so a run that stopped lost all its work.
+- **When every position has been checked, all the marks are removed.**
+- How the marks work, and which older versions cannot read a book with marks, are as in "Continuing a run that did not end" in 8.6.
+- Up to v4.5.5-nikque.28 there was no mark. A new run searched every solved position again from the beginning. On a large book this takes days, so a run that stopped lost all its work.
 
 On a correctly built book, this command should report `0 error found`. Use it when you suspect that bugs in an old version, or results of interrupted searches, went into the book.
 
@@ -368,16 +383,21 @@ On a correctly built book, this command should report `0 error found`. Use it wh
 
 ### book deepen: searching the positions of a lower level again with the level of the book
 
-The positions whose level searches less deep than the level of the book get the level of the book, and their leaves are searched again with it (since v4.5.5-nikque.29).
+It applies to the positions whose level searches less deep than the level of the book. Each of them gets the level of the book, and its leaf is searched again at that level (since v4.5.5-nikque.29).
 
-- "Less deep": at the number of empty squares of the position, a smaller depth, or the same depth with more pruning (a lower selectivity).
+- "Less deep" means one of these, at the number of empty squares of the position:
+  - a smaller depth;
+  - the same depth with more pruning (a lower selectivity).
 - The positions of a deeper level than the book are left as they are.
-- A position searched again keeps the level of the book. When a run stops before its end, load the intermediate file (`.dep`) or the book saved at the exit, and type `book deepen` again: only the positions left are searched (the level itself is the mark).
-- The level of a book is the one given to `book new`, or the highest level of the positions read by `book import`. No command changes it, so the command is for books that hold positions of several levels (books of different levels merged with `book merge`, imported books).
+- A position searched again keeps the level of the book.
+- When a run stops before its end, load the intermediate file (`.dep`) or the book saved at the exit. Then type `book deepen` again: only the positions left are searched (the level itself is the mark).
+- The level of a book is the one given to `book new`, or the highest level of the positions read by `book import`.
+- No command changes the level of a book. So the command is useful only for books that hold positions of several levels (books of different levels merged with `book merge`, imported books).
 
 **Up to v4.5.5-nikque.28, this command did not work.**
 
-- It re-searched the leaves of the positions whose level differed from the book's level, but with the current level of each position, and did not change the level: nothing became deeper, and a new run searched all these positions again.
+- It re-searched the leaves of the positions whose level differed from the book's level. However, it searched at the current level of each position, and did not change the level.
+- Nothing became deeper, and a new run searched all these positions again.
 - This was the code of the original Edax (4.3).
 
 ### book verbose: how much is printed

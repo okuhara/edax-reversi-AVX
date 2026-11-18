@@ -158,17 +158,28 @@ f5f4e3
 
 **Continuing a run that did not end** (since v4.5.5-nikque.29):
 
-- Each time it saves to `.store`, it also writes a small text file `<book file name>.learn`: how many lines of the file of games are learned, a check value of these lines, and the number of positions, the level and the depth of the book then.
-- When a run stops before its end (Edax closed, the PC stopped...), load `.store` or the book saved at the exit with `book load`, and run `book learn` again **with the same file of games**. The lines learned are skipped: only the other lines are played and learned.
+Each time it saves to `.store`, `book learn` also writes a small text file, `<book file name>.learn`. It records:
+
+- how many lines of the file of games have been learned;
+- a check value of these lines;
+- the number of positions, the level and the depth of the book at that time.
+
+When a run stops before its end (Edax closed, the PC stopped, …), continue it as follows:
+
+1. Load `.store`, or the book saved at the exit, with `book load`.
+2. Run `book learn` again **with the same file of games**. The lines already learned are skipped; only the other lines are played and learned.
 
 ```
 Book learn: the first 120 lines of learn.txt (118 games) were learned by a run that did not end: they are skipped
 ```
 
-- **When the whole file is learned, `.learn` is removed.**
-- When the book in use is not the one of `.learn` (another number of positions, level or depth), or when the first lines of the file of games are not the ones learned, a warning is shown and the file is learned from its first line. Lines added at the end of the file of games do not prevent continuing.
+- **When the whole file has been learned, `.learn` is removed.**
+- In these cases, a warning is shown and the file is learned from its first line:
+  - the book in use does not match `.learn` (a different number of positions, level or depth);
+  - the first lines of the file of games are not the ones learned.
+- Lines added at the end of the file of games do not prevent continuing.
 - With the setting `book-store-auto-save = off` (no save to `.store`), no `.learn` is written.
-- Up to v4.5.5-nikque.28 there was no `.learn`: a new run played every line again from the beginning (other games when `book-randomness` is set).
+- Up to v4.5.5-nikque.28 there was no `.learn`. A new run played every line again from the beginning (with `book-randomness`, these were other games).
 
 ### Learning several games in parallel: book-store-tasks
 
@@ -223,7 +234,12 @@ Each command takes two numbers.
 | `book deviate2 X Y` | How many discs one move may lose (either side) | The limit for **the total of discs lost by both sides** from the starting position down to there | **Not expanded** |
 | `book deviate3 X Y` | As `book deviate2` | As `book deviate2` | Expanded |
 
-Without the numbers, all three use `2 4`. A word other than `export` (the export below) after the numbers is an error, `ERROR: book deviate2: unknown word … after the numbers`, and the book is not expanded (up to v4.5.5-nikque.26, a typo such as `exprot` was skipped and the book expanded).
+Without the numbers, all three use `2 4`.
+
+A word other than `export` (the export below) after the numbers is an error.
+
+- Edax prints `ERROR: book deviate2: unknown word … after the numbers` and does not expand the book.
+- Up to v4.5.5-nikque.26, a typo such as `exprot` was skipped and the book was expanded.
 
 **book deviate X Y** (the method of the original Edax): each round selects and expands leaves twice.
 
@@ -256,7 +272,7 @@ An example with `book deviate2 5 5`:
 
 ### Writing the lines they walk to a text file, without expanding (export)
 
-With `export <file> [leaf|ends|all]` after the numbers, each of the three commands **expands nothing** and writes the lines it walks from the current position to a text file (from v4.5.5-nikque.26).
+With `export <file> [leaf|ends|all]` after the numbers, each of the three commands **does not expand the book**. Instead, it writes the lines it walks from the current position to a text file (since v4.5.5-nikque.26).
 
 ```
 book deviate2 2 4 export lines.txt ends
@@ -268,17 +284,49 @@ book deviate2 2 4 export lines.txt ends
 | `ends` | the ends of the lines walked (no move within the limits leads further into the book) |
 | `all` | every position of the lines walked (the current position included) |
 
-- One line a position: the moves of the game up to the current position, then the moves from there to the position, as `f5d6c3...` (small letters). Passes are not written.
-- A position reached by several lines (a transposition) is written once, with the line of the fewest moves for `book deviate`, or of the smallest total loss for `book deviate2` and `book deviate3` (the first one found, among equal ones).
-- A position that must pass and the position after the pass have the same line; it is written once.
-- At the start of the game, the line of the start position itself is an empty line (`all`).
-- The ends are the positions where the game is over, those beyond the depth of the book (`book depth`), and those with no move within the limits in the book.
-- For `book deviate`, the lines of its two walks (above), both on the book before any expansion, are written together; `ends` are the positions from which neither walk goes further.
-- The total loss of `book deviate2` and `book deviate3` is at most 254 (as when they expand). A larger number is reduced to 254 with the warning of the commands that expand (`WARNING: total loss 300 reduced to 254`), by `edax_book_deviate_export` of libedax too (up to v4.5.5-nikque.26, libedax alone said `cumulative loss = 300 is out of range. Set to 254`).
-- At the end, `Book deviate2 2 4 export ends...finished: 120 lines written (lines.txt)` is shown. When the current position is not in the book, an empty file is made.
-- The book does not change: nothing is saved, and no progress file is written.
-- A file name that holds spaces is written between double quotes (`book deviate2 2 4 export "C:\My Books\lines.txt" ends`); the quotes are not part of the name.
-- When it cannot write the lines, it prints a line beginning with `ERROR:` and does not expand the book: with no file name (`ERROR: book deviate export: no file`), with a file name too long (`the file name is too long`: 259 characters at most on Windows; up to v4.5.5-nikque.26 the name was cut without a word), with a quote that is not closed (`the quote of the file name is not closed`), with a last word other than `leaf`, `ends` and `all` (`unknown word`), or when the file cannot be written (`ERROR: book deviate2 2 4 export: cannot write the file lines.txt`).
+**The lines written**
+
+- Each line is one position: the moves of the game up to the current position, followed by the moves from there to that position.
+- The moves are written as `f5d6c3...` (lowercase). Passes are not written.
+- A position reached by several lines (a transposition) is written once, with this line:
+  - `book deviate`: the line with the fewest moves;
+  - `book deviate2` and `book deviate3`: the line with the smallest total loss;
+  - in both cases, the first one found among equal lines.
+- A position that must pass and the position after the pass have the same line. Only one line is written for them.
+- When the current position is the initial position, `all` writes the initial position itself as an empty line.
+- The ends are these positions:
+  - the positions where the game is over;
+  - the positions beyond the depth of the book (`book depth`);
+  - the positions with no move within the limits in the book.
+- For `book deviate`, the lines of its two walks (above) are written together. Both walks are made on the book before any expansion.
+- For `book deviate`, `ends` are the positions from which neither walk goes further.
+
+**The range of the numbers**
+
+- The total loss of `book deviate2` and `book deviate3` is at most 254, as when they expand.
+- A larger number is reduced to 254, with the same warning as when they expand (`WARNING: total loss 300 reduced to 254`). `edax_book_deviate_export` of libedax does the same.
+- Up to v4.5.5-nikque.26, libedax alone printed `cumulative loss = 300 is out of range. Set to 254`.
+
+**The end, and file names**
+
+- At the end, `Book deviate2 2 4 export ends...finished: 120 lines written (lines.txt)` is shown.
+- When the current position is not in the book, an empty file is made.
+- The book does not change. So nothing is saved, and no progress file is written.
+- A file name that holds spaces is written between double quotes (`book deviate2 2 4 export "C:\My Books\lines.txt" ends`). The quotes are not part of the name.
+
+**When the lines cannot be written**
+
+Edax prints a line beginning with `ERROR:` and does not expand the book. This happens in these cases:
+
+| Cause | Message |
+|---|---|
+| No file name | `ERROR: book deviate export: no file` |
+| A file name that is too long (259 characters at most on Windows) | `the file name is too long` |
+| A quote that is not closed | `the quote of the file name is not closed` |
+| A last word other than `leaf`, `ends` and `all` | `unknown word` |
+| The file cannot be written | `ERROR: book deviate2 2 4 export: cannot write the file lines.txt` |
+
+Up to v4.5.5-nikque.26, a file name that was too long was silently cut short.
 
 ## 7.4 Automatic expansion: the other commands
 
@@ -399,12 +447,18 @@ The automatic expansion commands run for a long time. **If they stop (power fail
 
 Then type the same command again (`book deviate2 5 5`, for example).
 
-Whether the same command, typed again, searches again what was done:
+When the same command is typed again, whether it searches again the work already done depends on the command:
 
-- `book deviate` and the like, `book enhance`, `book leaf expand`, `book fill`, `book fill2`, `book play`, `book add`: the moves expanded and the positions added are in the book, so what was done is not searched again (only walked again).
-- `book correct` and the `book leaf recalculate` family: each position searched again gets a mark in the book, and only the positions without a mark are searched (since v4.5.5-nikque.29; [8.6](08-book-maintenance.md), [8.7](08-book-maintenance.md)). A book saved with marks cannot be read by v4.5.5-nikque.28 and earlier.
-- `book learn <file>`: `<book file name>.learn` tells the lines learned, and with the same file these lines are skipped (since v4.5.5-nikque.29; book learn in [7.2](07-book-learning.md)).
-- `book deepen`: the positions given the level of the book are not searched again (since v4.5.5-nikque.29; [8.7](08-book-maintenance.md)).
+- `book deviate` and its family, `book enhance`, `book leaf expand`, `book fill`, `book fill2`, `book play`, `book add`: the work already done is not searched again.
+  - The moves expanded and the positions added are in the book.
+  - Only the time to walk the book again is spent.
+- `book correct` and the `book leaf recalculate` family (since v4.5.5-nikque.29; [8.6](08-book-maintenance.md), [8.7](08-book-maintenance.md)):
+  - Each position searched again gets a mark in the book. A new run searches only the positions without a mark.
+  - A book saved with marks cannot be read by v4.5.5-nikque.28 and earlier.
+- `book learn <file>` (since v4.5.5-nikque.29; book learn in [7.2](07-book-learning.md)):
+  - `<book file name>.learn` records how many lines have been learned.
+  - With the same file, these lines are skipped.
+- `book deepen` (since v4.5.5-nikque.29; [8.7](08-book-maintenance.md)): the positions given the level of the book are not searched again.
 - Up to v4.5.5-nikque.28, `book correct`, the `book leaf recalculate` family, `book learn` and `book deepen` started over from the beginning.
 
 ## 7.6 Expanding several leaves in parallel: book-expand-tasks

@@ -160,9 +160,21 @@ Notes:
   - `edax_book_save_checked`: saves the book and reports whether it was saved.
   - `edax_book_failed`: reports whether the last book function failed to add a position.
 - Added in v4.5.5-nikque.12: `edax_book_leaf_recalculate`, `edax_book_leaf_recalculate2`, `3` and `4` (the `book leaf recalculate` commands, named `book leaf-recalculate` up to v4.5.5-nikque.13).
-- `edax_book_keep_unread_file(file)` (added in v4.5.5-nikque.16): before a book saved to another file replaces a book file that could not be read, keeps that file as `<file>.damaged`. It returns 1 if the file may be replaced, 0 if it must not.
-- Added in v4.5.5-nikque.27: `edax_book_file_status(file)`, what became of a book file that was to be loaded. 0: it may be replaced (it was loaded, or no load of it failed); 1: it could not be read as a book (damaged: it is kept as `.damaged` before a save); 2: it could not be opened (another program had it open without sharing, …, even after waiting about 2 seconds: no save replaces it, and `edax_book_keep_unread_file` returns 0). Called after the initialization, it lets a program notice a book file that could not be opened, and stop instead of learning into an empty book. Before the initialization it returns −1.
-- Added in v4.5.5-nikque.26: `edax_book_deviate_export(base, x, y, file, which)`, the `export` of `book deviate` (`base` 1), `book deviate2` (2) and `book deviate3` (3) ([7.3](07-book-learning.md)). It writes the lines that the command walks from the current position to the file `file`, without expanding the book. `which` is 0 for `leaf`, 1 for `ends` and 2 for `all`. It returns the number of lines written (0, with an empty file, when the current position is not in the book), or −1 when an argument is wrong, the file cannot be written or there is not enough memory. `x` and `y` have the ranges of the commands (`y` up to 254 for `book deviate2` and `book deviate3`; a larger `y` is reduced to 254 with the warning of the commands).
+- `edax_book_keep_unread_file(file)` (added in v4.5.5-nikque.16): before a book saved to another file replaces a book file that could not be read, keeps that file as `<file>.damaged`.
+  - It returns 1 if the file may be replaced, 0 if it must not.
+- Added in v4.5.5-nikque.27: `edax_book_file_status(file)`. It returns what became of a book file that was to be loaded.
+  - 0: it may be replaced (it was loaded, or no load of it failed).
+  - 1: it could not be read as a book (damaged). It is kept as `.damaged` before a save.
+  - 2: it could not be opened (another program had it open without sharing, …), even after waiting about 2 seconds. No save replaces it, and `edax_book_keep_unread_file` returns 0.
+  - Before the initialization, it returns −1.
+  - Called after the initialization, it lets a program notice a book file that could not be opened, and stop instead of learning into an empty book.
+- Added in v4.5.5-nikque.26: `edax_book_deviate_export(base, x, y, file, which)`, the `export` of `book deviate`, `book deviate2` and `book deviate3` ([7.3](07-book-learning.md)).
+  - It writes the lines that the command walks from the current position to the file `file`, without expanding the book.
+  - `base` is 1 for `book deviate`, 2 for `book deviate2` and 3 for `book deviate3`.
+  - `which` is 0 for `leaf`, 1 for `ends` and 2 for `all`.
+  - `x` and `y` have the ranges of the commands. For `book deviate2` and `book deviate3`, `y` is at most 254; a larger `y` is reduced to 254 with the warning of the commands.
+  - It returns the number of lines written. When the current position is not in the book, it returns 0 and makes an empty file.
+  - It returns −1 when an argument is wrong, the file cannot be written or there is not enough memory.
 
 **Differences from the original libedax (Edax 4.4)**
 
@@ -196,7 +208,16 @@ The library and the edax program (for the same CPU) search the same number of no
 **Tests**
 
 - `tests/libedax_test.c` calls every function.
-  - Number of checks: 147; 191 in v4.5.5-nikque.9, 193 in v4.5.5-nikque.10, 197 in v4.5.5-nikque.12, 198 in v4.5.5-nikque.13, 218 in v4.5.5-nikque.26 (14 of them for the export), 279 in v4.5.5-nikque.27 (61 more: 9 for an export after the book changes, 8 for a book that cannot be opened in a folder of non-ASCII name, 21 for the marks of the files that could not be loaded, names written another way and `edax_book_file_status`, 17 for a book held by another program at the start, 4 for the depth of `edax_book_new`, 2 for the stop of `edax_hint`; 28 of them on Windows only).
+  - Number of checks: 147.
+    - 191 in v4.5.5-nikque.9, 193 in v4.5.5-nikque.10, 197 in v4.5.5-nikque.12, 198 in v4.5.5-nikque.13.
+    - 218 in v4.5.5-nikque.26 (14 of them for the export).
+    - 279 in v4.5.5-nikque.27. These 61 checks were added (28 of them on Windows only):
+      - an export after the book changes: 9;
+      - a book that cannot be opened, in a folder with a non-ASCII name: 8;
+      - the marks of the files that could not be loaded, names written another way, and `edax_book_file_status`: 21;
+      - a book held by another program at the start: 17;
+      - the depth of `edax_book_new`: 4;
+      - the stop of `edax_hint`: 2.
   - The 3 Windows and the 3 Linux libraries pass.
   - The original libedax gives the same results on the checks it supports.
 - 28 of the 29 tests of libedax4dart 7.67.0 pass. The remaining one compares a search score. The score differs because of the default level and the state left by previous searches; a fresh search at the same level gives the same score as the original libedax.
@@ -269,8 +290,9 @@ These commands let a GUI program delegate to Edax the counts that require traver
 | 3 to 7 | `book deviate 1 1` to `book deviate 5 5` from the position after the move would add nothing |
 
 - The reference command can be changed to `base=deviate2` or `base=deviate3`, and the ranges with `stages=1/1,2/2,3/3,4/4,5/5`.
-- The stages found are kept until the book changes. For the position after a move, what the kept stages of the current position and of the next positions already tell is not walked again (from v4.5.5-nikque.23; the answers are the same).
-- `book missing` answers 0 lines without walking when the kept precision stages already tell that the range asked (`x=`, `y=`) finds nothing from that position (from v4.5.5-nikque.24; the answers are the same).
+- The stages found are kept until the book changes.
+- For the position after a move, what the kept stages already tell is not walked again. The kept stages used are those of the current position and of the next positions (since v4.5.5-nikque.23; the answers are the same).
+- `book missing` answers 0 lines without walking when the kept precision stages already tell that the range asked (`x=`, `y=`) finds nothing from that position (since v4.5.5-nikque.24; the answers are the same).
 
 **Umigame numbers** (`umi=black:white`)
 
@@ -282,10 +304,14 @@ These commands let a GUI program delegate to Edax the counts that require traver
   - `umi=loss x=… y=…`: loss per move, and total loss.
   - `umi=range lo=… hi=…`: a range of values.
 - With a wide range, a number that may not be the smallest is marked `exact=0`.
-  - A number marked `exact=0` is the same whatever the build (Windows, Linux, …) (from v4.5.5-nikque.25).
-- The umigame numbers found are kept until the book changes. When the position after a move is counted, the values of the positions 1 and 2 moves further are kept too, and they are not counted again when those positions become the current position (from v4.5.5-nikque.24).
-  - Kept: every position with `umi=best`; the positions reached with a loss of 0 with `umi=loss`; with `umi=range`, the positions with the same side to move as the position after the move (all of them when `lo=-hi`). No value is kept from a count marked `exact=0`.
-  - The answers are the same, except that a move marked `exact=0` when counted from its position alone may get the exact value kept from the position before (not marked, smaller or equal).
+  - A number marked `exact=0` is the same on every build (Windows, Linux, …) (since v4.5.5-nikque.25).
+- The umigame numbers found are kept until the book changes (since v4.5.5-nikque.24).
+  - When the position after a move is counted, the values of the positions 1 and 2 moves further are kept too. They are not counted again when those positions become the current position.
+  - These positions are kept. No value is kept from a count marked `exact=0`.
+    - `umi=best`: every position;
+    - `umi=loss`: the positions reached with a loss of 0;
+    - `umi=range`: the positions with the same side to move as the position after the move (all of them when `lo=-hi`).
+  - The answers are the same, with one exception. A move marked `exact=0` when counted from its position alone may get the exact value kept from the position before. That value is not marked, and is smaller than or equal to the value marked `exact=0`.
 
 Example (a test book):
 
@@ -306,7 +332,10 @@ Example (a test book):
 - It first answers the moves out of the book, then the precision stages, the umigame numbers (`part=umi`) and the numbers of positions (`part=count`).
 - Near the start of a large book, the numbers of positions take time. A part can be requested alone, as in `parts=stage,umi`.
 - `lines=` is the number of unterminated lines recorded in the book (counted at once; a transposition is counted once for each line).
-- The numbers of positions (`part=count`) and the counts of `book levels` (except `scope=all`) are kept for each position until the book changes. `book levels` at a position already counted, or the same move counted again, does not walk the book again (from v4.5.5-nikque.24; the answers are the same).
+- The numbers of positions (`part=count`) and the counts of `book levels` (except `scope=all`) are kept for each position until the book changes (since v4.5.5-nikque.24).
+  - In these cases, the book is not walked again, and the answers are the same:
+    - `book levels` at a position already counted, when it has become the current position;
+    - the same move counted again.
 
 **`book bestlines`**
 
@@ -339,19 +368,25 @@ Example (a test book):
 - When the current position is not in the book, the answer has `notinbook=1`. When it is two or more moves beyond the book depth, it has `deep=1`. In both cases `kept=` is the whole book and `removed=0` (`book reduce` does not change the book).
 - When the book after the current position is damaged (a link to an occupied square, or a link back to the same position; since v4.5.5-nikque.21), it does not count. It answers `@error id=N damaged=1` and `@end id=N error=1`.
 - A GUI program can show these numbers and ask for confirmation before it sends `book reduce`.
-- The result of the count is used by the `book reduce` after it ([8.4](08-book-maintenance.md)). When another analysis needs the memory of its marks, it is forgotten, and `book reduce` recomputes (with the same result).
+- The result of the count is used by the `book reduce` after it ([8.4](08-book-maintenance.md)).
+- When another analysis needs memory for its marks, the result is discarded. `book reduce` then recomputes (with the same result).
 
 **Errors, stopping and syntax**
 
 - An unknown word gets `@error id=N word=…` and `@end id=N error=1`. A stopped analysis gets `@cancel id=N`.
-- When there is not enough memory, the answer is `@error id=N memory=1` and `@end id=N error=1`; the `@move` lines before it are only a part of the analysis (up to v4.5.5-nikque.26, `book moveinfo` alone left out the lines of the moves it could not analyse and gave an `@end` without error).
+- When there is not enough memory, the answer is `@error id=N memory=1` and `@end id=N error=1`.
+  - The `@move` lines before it are only a part of the analysis.
+  - Up to v4.5.5-nikque.26, `book moveinfo` alone behaved differently. It left out the lines of the moves it could not analyse, and gave an `@end` without error.
 - If `id=` is not an int, the answer is `@error word=id` alone, and nothing is analysed or stopped.
 - The words of a command are split at spaces. A value between `"…"` is one value, spaces included (an `id=` inside it is not the number).
 - The names (`id=`, …) are case-insensitive.
 - A `stop id=N` that arrives after analysis N has ended, or before it has started, gets `@cancel id=N state=none`.
   - An analysis that has ended has already answered `@end id=N`.
   - One that has not started yet still runs to the end and answers `@end id=N`.
-  - From v4.5.5-nikque.26, this answer ends with `export=1` (`@cancel id=N state=none export=1`): the engine has the `export` of `book deviate`, `deviate2` and `deviate3` ([7.3](07-book-learning.md)). An earlier version does not read that word and expands the book, so a user interface should look for this mark in the answer to a `stop id=N` sent at the start before sending one.
+  - Since v4.5.5-nikque.26, this answer ends with `export=1` (`@cancel id=N state=none export=1`).
+    - `export=1` means that the engine has the `export` of `book deviate`, `deviate2` and `deviate3` ([7.3](07-book-learning.md)).
+    - An earlier version does not read that word, and expands the book.
+    - So a GUI program should send a `stop id=N` at the start, and check for `export=1` in the answer before it sends an `export`.
 
 **What was checked for this manual**
 

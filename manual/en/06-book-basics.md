@@ -187,12 +187,12 @@ At startup, Edax reads the file given by the `book-file` setting (`data/book.dat
 - **If the file exists but cannot be read** (it is damaged, cut short, and so on), Edax also starts with a new book.
   - In this case, nothing is saved on exit unless the book was changed.
   - **The unreadable file is not overwritten.** If something later has to be saved under that name, the original file is first renamed to `book.dat.damaged` (`.damaged.1`, … if that name is taken) and kept.
-- **If the file exists but cannot be opened** (another program has it open without sharing, there is no permission to read it, and so on), Edax waits about 2 seconds and tries again. If it still cannot be opened, Edax starts with a new book, but the file is not taken for a damaged one.
+- **If the file exists but cannot be opened** (another program has it open without sharing, there is no permission to read it, and so on), Edax waits about 2 seconds and tries again. If it still cannot be opened, Edax starts with a new book. However, the file is not treated as damaged.
   - The screen shows `Cannot open opening book data/book.dat; it is not loaded, and no save replaces it`.
   - **This book is never saved to that file** (neither on exit nor by `book save`), and no `.damaged` file is made. The original file is left as it is.
-  - Once the other program has closed it, `book load data/book.dat` loads it as usual. Restarting Edax works too.
-  - To keep what was learned meanwhile, save it under another name, such as `book save data/other.dat`.
-  - Up to v4.5.5-nikque.26, a file that could not be opened was taken for a damaged one: a later save moved it to `.damaged` and replaced it with the new book.
+  - Once the other program has closed the file, `book load data/book.dat` loads it as usual. Restarting Edax works too.
+  - To keep the book grown meanwhile, save it under another name, such as `book save data/other.dat`.
+  - Up to v4.5.5-nikque.26, a file that could not be opened was treated as damaged. A later save renamed it to `.damaged` and replaced it with the new book.
 
 To switch to another book, do one of these:
 
@@ -245,7 +245,7 @@ The commands that grow or maintain the book save their progress and their result
 | Extension | Written by |
 |---|---|
 | `.store` | `book store`, `book learn` (not written with the setting `book-store-auto-save = off`) |
-| `.learn` | `book learn` (the lines learned: a small text file, removed when the whole file is learned) |
+| `.learn` | `book learn` (a small text file that records the lines learned; removed when the whole file has been learned) |
 | `.gam` | `book add` |
 | `.dev`, `.dev2`, `.dev3` | `book deviate`, `book deviate2`, `book deviate3` |
 | `.enh` | `book enhance` |

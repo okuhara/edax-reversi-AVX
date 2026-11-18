@@ -14,21 +14,21 @@
 | `Cannot open data/eval.dat` と出て終わる | 評価データが見つからない。Edax は、今いるフォルダーの `data/eval.dat` を探す | `bin` フォルダーの中から起動する。または `-eval-file フォルダー/eval.dat` で場所を教える |
 | 何も出ずに、すぐ終わる（`v3`・`v4` の実行ファイル） | CPU が、その命令セット（AVX2・AVX-512）に対応していない可能性 | 名前に `v3`・`v4` の付かない実行ファイルを使う（この場合の表示は、確かめていません） |
 | `WARNING: config.ini was not found in the current folder (Edax was started without its folder name): default settings are used` | 実行ファイルをフォルダー名なしで起動したので、`config.ini` の場所が分からなかった | フォルダーを付けて起動する（`.\wEdax-x86-64.exe`）。または、今いるフォルダーに `config.ini` を置く |
-| `WARNING: the name of the folder of Edax is too long: its config.ini is not read, default settings are used` | 実行ファイルのフォルダーの名前が長すぎて、`config.ini` の場所を組み立てられない | 名前の短いフォルダーに置く（[4.1](04-settings.md)） |
+| `WARNING: the name of the folder of Edax is too long: its config.ini is not read, default settings are used` | 実行ファイルのフォルダーの名前が長すぎて、`config.ini` のパスを作れない | 名前の短いフォルダーに置く（[4.1](04-settings.md)） |
 | `WARNING: config.ini:7: unknown or incomplete setting "levle" ignored` | `config.ini` の 7 行目の名前が間違っている | その行を直す（[4.2](04-settings.md)） |
 | `WARNING: level: "abc" is not a number; ignored` | 数を書くところに、数でないものが書いてある | 値を直す |
 | `WARNING: n-tasks = 99 is out of range. Set to 32` のような表示 | 値が範囲の外。範囲の端の値に直された | そのままでも動く。気になるなら値を直す |
 | `New book 18 21...` | `book-file` のファイルがないので、新しい book を作った | 初めての起動なら正常。book があるはずなら、`book-file` の名前と、起動したフォルダーを確かめる |
-| `data/book.dat could not be loaded: it is kept as data/book.dat.damaged` | book のファイルが読めなかった（壊れている、途中で切れている）。後で保存するときに、元のファイルを別の名前で残した | `.damaged` のファイルが、元の book。本当に壊れているなら、写しや途中経過のファイル（`.dev2` など）から戻す。v4.5.5-nikque.26 までの版では、ほかのプログラムが開いていただけのときも、こうなる。そのときは名前を戻せば読める |
-| `Cannot open opening book data/book.dat; it is not loaded, and no save replaces it (it may be used by another program)` | book のファイルを開けなかった（ほかのプログラムが共有なしで開いている、読む権限がない、など）。2 秒ほど待っても開けなかった。新しい book で始めたが、このファイルには保存しない（`.damaged` も作らない） | ほかのプログラムが閉じてから `book load data/book.dat` で読むか、起動し直す（[6.6](06-book-basics.md)） |
-| `Cannot save book to data/book.dat: the file could not be opened when the book was loaded …` | 上の場合に、そのファイルへ保存しようとした（`book save`、終了のとき）。元のファイルは、そのまま | 育てた book を残すなら、`book save data/other.dat` のように別の名前で保存する |
+| `data/book.dat could not be loaded: it is kept as data/book.dat.damaged` | book のファイルが読めなかった（壊れている、途中で切れている）。後で保存するときに、元のファイルを別の名前で残した | `.damaged` のファイルが、元の book。本当に壊れているなら、コピーや途中経過のファイル（`.dev2` など）から戻す。v4.5.5-nikque.26 までの版では、ほかのプログラムが開いていただけのときも、こうなる。そのときは、名前を戻せば読める |
+| `Cannot open opening book data/book.dat; it is not loaded, and no save replaces it (it may be used by another program)` | book のファイルを開けなかった（ほかのプログラムが共有なしで開いている、読む権限がない、など）。2 秒ほど待っても開けなかった。新しい book で始めたが、このファイルには保存しない（`.damaged` も作らない） | ほかのプログラムがファイルを閉じてから、`book load data/book.dat` で読む。または、Edax を起動し直す（[6.6](06-book-basics.md)） |
+| `Cannot save book to data/book.dat: the file could not be opened when the book was loaded …` | 上の場合に、そのファイルへ保存しようとした（`book save`、終了のとき）。元のファイルは、そのまま | 育てた book を残すなら、`book save data/other.dat` のように、別の名前で保存する |
 
 ## 13.2 対局のとき
 
 | 表示・起きたこと | 意味 | 対処 |
 |---|---|---|
 | `WARNING: Unknown command/Illegal move: "e3 "` | 打てないマスか、知らないコマンド | 打てるマスは、左の盤の `.`。コマンドの綴りは [14 章](14-reference.md) |
-| `WARNING: Unknown command/Illegal move: "leaf expand 30 30" (book command: type "book leaf expand 30 30" or "b leaf expand 30 30")` | book のコマンドを `book` なしで打った | 案内のとおり、`book`（または `b`）の後に書く（v4.5.5-nikque.23 から案内が出ます） |
+| `WARNING: Unknown command/Illegal move: "leaf expand 30 30" (book command: type "book leaf expand 30 30" or "b leaf expand 30 30")` | book のコマンドを、`book` を付けずに入力した | 案内のとおり、`book`（または `b`）の後に書く。この案内は、v4.5.5-nikque.23 から出る |
 | 手を打っても Edax が打ってこない | `mode 3` になっている（起動した直後、`stop` の後） | `mode 0`（自分が黒）か `mode 1`（自分が白）。1 手だけなら `go` |
 | 打てるマスがなくて進まない | パスの番 | `ps` |
 | Edax が考え続けて戻ってこない | level が高い、または持ち時間が長い | `stop`。その後 `level` を下げて `mode 0`／`mode 1` |

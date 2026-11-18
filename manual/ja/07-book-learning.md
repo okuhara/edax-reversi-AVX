@@ -174,17 +174,28 @@ f5f4e3
 
 **途中から続ける**（v4.5.5-nikque.29 から）：
 
-- `.store` に保存するたびに、`<book のファイル名>.learn` という小さなテキストファイルも書きます。中身は、棋譜のファイルの何行目まで学習したか、その行の中身の確かめの値、そのときの book の局面の数・level・深さです。
-- 途中で止まったとき（Edax を閉じた、PC が止まった など）は、`.store` か終了のときに保存された book を `book load` で読み、**同じ棋譜のファイルで** `book learn` をもう一度実行します。学習済みの行を飛ばし、残りの行だけを打って学習します。
+`.store` に保存するたびに、`<book のファイル名>.learn` という小さなテキストファイルも書きます。中身は次のとおりです。
+
+- 棋譜のファイルの何行目まで学習したか
+- 学習した行の中身の確認用の値
+- そのときの book の局面の数・level・深さ
+
+途中で止まったとき（Edax を閉じた、PC が止まった など）は、次のように続けます。
+
+1. `.store` か、終了のときに保存された book を、`book load` で読みます。
+2. **同じ棋譜のファイルで**、`book learn` をもう一度実行します。学習済みの行は飛ばして、残りの行だけを打って学習します。
 
 ```
 Book learn: the first 120 lines of learn.txt (118 games) were learned by a run that did not end: they are skipped
 ```
 
 - **ファイルの最後まで学習すると、`.learn` は消えます。**
-- 今の book が `.learn` の記録と違う（局面の数・level・深さが違う）とき、または棋譜のファイルの最初の行が記録と違うときは、警告を出して、ファイルの初めから学習します。棋譜のファイルの後ろに行を足しても、続きから学習できます。
+- 次のときは、警告を出して、ファイルの初めから学習します。
+  - 今の book が `.learn` の記録と違う（局面の数・level・深さが違う）とき
+  - 棋譜のファイルの最初の行が、記録と違うとき
+- 棋譜のファイルの後ろに行を足したときは、続きから学習できます。
 - 設定 `book-store-auto-save = off`（`.store` を保存しない）では、`.learn` も書きません。
-- v4.5.5-nikque.28 までの版には `.learn` がなく、もう一度実行すると、全部の行を初めから打ち直していました（`book-randomness` があると、前とは別の対局になります）。
+- v4.5.5-nikque.28 までの版には、`.learn` がありませんでした。もう一度実行すると、全部の行を初めから打ち直していました（`book-randomness` があると、前とは別の対局になります）。
 
 ### 棋譜の学習を同時に行う：book-store-tasks
 
@@ -246,7 +257,12 @@ Book learn: the first 120 lines of learn.txt (118 games) were learned by a run t
 | `book deviate2 X Y` | 1 手で失ってよい石数（どちらの側も） | 始めた局面からそこまでに、**両方の側が失った石数の合計**の上限 | **広げない** |
 | `book deviate3 X Y` | `book deviate2` と同じ | `book deviate2` と同じ | 広げる |
 
-数を省くと、どれも `2 4` です。数の後ろに `export`（下の書き出し）のほかの語があると、`ERROR: book deviate2: unknown word … after the numbers` と出て、book を広げません（v4.5.5-nikque.26 までは、`exprot` のような打ち間違いを読み飛ばして広げていました）。
+数を省くと、どれも `2 4` です。
+
+数の後ろに `export`（下の書き出し）以外の語があると、エラーになります。
+
+- `ERROR: book deviate2: unknown word … after the numbers` と出て、book を広げません。
+- v4.5.5-nikque.26 までは、`exprot` のような打ち間違いを読み飛ばして、book を広げていました。
 
 **book deviate X Y**（元の Edax からある方法）：1 周の中で、選択と展開を 2 回行います。
 
@@ -289,7 +305,7 @@ Book learn: the first 120 lines of learn.txt (118 games) were learned by a run t
 
 ### 広げずに、たどる手順をテキストに書き出す（export）
 
-3 つのコマンドの後ろに `export <ファイル> [leaf|ends|all]` を付けると、**book を広げずに**、そのコマンドが今の局面からたどる手順を、テキストファイルに書き出します（v4.5.5-nikque.26 から）。
+3 つのコマンドの数の後ろに `export <ファイル> [leaf|ends|all]` を付けると、**book を広げません**。代わりに、そのコマンドが今の局面からたどる手順を、テキストファイルに書き出します（v4.5.5-nikque.26 から）。
 
 ```
 book deviate2 2 4 export lines.txt ends
@@ -301,17 +317,49 @@ book deviate2 2 4 export lines.txt ends
 | `ends` | たどる手順の端の局面（そこから先へ、条件に合う手が book にない局面） |
 | `all` | たどる手順に出てくる局面すべて（今の局面も含む） |
 
-- 1 行に 1 局面です。行は、初手から今の局面までの手順に、そこからその局面までの手順を続けたもので、`f5d6c3…` の形（小文字）です。パスは書きません。
-- 違う手順で着く同じ局面（合流）は、1 回だけ書きます。手順は、`book deviate` では手数がいちばん少ないもの、`book deviate2`・`book deviate3` では失った石数の合計がいちばん少ないものです（同じときは、先に見つかったもの）。
+**書き出す行**
+
+- 1 行に 1 局面を書きます。行は、初手から今の局面までの手順に、今の局面からその局面までの手順を続けたものです。
+- 手順は `f5d6c3…` の形（小文字）で書きます。パスは書きません。
+- 違う手順で着く同じ局面（合流）は、1 回だけ書きます。そのときの手順は次のとおりです。
+  - `book deviate`：手数がいちばん少ない手順
+  - `book deviate2`・`book deviate3`：失った石数の合計がいちばん少ない手順
+  - どちらでも、同じものがいくつかあるときは、先に見つかった手順
 - パスしかない局面と、そのパスの後の局面は、同じ手順の行になります。このときは 1 行だけ書きます。
-- 今の局面が初期局面のとき、`all` の初期局面そのものの行は、空の行です。
-- 端になるのは、終局の局面、book の深さ（`book depth`）より先の局面、条件に合う手が book にない局面です。
-- `book deviate` は、2 回のたどり（上の説明）を、どちらも広げる前の book でたどった分を合わせて書きます。`ends` は、どちらのたどりも先へ進まない局面です。
-- `book deviate2`・`book deviate3` の合計の上限は 254 までです（広げるときと同じ）。254 を超える数は、広げるときと同じ警告（`WARNING: total loss 300 reduced to 254`）を出して 254 にします。libedax の `edax_book_deviate_export` も同じです（v4.5.5-nikque.26 までは、libedax だけ `cumulative loss = 300 is out of range. Set to 254` と出していました）。
-- 終わると `Book deviate2 2 4 export ends...finished: 120 lines written (lines.txt)` と出ます。今の局面が book にないときは、空のファイルを作ります。
-- book は変わらないので、保存も途中経過のファイルもありません。
+- 今の局面が初期局面のとき、`all` では、初期局面そのものの行は空の行です。
+- 端になるのは、次の局面です。
+  - 終局の局面
+  - book の深さ（`book depth`）より先の局面
+  - 条件に合う手が book にない局面
+- `book deviate` は、2 回のたどり（上の説明）の分を合わせて書きます。どちらのたどりも、広げる前の book でたどります。
+- `book deviate` の `ends` は、どちらのたどりも先へ進まない局面です。
+
+**数の範囲**
+
+- `book deviate2`・`book deviate3` の合計の上限は、254 までです。広げるときと同じです。
+- 254 を超える数は、254 にします。このとき、広げるときと同じ警告（`WARNING: total loss 300 reduced to 254`）を出します。libedax の `edax_book_deviate_export` も同じです。
+- v4.5.5-nikque.26 までは、libedax だけ `cumulative loss = 300 is out of range. Set to 254` と出していました。
+
+**終わったとき・ファイル名**
+
+- 終わると、`Book deviate2 2 4 export ends...finished: 120 lines written (lines.txt)` と出ます。
+- 今の局面が book にないときは、空のファイルを作ります。
+- book は変わりません。そのため、保存も途中経過のファイルもありません。
 - 空白を含むファイル名は、`"…"` で囲みます（例：`book deviate2 2 4 export "C:\My Books\lines.txt" ends`）。引用符は名前に入りません。
-- 書き出せないときは `ERROR:` で始まる行が出て、book は広げません。ファイル名がないとき（`ERROR: book deviate export: no file`）、ファイル名が長すぎるとき（`the file name is too long`。Windows では 259 字まで。v4.5.5-nikque.26 までは黙って切っていました）、引用符が閉じていないとき（`the quote of the file name is not closed`）、最後の語が `leaf`・`ends`・`all` のどれでもないとき（`unknown word`）、ファイルに書けないとき（`ERROR: book deviate2 2 4 export: cannot write the file lines.txt`）です。
+
+**書き出せないとき**
+
+`ERROR:` で始まる行が出て、book は広げません。次のときです。
+
+| 原因 | 表示 |
+|---|---|
+| ファイル名がない | `ERROR: book deviate export: no file` |
+| ファイル名が長すぎる（Windows では 259 字まで） | `the file name is too long` |
+| 引用符が閉じていない | `the quote of the file name is not closed` |
+| 最後の語が `leaf`・`ends`・`all` のどれでもない | `unknown word` |
+| ファイルに書けない | `ERROR: book deviate2 2 4 export: cannot write the file lines.txt` |
+
+v4.5.5-nikque.26 までは、長すぎるファイル名を、何も表示せずに切っていました。
 
 ## 7.4 自動で広げる：そのほかのコマンド
 
@@ -442,13 +490,19 @@ Book play...1/153 done: 1 positions, 1 links
 
 そのうえで、同じコマンド（`book deviate2 5 5` など）をもう一度実行します。
 
-同じコマンドで続けたとき、済んだ所をもう一度探索するかどうか：
+同じコマンドで続けたときに、済んだ所をもう一度探索するかどうかは、コマンドによって違います。
 
-- `book deviate` 系・`book enhance`・`book leaf expand`・`book fill`・`book fill2`・`book play`・`book add`：広げた手や足した局面は book に残っているので、済んだ所は探索し直しません（たどり直す手間だけかかります）。
-- `book correct`・`book leaf recalculate` 系：探索し直した局面に book の中で印が付き、印のない局面だけを探索します（v4.5.5-nikque.29 から。[8.6](08-book-maintenance.md)・[8.7](08-book-maintenance.md)）。印の付いた途中の book は、v4.5.5-nikque.28 までの版では読めません。
-- `book learn <ファイル>`：`<book のファイル名>.learn` に学習した行の数が書かれ、同じファイルなら学習済みの行を飛ばします（v4.5.5-nikque.29 から。[7.2](07-book-learning.md) の book learn）。
-- `book deepen`：book の level にした局面は探索し直しません（v4.5.5-nikque.29 から。[8.7](08-book-maintenance.md)）。
-- v4.5.5-nikque.28 までの版では、`book correct`・`book leaf recalculate` 系・`book learn`・`book deepen` は、続けても最初から全部をやり直していました。
+- `book deviate` 系列・`book enhance`・`book leaf expand`・`book fill`・`book fill2`・`book play`・`book add`：済んだ所は探索し直しません。
+  - 広げた手や足した局面が、book に残っているからです。
+  - たどり直す手間だけかかります。
+- `book correct`・`book leaf recalculate` 系列（v4.5.5-nikque.29 から。[8.6](08-book-maintenance.md)・[8.7](08-book-maintenance.md)）：
+  - 探索し直した局面には、book の中でマークが付きます。続けたときは、マークのない局面だけを探索します。
+  - マークの付いた途中の book は、v4.5.5-nikque.28 までの版では読めません。
+- `book learn <ファイル>`（v4.5.5-nikque.29 から。[7.2](07-book-learning.md) の book learn）：
+  - 学習した行の数が、`<book のファイル名>.learn` に書かれます。
+  - 同じファイルで続ければ、学習済みの行を飛ばします。
+- `book deepen`（v4.5.5-nikque.29 から。[8.7](08-book-maintenance.md)）：book の level にした局面は、探索し直しません。
+- v4.5.5-nikque.28 までの版では、`book correct`・`book leaf recalculate` 系列・`book learn`・`book deepen` は、続けても最初から全部をやり直していました。
 
 ## 7.6 同時に広げる：book-expand-tasks
 
