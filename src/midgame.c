@@ -613,7 +613,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	// stability cutoff
-	if (search_SC_NWS(search, alpha, &score)) return score;
+	if (!parent->ESC_done && search_SC_NWS(search, alpha, &score)) return score;
 
 	// transposition prefetch
 	hash_code = board_get_hash_code(&search->board);
@@ -624,7 +624,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	search_get_movelist(search, &movelist);
 
 	if (movelist_is_empty(&movelist)) { // no moves ?
-		node_init(&node, search, alpha, alpha + 1, depth, movelist.n_moves, parent);
+		node_init(&node, search, alpha, alpha + 1, depth, movelist.n_moves, false, parent);
 		if (can_move(search->board.opponent, search->board.player)) { // pass ?
 			search_update_pass_midgame(search, &eval0);
 			node.bestscore = -NWS_midgame(search, -node.beta, depth, &node);
@@ -651,9 +651,11 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		}
 
 		// ETC
-		if (search_ETC_NWS(search, &movelist, hash_code, depth, search->selectivity, alpha, &score)) return score;
+		if (USE_ETC && depth > ETC_MIN_DEPTH)
+			if (search_ETC_NWS(search, &movelist, hash_code, depth, search->selectivity, alpha, &score))
+				return score;
 
-		node_init(&node, search, alpha, alpha + 1, depth, movelist.n_moves, parent);
+		node_init(&node, search, alpha, alpha + 1, depth, movelist.n_moves, (USE_ETC && depth > ETC_MIN_DEPTH), parent);
 
 		// loop over all moves
 		board0.bb = search->board;
@@ -757,7 +759,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 
 	// move list & node initialization
 	search_get_movelist(search, &movelist);
-	node_init(&node, search, alpha, beta, depth, movelist.n_moves, parent);
+	node_init(&node, search, alpha, beta, depth, movelist.n_moves, false, parent);
 
 	// special cases
 	if (movelist_is_empty(&movelist)) {

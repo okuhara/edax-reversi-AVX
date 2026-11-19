@@ -1388,58 +1388,56 @@ bool search_TC_NWS(HashData *data, const int depth, const int selectivity, const
  */
 bool search_ETC_NWS(Search *search, MoveList *movelist, unsigned long long hash_code, const int depth, const int selectivity, const int alpha, int *score)
 {
-	if (USE_ETC && depth > ETC_MIN_DEPTH) {
+	Move *move;
+	Board next;
+	V4DI full;
+	HashData etc;
+	HashStoreData hash_data;
+	unsigned long long etc_hash_code;
+	const int etc_depth = depth - 1;
+	const int beta = alpha + 1;
+	bool use_sc = USE_SC && (alpha <= -NWS_STABILITY_THRESHOLD[search->eval.n_empties - 1]);
+	bool cutoff = false;
 
-		Move *move;
-		Board next;
-		V4DI full;
-		HashData etc;
-		HashStoreData hash_data;
-		unsigned long long etc_hash_code;
-		const int etc_depth = depth - 1;
-		const int beta = alpha + 1;
-		bool use_sc = USE_SC && (alpha <= -NWS_STABILITY_THRESHOLD[search->eval.n_empties]);
+	CUTOFF_STATS(++statistics.n_etc_try;)
+	if (use_sc)
+		get_full_lines_on_demand(&search->eval.full_lines, search->board.opponent | search->board.player);
 
-		hash_data.data.wl.c.depth = depth;
-		hash_data.data.wl.c.selectivity = selectivity;
-		hash_data.data.wl.c.cost = 0;
-		hash_data.alpha = alpha;
-		hash_data.beta = beta;
+	foreach_move (move, *movelist) {
+		SEARCH_UPDATE_ALL_NODES(search->n_nodes);
+		next.opponent = search->board.player ^ (move->flipped | x_to_bit(move->x));
+		next.player = search->board.opponent ^ move->flipped;
+		etc_hash_code = board_get_hash_code(&next);
 
-		CUTOFF_STATS(++statistics.n_etc_try;)
-		if (use_sc)
-			get_full_lines_on_demand(&search->eval.full_lines, search->board.opponent | search->board.player);
-
-		foreach_move (move, *movelist) {
-			SEARCH_UPDATE_ALL_NODES(search->n_nodes);
-			next.opponent = search->board.player ^ (move->flipped | x_to_bit(move->x));
-			next.player = search->board.opponent ^ move->flipped;
-			etc_hash_code = board_get_hash_code(&next);
-
-			if (use_sc) {
-				hash_prefetch(&search->hash_table, etc_hash_code);
-				full = search->eval.full_lines;
-				update_full_lines(&full, next.opponent | next.player, move->x);
-				*score = 2 * get_stability(next.opponent, next.player, &full) - SCORE_MAX;
-				if (*score > alpha) {
-					CUTOFF_STATS(++statistics.n_esc_high_cutoff;)
-					hash_data.score = *score;
-					hash_data.data.move[0] = move->x;
-					hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
-					return true;
-				}
+		if (use_sc) {
+			hash_prefetch(&search->hash_table, etc_hash_code);
+			full = search->eval.full_lines;
+			update_full_lines(&full, next.opponent | next.player, move->x);
+			*score = 2 * get_stability(next.opponent, next.player, &full) - SCORE_MAX;
+			if (*score > alpha) {
+				CUTOFF_STATS(++statistics.n_esc_high_cutoff;)
+				cutoff = true;
 			}
+		}
 
-			if (USE_TC && hash_get(&search->hash_table, &next, etc_hash_code, &etc) && etc.wl.c.selectivity >= selectivity && etc.wl.c.depth >= etc_depth) {
-				*score = -etc.upper;
-				if (*score > alpha) {
-					CUTOFF_STATS(++statistics.n_etc_high_cutoff;)
-					hash_data.score = *score;
-					hash_data.data.move[0] = move->x;
-					hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
-					return true;
-				}
+		if (USE_TC && hash_get(&search->hash_table, &next, etc_hash_code, &etc) && etc.wl.c.selectivity >= selectivity && etc.wl.c.depth >= etc_depth) {
+			*score = -etc.upper;
+			if (*score > alpha) {
+				CUTOFF_STATS(++statistics.n_etc_high_cutoff;)
+				cutoff = true;
 			}
+		}
+
+		if (cutoff) {
+			hash_data.data.wl.c.depth = depth;
+			hash_data.data.wl.c.selectivity = selectivity;
+			hash_data.data.wl.c.cost = 0;
+			hash_data.data.move[0] = move->x;
+			hash_data.alpha = alpha;
+			hash_data.beta = beta;
+			hash_data.score = *score;
+			hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
+			return true;
 		}
 	}
 

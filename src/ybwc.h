@@ -50,10 +50,11 @@ typedef struct Node {
 	volatile int bestscore;      /**< bestscore */
 	volatile int alpha;          /**< alpha lower bound */
 	int beta;                    /**< beta upper bound (is constant after initialisation) */
-	volatile int n_slave;	     /**< number of slaves splitted flag */
+	volatile int n_slave;        /**< number of slaves splitted flag */
 	volatile bool stop_point;    /**< stop point flag */
-	volatile bool is_helping;	 /**< waiting flag */
-	volatile bool is_waiting;	 /**< waiting flag */
+	volatile bool is_helping;    /**< waiting flag */
+	volatile bool is_waiting;    /**< waiting flag */
+	bool ESC_done;               /**< enhanced SC is done */
 	int depth;                   /**< depth */
 	struct Search *search;       /**< master search structure */
 	struct Search *slave[SPLIT_MAX_SLAVES]; /**< slave search structure */
@@ -67,7 +68,7 @@ typedef struct Node {
 } Node;
 
 /* node function declaration */
-void node_init(Node*, struct Search*, const int, const int, const int, const int, Node*);
+void node_init(Node*, struct Search*, const int, const int, const int, const int, const bool, Node*);
 void node_free(Node*);
 bool node_split(Node*, struct Move*);
 void node_stop_slaves(Node*);

@@ -55,7 +55,7 @@ extern Log search_log;
  * @param n_moves Move count.
  * @param parent The parent node.
  */
-void node_init(Node* node, Search *search, const int alpha, const int beta, const int depth, const int n_moves, Node* parent)
+void node_init(Node* node, Search *search, const int alpha, const int beta, const int depth, const int n_moves, const bool esc_done, Node* parent)
 {
 	int i;
 
@@ -69,6 +69,7 @@ void node_init(Node* node, Search *search, const int alpha, const int beta, cons
 
 	node->alpha = alpha;
 	node->beta = beta;
+	node->ESC_done = esc_done;
 	node->depth = depth;
 	// node->height = search->height;
 	node->move = NULL;

@@ -348,7 +348,7 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 	SEARCH_STATS(++statistics.n_PVS_root);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
-	node_init(&node, search, alpha, beta, depth, movelist->n_moves, NULL);
+	node_init(&node, search, alpha, beta, depth, movelist->n_moves, false, NULL);
 	search->node_type[0] = PV_NODE;
 	search->time.can_update = false;
 
