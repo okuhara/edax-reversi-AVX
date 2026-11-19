@@ -916,17 +916,27 @@ int get_spreaded_stability(unsigned long long stable, unsigned long long P_centr
 #endif
 
 #ifdef __AVX2__
-// returns stability count only
-int get_stability(const unsigned long long P, const unsigned long long O)
+static inline int vectorcall get_stability_with_full_lines(const unsigned long long P, const unsigned long long O, const __m256i full)
 {
 	unsigned long long stable = get_stable_edge(P, O);	// compute the exact stable edges
 	unsigned long long P_central = P & 0x007e7e7e7e7e7e00;
 
-	__m256i	v4_full = get_full_lines(P | O);	// add full lines
-	__m128i v2_full = _mm_and_si128(_mm256_castsi256_si128(v4_full), _mm256_extracti128_si256(v4_full, 1));
+	__m128i v2_full = _mm_and_si128(_mm256_castsi256_si128(full), _mm256_extracti128_si256(full, 1));
 	stable |= (P_central & _mm_cvtsi128_si64(_mm_and_si128(v2_full, _mm_unpackhi_epi64(v2_full, v2_full))));
 
-	return get_spreaded_stability(stable, P_central, v4_full);	// compute the other stable discs
+	return get_spreaded_stability(stable, P_central, full);	// compute the other stable discs
+}
+
+int get_stability(const unsigned long long P, const unsigned long long O)
+{
+	return get_stability_with_full_lines(P, O, get_full_lines(P | O));
+}
+
+void get_stability_pair(const Board *board, int *player, int *opponent)
+{
+	const __m256i full = get_full_lines(board->player | board->opponent);
+	*player = get_stability_with_full_lines(board->player, board->opponent, full);
+	*opponent = get_stability_with_full_lines(board->opponent, board->player, full);
 }
 
 // returns all full in full[4] in addition to stability count

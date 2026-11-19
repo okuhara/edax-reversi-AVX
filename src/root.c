@@ -837,8 +837,15 @@ void* search_run(void *v)
 	search->height = 0;
 	search->node_type[search->height] = PV_NODE;
 	search->depth_pv_extension = get_pv_extension(0, search->eval.n_empties);
+#ifdef __AVX2__
+	int player_stable, opponent_stable;
+	get_stability_pair(&search->board, &player_stable, &opponent_stable);
+	search->stability_bound.upper = SCORE_MAX - 2 * opponent_stable;
+	search->stability_bound.lower = 2 * player_stable - SCORE_MAX;
+#else
 	search->stability_bound.upper = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player);
 	search->stability_bound.lower = 2 * get_stability(search->board.player, search->board.opponent) - SCORE_MAX;
+#endif
 	search->result->score = search_bound(search, search_eval_0(search));
 	search->result->n_moves_left = search->result->n_moves = search->movelist.n_moves;
 	search->result->book_move = false;

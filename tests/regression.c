@@ -50,6 +50,129 @@ static char *capture_end(void){FILE *f;long n;char *s;fflush(stdout);fflush(stde
 static UI *ui_new(void){UI *ui=mm_malloc(sizeof *ui);memset(ui,0,sizeof *ui);event_init(&ui->event);return ui;}
 static void ui_delete(UI *ui){event_free(&ui->event);mm_free(ui);}
 static Board late_board(int empties){Board b;board_init(&b);while(board_count_empties(&b)>empties){unsigned long long m=ref_moves(b);if(!m){board_pass(&b);m=ref_moves(b);if(!m)break;}b=ref_next(b,random_move(m));}return b;}
+static int test_solid_hash(void)
+{
+	/* These boards differ only in solid disc colors. Seven empties remain at
+	 * the search entry, and the old normalized key matches for both boards. */
+	const Board first = {0xe07f00466cf0988dULL, 0x1b007fb9130f6702ULL};
+	const Board second = {0xe07f004e6cf39b8dULL, 0x1b007fb1130c6402ULL};
+	const int alpha = 8;
+	const int expected_first = ref_solve(first, SCORE_MIN, SCORE_MAX);
+	const int expected_second = ref_solve(second, SCORE_MIN, SCORE_MAX);
+	Search search;
+
+	init_search(&search, 1);
+	memset(search.thread_hash.hash, 0, search.thread_hash.n_hash * sizeof(Hash));
+	search.stop = RUNNING;
+	search_set_board(&search, &first, BLACK);
+	const int first_bound = NWS_endgame_local(&search, alpha);
+
+	/* Keep the same thread-local table when searching the second board. */
+	search_set_board(&search, &second, BLACK);
+	const int second_bound = NWS_endgame_local(&search, alpha);
+	search_free(&search);
+
+	printf("SOLID hash alpha=%d first exact=%d bound=%d second exact=%d bound=%d\n",
+	       alpha, expected_first, first_bound, expected_second, second_bound);
+	return first_bound < expected_first || first_bound > alpha ||
+	       second_bound <= alpha || second_bound > expected_second ? 2 : 0;
+}
+
+#if COUNT_LAST_FLIP == COUNT_LAST_FLIP_BMI2
+static int test_last_empty_diagonals(void)
+{
+	int checked = 0;
+	for (int x = 0; x < BOARD_SIZE; ++x) {
+		const unsigned long long occupied = ~(1ULL << x);
+		unsigned long long diagonals = 0;
+		for (int y = 0; y < BOARD_SIZE; ++y) {
+			if (y != x && abs(y / 8 - x / 8) == abs(y % 8 - x % 8)) diagonals |= 1ULL << y;
+		}
+		unsigned long long player = diagonals;
+		do {
+			const Board board = {player, occupied ^ player};
+			const Board swapped = {board.opponent, board.player};
+			const int expected = ref_solve(board, SCORE_MIN, SCORE_MAX);
+			if (last_flip(x, board.player) != 2 * bit_count(ref_flip(board, x)) ||
+			    last_flip(x, board.opponent) != 2 * bit_count(ref_flip(swapped, x)) ||
+			    solve_exact_1(board.player, x) != expected) {
+				printf("FAIL last empty square=%d player=%016llx exact=%d\n", x, board.player, expected);
+				return 2;
+			}
+			++checked;
+			player = (player - 1) & diagonals;
+		} while (player != diagonals);
+	}
+	printf("PASS last empty diagonals: %d positions\n", checked);
+	return 0;
+}
+#endif
+
+#if defined(hasSSE2) || defined(__ARM_NEON)
+static int test_eval_vectors(void)
+{
+	int checked = 0;
+	for (int i = 0; i < 256; ++i) {
+		const Board board = late_board(i % 61);
+		const unsigned long long empty = ~(board.player | board.opponent);
+		Eval eval = {0};
+		eval.n_empties = bit_count(empty);
+		const unsigned long long side = (eval.n_empties & 1) ? board.opponent : board.player;
+		eval_set(&eval, &board);
+		for (int lane = 0; lane < 48; ++lane) {
+			unsigned int expected = EVAL_FEATURE_all_opponent.us[lane];
+			for (int x = 0; x < BOARD_SIZE; ++x) {
+				const unsigned long long square = 1ULL << x;
+				if (side & square) expected -= EVAL_FEATURE[x].us[lane];
+				if (empty & square) expected += EVAL_FEATURE[x].us[lane];
+			}
+			if (eval.feature.us[lane] != (unsigned short) expected) {
+				printf("FAIL initial evaluation features at position %d lane %d\n", i, lane);
+				return 2;
+			}
+		}
+		unsigned long long moves = ref_moves(board);
+		int x;
+		foreach_bit (x, moves) {
+			const unsigned long long flipped = ref_flip(board, x);
+			const Board child = ref_next(board, x);
+			Eval inplace = eval, separate = {0}, expected = {0};
+			expected.n_empties = eval.n_empties - 1;
+			eval_set(&expected, &child);
+			eval_update(x, flipped, &inplace);
+			eval_update_leaf(x, flipped, &separate, &eval);
+			if (memcmp(inplace.feature.us, expected.feature.us, sizeof expected.feature.us) ||
+			    memcmp(separate.feature.us, expected.feature.us, sizeof expected.feature.us)) {
+				printf("FAIL incremental evaluation features at position %d move %d\n", i, x);
+				return 2;
+			}
+			++checked;
+		}
+	}
+	printf("PASS evaluation vectors: 256 setups, %d moves\n", checked);
+	return 0;
+}
+#endif
+
+#ifdef __AVX2__
+static int test_stability_pair(void)
+{
+	for (int i = 0; i < 256; ++i) {
+		const Board board = late_board(i % 61);
+		int player, opponent;
+		get_stability_pair(&board, &player, &opponent);
+		if (player != get_stability(board.player, board.opponent) ||
+		    opponent != get_stability(board.opponent, board.player)) {
+			printf("FAIL paired stability at position %d\n", i);
+			return 2;
+		}
+	}
+	puts("PASS paired stability: 256 positions");
+	return 0;
+}
+
+#endif
+
 static void core(int tasks){Search s;init_search(&s,tasks);unsigned long long checks=0;int exact=0,passes=0;for(int g=0;g<300;++g){Board b;board_init(&b);for(int ply=0;ply<120;++ply){unsigned long long m=ref_moves(b);if(m!=board_get_moves(&b)){puts("FAIL moves");exit(2);}for(int x=0;x<64;++x)if(!((b.player|b.opponent)&(1ULL<<x))){Move mv;unsigned long long f=board_get_move_flip(&b,x,&mv);++checks;if(f!=ref_flip(b,x)){puts("FAIL flips");exit(2);}}
  Board unique;board_unique(&b,&unique);for(int sym=0;sym<8;++sym){Board transformed,u;board_symetry(&b,sym,&transformed);board_unique(&transformed,&u);if(!board_equal(&unique,&u)){puts("FAIL symmetry");exit(2);}}
  if(!m){board_pass(&b);++passes;if(!ref_moves(b))break;continue;}int x=random_move(m);Board next=ref_next(b,x),actual;board_next(&b,x,&actual);if(!board_equal(&next,&actual)){puts("FAIL next");exit(2);}Eval e={0},fresh={0};e.n_empties=board_count_empties(&b);eval_set(&e,&b);eval_update(x,ref_flip(b,x),&e);fresh.n_empties=board_count_empties(&next);eval_set(&fresh,&next);if(memcmp(&e.feature,&fresh.feature,sizeof e.feature)){puts("FAIL incremental eval");exit(2);}b=next;}}
@@ -144,6 +267,16 @@ int main(int argc,char **argv){if(argc<2)return 1;setbuf(stdout,NULL);bit_init()
  else if(!strcmp(t,"analyze")){Search s;init_search(&s,1);Game g;game_init(&g);g.initial_board=late_board(4);printf("ANALYZE custom initial empty=%d moves=0\n",board_count_empties(&g.initial_board));fflush(stdout);game_analyze(&g,&s,4,false);search_free(&s);}
  else if(!strcmp(t,"enhance")){Search s;init_search(&s,1);Book b={0};b.search=&s;book_init(&b);b.options.level=0;b.options.n_empties=58;options.book_file="audit-enhance.dat";Board start;board_init(&start);book_add_board(&b,&start);book_enhance(&b,&start,64,64);printf("ENHANCE nodes_after=%d\n",b.n_nodes);book_clean(&b);position_negamax(book_probe(&b,&start),&b);book_clean(&b);position_enhance(book_probe(&b,&start),&b);int pending=0;Position *p;PositionArray *a;Book *bp=&b;foreach_position(p,a,bp)pending+=position_is_todo(p,bp);printf("ENHANCE pending_after_finished=%d\n",pending);book_free(&b);search_free(&s);}
  else if(!strcmp(t,"core")){core(argc>2?atoi(argv[2]):1);}
+ else if(!strcmp(t,"solid-hash")){return test_solid_hash();}
+#if COUNT_LAST_FLIP == COUNT_LAST_FLIP_BMI2
+ else if(!strcmp(t,"last-empty-diagonals")){return test_last_empty_diagonals();}
+#endif
+#if defined(hasSSE2) || defined(__ARM_NEON)
+ else if(!strcmp(t,"eval-vectors")){return test_eval_vectors();}
+#endif
+#ifdef __AVX2__
+ else if(!strcmp(t,"stability-pair")){return test_stability_pair();}
+#endif
  else if(!strcmp(t,"nboard")){Result result={0};result.n_nodes=1234;result.time=12345;nboard_observer(&result);}
  else if(!strcmp(t,"gtp")||!strcmp(t,"gtptime")||!strcmp(t,"gtpreg")||!strcmp(t,"xboard")){
  if(!have_fixture())return 2;options.book_file=FIXTURE;init_engine(1);UI *ui=ui_new();

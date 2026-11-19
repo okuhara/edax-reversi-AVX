@@ -458,15 +458,10 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 
 static int NWS_endgame_local(Search *search, const int alpha)
 {
-	int score, ofssolid, bestmove, bestscore, lower, upper;
-	unsigned long long solid_opp;
-	// const int beta = alpha + 1;
-	Hash *hash_entry;
+	int score, bestmove, bestscore;
 	Move *move;
-	// long long nodes_org;
-	V2DI board0, hashboard;
+	V2DI board0;
 	unsigned int parity0;
-	unsigned long long full[5];
 	MoveList movelist;
 
 	assert(bit_count(~(search->board.player|search->board.opponent)) <= DEPTH_TO_USE_LOCAL_HASH);
@@ -475,59 +470,27 @@ static int NWS_endgame_local(Search *search, const int alpha)
 	SEARCH_STATS(++statistics.n_NWS_endgame);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
-	// stability cutoff
-	board0.board = hashboard.board = search->board;
-	ofssolid = 0;
-	// search_SC_NWS(search, alpha, &score)
-	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {	// (7%)
-		CUTOFF_STATS(++statistics.n_stability_try;)
-		score = SCORE_MAX - 2 * get_stability_fulls(search->board.opponent, search->board.player, full);
-		if (score <= alpha) {	// (3%)
-			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
-			return score;
-		}
+	if (search_SC_NWS(search, alpha, &score)) return score;
 
-		// Improvement of Serch by Reducing Redundant Information in a Position of Othello
-		// Hidekazu Matsuo, Shuji Narazaki
-		// http://id.nii.ac.jp/1001/00156359/
-		solid_opp = full[4] & hashboard.board.opponent;	// full[4] = all full
-  #ifndef POPCOUNT
-		if (solid_opp)	// (72%)
-  #endif
-		{
-  #ifdef hasSSE2
-			hashboard.v2 = _mm_xor_si128(hashboard.v2, _mm_set1_epi64x(solid_opp));
-  #else
-			hashboard.board.player ^= solid_opp;	// normalize solid to player
-			hashboard.board.opponent ^= solid_opp;
-  #endif
-			ofssolid = bit_count(solid_opp) * 2;	// hash score is ofssolid grater than real
-		}
-	}
-
-	hash_entry = search->thread_hash.hash + (board_get_hash_code(&hashboard.board) & search->thread_hash.hash_mask);
-	// PREFETCH(hash_entry);
-
+	board0.board = search->board;
 	search_get_movelist(search, &movelist);
 
 	if (movelist.n_moves > 0) {
-		// transposition cutoff
-		// hash_get(&search->thread_hash, &hashboard.board, hash_code, &hash_data.data)
+		// Giving empty squares to the winner makes scores change by more than
+		// twice the number of recolored solid discs when the winner changes.
+		Hash *hash_entry = search->thread_hash.hash + (board_get_hash_code(&board0.board) & search->thread_hash.hash_mask);
 		unsigned char hashmove[2] = { NOMOVE, NOMOVE };
-		if (vboard_equal(hashboard, &hash_entry->board)) {	// (6%)
+		if (vboard_equal(board0, &hash_entry->board)) {	// (6%)
 			hashmove[0] = hash_entry->data.move[0];
-			lower = hash_entry->data.lower - ofssolid;
-			upper = hash_entry->data.upper - ofssolid;
-			// search_TC_NWS(&hash_data.data, search->eval.n_empties, NO_SELECTIVITY, alpha, &score)
-			if (USE_TC /* && (data->wl.c.selectivity >= NO_SELECTIVITY && data->wl.c.depth >= search->eval.n_empties) */) {
+			if (USE_TC) {
 				CUTOFF_STATS(++statistics.n_hash_try;)
-				if (alpha < lower) {
+				if (alpha < hash_entry->data.lower) {
 					CUTOFF_STATS(++statistics.n_hash_high_cutoff;)
-					return lower;
+					return hash_entry->data.lower;
 				}
-				if (alpha >= upper) {
+				if (alpha >= hash_entry->data.upper) {
 					CUTOFF_STATS(++statistics.n_hash_low_cutoff;)
-					return upper;
+					return hash_entry->data.upper;
 				}
 			}
 		}
@@ -566,7 +529,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 		if (search->stop)	// (1%)
 			return alpha;
 
-		hash_store_local(hash_entry, hashboard, alpha + ofssolid, alpha + ofssolid + 1, bestscore + ofssolid, bestmove);
+		hash_store_local(hash_entry, board0, alpha, alpha + 1, bestscore, bestmove);
 
 	} else {	// (1%)
 		if (can_move(search->board.opponent, search->board.player)) { // pass

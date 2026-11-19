@@ -69,6 +69,9 @@ unsigned long long get_stable_edge(const unsigned long long, const unsigned long
 #endif
 unsigned long long get_all_full_lines(const unsigned long long);
 int get_stability(const unsigned long long, const unsigned long long);
+#ifdef __AVX2__
+void get_stability_pair(const Board*, int*, int*);
+#endif
 int get_stability_fulls(const unsigned long long, const unsigned long long, unsigned long long [5]);
 int get_edge_stability(const unsigned long long, const unsigned long long);
 int get_corner_stability(const unsigned long long);

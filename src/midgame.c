@@ -890,19 +890,6 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 		hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
 		hash_store(&search->pv_table, &search->board, hash_code, &hash_data);
 
-#if 0 // not effective for thread local hash
-		// store solid-normalized for endgame TC
-		if (search->eval.n_empties <= depth && depth <= DEPTH_TO_USE_LOCAL_HASH && depth > DEPTH_TO_SHALLOW_SEARCH) {
-			V2DI hashboard;
-			unsigned long long full[4];
-			unsigned long long solid_opp = get_all_full_lines(search->board.player | search->board.opponent, full) & search->board.opponent;
-			int ofssolid = bit_count(solid_opp) * 2;	// hash score is ofssolid grater than real
-			hashboard.board.player = search->board.player ^ solid_opp;	// normalize solid to player
-			hashboard.board.opponent = search->board.opponent ^ solid_opp;
-			hash_store_local(search->thread_hash.hash + (hash_code & search->thread_hash.hash_mask), hashboard,
-				hash_data.alpha + ofssolid, hash_data.beta + ofssolid, hash_data.score + ofssolid, hash_data.data.move[0]);
-		}
-#endif
 		SQUARE_STATS(foreach_move(move, movelist))
 		SQUARE_STATS(++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];)
 		SQUARE_STATS(if (node.bestscore > alpha) ++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[node.bestmove]];)

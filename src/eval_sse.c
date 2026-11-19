@@ -15,6 +15,10 @@
 #include "move.h"
 #include "eval.h"
 
+#if defined(__ARM_NEON) && defined(__ARM_FEATURE_SVE)
+#include <arm_sve.h>
+#endif
+
 extern const EVAL_FEATURE_V EVAL_FEATURE[65];
 extern const EVAL_FEATURE_V EVAL_FEATURE_all_opponent;
 
@@ -62,6 +66,41 @@ void eval_update_sse(int x, unsigned long long f, Eval *eval_out, const Eval *ev
 	eval_out->feature.v16[2] = f2;
 
   #else
+    #ifdef __ARM_FEATURE_SVE
+	if (svcnth() >= 16) {	// SVE256, use Neon if svcnth() < 16
+		svbool_t	pg = svptrue_pat_b16(SV_VL16);
+		svuint16_t	f0 = svld1_u16(pg, eval_in->feature.us);
+		svuint16_t	f1 = svld1_u16(pg, eval_in->feature.us + 16);
+		svuint16_t	f2 = svld1_u16(pg, eval_in->feature.us + 32);
+
+		if (eval_in->n_empties & 1) {
+			f0 = svsub_u16_x(pg, f0, svld1_u16(pg, EVAL_FEATURE[x].us));
+			f1 = svsub_u16_x(pg, f1, svld1_u16(pg, EVAL_FEATURE[x].us + 16));
+			f2 = svsub_u16_x(pg, f2, svld1_u16(pg, EVAL_FEATURE[x].us + 32));
+			foreach_bit (x, f) {
+				f0 = svadd_u16_x(pg, f0, svld1_u16(pg, EVAL_FEATURE[x].us));
+				f1 = svadd_u16_x(pg, f1, svld1_u16(pg, EVAL_FEATURE[x].us + 16));
+				f2 = svadd_u16_x(pg, f2, svld1_u16(pg, EVAL_FEATURE[x].us + 32));
+			}
+
+		} else {
+			f0 = svsub_u16_x(pg, f0, svlsl_n_u16_x(pg, svld1_u16(pg, EVAL_FEATURE[x].us), 1));
+			f1 = svsub_u16_x(pg, f1, svlsl_n_u16_x(pg, svld1_u16(pg, EVAL_FEATURE[x].us + 16), 1));
+			f2 = svsub_u16_x(pg, f2, svlsl_n_u16_x(pg, svld1_u16(pg, EVAL_FEATURE[x].us + 32), 1));
+			foreach_bit (x, f) {
+				f0 = svsub_u16_x(pg, f0, svld1_u16(pg, EVAL_FEATURE[x].us));
+				f1 = svsub_u16_x(pg, f1, svld1_u16(pg, EVAL_FEATURE[x].us + 16));
+				f2 = svsub_u16_x(pg, f2, svld1_u16(pg, EVAL_FEATURE[x].us + 32));
+			}
+		}
+
+		svst1_u16(pg, eval_out->feature.us, f0);
+		svst1_u16(pg, eval_out->feature.us + 16, f1);
+		svst1_u16(pg, eval_out->feature.us + 32, f2);
+		return;
+	}
+    #endif
+
 	__m128i	f0 = eval_in->feature.v8[0];
 	__m128i	f1 = eval_in->feature.v8[1];
 	__m128i	f2 = eval_in->feature.v8[2];
@@ -214,6 +253,33 @@ void eval_set(Eval *eval, const Board *board)
 	eval->feature.v16[2] = f2;
 
   #else
+    #ifdef __ARM_FEATURE_SVE
+	if (svcnth() >= 16) {	// SVE256, use Neon for svcnth() < 16
+		svbool_t	pg = svptrue_pat_b16(SV_VL16);
+		svuint16_t	f0 = svld1_u16(pg, EVAL_FEATURE_all_opponent.us);
+		svuint16_t	f1 = svld1_u16(pg, EVAL_FEATURE_all_opponent.us + 16);
+		svuint16_t	f2 = svld1_u16(pg, EVAL_FEATURE_all_opponent.us + 32);
+
+		foreach_bit (x, b) {
+			f0 = svsub_u16_x(pg, f0, svld1_u16(pg, EVAL_FEATURE[x].us));
+			f1 = svsub_u16_x(pg, f1, svld1_u16(pg, EVAL_FEATURE[x].us + 16));
+			f2 = svsub_u16_x(pg, f2, svld1_u16(pg, EVAL_FEATURE[x].us + 32));
+		}
+
+		b = ~(board->opponent | board->player);
+		foreach_bit (x, b) {
+			f0 = svadd_u16_x(pg, f0, svld1_u16(pg, EVAL_FEATURE[x].us));
+			f1 = svadd_u16_x(pg, f1, svld1_u16(pg, EVAL_FEATURE[x].us + 16));
+			f2 = svadd_u16_x(pg, f2, svld1_u16(pg, EVAL_FEATURE[x].us + 32));
+		}
+
+		svst1_u16(pg, eval->feature.us, f0);
+		svst1_u16(pg, eval->feature.us + 16, f1);
+		svst1_u16(pg, eval->feature.us + 32, f2);
+		return;
+	}
+    #endif
+
 	__m128i	f0 = EVAL_FEATURE_all_opponent.v8[0];
 	__m128i	f1 = EVAL_FEATURE_all_opponent.v8[1];
 	__m128i	f2 = EVAL_FEATURE_all_opponent.v8[2];
