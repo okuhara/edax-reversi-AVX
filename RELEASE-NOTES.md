@@ -14,6 +14,7 @@ Each eval2 and Heath (formerly newedax) version contains all changes of the nikq
 
 | nikque | eval2 | Heath (newedax) |
 |---|---|---|
+| nikque.30 | eval2.18 | heath.17 |
 | nikque.29 | eval2.17 | heath.16 |
 | nikque.28 | eval2.16 | newedax.15 |
 | nikque.27 | eval2.15 | newedax.12 |
@@ -36,6 +37,30 @@ Each eval2 and Heath (formerly newedax) version contains all changes of the nikq
 ---
 
 # nikque line
+
+## v4.5.5-nikque.30
+
+This release fixes the transposition-table bounds used by exact endgame search. It also reduces work when counting the final flip and evaluating stability at the start of a search.
+
+**Changes**
+
+- BMI2 builds use one diagonal bit extraction in place of two for final moves outside the central 16 squares.
+- AVX2 builds share the filled lines between the two stability calculations at the start of a search.
+- SVE-enabled builds use SVE to update evaluation features when the vector length is at least 256 bits.
+
+**Fixes**
+
+- Normalizing the color of solid discs in an endgame transposition-table key could produce an invalid exact-search bound. When the winner changes, empty squares are awarded to the other side. The key now uses the actual board.
+
+**Compatibility**
+
+- The fix can change search results or node counts in affected positions. The evaluation function, `eval.dat`, and the book file format are the same as in the previous release.
+
+**Not checked**. Playing strength, a production book, and SVE behavior and speed on hardware.
+
+[Tests and measurements](docs/validation/nikque.en.md#v455-nikque30)
+
+---
 
 ## v4.5.5-nikque.29
 
@@ -1144,6 +1169,20 @@ This is the first release, based on upstream Edax v4.5.5. It adds `book deviate2
 # eval2 line
 
 The nikque line plus a new evaluation function (mobility weights), published from the `eval2` branch. Each version contains all changes of the nikque versions listed in the "Versions" table above.
+
+## v4.5.5-eval2.18
+
+This release includes the changes from [v4.5.5-nikque.30](#v455-nikque30).
+
+**Compatibility**
+
+- The fix can change search results or node counts in affected positions. The evaluation function, `eval.dat`, and the book file format are the same as in the previous release.
+
+**Not checked**. Playing strength, a production book, and SVE behavior and speed on hardware.
+
+[Tests and measurements](docs/validation/eval2.en.md#v455-eval218)
+
+---
 
 ## v4.5.5-eval2.17
 

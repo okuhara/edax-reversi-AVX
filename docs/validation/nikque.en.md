@@ -4,6 +4,17 @@ Tests and measurements done for each version, moved without changes from the for
 
 For what changed, see the [release notes](../../RELEASE-NOTES.md). "Above" and "below" in the text refer to positions in the former document.
 
+## v4.5.5-nikque.30
+
+- The previous build returned an incorrect upper bound of +8 for a position whose exact score is +10. The fixed build returned +10.
+- The five executables in the Windows distribution gave the expected moves and scores on 20 FForum positions and the expected scores on 1,205 exact-endgame positions. All seven Cassio EOF cases passed for each executable.
+- All 279 API checks passed for each of the three DLLs in the Windows distribution.
+- The BMI2 final-move kernel matched an independent implementation on 71,168 positions. The evaluation setup, incremental evaluation and paired stability regression cases passed.
+- [The distribution CI](https://github.com/Nikque/edax-reversi-AVX/actions/runs/44466219863) built the Linux, macOS, Android and Windows ARM64 binaries.
+
+Playing strength, a production book, and SVE behavior and speed on hardware remain untested.
+
+---
 
 ## v4.5.5-nikque.29
 
