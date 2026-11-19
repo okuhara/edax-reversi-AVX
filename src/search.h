@@ -101,7 +101,7 @@ typedef struct Search {
 	int selectivity;                              /**< selectivity level */
 	int probcut_level;                            /**< probcut recursivity level */
 	int depth_pv_extension;                       /**< depth for pv_extension */
-	ATOMIC Stop stop;                           /**< thinking status */
+	ATOMIC Stop stop;                             /**< thinking status */
 	bool allow_node_splitting;                    /**< allow parallelism */
 	struct {
 		long long  extra;                         /**< extra alloted time */
