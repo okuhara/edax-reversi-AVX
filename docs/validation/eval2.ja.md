@@ -4,6 +4,19 @@
 
 変更の内容は [修正一覧](../../RELEASE-NOTES.ja.md) を見てください。文中の「上の」「下の」は、もとの文書での位置を指します。
 
+## v4.5.5-eval2.19
+
+- Windows の配布版の5種の実行ファイルで、独立実装が採点した合成終盤24局面を解きました。着手とスコアの誤りは各0で、Cassio のEOFテスト7項目も通りました。
+- DLL 3種で API の279項目がそれぞれ通りました。
+- x86-64-v4 で対象の7件を再テストしました。棋譜1・2件の完了表示、見積もりの手計算、GTP の終局と合法パス、XBoard・GTP・NBoard の `q`、模擬GGS接続、2種類の対話ヘルプを確認しました。
+- `estimate` の合計が2と4の試行では、平均3、誤差0.7071068になりました。
+- [配布ビルドの CI](https://github.com/Nikque/edax-reversi-AVX/actions/runs/44573928843) で Linux、Intel Mac、Android、Windows ARM64 をビルドしました。Linux のライブラリテストも通りました。
+- [代替ビルド](https://github.com/Nikque/edax-reversi-AVX/actions/runs/44577301101) で、同じ修正コミットから Apple Silicon 用実行ファイルとユニバーサルライブラリを Intel Mac 上でクロスビルドしました。両アーキテクチャを確認し、Intel 側のライブラリテストは通りました。Apple Silicon 上での実行は未確認です。
+
+未確認は、実 book、対局での強さ、実際の GGS サーバーとの通信、Android 実機での動作です。
+
+---
+
 ## v4.5.5-eval2.18
 
 - 度外石の再現テストで、正解 +10 に対して修正後の境界が +10 になりました。

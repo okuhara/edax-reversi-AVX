@@ -14,6 +14,7 @@ eval2・Heath（旧名 newedax）の各版は、同じ行の nikque の版の変
 
 | nikque | eval2 | Heath (newedax) |
 |---|---|---|
+| nikque.31 | eval2.19 | heath.18 |
 | nikque.30 | eval2.18 | heath.17 |
 | nikque.29 | eval2.17 | heath.16 |
 | nikque.28 | eval2.16 | newedax.15 |
@@ -37,6 +38,30 @@ eval2・Heath（旧名 newedax）の各版は、同じ行の nikque の版の変
 ---
 
 # nikque 系列
+
+## v4.5.5-nikque.31
+
+棋譜データベースの完了件数、手順数の見積もり、外部プロトコルとヘルプの不具合を修正しました。
+
+**不具合の修正**
+
+- `base complete` の最終表示で、棋譜の総件数を正しく表示します。
+- `estimate` では、各試行の合計から全体の誤差を計算します。合計の誤差が `NaN` になることがありました。
+- GTP の `genmove` と `reg_genmove` は、終局で `pass` を返します。履歴のない終局では、以前は `genmove` で終了することがありました。
+- XBoard は解析中も `q` で終了します。GTP と NBoard は `q` を未認識と応答した後も入力を受け付けます。
+- GGS は標準入力が閉じても接続を続けます。終了の通知をサーバーにコマンドとして送っていた問題を修正しました。
+- `help test` に、OBF の問題を解く `solve <file> [hard-file]` を掲載しました。
+- 棋譜の `load` と `save` のヘルプに、ファイル名が必須と明記しました。
+
+**互換性**
+
+- 前の版の `eval.dat` と book を引き続き使えます。探索・学習の設定も前の版と同じです。
+
+**未確認**。実 book、対局での強さ、実際の GGS サーバーとの通信。
+
+[検証記録](docs/validation/nikque.ja.md#v455-nikque31)
+
+---
 
 ## v4.5.5-nikque.30
 
@@ -1169,6 +1194,20 @@ Edax をほかのプログラムから使えるライブラリ libedax を追加
 # eval2 系列
 
 nikque 系列に新しい評価関数（着手可能数の重み）を足した系列です。ブランチ `eval2` から公開しています。各版は、上の「版の対応」の表のとおり、nikque の版の変更をすべて含みます。
+
+## v4.5.5-eval2.19
+
+[v4.5.5-nikque.31](#v455-nikque31) の変更を取り込みました。
+
+**互換性**
+
+- 前の版の `eval.dat` と book を引き続き使えます。探索・学習の設定も前の版と同じです。
+
+**未確認**。実 book、対局での強さ、実際の GGS サーバーとの通信。
+
+[検証記録](docs/validation/eval2.ja.md#v455-eval219)
+
+---
 
 ## v4.5.5-eval2.18
 

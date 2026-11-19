@@ -14,6 +14,7 @@ Each eval2 and Heath (formerly newedax) version contains all changes of the nikq
 
 | nikque | eval2 | Heath (newedax) |
 |---|---|---|
+| nikque.31 | eval2.19 | heath.18 |
 | nikque.30 | eval2.18 | heath.17 |
 | nikque.29 | eval2.17 | heath.16 |
 | nikque.28 | eval2.16 | newedax.15 |
@@ -37,6 +38,30 @@ Each eval2 and Heath (formerly newedax) version contains all changes of the nikq
 ---
 
 # nikque line
+
+## v4.5.5-nikque.31
+
+This release fixes database summaries, move-count estimates, protocol handling, and command help.
+
+**Fixes**
+
+- `base complete` reports the correct total number of games in its final summary.
+- `estimate` computes its overall error from the total for each trial. The overall error could previously be `NaN`.
+- GTP `genmove` and `reg_genmove` return `pass` at game end. Previously, `genmove` could crash if the game ended with an empty move history.
+- XBoard accepts `q` during analysis. GTP and NBoard keep reading input after reporting `q` as an unknown command.
+- GGS stays connected when standard input closes. The end-of-input notification is handled locally.
+- `help test` now lists `solve <file> [hard-file]` for solving OBF positions.
+- The help for the game commands `load` and `save` marks the filename as required.
+
+**Compatibility**
+
+- The previous release's `eval.dat`, books, and search and learning settings remain compatible.
+
+**Not checked.** Production books, playing strength, and communication with a live GGS server.
+
+[Tests and measurements](docs/validation/nikque.en.md#v455-nikque31)
+
+---
 
 ## v4.5.5-nikque.30
 
@@ -1169,6 +1194,20 @@ This is the first release, based on upstream Edax v4.5.5. It adds `book deviate2
 # eval2 line
 
 The nikque line plus a new evaluation function (mobility weights), published from the `eval2` branch. Each version contains all changes of the nikque versions listed in the "Versions" table above.
+
+## v4.5.5-eval2.19
+
+This release includes the changes from [v4.5.5-nikque.31](#v455-nikque31).
+
+**Compatibility**
+
+- The previous release's `eval.dat`, books, and search and learning settings remain compatible.
+
+**Not checked.** Production books, playing strength, and communication with a live GGS server.
+
+[Tests and measurements](docs/validation/eval2.en.md#v455-eval219)
+
+---
 
 ## v4.5.5-eval2.18
 
