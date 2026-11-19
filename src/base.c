@@ -1120,7 +1120,7 @@ void base_complete(Base *base, Search *search)
 			printf("%d/%d games completed (%.1f %% done).\r", n, i + 1, 100.0 * (i + 1) / base->n_games); fflush(stdout);
 		}
 	}
-	printf("%d/%d games completed (all done).          \n", n, i + 1);
+	printf("%d/%d games completed (all done).          \n", n, base->n_games);
 }
 
 /**

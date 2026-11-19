@@ -415,7 +415,7 @@ static void xboard_loop_analyze(UI *ui)
 			ui_loop_xboard(ui);
 			return;
 
-		} else if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "eof") == 0) { // (the end of the input: nothing else will come)
+		} else if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "eof") == 0 || strcmp(cmd, "q") == 0) { // (the end of the input: nothing else will come)
 			xboard_stop_analyzing(play);
 			free(cmd); free(param);
 			return;

@@ -114,13 +114,14 @@ static void ui_read_input(UI *ui)
 			}
 			unlock(event);
 			fatal_error("stdin is broken\n");
-		} else if (feof(stdin)) {
+		} else if (feof(stdin) && ui->type != UI_GGS) {
+			// GGS can continue receiving server events after local input closes.
 			buffer = string_duplicate("eof");
 		}
 		event->loop = false;
 	} else {
 		if (ui->type == UI_GTP) gtp_preprocess(buffer);
-		parse_word(buffer, cmd, 5);
+		parse_word(buffer, cmd, sizeof cmd);
 		string_to_lowercase(cmd);
 		if (strcmp(cmd, "stop") == 0 && ui->type == UI_EDAX && book_analysis_stop(buffer)) {
 			// "stop id=<n>": only the book analysis <n> stops (the commands waiting are kept)
@@ -136,7 +137,8 @@ static void ui_read_input(UI *ui)
 		} else if (ui->type == UI_XBOARD && strcmp(cmd, "?") == 0) {
 			play_stop(play);
 		} else {
-			if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "q") == 0) {
+			if (strcmp(cmd, "quit") == 0 || (strcmp(cmd, "q") == 0 &&
+			    (ui->type == UI_EDAX || ui->type == UI_XBOARD || ui->type == UI_GGS))) {
 				// Commands read from a file are all read at once: there, quit is done in its turn, after the
 				// commands before it. Typed (or sent through a pipe), it stops the search and quits at once.
 				if (!(ui->type == UI_EDAX && stdin_is_file())) {

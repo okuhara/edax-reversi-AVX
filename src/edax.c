@@ -30,8 +30,8 @@
  *   -i|nit               start a new game from standard initial position.
  *   -n|ew                start a new game from a personalized position.
  *   -setboard <board>    set a personalized position to start from.
- *   -o|open|load [file]  load a played game.
- *   -s|save [file]       save a played game.
+ *   -o|open|load <file>  load a played game.
+ *   -s|save <file>       save a played game.
  *   -q|quit|exit         quit from edax.
  *   -u|undo              undo the last played move.
  *   -r|redo              redo the last played move.
@@ -79,8 +79,7 @@
  *   -problem [file_in] [n] [file_out] build a set of <n> problems from a game\n  database.
  *
  * Tests commands:
- *   -solve [file]        solve a set of positions.
- *   -obftest [file]      Test from an obf file.
+ *   -solve <file> [hard-file]   Solve problems from an OBF file.
  *   -script-to-obf [file]Convert a script to an obf file.
  *   -wtest [file]        check the theoric scores of a wthor base file.
  *   -count games [d]     compute the number of moves from the current position up\n  to depth [d].
@@ -204,8 +203,8 @@ void help_commands(void)
 		"  i|nit               start a new game from standard initial position.\n"
 		"  n|ew                start a new game from a personalized position.\n"
 		"  setboard <board>    set a personalized position to start from.\n"
-		"  o|open|load [file]  load a played game.\n"
-		"  s|save [file]       save a played game.\n"
+		"  o|open|load <file>  load a played game.\n"
+		"  s|save <file>       save a played game.\n"
 		"  q|quit|exit         quit from edax.\n"
 		"  u|undo              undo the last played move.\n"
 		"  r|redo              redo the last played move.\n"
@@ -287,7 +286,7 @@ void help_test(void)
 	printf(	"\nTests:\n"
 		"  bench               test edax speed.\n"
 		"  microbench          test CPU cycle speed of some major functions.\n"
-		"  obftest [file]      Test from an obf file.\n"
+		"  solve <file> [hard-file]  Solve problems from an OBF file.\n"
 		"  script-to-obf [file]Convert a script to an obf file.\n"
 		"  wtest [file]        check the theoric scores of a wthor base file.\n"
 		"  count games [d]     compute the number of moves from the current position up\n  to depth [d].\n"
