@@ -4,6 +4,17 @@ Tests and measurements done for each version, moved without changes from the for
 
 For what changed, see the [release notes](../../RELEASE-NOTES.md). "Above" and "below" in the text refer to positions in the former document.
 
+## v4.5.5-nikque.32
+
+- Exact solves with one thread (`-n 1 -l 60 -solve`) were timed alternately with nikque.31 (AMD Ryzen 9 9950X, one logical CPU while other work used every CPU). fforum-40-59: nikque.31 took 432.7, 432.8, 428.7 and 431.4 s (431.4 s on average, 24.52 billion positions searched), nikque.32 took 422.7, 425.6, 416.8 and 421.9 s (421.7 s, 22.11 billion), 0.978 times. fforum-20-39 searched 93,713,436 positions instead of 105,199,471. Both had zero move and score errors.
+- nikque.31 built from source searched as many positions as the released `wEdax-x86-64-v4.exe` (105,199,471 on fforum-20-39).
+- On 20 midgame positions (14 to 18 random moves from the start, level 14) the number of positions searched was the same as with nikque.31 (7,668,847).
+- The [release build CI](https://github.com/Nikque/edax-reversi-AVX/actions/runs/44865879275) built Linux, Intel Mac, Apple Silicon, Android, and Windows. The three Windows x64 executables were replaced by local PGO builds. The five Windows executables (the three x64 PGO builds and the two x86 CI builds) solved fforum-20-39 with zero move and score errors, each searching 93,713,436 positions. All 279 API checks passed for each of the three DLLs. In the CI, both macOS executables solved fforum-1-19 with zero errors, and the Linux and macOS library tests (251 checks) passed.
+
+The speed with many threads, production books, playing strength, and operation on Android devices remain untested.
+
+---
+
 ## v4.5.5-nikque.31
 
 - The five executables in the Windows distribution solved 24 synthetic endgame positions scored by an independent implementation with zero move or score errors. All seven Cassio EOF cases passed.
