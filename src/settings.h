@@ -123,7 +123,34 @@
 #define HASH_ALIGNED 1
 
 /** Thread local hash size per thread (in number of bits) */
+#ifdef THREAD_LOCAL_HASH_BITS
+#define THREAD_LOCAL_HASH_SIZE THREAD_LOCAL_HASH_BITS
+#else
 #define THREAD_LOCAL_HASH_SIZE 10
+#endif
+
+/** Endgame search at 5 and 6 empties (v4.5.5-nikque.32, ideas from KUROOBI, MIT): a quadrant's only empty is played
+ * first, and a thread-local 1-way hash is probed */
+#ifndef ENDGAME_LONE_FIRST
+#define ENDGAME_LONE_FIRST 1
+#endif
+#ifndef ENDGAME_HASH56
+#define ENDGAME_HASH56 1
+#endif
+
+/** Thread local hash size per thread for 4 empties (in number of bits; with ENDGAME_HASH4) */
+#ifdef THREAD_LOCAL_HASH4_BITS
+#define THREAD_LOCAL_HASH4_SIZE THREAD_LOCAL_HASH4_BITS
+#else
+#define THREAD_LOCAL_HASH4_SIZE 14
+#endif
+
+/** Thread local hash size per thread for 5 and 6 empties (in number of bits; with ENDGAME_HASH56) */
+#ifdef THREAD_LOCAL_HASH56_BITS
+#define THREAD_LOCAL_HASH56_SIZE THREAD_LOCAL_HASH56_BITS
+#else
+#define THREAD_LOCAL_HASH56_SIZE 14
+#endif
 
 /** PV extension (solve PV alone sooner) */
 #define USE_PV_EXTENSION true

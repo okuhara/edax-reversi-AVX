@@ -549,6 +549,12 @@ static Search* task_search_create(Task *task)
 static void task_search_destroy(Search *search)
 {
 	mm_free(search->thread_hash.hash);
+#if ENDGAME_HASH56
+	mm_free(search->thread_hash56.hash);
+#endif
+#if ENDGAME_HASH4
+	mm_free(search->thread_hash4.hash);
+#endif
 	// eval_free(search->eval);
 	spin_free(search);
 	mm_free(search);

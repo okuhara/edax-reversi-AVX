@@ -78,6 +78,8 @@ typedef struct Search {
 	HashTable pv_table;                           /**< hashtable for the pv */
 	HashTable shallow_table;                      /**< hashtable for short search */
 	HashTable thread_hash;                        /**< thread local hash */
+	HashTable thread_hash4;                       /**< thread local hash for 4 empties (ENDGAME_HASH4) */
+	HashTable thread_hash56;                      /**< thread local hash for 5 and 6 empties (ENDGAME_HASH56) */
 	Random random;                                /**< random generator */
 
 	struct TaskStack *tasks;                      /**< available task queue */

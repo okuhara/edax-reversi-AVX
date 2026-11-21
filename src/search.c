@@ -393,6 +393,24 @@ void search_alloc_thread_hash(Search *search)
 	search->thread_hash.hash_mask = (1 << THREAD_LOCAL_HASH_SIZE) - 1;
 	search->thread_hash.n_hash = 1 << THREAD_LOCAL_HASH_SIZE;
 	hash_wipe(&search->thread_hash);	// read directly by NWS_endgame_local(), so really cleared
+#if ENDGAME_HASH56
+	search->thread_hash56.hash = (Hash*) mm_malloc((1 << THREAD_LOCAL_HASH56_SIZE) * sizeof (Hash));
+	if (search->thread_hash56.hash == NULL) {
+		fatal_error("Cannot allocate a thread hash\n");
+	}
+	search->thread_hash56.hash_mask = (1 << THREAD_LOCAL_HASH56_SIZE) - 1;
+	search->thread_hash56.n_hash = 1 << THREAD_LOCAL_HASH56_SIZE;
+	hash_wipe(&search->thread_hash56);
+#endif
+#if ENDGAME_HASH4
+	search->thread_hash4.hash = (Hash*) mm_malloc((1 << THREAD_LOCAL_HASH4_SIZE) * sizeof (Hash));
+	if (search->thread_hash4.hash == NULL) {
+		fatal_error("Cannot allocate a thread hash\n");
+	}
+	search->thread_hash4.hash_mask = (1 << THREAD_LOCAL_HASH4_SIZE) - 1;
+	search->thread_hash4.n_hash = 1 << THREAD_LOCAL_HASH4_SIZE;
+	hash_wipe(&search->thread_hash4);
+#endif
 }
 
 /**
@@ -516,6 +534,12 @@ void search_free(Search *search)
 	hash_free(&search->shallow_table);
 	// eval_free(search->eval);
 	mm_free(search->thread_hash.hash);
+#if ENDGAME_HASH56
+	mm_free(search->thread_hash56.hash);
+#endif
+#if ENDGAME_HASH4
+	mm_free(search->thread_hash4.hash);
+#endif
 
 	task_stack_free(search->tasks);
 	free(search->tasks);

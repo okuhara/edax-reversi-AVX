@@ -350,9 +350,59 @@ static int search_solve_4(Search *search, int alpha)
  * @param alpha Alpha bound.
  * @return The final score, as a disc difference.
  */
-static int search_shallow(Search *search, const int alpha, bool pass1)
+#if ENDGAME_HASH4
+/**
+ * @brief search_solve_4() behind a thread-local 1-way hash for 4 empties (idea from KUROOBI (MIT)).
+ */
+static int search_solve_4_cached(Search *search, int alpha)
+{
+	Hash *hash_entry;
+	V2DI hashboard;
+	int score;
+
+	hashboard.board = search->board;
+	hash_entry = search->thread_hash4.hash + (board_get_hash_code(&hashboard.board) & search->thread_hash4.hash_mask);
+	if (vboard_equal(hashboard, &hash_entry->board)) {
+		if (alpha < hash_entry->data.lower) return hash_entry->data.lower;
+		if (alpha >= hash_entry->data.upper) return hash_entry->data.upper;
+	}
+	score = search_solve_4(search, alpha);
+	hash_store_local(hash_entry, hashboard, alpha, alpha + 1, score, NOMOVE);
+	return score;
+}
+#define SEARCH_SOLVE_4 search_solve_4_cached
+#else
+#define SEARCH_SOLVE_4 search_solve_4
+#endif
+
+#if ENDGAME_LONE_FIRST
+/** the empties that are alone in their quadrant */
+static inline unsigned long long lone_empties(const unsigned long long E)
+{
+	unsigned long long lone = 0, e;
+	e = E & 0x000000000F0F0F0FULL; if (e && !(e & (e - 1))) lone |= e;
+	e = E & 0x00000000F0F0F0F0ULL; if (e && !(e & (e - 1))) lone |= e;
+	e = E & 0x0F0F0F0F00000000ULL; if (e && !(e & (e - 1))) lone |= e;
+	e = E & 0xF0F0F0F000000000ULL; if (e && !(e & (e - 1))) lone |= e;
+	return lone;
+}
+/** the next class of moves: the odd moves left, else all the moves left */
+#define NEXT_MOVE_CLASS(moves, oddmoves) (((moves) & (oddmoves)) ? ((moves) & (oddmoves)) : (moves))
+#else
+#define NEXT_MOVE_CLASS(moves, oddmoves) (moves)
+#endif
+#if ENDGAME_HASH56
+static int search_shallow(Search *search, const int alpha, bool pass1);
+#define SEARCH_SHALLOW_BODY search_shallow_body
+#else
+#define SEARCH_SHALLOW_BODY search_shallow
+#endif
+static int SEARCH_SHALLOW_BODY(Search *search, const int alpha, bool pass1)
 {
 	unsigned long long moves, prioritymoves;
+#if ENDGAME_LONE_FIRST
+	unsigned long long oddmoves;
+#endif
 	int x, prev, score, bestscore;
 	// const int beta = alpha + 1;
 	V2DI board0;
@@ -381,7 +431,14 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 
 	bestscore = -SCORE_INF;
 	parity0 = search->eval.parity;
+#if ENDGAME_LONE_FIRST
+	// a quadrant's only empty first, then the other odd quadrants, then the even ones (idea from KUROOBI (MIT))
+	oddmoves = moves & quadrant_mask[parity0];
+	prioritymoves = oddmoves & lone_empties(~(board0.board.player | board0.board.opponent));
+	if (prioritymoves == 0) prioritymoves = oddmoves;
+#else
 	prioritymoves = moves & quadrant_mask[parity0];
+#endif
 	if (prioritymoves == 0)	// all even
 		prioritymoves = moves;
 
@@ -397,7 +454,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 				prioritymoves &= ~x_to_bit(x);
 				search->empties[prev].next = search->empties[x].next;	// remove - maintain single link only
 				vboard_next(board0, x, &search->board);
-				score = search_solve_4(search, alpha);
+				score = SEARCH_SOLVE_4(search, alpha);
 				search->empties[prev].next = x;	// restore
 
 				if (score > alpha)	// (49%)
@@ -405,7 +462,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 				else if (score > bestscore)
 					bestscore = score;
 			} while (prioritymoves);	// (34%)
-		} while ((prioritymoves = moves));	// (38%)
+		} while ((prioritymoves = NEXT_MOVE_CLASS(moves, oddmoves)));	// (38%)
 
 	else {
 		--search->eval.n_empties;	// for next depth
@@ -433,7 +490,7 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 				} else if (score > bestscore)
 					bestscore = score;
 			} while (prioritymoves);	// (54%)
-		} while ((prioritymoves = moves));	// (23%)
+		} while ((prioritymoves = NEXT_MOVE_CLASS(moves, oddmoves)));	// (23%)
 		++search->eval.n_empties;
 	}
 	// search->board = board0.board;	// restore in caller
@@ -443,6 +500,30 @@ static int search_shallow(Search *search, const int alpha, bool pass1)
 	return bestscore;	// (33%)
 }
 
+#if ENDGAME_HASH56
+/**
+ * @brief search_shallow() behind a thread-local 1-way hash for 5 and 6 empties (idea from KUROOBI (MIT)).
+ *
+ * The table is small to stay in the caches: at these depths the transpositions are many,
+ * but the subtrees are too small to pay for a probe that misses the caches.
+ */
+static int search_shallow(Search *search, const int alpha, bool pass1)
+{
+	Hash *hash_entry;
+	V2DI hashboard;
+	int score;
+
+	hashboard.board = search->board;
+	hash_entry = search->thread_hash56.hash + (board_get_hash_code(&hashboard.board) & search->thread_hash56.hash_mask);
+	if (vboard_equal(hashboard, &hash_entry->board)) {
+		if (alpha < hash_entry->data.lower) return hash_entry->data.lower;
+		if (alpha >= hash_entry->data.upper) return hash_entry->data.upper;
+	}
+	score = search_shallow_body(search, alpha, pass1);
+	hash_store_local(hash_entry, hashboard, alpha, alpha + 1, score, NOMOVE);
+	return score;
+}
+#endif
 /**
  * @brief Evaluate an endgame position with a Null Window Search algorithm,
  * with thread-local lockfree hash. (7..10 empties)
