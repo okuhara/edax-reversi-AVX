@@ -282,6 +282,7 @@ static void init_eval_packing(void)
 	set_eval_packing(s12[0], T, kd_S12, 0, 0, 0, 12);	/* 12 squares : 531441 -> 145341 */
 	for (j = 0; j < 531441; ++j)
 		s12[1][j] = s12[0][OPPONENT_FEATURE[j]];
+	free(T); // (4 MB, only used to build the tables: up to v4.5.5-nikque.15 not freed)
 }
 
 /* no sentinel array board */
@@ -502,14 +503,19 @@ typedef struct Game {
 
 typedef struct Gamebase {
 	int	n_games;
-	Game	games[];
+	int	size;	// games allocated
+	Game	*games;
 } Gamebase;
 
+/* the games grow with the import (up to v4.5.5-nikque.15 MAX_N_GAMES games, about 218 MB, were allocated
+   whatever the count of the games) */
 Gamebase* gamebase_create(int i)
 {
-	Gamebase* base = (Gamebase*) malloc(sizeof(int) + sizeof(Game) * MAX_N_GAMES);
+	Gamebase* base = (Gamebase*) malloc(sizeof(Gamebase));
 	assert(base);
 	base->n_games = i;
+	base->size = 0;
+	base->games = NULL;
 	return base;
 }
 
@@ -580,10 +586,20 @@ void gamebase_import(Gamebase* base, const char* file_1, int minimax_ply)
 	}
 
 	i = 0;
-	g = base->games;
 	while (i < MAX_N_GAMES) {
 		if (fgets(s, sizeof(s), f) == NULL)
 			break;	// EOF or error
+		if (i == base->size) {
+			const int size = base->size ? (2 * base->size < MAX_N_GAMES ? 2 * base->size : MAX_N_GAMES) : 16384;
+			Game *games = (Game*) realloc(base->games, size * sizeof(Game));
+			if (games == NULL) {
+				fprintf(stderr, "gamebase_import : not enough memory for %d games\n", size);
+				exit(EXIT_FAILURE);
+			}
+			base->games = games;
+			base->size = size;
+		}
+		g = base->games + i;
 		InitBoard(&b);
 		j = 0; p = s;
 		while ((((*p >= 'A') && (*p <= 'H')) || ((*p >= 'a') && (*p <= 'h'))) && *(p + 1)) {
@@ -613,11 +629,16 @@ void gamebase_import(Gamebase* base, const char* file_1, int minimax_ply)
 		g->score = m;
 		g->suboptimal_ply = -1;
 		++i;
-		++g;
 	}
+	if (i == MAX_N_GAMES && fgets(s, sizeof(s), f) != NULL) // (up to v4.5.5-nikque.15 the next games were left out silently)
+		fprintf(stderr, "gamebase_import : only the first %d games of %s are read\n", MAX_N_GAMES, file_1);
 	fclose(f);
 	base->n_games = i;
 	printf("eval_builder : read %d games\n", i);
+	if (i == 0) { // (the tables of the features would be empty)
+		fprintf(stderr, "gamebase_import : no game in %s\n", file_1);
+		exit(EXIT_FAILURE);
+	}
 
 	if (minimax_ply)
 		gamebase_minimax(base, minimax_ply);
@@ -652,10 +673,13 @@ typedef struct sl_Plot {
 	FILE* f;
 } sl_Plot;
 
+/* (the statistics of no data are 0: up to v4.5.5-nikque.15 x[0] was read, and a mean divided by 0) */
 double sl_min(double* x, int n)
 {
 	int	i;
-	double	y = x[0];
+	double	y;
+	if (n <= 0) return 0.0;
+	y = x[0];
 	for (i = 1; i < n; ++i)
 		if (x[i] < y)
 			y = x[i];
@@ -665,7 +689,9 @@ double sl_min(double* x, int n)
 double sl_max(double* x, int n)
 {
 	int	i;
-	double	y = x[0];
+	double	y;
+	if (n <= 0) return 0.0;
+	y = x[0];
 	for (i = 1; i < n; ++i)
 		if (x[i] > y)
 			y = x[i];
@@ -675,7 +701,9 @@ double sl_max(double* x, int n)
 double sl_mean(double* x, int n)
 {
 	int	i;
-	double	s = x[0];
+	double	s;
+	if (n <= 0) return 0.0;
+	s = x[0];
 	for (i = 1; i < n; ++i)
 		s += x[i];
 	return s / n;
@@ -690,7 +718,9 @@ static int compare_double(const void* a, const void* b)
 double sl_median(double* x, int n)
 {
 	double	y;
-	double* buf = (double*)malloc(sizeof(double) * n);
+	double* buf;
+	if (n <= 0) return 0.0;
+	buf = (double*)malloc(sizeof(double) * n);
 	assert(buf);
 	memcpy(buf, x, sizeof(double) * n);
 	qsort(buf, n, sizeof(double), compare_double);
@@ -704,6 +734,7 @@ double sl_variance(double* x, int n)
 	int	i;
 	double	y = 0.0;
 	double	m = sl_mean(x, n);
+	if (n <= 0) return 0.0;
 	for (i = 0; i < n; ++i)
 		y += (x[i] - m) * (x[i] - m);
 	return y / n;
@@ -881,6 +912,9 @@ void ul_clock_print_time(time_t tm, FILE* f)
 EvalBuilder* eval_builder_create(int n_vectors, int* vector_size, int* vector_times, int n_features, int n_games) {
 	EvalBuilder* eval;
 	int i;
+	// the rows of the features and of the scores: at least one (the commands without games, merge or show, create
+	// it with 0 games, and feature[0] was written in an empty array up to v4.5.5-nikque.15)
+	const int n_rows = (n_games ? n_games : 1);
 
 	eval = (EvalBuilder*)malloc(sizeof(EvalBuilder));
 
@@ -970,14 +1004,14 @@ EvalBuilder* eval_builder_create(int n_vectors, int* vector_size, int* vector_ti
 	}
 	eval->n_features = n_features;
 	eval->n_games = n_games;
-	eval->feature = (int**)malloc(n_games * sizeof(int*));
+	eval->feature = (int**)malloc(n_rows * sizeof(int*));
 	assert(eval->feature != NULL);
-	eval->feature[0] = (int*)malloc(n_games * eval->n_features * sizeof(int));
+	eval->feature[0] = (int*)malloc(n_rows * eval->n_features * sizeof(int));
 	assert(eval->feature[0] != NULL);
 	for (i = 1; i < n_games; i++) {
 		eval->feature[i] = eval->feature[i - 1] + eval->n_features;
 	}
-	eval->score = (char*)malloc(n_games * sizeof(char));
+	eval->score = (char*)malloc(n_rows * sizeof(char));
 	assert(eval->score != NULL);
 
 	return eval;
@@ -993,7 +1027,18 @@ void eval_builder_destroy(EvalBuilder* eval) {
 		free(eval->vector_size);
 		free(eval->vector_squares);
 		free(eval->vector_offset);
+		free(eval->vector_times); // (these three were not freed up to v4.5.5-nikque.15)
+		free(eval->coeff);
+		free(eval->score);
 		free(eval);
+	}
+}
+
+/* free a game base */
+void gamebase_destroy(Gamebase* base) {
+	if (base != NULL) {
+		free(base->games);
+		free(base);
 	}
 }
 
@@ -1027,15 +1072,19 @@ void eval_builder_read(EvalBuilder* eval, const char* file) {
 	r += fread(&(eval->date), sizeof(double), 1, f);
 	r += fread(eval->data[0], sizeof(short), eval->n_data * eval->n_ply, f);
 
-	if (r != 6 + eval->n_data * eval->n_ply) {
-		fprintf(stderr, "eval_builder_read : can't read %s\n", file);
+	// the whole file, made by eval_builder for this evaluation function (up to v4.5.5-nikque.15 the header was
+	// not checked, nor the end of the file, and the file was not closed)
+	if (r != 6 + eval->n_data * eval->n_ply || eval->edax_header != EDAX || eval->eval_header != EVAL || fgetc(f) != EOF) {
+		fprintf(stderr, "eval_builder_read : can't read %s (not an evaluation file of this kind, or damaged)\n", file);
 		exit(EXIT_FAILURE);
 	}
+	fclose(f);
 }
 
 /* write an EvalBuilder structure */
 void eval_builder_write(EvalBuilder* eval, const char* file) {
 	FILE* f;
+	size_t r;
 
 	f = fopen(file, "wb");
 	if (f == NULL) {
@@ -1043,13 +1092,18 @@ void eval_builder_write(EvalBuilder* eval, const char* file) {
 		exit(EXIT_FAILURE);
 	}
 
-	fwrite(&(eval->edax_header), sizeof(int), 1, f);
-	fwrite(&(eval->eval_header), sizeof(int), 1, f);
-	fwrite(&(eval->version), sizeof(int), 1, f);
-	fwrite(&(eval->release), sizeof(int), 1, f);
-	fwrite(&(eval->build), sizeof(int), 1, f);
-	fwrite(&(eval->date), sizeof(double), 1, f);
-	fwrite(eval->data[0], sizeof(short), eval->n_data * eval->n_ply, f);
+	r = fwrite(&(eval->edax_header), sizeof(int), 1, f);
+	r += fwrite(&(eval->eval_header), sizeof(int), 1, f);
+	r += fwrite(&(eval->version), sizeof(int), 1, f);
+	r += fwrite(&(eval->release), sizeof(int), 1, f);
+	r += fwrite(&(eval->build), sizeof(int), 1, f);
+	r += fwrite(&(eval->date), sizeof(double), 1, f);
+	r += fwrite(eval->data[0], sizeof(short), eval->n_data * eval->n_ply, f);
+	// (up to v4.5.5-nikque.15 an error of writing was not told, and the file was not closed)
+	if (fclose(f) != 0 || r != (size_t) (6 + eval->n_data * eval->n_ply)) {
+		fprintf(stderr, "eval_builder_write : can't write %s\n", file);
+		exit(EXIT_FAILURE);
+	}
 }
 
 /* init eval_builder_edax features for a board */
@@ -1069,8 +1123,8 @@ void eval_builder_logistello_get_features(const Board* b, int* X) {
 
 	X[8] = i10[p][x[A1] * 19683 + x[B1] * 6561 + x[C1] * 2187 + x[D1] * 729 + x[E1] * 243 + x[A2] * 81 + x[B2] * 27 + x[C2] * 9 + x[D2] * 3 + x[E2]] + 39852;
 	X[9] = i10[p][x[H1] * 19683 + x[G1] * 6561 + x[F1] * 2187 + x[E1] * 729 + x[D1] * 243 + x[H2] * 81 + x[G2] * 27 + x[F2] * 9 + x[E2] * 3 + x[D2]] + 39852;
-	X[10] = i10[p][x[A8] * 19683 + x[B8] * 6561 + x[C8] * 2187 + x[D8] * 729 + x[E8] * 243 + x[A2] * 81 + x[B2] * 27 + x[C2] * 9 + x[D2] * 3 + x[E2]] + 39852;
-	X[11] = i10[p][x[H8] * 19683 + x[G8] * 6561 + x[F8] * 2187 + x[E8] * 729 + x[D8] * 243 + x[H2] * 81 + x[G2] * 27 + x[F2] * 9 + x[E2] * 3 + x[D2]] + 39852;
+	X[10] = i10[p][x[A8] * 19683 + x[B8] * 6561 + x[C8] * 2187 + x[D8] * 729 + x[E8] * 243 + x[A7] * 81 + x[B7] * 27 + x[C7] * 9 + x[D7] * 3 + x[E7]] + 39852;
+	X[11] = i10[p][x[H8] * 19683 + x[G8] * 6561 + x[F8] * 2187 + x[E8] * 729 + x[D8] * 243 + x[H7] * 81 + x[G7] * 27 + x[F7] * 9 + x[E7] * 3 + x[D7]] + 39852;
 	X[12] = i10[p][x[A1] * 19683 + x[A2] * 6561 + x[A3] * 2187 + x[A4] * 729 + x[A5] * 243 + x[B1] * 81 + x[B2] * 27 + x[B3] * 9 + x[B4] * 3 + x[B5]] + 39852;
 	X[13] = i10[p][x[A8] * 19683 + x[A7] * 6561 + x[A6] * 2187 + x[A5] * 729 + x[A4] * 243 + x[B8] * 81 + x[B7] * 27 + x[B6] * 9 + x[B5] * 3 + x[B4]] + 39852;
 	X[14] = i10[p][x[H1] * 19683 + x[H2] * 6561 + x[H3] * 2187 + x[H4] * 729 + x[H5] * 243 + x[G1] * 81 + x[G2] * 27 + x[G3] * 9 + x[G4] * 3 + x[G5]] + 39852;
@@ -1124,8 +1178,8 @@ void eval_builder_get_corner5x2_features(const Board* b, int* X) {
 
 	X[0] = i10[p][x[A1] * 19683 + x[B1] * 6561 + x[C1] * 2187 + x[D1] * 729 + x[E1] * 243 + x[A2] * 81 + x[B2] * 27 + x[C2] * 9 + x[D2] * 3 + x[E2]];
 	X[1] = i10[p][x[H1] * 19683 + x[G1] * 6561 + x[F1] * 2187 + x[E1] * 729 + x[D1] * 243 + x[H2] * 81 + x[G2] * 27 + x[F2] * 9 + x[E2] * 3 + x[D2]];
-	X[2] = i10[p][x[A8] * 19683 + x[B8] * 6561 + x[C8] * 2187 + x[D8] * 729 + x[E8] * 243 + x[A2] * 81 + x[B2] * 27 + x[C2] * 9 + x[D2] * 3 + x[E2]];
-	X[3] = i10[p][x[H8] * 19683 + x[G8] * 6561 + x[F8] * 2187 + x[E8] * 729 + x[D8] * 243 + x[H2] * 81 + x[G2] * 27 + x[F2] * 9 + x[E2] * 3 + x[D2]];
+	X[2] = i10[p][x[A8] * 19683 + x[B8] * 6561 + x[C8] * 2187 + x[D8] * 729 + x[E8] * 243 + x[A7] * 81 + x[B7] * 27 + x[C7] * 9 + x[D7] * 3 + x[E7]];
+	X[3] = i10[p][x[H8] * 19683 + x[G8] * 6561 + x[F8] * 2187 + x[E8] * 729 + x[D8] * 243 + x[H7] * 81 + x[G7] * 27 + x[F7] * 9 + x[E7] * 3 + x[D7]];
 	X[4] = i10[p][x[A1] * 19683 + x[A2] * 6561 + x[A3] * 2187 + x[A4] * 729 + x[A5] * 243 + x[B1] * 81 + x[B2] * 27 + x[B3] * 9 + x[B4] * 3 + x[B5]];
 	X[5] = i10[p][x[A8] * 19683 + x[A7] * 6561 + x[A6] * 2187 + x[A5] * 729 + x[A4] * 243 + x[B8] * 81 + x[B7] * 27 + x[B6] * 9 + x[B5] * 3 + x[B4]];
 	X[6] = i10[p][x[H1] * 19683 + x[H2] * 6561 + x[H3] * 2187 + x[H4] * 729 + x[H5] * 243 + x[G1] * 81 + x[G2] * 27 + x[G3] * 9 + x[G4] * 3 + x[G5]];
@@ -1311,7 +1365,7 @@ void eval_builder_get_d4_features(const Board* b, int* X) {
 void eval_builder_get_d3_features(const Board* b, int* X) {
 	int p = b->player;
 	const char* x = b->square;
-	X[0] = s3[p][x[G2] * 9 + x[B3] * 3 + x[A4]];
+	X[0] = s3[p][x[C2] * 9 + x[B3] * 3 + x[A4]];
 	X[1] = s3[p][x[B6] * 9 + x[C7] * 3 + x[D8]];
 	X[2] = s3[p][x[F2] * 9 + x[G3] * 3 + x[H4]];
 	X[3] = s3[p][x[G6] * 9 + x[F7] * 3 + x[E8]];
@@ -1532,12 +1586,14 @@ void eval_builder_equalize(EvalBuilder *eval,double *w){
 	double correction;
 
 	for (i = 0; i < I; i++){
+		// the weights of the vector i (up to v4.5.5-nikque.15 those of the first vector, for every vector)
+		double *v = w + eval->vector_offset[i];
 		correction = 0.0;
 		for (j = 0; j < eval->vector_size[i]; j++)
-			correction += w[j];
+			correction += v[j];
 		correction /= j;
 		for (j = 0; j < eval->vector_size[i]; j++)
-			w[j] -= correction;
+			v[j] -= correction;
 		w[K-1] += correction * eval->vector_times[i] / eval->vector_times[I];
 	}
 }
@@ -1623,13 +1679,21 @@ void eval_builder_get_score(EvalBuilder* eval, double* y) {
 
 }
 
+/* a weight as it is stored: 128 times, to the nearest, in the range of a short (up to v4.5.5-nikque.15 +0.5 then
+   a cut toward 0: a negative weight was rounded up, -0.768 to 0 but +0.768 to 1; the filters cut toward 0; and a
+   weight beyond the range overflowed) */
+static short eval_builder_weight_to_short(double w) {
+	const double v = 128.0 * w;
+	return (short) (v >= 32767.0 ? 32767 : (v <= -32768.0 ? -32768 : lround(v)));
+}
+
 /* set the weight coefficients */
 void eval_builder_set_coefficient(EvalBuilder* eval, double* w) {
 	int k;
 	const int K = eval->n_data;
 	short* a = eval->coeff[0];
 
-	for (k = 0; k < K; k++) a[k] = (short)(128.0 * w[k] + 0.5);
+	for (k = 0; k < K; k++) a[k] = eval_builder_weight_to_short(w[k]);
 }
 
 /* compute abs error */
@@ -1770,8 +1834,8 @@ double eval_builder_minimize_dir_squared_error_using_brent(EvalBuilder* eval, do
 	const int MAX_ITER = 100;
 	int can_fail = 1;
 
-	/* check direction */
-	for (k = 0; k > K; k++) {
+	/* check direction (up to v4.5.5-nikque.15 the loop condition k > K never held: a null direction was not seen) */
+	for (k = 0; k < K; k++) {
 		if (d[k] != 0.0) break;
 	}
 	if (k == K) return 0.0;
@@ -2050,6 +2114,7 @@ void eval_builder_build(EvalBuilder* eval, Gamebase* base, EvalOption* option) {
 	printf("ply iter lambda gamma  error     r2         max_delta mean_delta err_delta\n");
 	for (ply = 0; ply <= 60; ply++) {
 		eval_builder_build_features(eval, base, ply);
+		if (eval->n_games == 0) continue; // a ply without any position (up to v4.5.5-nikque.15 its statistics read no data)
 		eval_builder_conjugate_gradient(eval, ply, option);
 	}
 	t += time(NULL);
@@ -2059,7 +2124,7 @@ void eval_builder_build(EvalBuilder* eval, Gamebase* base, EvalOption* option) {
 /* filter temporally (between plies) the coefficients */
 void eval_builder_temporal_filter(EvalBuilder* eval, Gamebase* base, int max_iter, double accuracy) {
 	int i, j, k, n, iter;
-	int I = eval->n_games, J = eval->n_features, K = eval->n_data, N = eval->n_ply;
+	int J = eval->n_features, K = eval->n_data, N = eval->n_ply;
 	double* a, * a0, * aN, r;
 	int** x = eval->feature;
 	int** f, * F;
@@ -2076,7 +2141,9 @@ void eval_builder_temporal_filter(EvalBuilder* eval, Gamebase* base, int max_ite
 		printf("%5d/%d\r", n, N); fflush(stdout);
 		f[n] = (int*)calloc(K, sizeof(int));
 		eval_builder_build_features(eval, base, n);
-		for (i = 0; i < I; i++)
+		// the positions of this ply (up to v4.5.5-nikque.15 the count of the first build: the features left by
+		// the previous plies were counted too when a ply had fewer positions)
+		for (i = 0; i < eval->n_games; i++)
 			for (j = 0; j < J; j++) f[n][x[i][j]]++;
 		for (k = 0; k < K; k++) F[k] += f[n][k];
 	}
@@ -2103,7 +2170,7 @@ void eval_builder_temporal_filter(EvalBuilder* eval, Gamebase* base, int max_ite
 			printf("%8d/%d\r", k, K);
 			fflush(stdout);
 		}
-		for (n = 0; n < N; n++) eval->data[n][k] = (short)(aN[n] * 128.0);
+		for (n = 0; n < N; n++) eval->data[n][k] = eval_builder_weight_to_short(aN[n]);
 	}
 	printf("\n\n");
 	free(a);
@@ -2124,18 +2191,37 @@ void print_feature(int n, int i) {
 	}
 }
 
+/* compression table of a vector, from its size (NULL: a feature is its own index)
+   (up to v4.5.5-nikque.15 the table was chosen from the number of squares: a vector of 10 squares was
+   always packed as an edge + 2X, also the angle + X of edax3c, and the vectors that are not packed) */
+static int* eval_builder_compress_table(int size) {
+	switch (size) {
+	case 18: return s3[0];
+	case 45: return s4[0];
+	case 135: return s5[0];
+	case 378: return s6[0];
+	case 1134: return s7[0];
+	case 3321: return s8[0];
+	case 10206: return c9[0];
+	case 29646: return s10[0];
+	case 29889: return c10[0];
+	case 145341: return s12[0];
+	default: return NULL;
+	}
+}
+
 /* compress a feature */
-void eval_builder_get_feature(int n, int offset, int* feature) {
-	int* compress[] = { NULL,NULL,NULL,s3[0],s4[0],s5[0],s6[0],s7[0],s8[0],c9[0],s10[0],c10[0],s12[0],s12[0] };
-	*feature = compress[n][*feature] + offset;
+void eval_builder_get_feature(int size, int offset, int* feature) {
+	int* compress = eval_builder_compress_table(size);
+	*feature = (compress ? compress[*feature] : *feature) + offset;
 }
 
 /* from one feature get 'n' sub features differing by a single disc */
 int MAX_P = 3, MAX_L = 12, MIN_SQUARE = 3;
-void eval_builder_get_sub_features(int n, int offset, int feature, int** subfeature, int* P, int* L) {
+void eval_builder_get_sub_features(int n, int size, int offset, int feature, int** subfeature, int* P, int* L) {
 	int k, p, l;
 	int x[20];
-	int* compress[] = { NULL,NULL,NULL,s3[0],s4[0],s5[0],s6[0],s7[0],s8[0],c9[0],s10[0],c10[0],s12[0],s12[0] };
+	int* compress = eval_builder_compress_table(size);
 
 	for (k = 0; k < n; k++) {
 		x[k] = feature % 3;
@@ -2151,7 +2237,7 @@ void eval_builder_get_sub_features(int n, int offset, int feature, int** subfeat
 				subfeature[p][l] *= 3;
 				subfeature[p][l] += (k == l ? p : x[k]);
 			}
-			subfeature[p][l] = compress[n][subfeature[p][l]] + offset;
+			subfeature[p][l] = (compress ? compress[subfeature[p][l]] : subfeature[p][l]) + offset;
 		}
 }
 
@@ -2159,7 +2245,7 @@ void eval_builder_get_sub_features(int n, int offset, int feature, int** subfeat
 void eval_builder_spatial_filter(EvalBuilder* eval, Gamebase* base, int max_iter, double accuracy) {
 	int power_3[] = { 1,3,9,27,81,243,729,2187,6561,19683,59049,177147,531441 };
 	int i, j, k, p, n, l, iter;
-	int I = eval->n_games, J = eval->n_features, K = eval->n_data, N = eval->n_ply;
+	int J = eval->n_features, K = eval->n_data, N = eval->n_ply;
 	int** x = eval->feature, *** X;
 	int* f, * L, * P, * todo;
 	double W, * w, F, w0, w1, r, a;
@@ -2188,8 +2274,8 @@ void eval_builder_spatial_filter(EvalBuilder* eval, Gamebase* base, int max_iter
 		if (n < MIN_SQUARE) continue;
 		for (j = 0; j < power_3[n]; j++) {
 			k = j;
-			eval_builder_get_feature(n, eval->vector_offset[i], &k);
-			eval_builder_get_sub_features(n, eval->vector_offset[i], j, X[k], P + k, L + k);
+			eval_builder_get_feature(eval->vector_size[i], eval->vector_offset[i], &k);
+			eval_builder_get_sub_features(n, eval->vector_size[i], eval->vector_offset[i], j, X[k], P + k, L + k);
 			todo[k] = 1;
 		}
 	}
@@ -2200,7 +2286,7 @@ void eval_builder_spatial_filter(EvalBuilder* eval, Gamebase* base, int max_iter
 		printf("%5d/%d frequencies      \r", n, N); fflush(stdout);
 		eval_builder_build_features(eval, base, n);
 		for (k = 0; k < K; k++) f[k] = 0;
-		for (i = 0; i < I; i++)
+		for (i = 0; i < eval->n_games; i++) // (the positions of this ply: see eval_builder_temporal_filter)
 			for (j = 0; j < J; j++) f[x[i][j]]++;
 
 		printf("%5d/%d weights          \r", n, N); fflush(stdout);
@@ -2234,11 +2320,11 @@ void eval_builder_spatial_filter(EvalBuilder* eval, Gamebase* base, int max_iter
 			printf("%5d/%d %3d %12.4f\r", n, N, iter, r); fflush(stdout);
 			if (r < accuracy) break;
 		}
-		for (k = 0; k < K; k++) eval->data[n][k] = 128.0 * w[k];
+		for (k = 0; k < K; k++) eval->data[n][k] = eval_builder_weight_to_short(w[k]);
 	}
 
 	for (k = 0; k < K; k++) {
-		for (p = 0; p < P[k]; p++) free(X[k][p]);
+		for (p = 0; p < MAX_P; p++) free(X[k][p]); // (all of them: up to v4.5.5-nikque.15 the P[k] first ones, none for most)
 		free(X[k]);
 	}
 	free(X);
@@ -2279,6 +2365,7 @@ void eval_builder_zero_rare_features(EvalBuilder* eval, Gamebase* base) {
 	for (ply = 0; ply <= 60; ply++) {
 		eval_builder_set_ply(eval, ply);
 		eval_builder_build_features(eval, base, ply);
+		if (eval->n_games == 0) continue; // a ply without any position (up to v4.5.5-nikque.15 its statistics read no data)
 		eval_builder_get_coefficient(eval, w);
 		eval_builder_get_feature_frequency(eval, N);
 		eval_builder_zero(eval, w, N, 3);
@@ -2342,6 +2429,7 @@ void eval_builder_unbias(EvalBuilder* eval, Gamebase* base, int error_type) {
 	printf("correcting weight bias\n");
 	for (ply = 0; ply <= 60; ply++) {
 		eval_builder_build_features(eval, base, ply);
+		if (eval->n_games == 0) continue; // a ply without any position (up to v4.5.5-nikque.15 its statistics read no data)
 		I = eval->n_games;
 		if (w == NULL) {
 			K = eval->n_data;
@@ -2377,6 +2465,7 @@ void eval_builder_stat(EvalBuilder* eval, Gamebase* base) {
 
 	for (ply = 0; ply <= 60; ply++) {
 		eval_builder_build_features(eval, base, ply);
+		if (eval->n_games == 0) continue; // a ply without any position (up to v4.5.5-nikque.15 its statistics read no data)
 		eval_builder_eval(eval, ply, x, y);
 		n = eval->n_games;
 		for (i = 0; i < n; i++) e[i] = y[i] - x[i];
@@ -2459,7 +2548,7 @@ void eval_builder_diff(EvalBuilder* eval_1, EvalBuilder* eval_2) {
 		max_diff = sl_max(d, n);
 		min_diff = sl_min(d, n);
 		avg_diff = sl_mean(d, n);
-		dev_diff = sl_standard_deviation(d, K);
+		dev_diff = sl_standard_deviation(d, n); // (the n differences: up to v4.5.5-nikque.15 K values, most of them not set)
 		for (k = 0; k < n; k++) d[k] = fabs(d[k]);
 		abs_diff = sl_mean(d, n);
 		eps_diff = sl_min(d, n);
@@ -2519,10 +2608,11 @@ void eval_builder_plot(EvalBuilder* eval, Gamebase* base, const char* plot_file)
 
 	for (ply = 0; ply <= 60; ply++) {
 		eval_builder_build_features(eval, base, ply);
+		if (eval->n_games == 0) continue; // a ply without any position (up to v4.5.5-nikque.15 its statistics read no data)
 		eval_builder_eval(eval, ply, x, y);
 		for (i = 0; i < eval->n_games; i++) X[i].x = x[i], X[i].y = y[i];
-		sprintf(file, "%s-%d.eps", plot_file, ply);
-		sprintf(title, "ply %d.eps", ply);
+		snprintf(file, sizeof file, "%s-%d.eps", plot_file, ply); // (a long name overflowed the 256 chars up to v4.5.5-nikque.15)
+		snprintf(title, sizeof title, "ply %d.eps", ply);
 
 		plot = sl_plot_open(file);
 		sl_plot_titles(plot, "eval", "score", title);
@@ -2538,18 +2628,32 @@ void eval_builder_plot(EvalBuilder* eval, Gamebase* base, const char* plot_file)
 
 /* show weights of a feature */
 void eval_builder_show_feature_weights(EvalBuilder* eval, int type, const char* feature) {
-	int	i, k, n = eval->vector_squares[type], ply;
+	int	i, k, n, end, ply;
 	const int K = eval->n_data;
 	double* w = (double*)malloc((K) * sizeof(double));	/* weights */
 	double sum;
 
+	// (up to v4.5.5-nikque.15 the last type read the offset after the last one, and a short feature read beyond
+	// its end)
+	if (type < 0 || type >= eval->n_vectors) {
+		fprintf(stderr, "eval_builder_show_feature_weights : no feature type %d\n", type);
+		free(w);
+		return;
+	}
+	n = eval->vector_squares[type];
+	end = (type + 1 < eval->n_vectors ? eval->vector_offset[type + 1] : K);
+	if (strcmp(feature, "sum") != 0 && strcmp(feature, "bias") != 0 && n > 0 && (int) strlen(feature) < n) {
+		fprintf(stderr, "eval_builder_show_feature_weights : a feature of %d squares is needed (%s)\n", n, feature);
+		free(w);
+		return;
+	}
 	printf("ply\t%s\n", feature);
 	if (strcmp(feature, "sum") == 0) {
 		for (ply = 0; ply <= 60; ply++) {
 			eval_builder_set_ply(eval, ply);
 			eval_builder_get_coefficient(eval, w);
 			sum = 0.0;
-			for (k = eval->vector_offset[type]; k < eval->vector_offset[type + 1]; k++) {
+			for (k = eval->vector_offset[type]; k < end; k++) {
 				sum += w[k];
 			}
 			printf("%3d\t%.4f\n", ply, sum / eval->vector_size[type]);
@@ -2561,7 +2665,7 @@ void eval_builder_show_feature_weights(EvalBuilder* eval, int type, const char* 
 		}
 		else {
 			for (i = k = 0; i < n; i++) {
-				switch (tolower(feature[i])) {
+				switch (tolower((unsigned char) feature[i])) {
 				case 'o':
 					k = k * 3 + 0;
 					break;
@@ -2573,7 +2677,7 @@ void eval_builder_show_feature_weights(EvalBuilder* eval, int type, const char* 
 					break;
 				}
 			}
-			eval_builder_get_feature(n, eval->vector_offset[type], &k);
+			eval_builder_get_feature(eval->vector_size[type], eval->vector_offset[type], &k);
 		}
 		for (ply = 0; ply <= 60; ply++) {
 			eval_builder_set_ply(eval, ply);
@@ -2596,6 +2700,8 @@ void print_version(void) {
 /* print usage */
 #ifdef _MSC_VER
 __declspec(noreturn)
+#elif defined(__GNUC__)
+__attribute__((noreturn))
 #endif
 void print_usage(void) {
 	fprintf(stderr,
@@ -2615,9 +2721,12 @@ void print_usage(void) {
 		"    edax           edax evaluation function (default)\n"
 		"    ajax           ajax evaluation function\n"
 		"    logistello     logistello/zebra evaluation function\n"
-		"  -feature <string>   a single feature\n"
+		"    <feature>      a single feature:\n"
 		"    corner3x3 corner5x2 edge edgeX edgeC edgeCX edgeFG\n"
 		"    ABFG CC BB AA D8 D7 D6 D5 D4 D3 angle+X corner+block\n"
+		"  -feature <string>   the feature of the edax evaluation function that show prints:\n"
+		"    corner3x3 angle+X edgeX corner+block CC AA BB D8 D7 D6 D5 D4\n"
+		"    (another name of a feature: the last weights)\n"
 		"  -unbias <int>    unbias the evaluation function\n"
 		"  -equalize <int>  equalize the evaluation function weight\n"
 		"  -zero <int>      zero out rare features frequency\n"
@@ -2635,7 +2744,10 @@ void print_usage(void) {
 		"stat <option> game_file eval_file\n"
 		"diff <option> game_file eval_file\n"
 		"plot <option> game_file eval_file plot_file\n"
-		"show eval_file feature_type feature\n");
+		"evalgame <option> game_file eval_file\n"
+		"show -feature <string> eval_file <squares>|sum|bias\n"
+		"    (the weights of a configuration of the squares of the feature, one letter a square:\n"
+		"     x, o or another letter for an empty square; sum: their mean; bias: the last weights)\n");
 
 	exit(EXIT_FAILURE);
 }
@@ -2693,78 +2805,86 @@ int main(int argc, char** argv) {
 	print_version();
 	if (argc < 3) print_usage();
 	init_eval_packing();
+	base = NULL;
+	eval_data = eval_data_1 = eval_data_2 = NULL;
 
 	filter = FILTER_NONE;
 	eval = EVAL_EDAX_3c;
 	file_1 = file_2 = file_3 = NULL;
-	split0 = feature = 0;
+	split0 = split1 = feature = 0;
 
+	// the value of an option: the next argument (up to v4.5.5-nikque.15 an option given last read beyond the arguments)
+#define NEXT_ARG() (i + 1 < argc ? argv[++i] : (print_usage(), argv[i]))
 	for (i = 2; i < argc; i++) {
 		if (strcmp(argv[i], "-tol") == 0) {
-			option.accuracy = atof(argv[++i]);
+			option.accuracy = atof(NEXT_ARG());
 		}
 		else if (strcmp(argv[i], "-max_iter") == 0) {
-			option.max_iter = atoi(argv[++i]);
+			option.max_iter = atoi(NEXT_ARG());
 		}
 		else if (strcmp(argv[i], "-min_iter") == 0) {
-			option.min_iter = atoi(argv[++i]);
+			option.min_iter = atoi(NEXT_ARG());
 		}
 		else if (strcmp(argv[i], "-round") == 0) {
-			option.round_frequency = atoi(argv[++i]);
+			option.round_frequency = atoi(NEXT_ARG());
 		}
 		else if (strcmp(argv[i], "-equalize") == 0) {
-			option.equalize_frequency = atoi(argv[++i]);
+			option.equalize_frequency = atoi(NEXT_ARG());
 		}
 		else if (strcmp(argv[i], "-zero") == 0) {
-			option.zero_frequency = atoi(argv[++i]);
+			option.zero_frequency = atoi(NEXT_ARG());
 		}
 		else if (strcmp(argv[i], "-unbias") == 0) {
-			option.unbias_frequency = atoi(argv[++i]);
+			option.unbias_frequency = atoi(NEXT_ARG());
 		}
 		else if (strcmp(argv[i], "-restart") == 0) {
-			option.restart_frequency = atoi(argv[++i]);
+			option.restart_frequency = atoi(NEXT_ARG());
 		}
 		else if (strcmp(argv[i], "-alpha") == 0) {
-			option.alpha = atoi(argv[++i]);
+			option.alpha = atof(NEXT_ARG()); // (a real: up to v4.5.5-nikque.15 read as an integer)
 		}
 		else if (strcmp(argv[i], "-beta") == 0) {
-			option.beta = atoi(argv[++i]);
+			option.beta = atof(NEXT_ARG());
 		}
 		else if (strcmp(argv[i], "-algo") == 0) {
-			if (strcmp(argv[++i], "simple") == 0) option.minimization_algorithm = EVAL_STEEPEST_DESCENT;
+			if (strcmp(NEXT_ARG(), "simple") == 0) option.minimization_algorithm = EVAL_STEEPEST_DESCENT;
 			else if (strcmp(argv[i], "fletcher") == 0) option.minimization_algorithm = EVAL_FLETCHER_REEVES;
 			else if (strcmp(argv[i], "polak") == 0) option.minimization_algorithm = EVAL_POLAK_RIBIERE;
 			else print_usage();
 		}
 		else if (strcmp(argv[i], "-error") == 0) {
-			if (strcmp(argv[++i], "abs") == 0) option.error_type = EVAL_ABS_ERROR;
+			if (strcmp(NEXT_ARG(), "abs") == 0) option.error_type = EVAL_ABS_ERROR;
 			else if (strcmp(argv[i], "squared") == 0) option.error_type = EVAL_SQUARED_ERROR;
 			else option.error_type = atoi(argv[i]);
 		}
 		else if (strcmp(argv[i], "-eval") == 0) {
-			/* if (strcmp(argv[++i], "edax") == 0) eval = EVAL_EDAX;
-			else if (strcmp(argv[i],"edax3b")==0) eval = EVAL_EDAX_3b;
-			else */ if (strcmp(argv[i], "edax3c") == 0) eval = EVAL_EDAX_3c;
-			// else if (strcmp(argv[i],"edax3d")==0) eval = EVAL_EDAX_3d;
-			else if (strcmp(argv[i], "ajax") == 0) eval = EVAL_AJAX;
-			else if (strcmp(argv[i], "logistello") == 0) eval = EVAL_LOGISTELLO;
-			else eval = get_eval_feature_option(argv[i]);
+			// (up to v4.5.5-nikque.15 the value was not taken: "-eval" itself was read as the name, and refused)
+			const char *name = NEXT_ARG();
+			/* if (strcmp(name, "edax") == 0) eval = EVAL_EDAX;
+			else if (strcmp(name,"edax3b")==0) eval = EVAL_EDAX_3b;
+			else */ if (strcmp(name, "edax") == 0 || strcmp(name, "edax3c") == 0) eval = EVAL_EDAX_3c;
+			// else if (strcmp(name,"edax3d")==0) eval = EVAL_EDAX_3d;
+			else if (strcmp(name, "ajax") == 0) eval = EVAL_AJAX;
+			else if (strcmp(name, "logistello") == 0) eval = EVAL_LOGISTELLO;
+			else eval = get_eval_feature_option(name);
 		}
 		else if (strcmp(argv[i], "-feature") == 0) {
-			feature = get_eval_feature_option(argv[++i]);
+			feature = get_eval_feature_option(NEXT_ARG());
 		}
 		else if (strcmp(argv[i], "-split") == 0) {
-			split0 = split1 = atoi(argv[++i]);
+			split0 = split1 = atoi(NEXT_ARG());
 			if ((p = strchr(argv[i], ',')))
 				split1 = atoi(p + 1);
+			if (split0 < 0 || split0 > 60 || split1 < split0 || split1 > 60) print_usage(); // (plies: indices of the data)
 		}
 		else if (strcmp(argv[i], "-filter") == 0) {
-			if (strcmp(argv[++i], "spatial") == 0) filter = FILTER_SPATIAL;
+			if (strcmp(NEXT_ARG(), "spatial") == 0) filter = FILTER_SPATIAL;
 			else if (strcmp(argv[i], "temporal") == 0) filter = FILTER_TEMPORAL;
 			else print_usage();
 		}
 		else if (strcmp(argv[i], "-minimax") == 0) {
-			option.minimax_ply = atoi(argv[++i]);
+			option.minimax_ply = atoi(NEXT_ARG());
+			if (option.minimax_ply < 0 || option.minimax_ply > 60) print_usage(); // (the moves of a game)
 		}
 		else if (file_1 == NULL) {
 			file_1 = argv[i];
@@ -3003,6 +3123,13 @@ int main(int argc, char** argv) {
 	else {
 		print_usage();
 	}
+
+	// (up to v4.5.5-nikque.15 nothing was freed)
+	eval_builder_destroy(eval_data);
+	eval_builder_destroy(eval_data_1);
+	eval_builder_destroy(eval_data_2);
+	gamebase_destroy(base);
+	free(OPPONENT_FEATURE);
 
 	return EXIT_SUCCESS;
 }

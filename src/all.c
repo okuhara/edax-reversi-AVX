@@ -8,6 +8,9 @@
  * @version 4.5
  */
 
+/* library (LIB_BUILD): file names in UTF-8 on Windows */
+#include "libedax_utf8.h"
+
 /* miscellaneous utilities */
 #include "options.c"
 #include "util.c"
@@ -49,6 +52,11 @@
 #include "gtp.c"
 #include "nboard.c"
 #include "xboard.c"
+
+/* library: Edax api (not compiled in the edax program) */
+#ifdef LIB_BUILD
+	#include "libedax.c"
+#endif
 
 /* main */
 #include "main.c"

@@ -181,6 +181,9 @@ const Selectivity selectivity_table [] = {
 	{999, 5,100}, // no selectivity
 };
 
+/** t values of selectivity_table scaled by 1.3, used with probcut_sigma() (probcut-model = refit, see eval.c) */
+const double probcut_refit_t[] = { 1.43, 1.95, 2.6, 3.38, 4.29, 999 };
+
 /** threshold values to try stability cutoff during NWS search */
 // TODO: better values may exist.
 const signed char NWS_STABILITY_THRESHOLD[] = { // 99 = unused value...
@@ -229,10 +232,22 @@ struct Level LEVEL[61][61];
  *
  * @todo Add more global initialization from here?
  */
+/**
+ * measured search speed (nodes per second, one thread equivalent), used to share the time when the
+ * speed option is not given; 0 until a search long enough has been done. Locked: searches end at
+ * the same time when several games are learned.
+ */
+static struct {
+	double value;
+	SpinLock spin;
+} measured_speed;
+
 void search_global_init(void)
 {
 	int level, n_empties;
 	unsigned char dep, sel;
+
+	spin_init(&measured_speed.spin);
 
 	for (level = 0; level <= 60; ++level)
 	for (n_empties = 0; n_empties <= 60; ++n_empties) {
@@ -423,14 +438,25 @@ void search_global_init(void)
  */
 void search_resize_hashtable(Search *search)
 {
-	if (search->options.hash_size != options.hash_table_size) {
-		const int hash_size = 1u << options.hash_table_size;
+	search_set_hash_size(search, options.hash_table_size);
+}
+
+/**
+ * @brief Set the size of the hash tables of a search.
+ *
+ * @param search Search.
+ * @param bits Size of the main table (in number of bits); pv & shallow tables are 16 times smaller.
+ */
+void search_set_hash_size(Search *search, const int bits)
+{
+	if (search->options.hash_size != bits) {
+		const int hash_size = 1u << bits;
 		const int pv_shallow_size = hash_size > 16 ? hash_size >> 4 : 1;
 
 		hash_init(&search->hash_table, hash_size);
 		hash_init(&search->pv_table, pv_shallow_size);
 		hash_init(&search->shallow_table, pv_shallow_size);
-		search->options.hash_size = options.hash_table_size;
+		search->options.hash_size = bits;
 	}
 }
 
@@ -442,7 +468,7 @@ void search_alloc_thread_hash(Search *search)
 	}
 	search->thread_hash.hash_mask = (1u << THREAD_LOCAL_HASH_SIZE) - 1;
 	search->thread_hash.n_hash = 1u << THREAD_LOCAL_HASH_SIZE;
-	hash_cleanup(&search->thread_hash);
+	hash_wipe(&search->thread_hash);	// read directly by NWS_endgame_local(), so really cleared
 }
 
 /**
@@ -452,6 +478,21 @@ void search_alloc_thread_hash(Search *search)
  * @param search  search.
  */
 void search_init(Search *search)
+{
+	search_init_with(search, options.n_task, options.hash_table_size);
+}
+
+/** searches created by search_init_with() and not freed yet (they share search_log) */
+static int search_log_users = 0;
+
+/**
+ * @brief Init a *main* search with its own number of threads and size of hash tables.
+ *
+ * @param search  search.
+ * @param n_task Number of threads.
+ * @param hash_bits Size of the main hash table (in number of bits).
+ */
+void search_init_with(Search *search, const int n_task, const int hash_bits)
 {
 	/* id */
 	search->id = 0;
@@ -467,7 +508,7 @@ void search_init(Search *search)
 	search->pv_table.hash_mask = 0;
 	search->shallow_table.hash = NULL;
 	search->shallow_table.hash_mask = 0;
-	search_resize_hashtable(search);
+	search_set_hash_size(search, hash_bits);
 	search_alloc_thread_hash(search);
 
 	/* board */
@@ -486,7 +527,7 @@ void search_init(Search *search)
 		fatal_error("Cannot allocate a task stack\n");
 	}
 	if (options.cpu_affinity) thread_set_cpu(thread_self(), 0);
-	task_stack_init(search->tasks, options.n_task);
+	task_stack_init(search->tasks, n_task);
 	search->allow_node_splitting = (search->tasks->n > 1);
 
 	/* task associated with the current search */
@@ -534,6 +575,7 @@ void search_init(Search *search)
 	search->options.multipv_depth = MULTIPV_DEPTH;
 
 	log_open(&search_log, options.search_log_file);
+	++search_log_users;
 }
 
 /**
@@ -557,7 +599,12 @@ void search_free(Search *search)
 	spin_free(&search->result->spin);
 	free(search->result);
 
-	log_close(&search_log);
+	// the log is shared: the searches that the book functions create and release (book-store-tasks,
+	// book-expand-tasks) must not close the log of the main search
+	if (--search_log_users <= 0) {
+		search_log_users = 0;
+		log_close(&search_log);
+	}
 }
 
 /**
@@ -720,6 +767,49 @@ void search_set_ponder_level(Search *search, const int level, const int n_emptie
 	assert(0 <= search->options.selectivity && search->options.selectivity <= 5);
 }
 
+#ifndef SPEED_AUTO_K
+#define SPEED_AUTO_K 2.0
+#endif
+
+/**
+ * @brief Update the measured search speed after a search.
+ *
+ * Used by the time management when the speed option is not given (see solvable_depth).
+ *
+ * @param search Search.
+ */
+void search_update_speed(Search *search)
+{
+	const long long t = search_time(search);
+	const unsigned long long n = search_count_nodes(search);
+	const int n_tasks = search_count_tasks(search);
+
+	if (t >= 100 && n > 0) {
+		const double s = 1000.0 * n / t / ((SMP_W + SMP_C) / (SMP_W / n_tasks + SMP_C));
+		spin_lock(&measured_speed.spin);
+		measured_speed.value = (measured_speed.value > 0.0) ? 0.75 * measured_speed.value + 0.25 * s : s;
+		spin_unlock(&measured_speed.spin);
+	}
+}
+
+/**
+ * @brief Search speed used by the time management.
+ *
+ * The user given speed option, or else a multiple of the measured speed (default speed until a
+ * search has been measured).
+ * @return Search speed (one thread) in N/s.
+ */
+static double search_speed(void)
+{
+	double speed;
+
+	spin_lock(&measured_speed.spin);
+	speed = measured_speed.value;
+	spin_unlock(&measured_speed.spin);
+	if (!options.speed_set && speed > 0.0) return SPEED_AUTO_K * speed;
+	return options.speed;
+}
+
 /**
  * @brief Compute the deepest level that can be solved given a limited time...
  *
@@ -735,7 +825,7 @@ int solvable_depth(const long long limit, int n_tasks)
 {
 	int d;
 	long long t;
-	double speed = 0.001 * (options.speed * (SMP_W + SMP_C) / (SMP_W / n_tasks + SMP_C));
+	double speed = 0.001 * (search_speed() * (SMP_W + SMP_C) / (SMP_W / n_tasks + SMP_C));
 
 	for (t = 0.0, d = 15; d <= 60 && t <= limit; ++d) {
 		t += pow(BRANCHING_FACTOR, d) / speed;
@@ -940,7 +1030,7 @@ void search_set_task_number(Search *search, const int n)
 {
 	assert(n > 0 && n < MAX_THREADS);
 	task_stack_resize(search->tasks, n);
-	search->allow_node_splitting = (n > 1);
+	search->allow_node_splitting = (search->tasks->n > 1); // (fewer tasks than n if their threads cannot be created)
 }
 
 /**

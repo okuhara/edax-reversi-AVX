@@ -20,6 +20,34 @@
 #include "util.h"
 
 #include <locale.h>
+#include <stdio.h>
+#include <string.h>
+
+/**
+ * @brief Build the path of config.ini next to the executable.
+ *
+ * @param executable Executable path from argv[0].
+ * @param config_file Output path (empty when the name of the folder is too long).
+ * @return false if the name of the folder of the executable is too long for the path (up to v4.5.5-nikque.26 the
+ * config.ini of the current folder was then read, with the warning of a program started without its folder name).
+ */
+static bool get_config_file_path(const char *executable, char *config_file)
+{
+	const char *slash = strrchr(executable, '/');
+	const char *backslash = strrchr(executable, '\\');
+	const char *separator = slash;
+	size_t directory_length;
+
+	if (backslash && (!separator || backslash > separator)) separator = backslash;
+	directory_length = separator ? (size_t)(separator - executable + 1) : 0;
+	if (directory_length + sizeof("config.ini") > FILENAME_MAX + 1) {
+		*config_file = '\0';
+		return false;
+	}
+	memcpy(config_file, executable, directory_length);
+	strcpy(config_file + directory_length, "config.ini");
+	return true;
+}
 
 /**
  * @brief Print version & copyright.
@@ -70,7 +98,9 @@ int main(int argc, char **argv)
 	UI *ui;
 	Search search;
 	Base base;
+	bool ui_freed = true;
 	int i, r, level = 0, size = 8;
+	char config_file[FILENAME_MAX + 1];
 	char *problem_file = NULL;
 	char *wthor_file = NULL;
 	char *count_type = NULL;
@@ -83,7 +113,19 @@ int main(int argc, char **argv)
 	options.n_task = get_cpu_number();
 
 	// options from edax.ini
-	options_parse("edax.ini");
+	options_parse_defaults("edax.ini");
+	if (!get_config_file_path(argv[0], config_file)) {
+		warn("the name of the folder of Edax is too long: its config.ini is not read, default settings are used\n");
+	} else {
+		options_parse_defaults(config_file);
+		if (strcmp(config_file, "config.ini") == 0) {
+			// started by its name alone (found through the PATH): the folder of the executable is not known,
+			// and config.ini is only looked for in the current folder
+			FILE *f = fopen(config_file, "r");
+			if (f) fclose(f);
+			else warn("config.ini was not found in the current folder (Edax was started without its folder name): default settings are used\n");
+		}
+	}
 
 	// allocate ui
 	ui = (UI*) mm_malloc(sizeof *ui);	// Eval in Search in Play in UI
@@ -159,11 +201,14 @@ int main(int argc, char **argv)
 
 	// other protocols
 	} else {
-		ui_event_init(ui);
+		// initialize the engine (and load the book) before the input thread may
+		// call play_stop() on a not yet initialized search (piped "quit" crash)
 		ui->init(ui);
+		ui_event_init(ui);
 		ui->loop(ui);
+		ui_event_close(ui); // (before the play is freed: see ui_read_input)
 		if (ui->free) ui->free(ui);
-		ui_event_free(ui);
+		ui_freed = ui_event_free(ui);
 	}
 
 	// display statistics
@@ -172,7 +217,7 @@ int main(int argc, char **argv)
 	// free;
 	eval_close();
 	options_free();
-	mm_free(ui);
+	if (ui_freed) mm_free(ui); // (else the input thread still uses it: it ends with the process)
 
 	return 0;
 }

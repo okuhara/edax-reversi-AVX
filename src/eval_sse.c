@@ -15,6 +15,10 @@
 #include "move.h"
 #include "eval.h"
 
+#if defined(__ARM_NEON) && defined(__ARM_FEATURE_SVE)
+#include <arm_sve.h>
+#endif
+
 extern const EVAL_FEATURE_V EVAL_FEATURE[65];
 extern const EVAL_FEATURE_V EVAL_FEATURE_all_opponent;
 
@@ -179,77 +183,67 @@ void eval_update_sse(int x, unsigned long long f, Eval *eval_out, const Eval *ev
 
 #else	// SSE dispatch (Eval may not be aligned)
 
+#include <emmintrin.h>
+
+/*
+ * The SSE2 version of a build that does not assume SSE2 (USE_GAS_X86), chosen when the CPU has it.
+ * Up to v4.5.5-nikque.15 it was written as separate asm statements that kept their values in xmm2-xmm7 from one
+ * statement to the next, and stored eval_out through input operands: the compiler is told nothing of that, and
+ * may use these registers, or the memory, in between. The intrinsics let it know.
+ */
+__attribute__((target("sse2")))
 void eval_update_sse(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
 {
-	__asm__ (
-		"movdqu	%0, %%xmm2\n\t"
-		"movdqu	%1, %%xmm3\n\t"
-		"movdqu	%2, %%xmm4\n\t"
-		"movdqu	%3, %%xmm5\n\t"
-		"movdqu	%4, %%xmm6\n\t"
-		"movdqu	%5, %%xmm7"
-	: :  "m" (eval_in->feature.us[0]), "m" (eval_in->feature.us[8]),  "m" (eval_in->feature.us[16]),
-	"m" (eval_in->feature.us[24]), "m" (eval_in->feature.us[32]), "m" (eval_in->feature.us[40]));
+	__m128i	f0 = _mm_loadu_si128((const __m128i *) &eval_in->feature.us[0]);
+	__m128i	f1 = _mm_loadu_si128((const __m128i *) &eval_in->feature.us[8]);
+	__m128i	f2 = _mm_loadu_si128((const __m128i *) &eval_in->feature.us[16]);
+	__m128i	f3 = _mm_loadu_si128((const __m128i *) &eval_in->feature.us[24]);
+	__m128i	f4 = _mm_loadu_si128((const __m128i *) &eval_in->feature.us[32]);
+	__m128i	f5 = _mm_loadu_si128((const __m128i *) &eval_in->feature.us[40]);
+	#define	EVAL_FEATURE_SSE(x, i)	_mm_loadu_si128((const __m128i *) &EVAL_FEATURE[x].us[(i) * 8])
 
 	if (eval_in->n_empties & 1) {
-		__asm__ (
-			"psubw	%0, %%xmm2\n\t"
-			"psubw	%1, %%xmm3\n\t"
-			"psubw	%2, %%xmm4\n\t"
-			"psubw	%3, %%xmm5\n\t"
-			"psubw	%4, %%xmm6\n\t"
-			"psubw	%5, %%xmm7"
-		: :  "m" (EVAL_FEATURE[x].us[0]), "m" (EVAL_FEATURE[x].us[8]), "m" (EVAL_FEATURE[x].us[16]),
-		"m" (EVAL_FEATURE[x].us[24]), "m" (EVAL_FEATURE[x].us[32]), "m" (EVAL_FEATURE[x].us[40]));
+		f0 = _mm_sub_epi16(f0, EVAL_FEATURE_SSE(x, 0));
+		f1 = _mm_sub_epi16(f1, EVAL_FEATURE_SSE(x, 1));
+		f2 = _mm_sub_epi16(f2, EVAL_FEATURE_SSE(x, 2));
+		f3 = _mm_sub_epi16(f3, EVAL_FEATURE_SSE(x, 3));
+		f4 = _mm_sub_epi16(f4, EVAL_FEATURE_SSE(x, 4));
+		f5 = _mm_sub_epi16(f5, EVAL_FEATURE_SSE(x, 5));
 
 		foreach_bit (x, f) {
-			__asm__ (
-				"paddw	%0, %%xmm2\n\t"
-				"paddw	%1, %%xmm3\n\t"
-				"paddw	%2, %%xmm4\n\t"
-				"paddw	%3, %%xmm5\n\t"
-				"paddw	%4, %%xmm6\n\t"
-				"paddw	%5, %%xmm7"
-			: :  "m" (EVAL_FEATURE[x].us[0]), "m" (EVAL_FEATURE[x].us[8]), "m" (EVAL_FEATURE[x].us[16]),
-			"m" (EVAL_FEATURE[x].us[24]), "m" (EVAL_FEATURE[x].us[32]), "m" (EVAL_FEATURE[x].us[40]));
+			f0 = _mm_add_epi16(f0, EVAL_FEATURE_SSE(x, 0));
+			f1 = _mm_add_epi16(f1, EVAL_FEATURE_SSE(x, 1));
+			f2 = _mm_add_epi16(f2, EVAL_FEATURE_SSE(x, 2));
+			f3 = _mm_add_epi16(f3, EVAL_FEATURE_SSE(x, 3));
+			f4 = _mm_add_epi16(f4, EVAL_FEATURE_SSE(x, 4));
+			f5 = _mm_add_epi16(f5, EVAL_FEATURE_SSE(x, 5));
 		}
 
 	} else {
-		__asm__ (
-			"movdqa	%0, %%xmm0\n\t"		"movdqa	%1, %%xmm1\n\t"
-			"psllw	$1, %%xmm0\n\t"		"psllw	$1, %%xmm1\n\t"
-			"psubw	%%xmm0, %%xmm2\n\t"	"psubw	%%xmm1, %%xmm3\n\t"
-			"movdqa	%2, %%xmm0\n\t"		"movdqa	%3, %%xmm1\n\t"
-			"psllw	$1, %%xmm0\n\t"		"psllw	$1, %%xmm1\n\t"
-			"psubw	%%xmm0, %%xmm4\n\t"	"psubw	%%xmm1, %%xmm5\n\t"
-			"movdqa	%4, %%xmm0\n\t"		"movdqa	%5, %%xmm1\n\t"
-			"psllw	$1, %%xmm0\n\t"		"psllw	$1, %%xmm1\n\t"
-			"psubw	%%xmm0, %%xmm6\n\t"	"psubw	%%xmm1, %%xmm7"
-		: :  "m" (EVAL_FEATURE[x].us[0]), "m" (EVAL_FEATURE[x].us[8]), "m" (EVAL_FEATURE[x].us[16]),
-		"m" (EVAL_FEATURE[x].us[24]), "m" (EVAL_FEATURE[x].us[32]), "m" (EVAL_FEATURE[x].us[40]));
+		f0 = _mm_sub_epi16(f0, _mm_slli_epi16(EVAL_FEATURE_SSE(x, 0), 1));
+		f1 = _mm_sub_epi16(f1, _mm_slli_epi16(EVAL_FEATURE_SSE(x, 1), 1));
+		f2 = _mm_sub_epi16(f2, _mm_slli_epi16(EVAL_FEATURE_SSE(x, 2), 1));
+		f3 = _mm_sub_epi16(f3, _mm_slli_epi16(EVAL_FEATURE_SSE(x, 3), 1));
+		f4 = _mm_sub_epi16(f4, _mm_slli_epi16(EVAL_FEATURE_SSE(x, 4), 1));
+		f5 = _mm_sub_epi16(f5, _mm_slli_epi16(EVAL_FEATURE_SSE(x, 5), 1));
 
 		foreach_bit (x, f) {
-			__asm__ (
-				"psubw	%0, %%xmm2\n\t"
-				"psubw	%1, %%xmm3\n\t"
-				"psubw	%2, %%xmm4\n\t"
-				"psubw	%3, %%xmm5\n\t"
-				"psubw	%4, %%xmm6\n\t"
-				"psubw	%5, %%xmm7"
-			: :  "m" (EVAL_FEATURE[x].us[0]), "m" (EVAL_FEATURE[x].us[8]), "m" (EVAL_FEATURE[x].us[16]),
-			"m" (EVAL_FEATURE[x].us[24]), "m" (EVAL_FEATURE[x].us[32]), "m" (EVAL_FEATURE[x].us[40]));
+			f0 = _mm_sub_epi16(f0, EVAL_FEATURE_SSE(x, 0));
+			f1 = _mm_sub_epi16(f1, EVAL_FEATURE_SSE(x, 1));
+			f2 = _mm_sub_epi16(f2, EVAL_FEATURE_SSE(x, 2));
+			f3 = _mm_sub_epi16(f3, EVAL_FEATURE_SSE(x, 3));
+			f4 = _mm_sub_epi16(f4, EVAL_FEATURE_SSE(x, 4));
+			f5 = _mm_sub_epi16(f5, EVAL_FEATURE_SSE(x, 5));
 		}
 	}
+	#undef	EVAL_FEATURE_SSE
 
-	__asm__ (
-		"movdqu	%%xmm2, %0\n\t"
-		"movdqu	%%xmm3, %1\n\t"
-		"movdqu	%%xmm4, %2\n\t"
-		"movdqu	%%xmm5, %3\n\t"
-		"movdqu	%%xmm6, %4\n\t"
-		"movdqu	%%xmm7, %5"
-	: :  "m" (eval_out->feature.us[0]), "m" (eval_out->feature.us[8]), "m" (eval_out->feature.us[16]),
-	"m" (eval_out->feature.us[24]), "m" (eval_out->feature.us[32]), "m" (eval_out->feature.us[40]));
+	_mm_storeu_si128((__m128i *) &eval_out->feature.us[0], f0);
+	_mm_storeu_si128((__m128i *) &eval_out->feature.us[8], f1);
+	_mm_storeu_si128((__m128i *) &eval_out->feature.us[16], f2);
+	_mm_storeu_si128((__m128i *) &eval_out->feature.us[24], f3);
+	_mm_storeu_si128((__m128i *) &eval_out->feature.us[32], f4);
+	_mm_storeu_si128((__m128i *) &eval_out->feature.us[40], f5);
 }
 
 #endif // hasSSE2

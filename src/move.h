@@ -90,7 +90,7 @@ bool movelist_is_single(const MoveList*);
 	while (((iter) = move_next_best(iter)))
 
 void line_init(Line*, const int);
-void line_push(Line*, const int);
+bool line_push(Line*, const int);
 void line_pop(Line*);
 void line_copy(Line*, const Line*, const int);
 void line_print(const Line*, int, const char*, FILE*);

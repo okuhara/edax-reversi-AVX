@@ -85,6 +85,25 @@ typedef struct {
 	bool auto_swap;                       /**< change computer's side after each game */
 	bool auto_quit;                       /**< quit when game is over */
 	int repeat;                           /**< repeat 'n' games (before quitting)*/
+	int book_save_interval;               /**< minutes between timed book saves; 0 disables them */
+	int book_deviate_save_rounds;          /**< productive deviate rounds between saves; 0 means completion only */
+	bool book_merge_auto_save;            /**< save the book to "<book-file>.mrg" after each successful book merge */
+	bool hash_table_auto;                 /**< choose hash_table_size from the thread count and the memory size */
+	int book_expand_tasks;                /**< book positions expanded at the same time (each search uses n_task / book_expand_tasks threads); 0 = auto */
+	bool speed_set;                       /**< speed given by the user; otherwise the time management uses the measured search speed */
+	bool level_set;                       /**< level given by the user (with a time control, it caps the search level) */
+	int probcut_model;                    /**< probcut error model: 0 = standard, 1 = refit (experimental, see eval.c) */
+	int book_depth;                       /**< book depth set at startup (book-depth); 0 = auto: keep the depth of the loaded book */
+	int book_store_tasks;                 /**< games learned at the same time by book store/add/learn (each game uses n_task / book_store_tasks threads), and leaf searches of book link done at the same time; 0 = auto (n_task, the default), 1 = one position after the other */
+	bool book_store_auto_save;            /**< save the book to "<book-file>.store" after book store and after each group of games of book learn (the default); off: a program that saves the book itself after each call (edax_runner) does not write it twice */
+	int book_leaf_recalculate_rounds;     /**< passes of book leaf recalculate (2, 3, 4) at most: a pass that changes no leaf is the last one; 1 = a single pass (the default) */
+	bool book_seed_set;                   /**< book-seed given: the random numbers of the book (moves chosen among equal ones) start from book_seed; else from the clock (the default) */
+	unsigned long long book_seed;         /**< seed of the random numbers of the book (see book_seed_set) */
+	bool book_reproducible;               /**< the book functions give the same book from a run to the next (one-thread searches, expansions applied in the order of the list); off by default */
+	bool book_reduce_shrink;              /**< book reduce: fewer buckets when most positions are removed (on by default; off: the book saved is in the order of v4.5.5-nikque.21) */
+	bool book_reduce_reuse;               /**< book reduce: the positions that book reducecount found just before are used, the book being the same (on by default) */
+	int book_reduce_index;                /**< book reducecount: a position from its number, 0 = binary search of the buckets, 1 = with a table of every 64 numbers (the default) */
+	int book_reduce_walk;                 /**< book reducecount with threads: 0 = walk by accumulated loss (the default), 1 = in the order of the groups (the children first) */
 
 	// TODO: add more options?
 } Options;
@@ -94,7 +113,9 @@ extern Options options;
 void options_usage(void);
 int options_read(const char*, const char*);
 void options_parse(const char*);
+void options_parse_defaults(const char*);
 void options_bound(void);
+int hash_table_size_auto(const int);
 void options_free(void);
 void options_dump(FILE *f);
 

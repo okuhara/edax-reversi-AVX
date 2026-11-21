@@ -75,7 +75,7 @@ static int vectorcall solve_2(__m128i OP, int alpha, volatile unsigned long long
 	unsigned long long opponent;
 	// const int beta = alpha + 1;
 
-	SEARCH_STATS(++statistics.n_solve_2);
+	SEARCH_STATS(++statistics.n_board_solve_2);
 
 	x1 = _mm_cvtsi128_si32(empties);
 	x2 = x1 & 0xFF;	// _mm_extract_epi16(empties, 0)
@@ -141,7 +141,7 @@ static int vectorcall solve_3(__m128i OP, int alpha, volatile unsigned long long
 	int score, bestscore, x, pol;
 	unsigned long long opponent;
 
-	SEARCH_STATS(++statistics.n_solve_3);
+	SEARCH_STATS(++statistics.n_search_solve_3);
 	SEARCH_UPDATE_INTERNAL_NODES(*n_nodes);
 
 #if defined(__AVX__) || defined(__SSE4_1__)

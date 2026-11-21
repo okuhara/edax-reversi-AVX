@@ -216,8 +216,10 @@ static inline int _tzcnt_u64(unsigned long long x) {
   #endif
 
 #else
-	static inline int lzcnt_u32(unsigned long x) { return (x ? __builtin_clz(x) : 32); }
-	static inline int lzcnt_u64(unsigned long x) { return (x ? __builtin_clzll(x) : 64); }
+	// (unsigned int / unsigned long long: up to v4.5.5-nikque.15 an unsigned long, 32 bits on Windows and 32-bit
+	// systems, lost the upper half of a 64-bit value)
+	static inline int lzcnt_u32(unsigned int x) { return (x ? __builtin_clz(x) : 32); }
+	static inline int lzcnt_u64(unsigned long long x) { return (x ? __builtin_clzll(x) : 64); }
 #endif
 
 #if defined(__BMI__) || defined(__AVX2__)
@@ -313,7 +315,9 @@ extern const unsigned long long NEIGHBOUR[];
 	#define	first_bit(x)	tzcnt_u64(x)
 	#define	last_bit(x)	(63 - lzcnt_u64(x))
 #elif ((defined(__GNUC__) && (__GNUC__ >= 4)) || __has_builtin(__builtin_ctzll)) && !defined(__INTEL_COMPILER)
-	#define	first_bit(x)	__builtin_ctzll(x)
+	// foreach_bit() takes the first bit of 0 at its end: __builtin_ctzll(0) is undefined, so the top bit is set
+	// (it does not change the first bit of any other value)
+	#define	first_bit(x)	__builtin_ctzll((x) | 0x8000000000000000ULL)
 	#define	last_bit(x)	(63 - __builtin_clzll(x))
 #else
 	int first_bit(unsigned long long);
@@ -328,8 +332,9 @@ extern const unsigned long long NEIGHBOUR[];
   #else
 	int first_bit_32(unsigned int);
   #endif
+	// (the bit is removed in unsigned: _r - 1 overflowed with the top bit alone up to v4.5.5-nikque.15)
 	#define foreach_bit(i, b)	(void) i; for (unsigned int _j = 0; _j < sizeof(b) * CHAR_BIT; _j += sizeof(int) * CHAR_BIT) \
-		for (int _r = (b >> _j), i = first_bit_32(_r) + _j; _r; i = first_bit_32(_r &= (_r - 1)) + _j)
+		for (int _r = (b >> _j), i = first_bit_32(_r) + _j; _r; i = first_bit_32(_r = (int) ((unsigned int) _r & ((unsigned int) _r - 1))) + _j)
 #endif
 
 // popcount
@@ -444,7 +449,7 @@ typedef union {
 #endif
 
 // X64 compatibility sims for X86
-#if !defined(HAS_CPU_64) && (defined(hasSSE2) || defined(USE_MSVC_X86)) // & !defined(__clang__)
+#if !defined(HAS_CPU_64) && (defined(hasSSE2) || defined(USE_MSVC_X86)) && !defined(__clang__)
 	static inline __m128i _mm_cvtsi64_si128(const unsigned long long x) {
 		return _mm_unpacklo_epi32(_mm_cvtsi32_si128(x), _mm_cvtsi32_si128(x >> 32));
 	}

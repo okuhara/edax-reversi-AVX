@@ -12,6 +12,7 @@
 #include "board.h"
 #include "const.h"
 #include "game.h"
+#include "options.h"
 #include "search.h"
 #include "util.h"
 
@@ -83,6 +84,7 @@ static int move_from_oko(int x)
 void game_init(Game *game)
 {
 	char name[2] = "?";
+	memset(game, 0, sizeof *game); // (also the rest of the names and the padding: game_write() writes the whole structure)
 	board_init(&game->initial_board);
 	memset(game->move, NOMOVE, 60);
 	game->player = BLACK;
@@ -114,7 +116,9 @@ void game_copy(Game *dest, const Game *src)
 bool game_equals(const Game *game_1, const Game *game_2)
 {
 	int i;
-	if (game_1->hash == game_2->hash
+	// the initial board and player too: two games from other boards are not the same game (up to v4.5.5-nikque.15
+	// they were not compared)
+	if (game_1->hash == game_2->hash && game_1->player == game_2->player && board_equal(&game_1->initial_board, &game_2->initial_board)
 	 && game_1->date.year == game_2->date.year && game_1->date.month == game_2->date.month && game_1->date.day == game_2->date.day
 	 && game_1->date.hour == game_2->date.hour && game_1->date.minute == game_2->date.minute && game_1->date.second == game_2->date.second
 	 && strcmp(game_1->name[0], game_2->name[0]) == 0 && strcmp(game_1->name[1], game_2->name[1]) == 0) {
@@ -147,6 +151,29 @@ bool wthor_equals(const WthorGame *game_1, const WthorGame *game_2)
 }
 
 /**
+ * @brief Set the initial board of a game read from a file (GGF "BO", PGN "FEN").
+ *
+ * A board that is refused (no player to move, fewer than 4 discs, ...) leaves the initial board as it
+ * is: up to v4.5.5-nikque.15 the player of the game became EMPTY, an index out of the clocks.
+ *
+ * @param game Game.
+ * @param s Board text.
+ * @param set board_set() or board_from_FEN().
+ */
+static void game_set_initial_board(Game *game, const char *s, int (*set)(Board*, const char*))
+{
+	Board board;
+	const int player = set(&board, s);
+
+	if ((player == BLACK || player == WHITE) && board_is_usable(&board)) {
+		game->initial_board = board;
+		game->player = player;
+	} else {
+		warn("unusable initial board: %s\n", s);
+	}
+}
+
+/**
  * @brief update a board.
  *
  * @param board Board to update.
@@ -169,9 +196,14 @@ bool game_update_board(Board *board, int x)
 
 /**
  * @brief update a player.
- * @param board Board to update.
- * @param x Square to move on.
- * @return true on success.
+ *
+ * The player to move changes with a pass, and with the move (a legal one: an illegal move stops the game).
+ * Up to v4.5.5-nikque.15 it only changed with a pass, as the board changed with every move: the score of
+ * a game of an odd number of moves had the wrong sign.
+ *
+ * @param board Board (passed if needed).
+ * @param x Move.
+ * @return true if the player to move after the move is the other one.
  */
 static bool game_update_player(Board *board, int x)
 {
@@ -183,7 +215,7 @@ static bool game_update_player(Board *board, int x)
 			board_pass(board);
 			swap = !swap;
 		}
-		if (board_get_move_flip(board, x, &move) == 0) swap = !swap;
+		if (board_get_move_flip(board, x, &move) != 0) swap = !swap;
 	}
 
 	return swap;
@@ -281,7 +313,12 @@ void text_to_game(const char *line, Game *game)
 	board = game->initial_board;
 	for (i = 0; i < 60 && *line;) {
 		s = parse_move(line, &board, &move);
-		if (s == line && move.x == NOMOVE) return;
+		if (s == line && move.x == NOMOVE) {
+			// (the moves read so far are kept, as before; a line cut short used to be taken without a word)
+			s = parse_skip_spaces(line);
+			if (*s) warn("game text: \"%.12s\" is not a move that can be played here: the rest of the line is not read\n", s);
+			return;
+		}
 		if (move.x != PASS) {
 			game->hash = crc32c_u8(game->hash, move.x);
 			game->move[i++] = move.x;
@@ -432,7 +469,46 @@ void line_to_game(const Board *initial_board, const Line *line, Game *game)
  */
 void game_read(Game *game, FILE *f)
 {
-	if (fread(game, sizeof (Game), 1, f) == 0) game_init(game);
+	game_read_checked(game, f);
+}
+
+/**
+ * @brief Tell whether a game read from a binary file can be used.
+ *
+ * The player to move is an index (of the clocks...), the moves index the tables of the squares, the
+ * names are printed: a damaged file could make them be read or written out of bounds (up to
+ * v4.5.5-nikque.15 they were not checked). The board holds at least 4 discs, not on the same squares.
+ *
+ * @param game The game (the names are ended if needed).
+ * @return true if the game can be used.
+ */
+static bool game_is_sound(Game *game)
+{
+	int i;
+
+	game->name[BLACK][31] = game->name[WHITE][31] = '\0';
+	if (game->player != BLACK && game->player != WHITE) return false;
+	if (game->initial_board.player & game->initial_board.opponent) return false;
+	if (bit_count(game->initial_board.player | game->initial_board.opponent) < 4) return false;
+	for (i = 0; i < 60; ++i) {
+		const int x = (unsigned char) game->move[i]; // (char is unsigned on arm: a negative move is above H8 here)
+		if (x != NOMOVE && x > H8) return false;
+	}
+	return true;
+}
+
+/**
+ * @brief Read a game from a binary file, reporting incomplete files.
+ *
+ * @param game The output game (initialized when the file is incomplete or the game is damaged).
+ * @param f The file stream.
+ * @return true if a complete game, that can be used, was read.
+ */
+bool game_read_checked(Game *game, FILE *f)
+{
+	if (fread(game, sizeof (Game), 1, f) == 1 && game_is_sound(game)) return true;
+	game_init(game);
+	return false;
 }
 
 /**
@@ -454,12 +530,29 @@ void game_write(const Game *game, FILE *f)
  */
 void game_import_text(Game *game, FILE *f)
 {
-	char *line = string_read_line(f);
+	game_import_text_checked(game, f);
+}
 
-	if (line) text_to_game(line, game);
+/**
+ * @brief Read a game from a text file, telling whether a line was read.
+ *
+ * The last line of a file may have no end of line: it is read too (the end of the file is then
+ * reached). base_load() used to stop at the end of the file without adding it.
+ *
+ * @param game The output game (initialized when there is no line left).
+ * @param f The file stream.
+ * @return true if a line was read.
+ */
+bool game_import_text_checked(Game *game, FILE *f)
+{
+	char *line = string_read_line(f);
+	const bool read = (line != NULL);
+
+	if (read) text_to_game(line, game);
 	else  game_init(game);
 
 	free(line);
+	return read;
 }
 
 /**
@@ -559,7 +652,7 @@ static int game_parse_ggf(FILE *f, char *tag, char *value)
 	if (c != '[') return PARSE_INVALID_TAG;
 	tag[i] = '\0';
 
-	for (i = 0; i < 1000; i++) {
+	for (i = 0; i < 999; i++) {
 		c = fgetc(f);
 		if (c == EOF) return PARSE_END_OF_FILE;
 		if (c == ']') break;
@@ -567,7 +660,7 @@ static int game_parse_ggf(FILE *f, char *tag, char *value)
 	}
 	value[i]='\0';
 
-	if (i == 1000) {
+	if (i == 999) {
 		for (i = 0; ; i++) {
 			c = fgetc(f);
 			if (c == EOF) return PARSE_END_OF_FILE;
@@ -601,7 +694,7 @@ void game_import_ggf(Game* game, FILE* f)
 			if (strcmp(tag,"GM") == 0 && strcmp(value, "othello") != 0) break;
 			if (strcmp(tag, "BO") == 0) {
 				if (value[0] != '8') break;
-				game->player = board_set(&game->initial_board, value + 2);
+				game_set_initial_board(game, value + 2, board_set);
 			} else if (strcmp(tag, "PB") == 0) {
 				memcpy(game->name[BLACK], value, 31);
 				game->name[BLACK][31] = '\0';
@@ -644,11 +737,11 @@ static const char* parse_tag(const char *string, char *tag, char *value)
 		tag[1] = *s++;
 		tag[2] = *value = '\0';
 	} else {
-		n = 3; while (*s && *s != '[' && n--) *tag++ = toupper(*s++);
+		n = 3; while (*s && *s != '[' && n--) *tag++ = toupper((unsigned char) *s++);
 		*tag = '\0';
 		if (*s == '[') {
 			++s;
-			n = 255; while (*s && *s != ']' && n--) *value++ = tolower(*s++);
+			n = 255; while (*s && *s != ']' && n--) *value++ = tolower((unsigned char) *s++);
 			if (*s == ']') ++s;
 			else s = string;
 		} else s = string;
@@ -688,7 +781,7 @@ int parse_ggf(Game *game, const char *string)
 				if (value[0] != '8') {
 					return -1;
 				}
-				game->player = board_set(&game->initial_board, value + 2);
+				game_set_initial_board(game, value + 2, board_set);
 			} else if (strcmp(tag, "PB") == 0) {
 				memcpy(game->name[BLACK], value, 31);
 				game->name[BLACK][31] = '\0';
@@ -861,10 +954,12 @@ void game_import_sgf(Game *game, FILE *f)
 				memcpy(game->name[WHITE], value, 31);
 				game->name[WHITE][31] = '\0';
 			} else if (i < 60 && (strcmp(tag,"B") == 0 || strcmp(tag, "W") == 0)) {
-				game->move[i] = string_to_coordinate(value);
-				game->hash = crc32c_u8(game->hash, game->move[i]);
-				i++;
-
+				const int x = string_to_coordinate(value);
+				if (x != PASS) { // (a pass, that game_save_sgf() writes as B[PA], is not a move of the game)
+					game->move[i] = (char) x;
+					game->hash = crc32c_u8(game->hash, game->move[i]);
+					i++;
+				}
 			}
 		}
 		while (level > 0 && game_parse_sgf(f, tag, value)) {
@@ -969,7 +1064,24 @@ void game_export_sgf(const Game *game, FILE *f)
  */
 void game_import_pgn(Game *game, FILE *f)
 {
+	game_import_pgn_checked(game, f);
+}
+
+/**
+ * @brief Read a game from a pgn file, telling whether a game was read.
+ *
+ * A game ends at the start of the next one ('[') or at the end of the file: the last game of a
+ * file is read when the end of the file is reached. base_load() used to stop at the end of the
+ * file without adding it.
+ *
+ * @param game The output game.
+ * @param f The file stream.
+ * @return true if a game was read (false: only spaces or comments were left).
+ */
+bool game_import_pgn_checked(Game *game, FILE *f)
+{
 	int c, state, i, j, k, n;
+	bool found = false;
 	char move[5] = "--\0\0";
 	int score[2] = {0, 0};
 	char info_tag[257] = "", info_value[257] = ""; // 256 is the maximal info size according to PGN standard
@@ -996,7 +1108,6 @@ void game_import_pgn(Game *game, FILE *f)
 	i = j = k = 0;
 	while(state != STATE_END_GAME) {
 		c = getc(f);
-		putchar(c);
 		if  (c == EOF) {
 			state = STATE_END_GAME;
 		}  else  if  (c == '{') { // skip comments
@@ -1031,7 +1142,7 @@ void game_import_pgn(Game *game, FILE *f)
 			switch (state) {
 				case STATE_BEGIN_INFO:
 					state = STATE_BEGIN_VALUE;
-					for (--j; j >= 0 && isspace(info_tag[j]); --j);
+					for (--j; j >= 0 && isspace((unsigned char) info_tag[j]); --j);
 					info_tag[j + 1] = '\0';
 					j = 0;
 					string_to_lowercase(info_tag);
@@ -1047,13 +1158,16 @@ void game_import_pgn(Game *game, FILE *f)
 						memcpy(game->name[WHITE], info_value, 31);
 						game->name[WHITE][31] = '\0';
 					} else if (strcmp(info_tag, "date") == 0) {
-						sscanf(info_value, "%d.%d.%d", value, value + 1, value + 2);
-						game->date.year = value[0]; game->date.month = value[1]; game->date.day = value[2];
+						if (sscanf(info_value, "%d.%d.%d", value, value + 1, value + 2) == 3) {
+							game->date.year = value[0]; game->date.month = value[1]; game->date.day = value[2];
+						}
 					} else if (strcmp(info_tag, "time") == 0) {
-						sscanf(info_value, "%d:%d:%d", value, value + 1, value + 2);
-						game->date.hour = value[0]; game->date.minute = value[1]; game->date.second = value[2];
-					} else if (strcmp(info_tag, "FEN") == 0) {
-						game->player = board_from_FEN(&game->initial_board, info_value);
+						if (sscanf(info_value, "%d:%d:%d", value, value + 1, value + 2) == 3 ||
+							sscanf(info_value, "%d.%d.%d", value, value + 1, value + 2) == 3) {
+							game->date.hour = value[0]; game->date.minute = value[1]; game->date.second = value[2];
+						}
+					} else if (strcmp(info_tag, "fen") == 0) {
+						game_set_initial_board(game, info_value, board_from_FEN);
 					}
 					break;
 			}
@@ -1073,9 +1187,14 @@ void game_import_pgn(Game *game, FILE *f)
 			case STATE_BEGIN_MOVE:
 				state = STATE_END_MOVE;
 				move[k++] = c;
-				game->move[i] = string_to_coordinate(move);
-				game->hash = crc32c_u8(game->hash, game->move[i]);
-				i++;
+				if (i < 60) {
+					game->move[i] = string_to_coordinate(move);
+					game->hash = crc32c_u8(game->hash, game->move[i]);
+					i++;
+				} else if (i == 60) {
+					warn("PGN contains more than 60 moves; excess moves ignored\n");
+					i = 61;
+				}
 				break;
 			case STATE_BEGIN_INFO:
 				if (j >= info_size) warn("info tag too long, will be truncated.");
@@ -1091,10 +1210,13 @@ void game_import_pgn(Game *game, FILE *f)
 			}
 		}  else  if  (c == '*') {
 			switch(state) {
+			case STATE_START:
+			case STATE_END_INFO:
+				state = STATE_END_SCORE;
+				break;
 			case STATE_END_MOVE:
 				state = STATE_BEGIN_SCORE;
-				score[0] = score[1] = -SCORE_INF;
-				warn("uncomplete game.");
+				score[0] = score[1] = -SCORE_INF; // (a game that is not finished: no warning, game_save_pgn() writes it this way)
 				break;
 			case STATE_BEGIN_VALUE:
 				if (j >= info_size) warn("info value too long, will be truncated.");
@@ -1200,13 +1322,13 @@ void game_import_pgn(Game *game, FILE *f)
 				break;
 			}
 		}
-
+		if (state != STATE_START && state != STATE_END_GAME) found = true;
 	}
 
-	if (!game_check(game)) {
+	if (found && !game_check(game)) {
 		warn("error while importing a PGN game\n");
 	}
-	return;
+	return found;
 }
 
 /**
@@ -1223,7 +1345,7 @@ void game_export_pgn(const Game *game, FILE *f)
 	const char *result = half_score < -32 ? "*" : (half_score < 0 ? "0-1" : (half_score > 0 ? "1-0" : "1/2-1/2"));
 	const char *winner = (half_score < 0 ?  game->name[WHITE]: (half_score > 0 ? game->name[BLACK] : NULL));
 	Board board;
-	char s[80];
+	char s[128];
 	int i, j, k;
 	int player;
 
@@ -1234,8 +1356,8 @@ void game_export_pgn(const Game *game, FILE *f)
 	if (game->date.year == 0) fprintf(f, "[Date \"%d.??.??\"]\n", date->tm_year + 1900);
 	else if (game->date.month == 0) fprintf(f, "[Date \"%d.??.??\"]\n", game->date.year);
 	else if (game->date.day == 0) fprintf(f, "[Date \"%d.%d.??\"]\n", game->date.year, game->date.month);
-	fprintf(f, "[Date \"%d.%d.%d\"]\n", game->date.year, game->date.month, game->date.day);
-	if (game->date.hour >= 0) fprintf(f, "[Time \"%d.%d.%d\"]\n", game->date.hour, game->date.minute, game->date.second);
+	else fprintf(f, "[Date \"%d.%d.%d\"]\n", game->date.year, game->date.month, game->date.day);
+	if (game->date.hour >= 0) fprintf(f, "[Time \"%d:%d:%d\"]\n", game->date.hour, game->date.minute, game->date.second);
 	fputs("[Round \"?\"]\n", f);
 	fprintf(f, "[Black \"%s\"]\n", game->name[BLACK]);
 	fprintf(f, "[White \"%s\"]\n", game->name[WHITE]);
@@ -1554,7 +1676,7 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
 		Move best;
 		Line pv;
 		int n_empties;
-	} stack[99];
+	} stack[121];
 	int n_error = 0;
 	int n_move;
 	const int verbosity = search->options.verbosity;
@@ -1570,6 +1692,7 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
 		if (!can_move(board.player, board.opponent)) {
 			stack[n_move].best = MOVE_INIT;
 			line_init(&stack[n_move].pv, player);
+			stack[n_move].n_empties = board_count_empties(&board);
 			stack[n_move++].played = MOVE_PASS;
 			board_pass(&board);
 			player = !player;
@@ -1595,6 +1718,7 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
 			game_export_text(game, stderr);
 			board_print(&board, player, stderr);
 			fprintf(stderr, "\n\n");
+			search->options.verbosity = verbosity;
 			return 1; // stop, illegal moves
 		}
 	}
@@ -1605,18 +1729,18 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
 		search_run(search);
 		score = search->result->score;
 
-		for (i = n_move - 1; stack[i].n_empties <= n_empties; --i) {
+		for (i = n_move - 1; i >= 0 && stack[i].n_empties <= n_empties; --i) {
 			stack[i].played.score = -score;
 			score = MAX(stack[i].played.score, stack[i].best.score);
 		}
 
 		//backpropagate the score
-		while (stack[--n_move].n_empties <= n_empties) {
+		while (n_move > 0 && stack[--n_move].n_empties <= n_empties) {
 			if (stack[n_move].played.score < stack[n_move].best.score) {
 				++n_error;
 				// correct the move?
 				if (apply_correction && stack[n_move].best.x != NOMOVE) {
-					for (i = 0; i < 60 && game->move[i] != 0; ++i) {
+					for (i = 0; i < 60 && game->move[i] != NOMOVE; ++i) {
 						if (game->move[i] == stack[n_move].played.x) {
 							game_append_line(game, &stack[n_move].pv, i);
 						}
@@ -1649,9 +1773,9 @@ int game_complete(Game *game, Search *search, const int level)
 	search->options.verbosity = 0;
 	search_cleanup(search);
 
-	player = game->player;
 	for (n = 0; n < 60; ++n) {
 		board = game->initial_board;
+		player = game->player; // (up to v4.5.5-nikque.15 it was set once, before the first search)
 		for (i = 0; i < 60 && game->move[i] != NOMOVE; ++i) {
 			player ^= game_update_player(&board, game->move[i]);
 			if (!game_update_board(&board, game->move[i])) {
@@ -1666,7 +1790,9 @@ int game_complete(Game *game, Search *search, const int level)
 		}
 
 		search_set_board(search, &board, player);
-		search_set_level(search, level, search->eval.n_empties);
+		// the level of the "level" setting, as a move of a game (up to v4.5.5-nikque.12 the level was not set:
+		// the search kept the depth of whatever was searched before, which is 0, random moves, after base correct)
+		search_set_level(search, options.level, search->eval.n_empties);
 		search_run(search);
 		if (search->result->depth == search->eval.n_empties && search->result->selectivity == NO_SELECTIVITY) {
 			game_append_line(game, &search->result->pv, i);

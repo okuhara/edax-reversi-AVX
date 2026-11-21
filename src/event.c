@@ -34,6 +34,7 @@ void event_init(Event *event)
 	condition_init(&event->cond);
 
 	event->loop = true;
+	event->reading = event->closing = false;
 }
 
 /**
@@ -148,7 +149,7 @@ void event_wait(Event *event, char **cmd, char **param)
 	n = strlen(message);
 	*cmd = (char*) malloc(n + 1);
 	*param = (char*) malloc(n + 1);
-	parse_command(message, *cmd, *param, n);
+	parse_command(message, *cmd, *param, n + 1);
 	free(message);
 }
 

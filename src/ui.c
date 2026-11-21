@@ -12,9 +12,25 @@
 #include "ui.h"
 #include "util.h"
 #include <assert.h>
-#include <signal.h>
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 void gtp_preprocess(char *line);
+
+/** @return true if the standard input is a file (commands given with "edax < commands.txt"). */
+static bool stdin_is_file(void)
+{
+#ifdef _WIN32
+	return GetFileType((HANDLE) _get_osfhandle(_fileno(stdin))) == FILE_TYPE_DISK;
+#else
+	struct stat st;
+	return fstat(fileno(stdin), &st) == 0 && S_ISREG(st.st_mode);
+#endif
+}
 
 /**
  * @brief Switch between different User Interface
@@ -80,19 +96,38 @@ static void ui_read_input(UI *ui)
 
 	buffer = string_read_line(stdin);
 
+	// the play and the event are only used under the lock of the event, while the user interface goes on: when it
+	// ends, it may free them (up to v4.5.5-nikque.15 a line read then could use them once freed)
+	lock(&event->lock);
+	if (event->closing) {
+		event->loop = false;
+		unlock(&event->lock);
+		free(buffer);
+		return;
+	}
 	if (buffer == NULL) {
 		if (ferror(stdin)) {
-			if (errno == EINTR) clearerr(stdin);
-			else fatal_error("stdin is broken\n");
-		} else if (feof(stdin)) {
+			if (errno == EINTR) { // interrupted: read again (up to v4.5.5-nikque.15 the input ended without "eof")
+				clearerr(stdin);
+				unlock(&event->lock);
+				return;
+			}
+			unlock(&event->lock);
+			fatal_error("stdin is broken\n");
+		} else if (feof(stdin) && ui->type != UI_GGS) {
+			// GGS can continue receiving server events after local input closes.
 			buffer = string_duplicate("eof");
 		}
 		event->loop = false;
 	} else {
 		if (ui->type == UI_GTP) gtp_preprocess(buffer);
-		parse_word(buffer, cmd, 5);
+		parse_word(buffer, cmd, sizeof cmd);
 		string_to_lowercase(cmd);
-		if (strcmp(cmd, "stop") == 0) {
+		if (strcmp(cmd, "stop") == 0 && ui->type == UI_EDAX && book_analysis_stop(buffer)) {
+			// "stop id=<n>": only the book analysis <n> stops (the commands waiting are kept)
+			free(buffer);
+			buffer = NULL;
+		} else if (strcmp(cmd, "stop") == 0) {
 			event_clear_messages(event);
 			info("[stop]\n");
 			play_stop(play);
@@ -102,20 +137,24 @@ static void ui_read_input(UI *ui)
 		} else if (ui->type == UI_XBOARD && strcmp(cmd, "?") == 0) {
 			play_stop(play);
 		} else {
-			if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "q") == 0) {
-				event_clear_messages(event);
-				play_stop(play);
-				if (ui->type == UI_GGS) play_stop(play + 1);
+			if (strcmp(cmd, "quit") == 0 || (strcmp(cmd, "q") == 0 &&
+			    (ui->type == UI_EDAX || ui->type == UI_XBOARD || ui->type == UI_GGS))) {
+				// Commands read from a file are all read at once: there, quit is done in its turn, after the
+				// commands before it. Typed (or sent through a pipe), it stops the search and quits at once.
+				if (!(ui->type == UI_EDAX && stdin_is_file())) {
+					event_clear_messages(event);
+					play_stop(play);
+					if (ui->type == UI_GGS) play_stop(play + 1);
+				}
 				event->loop = false;
 			}
 		}
 	}
 	if (buffer) {
-		lock(&event->lock);
-			event_add_message(event, buffer);
-			condition_signal(&event->cond);
-		unlock(&event->lock);
+		event_add_message(event, buffer);
+		condition_signal(&event->cond);
 	}
+	unlock(&event->lock);
 }
 
 
@@ -134,8 +173,10 @@ static void* ui_read_input_loop(void *v)
 		ui_read_input(ui);
 	}
 
-	ui->is_running = false;
 	info("[exit ui_read_input]\n");
+	lock(&ui->event.lock);
+	ui->event.reading = false;
+	unlock(&ui->event.lock);
 
 	return NULL;
 }
@@ -174,7 +215,7 @@ bool ui_event_peek(UI *ui, char **cmd, char **param)
 		n = strlen(message);
 		*cmd = (char*) malloc(n + 1);
 		*param = (char*) malloc(n + 1);
-		parse_command(message, *cmd, *param, n);
+		parse_command(message, *cmd, *param, n + 1);
 		free(message);
 		return true;
 	} else {
@@ -211,23 +252,43 @@ void ui_event_init(UI *ui)
 {
 	ui->is_running = false;
 	event_init(&ui->event);
+	ui->event.reading = true;
+
 	thread_create(&ui->event.thread, ui_read_input_loop, ui);
 	thread_detach(ui->event.thread);
 }
 
 /**
+ * @brief Tell the input thread that the user interface ends: what it reads then is not used.
+ *
+ * Called before the user interface frees its play.
+ *
+ * @param ui User interface.
+ */
+void ui_event_close(UI *ui)
+{
+	lock(&ui->event.lock);
+	ui->event.closing = true;
+	unlock(&ui->event.lock);
+}
+
+/**
  * @brief Free events.
  *
- * Allocate event resources & launch user-input event thread.
- *
+ * @param ui User interface.
+ * @return true if the events were freed (false: the input thread still runs, and uses them).
  */
-void ui_event_free(UI *ui)
+bool ui_event_free(UI *ui)
 {
-#ifdef __unix__
-	if (ui->is_running) {
-		info("[terminating ui event thread]\n");
-		pthread_kill((pthread_t) ui->event.thread, SIGINT);
-	}
-#endif
+	bool reading;
+
+	lock(&ui->event.lock);
+	ui->event.closing = true;
+	reading = ui->event.reading;
+	unlock(&ui->event.lock);
+	// the input thread still waits for a line: it uses the event (in the user interface) when it gets one, so
+	// they are left to the end of the process
+	if (reading) return false;
 	event_free(&ui->event);
+	return true;
 }

@@ -17,9 +17,9 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         include:
           - os: ubuntu-latest
-            build_command: make build ARCH=x64-modern COMP=gcc OS=linux
+            build_command: make build ARCH=x86-64-v3 COMP=gcc OS=linux # (names of src/Makefile: x64-modern and armv8.5-a were not)
           - os: macos-latest
-            build_command: make build ARCH=armv8.5-a COMP=clang OS=osx
+            build_command: make build ARCH=arm64 COMP=clang OS=osx
 
     steps:
     - uses: actions/checkout@v4

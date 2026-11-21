@@ -90,10 +90,10 @@ static const unsigned long long FLIPPED_4_H[19] = {	// ...cbahg
 
 // Strictly, (long long) >> 64 is undefined in C, but either 0 bit (no change)
 // or 64 bit (zero out) shift will lead valid result (i.e. flipped == 0).
-#define	outflank_right(O,maskr)	(0x8000000000000000ULL >> lzcnt_u64(~(O) & (maskr)))
+#define	outflank_right(O,maskr)	(0x8000000000000000ULL >> (lzcnt_u64(~(O) & (maskr)) & 63))	// (a shift of 64 is undefined in C: modulo 64, as the arm64 shift does)
 
 // in case continuous from MSB
-#define	outflank_right_H(O)	(0x80000000u >> lzcnt_u32(~(O)))
+#define	outflank_right_H(O)	(0x80000000u >> (lzcnt_u32(~(O)) & 31))	// (a shift of 32 is undefined in C: modulo 32, as the shifts do)
 
 
 #ifdef __clang__	// poor optimization for vbicq(const,x) (ndk-r15)

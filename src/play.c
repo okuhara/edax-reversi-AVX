@@ -18,6 +18,7 @@
 #include "settings.h"
 
 #include <assert.h>
+#include <ctype.h>
 
 /**
  * @brief Initialization.
@@ -38,6 +39,8 @@ void play_init(Play *play, Book *book)
 	play->time[1].extra = 0;
 	play_new(play);
 	lock_init(&play->ponder.lock);
+	lock_init(&play->no_stop.lock);
+	play->no_stop.n = 0;
 	play->ponder.launched = false;
 	spin_init(&play->result.spin);
 	play->ponder.verbose = false;
@@ -76,6 +79,45 @@ void play_new(Play *play)
 }
 
 /**
+ * @brief Check a game read from a file before it replaces the current game: its initial board, and its moves
+ * (same rules as play_move).
+ *
+ * @param play Play (its error message is set).
+ * @param game Game.
+ * @param file File name of the game (for the message).
+ * @return true if the game can be played.
+ */
+static bool play_load_check(Play *play, const Game *game, const char *file)
+{
+	Board board = game->initial_board;
+	int i, player = game->player;
+	char move[8];
+	Move m;
+
+	if (!board_is_usable(&game->initial_board) || (game->player != BLACK && game->player != WHITE)) {
+		snprintf(play->error_message, PLAY_MESSAGE_MAX_LENGTH, "Unusable initial board in %s\n", file);
+		return false;
+	}
+	for (i = 0; i < 60 && game->move[i] != NOMOVE; ++i) {
+		if (!can_move(board.player, board.opponent) && can_move(board.opponent, board.player)) {
+			m = MOVE_INIT;
+			board_get_move_flip(&board, PASS, &m);
+			board_update(&board, &m);
+			player ^= 1;
+		}
+		m = MOVE_INIT;
+		board_get_move_flip(&board, game->move[i], &m);
+		if (!board_check_move(&board, &m)) {
+			sprintf(play->error_message, "Illegal move #%d: %s\n", i, move_to_string(game->move[i], player, move));
+			return false;
+		}
+		board_update(&board, &m);
+		player ^= 1;
+	}
+	return true;
+}
+
+/**
  * @brief Load a saved game.
  * @param play Play.
  * @param file File name of the game.
@@ -86,40 +128,52 @@ bool play_load(Play *play, const char *file)
 	Game game;
 	FILE *f;
 	int i, l;
-	char ext[8], move[8];
+	char ext[8];
+	void (*load)(Game*, FILE*) = NULL;
 
-	f = fopen(file, "r");
-	if (f == NULL) {
-		sprintf(play->error_message, "Cannot open file %s\n", file);
+	l = strlen(file);
+	if (l < 4) {
+		snprintf(play->error_message, PLAY_MESSAGE_MAX_LENGTH, "Unknown game format extension: %s\n", file);
 		return false;
 	}
-
-	l = strlen(file); strcpy(ext, file + l - 4); string_to_lowercase(ext);
-
-	if (strcmp(ext, ".txt") == 0) game_import_text(&game, f);
-	else if (strcmp(ext, ".ggf") == 0) game_import_ggf(&game, f);
-	else if (strcmp(ext, ".sgf") == 0) game_import_sgf(&game, f);
-	else if (strcmp(ext, ".pgn") == 0) game_import_pgn(&game, f);
-	else if (strcmp(ext, ".edx") == 0) game_read(&game, f);
+	strcpy(ext, file + l - 4); string_to_lowercase(ext);
+	if (strcmp(ext, ".txt") == 0) load = game_import_text;
+	else if (strcmp(ext, ".ggf") == 0) load = game_import_ggf;
+	else if (strcmp(ext, ".sgf") == 0) load = game_import_sgf;
+	else if (strcmp(ext, ".pgn") == 0) load = game_import_pgn;
+	else if (strcmp(ext, ".edx") == 0) load = game_read;
 	else {
 		sprintf(play->error_message, "Unknown game format extension: %s\n", ext);
-		fclose(f);
 		return false;
 	}
+	f = fopen(file, load == game_read ? "rb" : "r");
+	if (f == NULL) {
+		snprintf(play->error_message, PLAY_MESSAGE_MAX_LENGTH, "Cannot open file %s\n", file); // the name can be longer than the message
+		return false;
+	}
+
+	if (load == game_read) {
+		if (!game_read_checked(&game, f)) {
+			snprintf(play->error_message, PLAY_MESSAGE_MAX_LENGTH, "Incomplete or damaged game file %s\n", file);
+			fclose(f);
+			return false;
+		}
+	} else {
+		load(&game, f);
+	}
+	fclose(f);
+
+	// check every move before the current game is replaced
+	if (!play_load_check(play, &game, file)) return false;
 
 	play->initial_board = game.initial_board;
 	play->initial_player = game.player;
 	play_new(play);
 	for (i = 0; i < 60 && game.move[i] != NOMOVE; ++i) {
 		if (play_must_pass(play)) play_move(play, PASS);
-		if (!play_move(play, game.move[i])) {
-			sprintf(play->error_message, "Illegal move #%d: %s\n", i, move_to_string(game.move[i], play->player, move));
-			fclose(f);
-			return false;
-		}
+		play_move(play, game.move[i]);
 	}
 
-	fclose(f);
 	return true;
 }
 
@@ -134,33 +188,37 @@ void play_save(Play *play, const char *file)
 	FILE *f;
 	int i, j, l;
 	char ext[8];
+	void (*save)(const Game*, FILE*) = NULL;
 
 
 	game_init(&game);
 	game.initial_board = play->initial_board;
 	game.player = play->initial_player;
 	for (i = j = 0; i < play->n_game; ++i) {
-		if (play->game[i].x != PASS) {
+		if (play->game[i].x != PASS && j < 60) { // a Game holds 60 moves
 			game.move[j++] = play->game[i].x;
 		}
 	}
 
-	f = fopen(file, "w");
+	l = strlen(file);
+	if (l < 4) { warn("Unknown game format extension: %s\n", file); return; }
+	strcpy(ext, file + l - 4); string_to_lowercase(ext);
+	if (strcmp(ext, ".txt") == 0) save = game_export_text;
+	else if (strcmp(ext, ".ggf") == 0) save = game_export_ggf;
+	else if (strcmp(ext, ".sgf") == 0) save = NULL;
+	else if (strcmp(ext, ".pgn") == 0) save = game_export_pgn;
+	else if (strcmp(ext, ".eps") == 0) save = game_export_eps;
+	else if (strcmp(ext, ".svg") == 0) save = game_export_svg;
+	else if (strcmp(ext, ".edx") == 0) save = game_write;
+	else { warn("Unknown game format extension: %s\n", ext); return; }
+	f = fopen(file, save == game_write ? "wb" : "w");
 	if (f == NULL) {
 		warn("Cannot open file %s\n", file);
 		return;
 	}
 
-	l = strlen(file); strcpy(ext, file + l - 4); string_to_lowercase(ext);
-
-	if (strcmp(ext, ".txt") == 0) game_export_text(&game, f);
-	else if (strcmp(ext, ".ggf") == 0) game_export_ggf(&game, f);
-	else if (strcmp(ext, ".sgf") == 0) game_save_sgf(&game, f, true);
-	else if (strcmp(ext, ".pgn") == 0) game_export_pgn(&game, f);
-	else if (strcmp(ext, ".eps") == 0) game_export_eps(&game, f);
-	else if (strcmp(ext, ".svg") == 0) game_export_svg(&game, f);
-	else if (strcmp(ext, ".edx") == 0) game_write(&game, f);
-	else warn("Unknown game format extension: %s\n", ext);
+	if (strcmp(ext, ".sgf") == 0) game_save_sgf(&game, f, true);
+	else save(&game, f);
 
 	fclose(f);
 }
@@ -205,6 +263,18 @@ bool play_must_pass(Play *play)
 		can_move(play->board.opponent, play->board.player);
 }
 #endif
+
+/**
+ * @brief Search level used to play a move.
+ *
+ * With a time control, the level is only a cap on the search: unless a level was given
+ * explicitly, do not stop at the default level (21), and use the available time.
+ * @return level.
+ */
+static int play_level(void)
+{
+	return (options.play_type != EDAX_FIXED_LEVEL && !options.level_set) ? 60 : options.level;
+}
 
 /**
  * @brief Start thinking.
@@ -263,9 +333,11 @@ void play_go(Play *play, const bool update)
 			} else {
 				if (search->options.header) puts(search->options.header);
 				if (search->options.separator) puts(search->options.separator);
+				ui_output_lock(); // (whole lines, between the lines of the book analyses)
 				printf("book    %+02d                                          ", move.score);
 				line_print(&play->result.pv, options.width - 54, " ", stdout);
 				putchar('\n');
+				ui_output_unlock(false);
 				if (search->options.separator) puts(search->options.separator);
 			}
 		}
@@ -319,7 +391,7 @@ void play_go(Play *play, const bool update)
 			if (search->options.separator) puts(search->options.separator);
 		}
 		search_set_board(search, &play->board, play->player);
-		search_set_level(search, options.level, search->eval.n_empties);
+		search_set_level(search, play_level(), search->eval.n_empties);
 		if (options.play_type == EDAX_TIME_PER_MOVE) search_set_move_time(search, options.time);
 		else search_set_game_time(search, play->time[play->player].left);
 
@@ -348,6 +420,7 @@ void play_go(Play *play, const bool update)
 	t_cpu += cpu_clock() + 1;
 	info("[cpu usage: %.2f%%]\n", 100.0 * t_cpu / t_real);
 
+	if (options.nps > 0) t_real = play->result.time;	// virtual clock (node count / nps), as used by the search
 	if (options.play_type != EDAX_TIME_PER_MOVE) play->time[play->player].left -= t_real;
 
 	if (update) play_update(play, &move);
@@ -400,8 +473,10 @@ void play_hint(Play *play, int n)
 				printf("book "); line_print(&pv, 10, NULL, stdout);
 				printf(" %d %llu %d\n", m->score, stat.n_lines, play->book->options.level);
 			} else {
+				ui_output_lock(); // (whole lines, between the lines of the book analyses)
 				printf("book    %+02d                                          ", m->score);
 				line_print(&pv, options.width - 54, " ", stdout); putchar('\n');
+				ui_output_unlock(false);
 			}
 		}
 	}
@@ -467,7 +542,7 @@ void* play_ponder_run(void *v)
 			board_update(&board, &move);
 				play->ponder.board = board;
 				search_set_board(search, &board, player ^ 1);
-				search_set_level(search, options.level, search->eval.n_empties);
+				search_set_level(search, play_level(), search->eval.n_empties);
 				search_run(search);
 				if (options.info && play->state == IS_PONDERING) {
 					fprintf(stderr, "[ponder after %s id.%d: ", move_to_string(move.x, player, m), search->id);
@@ -478,7 +553,7 @@ void* play_ponder_run(void *v)
 		} else {
 			play->ponder.board = board;
 			search_set_board(search, &board, player);
-			search_set_ponder_level(search, options.level, search->eval.n_empties);
+			search_set_ponder_level(search, play_level(), search->eval.n_empties);
 			log_print(&xboard_log, "edax (ponder)> start search\n");
 			search_run(search);
 			log_print(&xboard_log, "edax (ponder)> search ended\n");
@@ -513,8 +588,8 @@ void play_ponder(Play *play)
 		play->ponder.board.player = play->ponder.board.opponent = 0;
 		play->state = IS_PONDERING;
 		info("\n[start ponderation]\n");
-		thread_create(&play->ponder.thread, play_ponder_run, play);
-		play->ponder.launched = true;
+		if (thread_create(&play->ponder.thread, play_ponder_run, play)) play->ponder.launched = true;
+		else play->state = IS_WAITING; // no thread (memory exhausted): no pondering (its end was waited for, for ever)
 	}
 }
 
@@ -548,8 +623,34 @@ void play_stop_pondering(Play *play)
  */
 void play_stop(Play *play)
 {
-	search_stop_all(&play->search, STOP_ON_DEMAND);
-	info("[stop on user demand]\n");
+	bool stopped = false;
+
+	// A book or base command, or the store of a game, does not look at the stop: only the search that is
+	// running would be cut short, and its unfinished result would go to the book or to the game file
+	// (up to v4.5.5-nikque.12 it did). The stop is checked and done under the lock that sets the state.
+	lock(&play->no_stop.lock);
+	if (play->no_stop.n == 0) {
+		search_stop_all(&play->search, STOP_ON_DEMAND);
+		stopped = true;
+	}
+	unlock(&play->no_stop.lock);
+	if (stopped) info("[stop on user demand]\n");
+	else fprintf(stderr, "[stop: nothing is stopped while a book or base command is running]\n"); // (stderr: the standard output is the channel of the protocols)
+}
+
+/**
+ * @brief Tell that a command whose searches give their results to the book or to a game file starts or ends.
+ *
+ * While such a command runs, play_stop() does not stop the search.
+ *
+ * @param play Play.
+ * @param on true when the command starts, false when it ends.
+ */
+void play_no_stop(Play *play, const bool on)
+{
+	lock(&play->no_stop.lock);
+	play->no_stop.n += (on ? 1 : -1);
+	unlock(&play->no_stop.lock);
 }
 
 /**
@@ -583,21 +684,27 @@ void play_redo(Play *play)
 }
 
 /**
- * @brief Set a new board.
+ * @brief Start a new game from a board given from outside (setboard, FEN, libedax).
+ *
+ * A board of fewer than 4 discs, or with discs on the same square, is refused: the current game is kept
+ * (up to v4.5.5-nikque.15 it was searched with more than 60 empties, out of the table of the levels).
+ *
  * @param play Play.
- * @param board A new board.
+ * @param board The initial board.
+ * @param player The player to move.
+ * @return false if the board is refused.
  */
-void play_set_board(Play *play, const char *board)
+bool play_set_initial_board(Play *play, const Board *board, const int player)
 {
-	play_stop_pondering(play);
-	play->initial_player = board_set(&play->initial_board, board);
-	if (play->initial_player == EMPTY) { /* bad board ? */
-		play->initial_board.opponent &= (~play->initial_board.player);
-		play->initial_player = (board_count_empties(&play->initial_board) & 1);
-		if (play->initial_player == WHITE) board_swap_players(&play->initial_board);
+	if (!board_is_usable(board)) {
+		warn("setboard: a board needs at least 4 discs\n");
+		return false;
 	}
+	play->initial_board = *board;
+	play->initial_player = player;
 	play_force_init(play, "");
 	play_new(play);
+	return true;
 }
 
 /**
@@ -605,14 +712,37 @@ void play_set_board(Play *play, const char *board)
  * @param play Play.
  * @param board A new board.
  */
-void play_set_board_from_FEN(Play *play, const char *board)
+void play_set_board(Play *play, const char *board)
 {
+	Board b;
+	int player;
+
 	play_stop_pondering(play);
-	play->initial_player = board_from_FEN(&play->initial_board, board);
-	if (play->initial_player != EMPTY) {
-		play_force_init(play, "");
-		play_new(play);
+	player = board_set(&b, board);
+	if (player == EMPTY) { /* bad board ? */
+		b.opponent &= (~b.player);
+		player = (board_count_empties(&b) & 1);
+		if (player == WHITE) board_swap_players(&b);
 	}
+	play_set_initial_board(play, &b, player);
+}
+
+/**
+ * @brief Set a new board.
+ * @param play Play.
+ * @param board A new board.
+ * @return false if the FEN is refused (the current game is kept).
+ */
+bool play_set_board_from_FEN(Play *play, const char *board)
+{
+	Board b;
+	int player;
+
+	play_stop_pondering(play);
+	// a FEN that is refused leaves the current game as it is (up to v4.5.5-nikque.15 the initial board was
+	// changed, and the initial player became EMPTY)
+	player = board_from_FEN(&b, board);
+	return player != EMPTY && play_set_initial_board(play, &b, player);
 }
 
 /**
@@ -844,10 +974,16 @@ void play_analyze(Play *play, int n)
 		if (play->search.stop == STOP_ON_DEMAND) break;
 	}
 	puts("\n      | rejections : discs | errors    : discs | error rate |");
-	printf("Black | %3d / %3d  :  %+4d | %3d / %3d :  %+4d |      %5.3f |\n",
-		n_rejection[BLACK], n_eval[BLACK], disc_rejection[BLACK], n_error[BLACK], n_exact[BLACK], disc_error[BLACK], 1.0 * disc_error[BLACK] / n_exact[BLACK]);
-	printf("White | %3d / %3d  :  %+4d | %3d / %3d :  %+4d |      %5.3f |\n",
-		n_rejection[WHITE], n_eval[WHITE], disc_rejection[WHITE], n_error[WHITE], n_exact[WHITE], disc_error[WHITE], 1.0 * disc_error[WHITE] / n_exact[WHITE]);
+	{
+		static const char *const name[2] = {"Black", "White"};
+		int c;
+		for (c = BLACK; c <= WHITE; ++c) {
+			printf("%s | %3d / %3d  :  %+4d | %3d / %3d :  %+4d |      ",
+				name[c], n_rejection[c], n_eval[c], disc_rejection[c], n_error[c], n_exact[c], disc_error[c]);
+			if (n_exact[c] > 0) printf("%5.3f |\n", 1.0 * disc_error[c] / n_exact[c]);
+			else puts("    - |"); // no move was checked by an exact search (up to v4.5.5-nikque.12: a division by zero, printed as "nan")
+		}
+	}
 
 	if (i < 0 || i < play->i_game - n) ++i;
 	for (; i < play->i_game; ++i) {
@@ -930,35 +1066,777 @@ void play_book_analyze(Play *play, int n)
 }
 
 /**
+ * @brief Moves of the game up to the current position, passes left out ("f5d6c3...").
+ * @param play Play.
+ * @param moves Moves (out, 2 * PLAY_GAME_SIZE + 1 characters).
+ * @return moves.
+ */
+const char* play_get_moves(const Play *play, char *moves)
+{
+	int i, n = 0;
+	for (i = 0; i < play->i_game && i < PLAY_GAME_SIZE; ++i) {
+		const int x = play->game[i].x;
+		if (A1 <= x && x <= H8) {
+			moves[n++] = (char) ('a' + x % 8);
+			moves[n++] = (char) ('1' + x / 8);
+		}
+	}
+	moves[n] = '\0';
+	return moves;
+}
+
+/**
+ * @brief Load an opening book (book load command): the current book is kept when the file cannot be loaded.
+ *
+ * @param play Play.
+ * @param file Book file name (NULL: no file).
+ */
+void play_book_load(Play *play, const char *file)
+{
+	Book *book = play->book;
+	Book next = {0};
+	FILE *exists;
+
+	next.search = book->search;
+	// (book_load() makes a new book when the file cannot be opened, and says "New book ...": the file is
+	// opened first, for no such line about a book that would be dropped at once)
+	if (file == NULL || (exists = fopen(file, "rb")) == NULL) {
+		warn("Book %s was not loaded; current book retained\n", file ? file : "(no name)");
+	} else if (fclose(exists), book_load(&next, file)) {
+		book_free(book);
+		*book = next;
+		book_set_loaded_file(file, false); // the book file may still hold the previous book: see book_save_to_book_file()
+	} else {
+		book_free(&next);
+		warn("Book %s was not loaded; current book retained\n", file);
+	}
+}
+
+/**
+ * @brief Import an opening book (text format; book import command): as book load, the current book is kept
+ * when nothing is imported.
+ *
+ * @param play Play.
+ * @param file File name.
+ */
+void play_book_import(Play *play, const char *file)
+{
+	Book *book = play->book;
+	Book next = {0};
+
+	next.search = book->search;
+	if (book_import(&next, file)) {
+		book_free(book);
+		*book = next;
+		book_set_loaded_file(file, true); // the book file still holds the previous book: see book_save_to_book_file()
+		book_link(book);
+		book_fix(book);
+		book_negamax(book);
+		book_sort(book);
+	} else {
+		warn("Book %s was not imported; current book retained\n", file);
+	}
+}
+
+/**
+ * @brief Merge an opening book to the current one (book merge command).
+ *
+ * @param play Play.
+ * @param file File name of the book to merge.
+ */
+void play_book_merge(Play *play, const char *file)
+{
+	Book *book = play->book;
+	char merged_file[FILENAME_MAX];
+
+	if (book_merge_file(book, file)) { // the source book is streamed, not loaded
+		book_link_parallel(book); // rebuild links before validating imported positions
+		book_fix(book);
+		book_negamax(book);
+		book_sort_parallel(book);
+		if (options.book_merge_auto_save) {
+			// keep need_saving: the exit save to the book file behaves as before
+			const bool need_saving = book->need_saving;
+			if (strlen(options.book_file) + sizeof ".mrg" > sizeof merged_file) {
+				warn("Book file name too long; merged book was not saved\n");
+			} else {
+				file_add_ext(options.book_file, ".mrg", merged_file);
+				if (book_save(book, merged_file)) printf("Merged book saved to %s\n", merged_file);
+				book->need_saving = need_saving;
+			}
+		}
+	} else warn("Book %s was not merged\n", file);
+}
+
+/**
+ * @brief Add the positions of a game to the book, from the last one to the first one,
+ * or plan their searches (see book_plan_begin).
+ *
+ * @param book Opening book.
+ * @param initial_board Initial board of the game.
+ * @param game Moves of the game.
+ * @param n_game Number of moves.
+ * @param plan Only plan the searches.
+ */
+static void play_store_boards(Book *book, const Board *initial_board, Move *game, const int n_game, const bool plan)
+{
+	void (*store)(Book*, const Board*) = plan ? book_plan_board : book_add_board;
+	Board board;
+	int i;
+
+	board = *initial_board;
+	for (i = 0; i < n_game && board_check_move(&board, game + i); ++i) {
+		board_update(&board, game + i);
+	}
+
+	for (--i; i >= 0; --i) {
+		store(book, &board);
+		board_restore(&board, game + i);
+	}
+	store(book, &board);
+}
+
+/** saves of the book to <book-file>.store by play_store_end (book learn: see learn_progress_write) */
+static long long store_save_count = 0;
+/** the last of these saves succeeded */
+static bool store_save_ok = false;
+
+/**
+ * @brief Link, negamax and save the book after games were stored, if positions or links were added
+ * (book store, book learn).
+ *
+ * @param book Opening book.
+ */
+static void play_store_end(Book *book)
+{
+	char file[FILENAME_MAX + 1];
+
+	if (book->stats.n_nodes + book->stats.n_links) {
+		book->need_saving = true; // also when links were added without any search
+		book_link(book);
+		book_negamax(book);
+		if (options.book_store_auto_save) {
+			file_add_ext(options.book_file, ".store", file);
+			store_save_ok = book_save_progress(book, file);
+			++store_save_count;
+		}
+	}
+}
+
+/**
  * @brief store the game into the opening book
  *
  * @param play Play.
  */
 void play_store(Play *play)
 {
-	Board board;
-	int i;
-	char file[FILENAME_MAX + 1];
-
-	file_add_ext(options.book_file, ".store", file);
-
+	play_no_stop(play, true); // (the searches of the positions of the game are not cut short by a stop)
 	play->book->stats.n_nodes = play->book->stats.n_links = 0;
 
-	board = play->initial_board;
-	for (i = 0; i < play->n_game && board_check_move(&board, play->game + i); ++i) {
-		board_update(&board, play->game + i);
+	if (book_store_task_count() > 1 && book_plan_begin(play->book)) { // book-store-tasks: search the positions at the same time
+		play_store_boards(play->book, &play->initial_board, play->game, play->n_game, true);
+		book_plan_search(play->book);
+	}
+	play_store_boards(play->book, &play->initial_board, play->game, play->n_game, false);
+	book_plan_end(play->book);
+
+	play_store_end(play->book);
+	play_no_stop(play, false);
+}
+
+/** a game to play and to learn (see play_learn_games) */
+typedef struct LearnGame {
+	const char *moves;         /**< first moves of the game */
+	int randomness;            /**< randomness of the book moves */
+	Move game[PLAY_GAME_SIZE]; /**< moves of the game (with the passes: as Play.game; 80 up to v4.5.5-nikque.12) */
+	int n_game;                /**< number of moves */
+	bool legal;                /**< the first moves are legal */
+	unsigned long long seed;   /**< seed of the random choices among the book moves of this game */
+} LearnGame;
+
+/** games played at the same time */
+typedef struct LearnShared {
+	Book *book;
+	LearnGame *game;
+	int n, next, n_done;
+	int n_threads, n_busy;     /**< threads shared by the lanes; lanes that still have a game to play */
+	Lock lock;                 /**< guards next, n_done and n_busy */
+} LearnShared;
+
+/** a thread playing games, with its own search */
+typedef struct LearnLane {
+	LearnShared *shared;
+	Search *search;
+	Random random;             /**< to choose among the book moves (seeded for each game) */
+	bool progress;             /**< this one shows the progress */
+	int n_tasks;               /**< threads of its search */
+} LearnLane;
+
+/** size of the copy of the first moves of a game: a game has 60 moves at most (120 characters) */
+#define LEARN_MOVES_SIZE 256
+
+/**
+ * @brief Copy the first moves of a game, in lower case and without the spaces.
+ *
+ * A line can hold any number of spaces between its moves: copied with them, a long line was cut,
+ * and when the cut fell between two moves the shorter game was learned instead.
+ * Without the spaces, what does not fit is beyond the 127th move: it cannot be played anyway.
+ *
+ * @param copy Copy (LEARN_MOVES_SIZE characters).
+ * @param moves First moves of the game.
+ */
+static void learn_moves_copy(char *copy, const char *moves)
+{
+	int k = 0;
+
+	for (; *moves && k < LEARN_MOVES_SIZE - 1; ++moves) if (*moves != ' ') copy[k++] = *moves;
+	copy[k] = '\0';
+	string_to_lowercase(copy);
+}
+
+/**
+ * @brief Play the first moves of a game.
+ *
+ * @param g Game.
+ * @param board Board (the initial position; updated).
+ * @return player to move.
+ */
+static int learn_game_start(LearnGame *g, Board *board)
+{
+	const char *string = g->moves, *next;
+	Move move;
+	int player = BLACK;
+
+	board_init(board);
+	g->n_game = 0;
+	next = opening_get_line(string);
+	if (next) string = next;
+	while (g->n_game < PLAY_GAME_SIZE && ((next = parse_move(string, board, &move)) != string || move.x == PASS)) { // as play_game()
+		string = next;
+		board_update(board, &move);
+		g->game[g->n_game++] = move;
+		player ^= 1;
+	}
+	string = parse_skip_spaces(string);
+	g->legal = (*string == '\0'); // Edax ignores an illegal move and the following ones: such a game is not learned
+	return player;
+}
+
+/** threads of a lane above which it gets no more (see learn_lane_share_threads) */
+#define LEARN_LANE_SHARE_MAX 8
+
+/**
+ * @brief Give to the search of a lane the threads of the lanes that have no game left to play.
+ *
+ * When the last games are being played, the lanes that are over leave their threads idle. The search of
+ * a lane that still plays gets them for its next moves (between two moves: nothing is stopped, the threads
+ * are only created). Its hash tables keep their size.
+ * A lane that already has LEARN_LANE_SHARE_MAX threads or more keeps them: more threads did not make its
+ * moves faster (2 games at level 24, 16 threads each: 1.008 +- 0.005 times the time, 72 rounds), while
+ * lanes of 1 thread gain much (128 games at level 18: 0.90).
+ *
+ * @param lane Lane.
+ */
+static void learn_lane_share_threads(LearnLane *lane)
+{
+#ifndef BOOK_TEST_ONE_THREAD
+	LearnShared *s = lane->shared;
+	int n;
+
+	if (lane->n_tasks >= LEARN_LANE_SHARE_MAX || options.book_reproducible) return; // (book-reproducible: one-thread searches)
+	lock(&s->lock);
+	n = MIN(s->n_threads / s->n_busy, MAX_THREADS - 1);
+	unlock(&s->lock);
+	if (n > lane->n_tasks) {
+		search_set_task_number(lane->search, n);
+		lane->n_tasks = n;
+	}
+#else
+	(void) lane; // test builds: every search keeps its threads, to compare the books
+#endif
+}
+
+/**
+ * @brief Play games to their end, as play_go() does: a move of the book, or the move of a search.
+ *
+ * The book is only read.
+ *
+ * @param v Lane.
+ * @return NULL.
+ */
+static void* learn_lane_run(void *v)
+{
+	LearnLane *lane = (LearnLane*) v;
+	LearnShared *s = lane->shared;
+	Search *const search = lane->search;
+	long long t = real_clock() + 1000;
+	char s_move[4];
+
+	for (;;) {
+		LearnGame *g;
+		Board board;
+		Move move;
+		long long left[2]; // time left to each player, as play->time[].left
+		int i, player, n_done;
+
+		lock(&s->lock);
+		i = s->next < s->n ? s->next++ : -1;
+		if (i < 0) --s->n_busy; // (see learn_lane_share_threads)
+		unlock(&s->lock);
+		if (i < 0) break;
+
+		g = s->game + i;
+		player = learn_game_start(g, &board);
+		random_seed(&lane->random, g->seed); // (the choices of a game do not depend on the lane that plays it)
+		search_cleanup(search); // as play_new()
+		left[0] = left[1] = options.time;
+		while (g->legal && g->n_game < PLAY_GAME_SIZE && !board_is_game_over(&board)) {
+			long long t_real = -real_clock();
+
+			move = MOVE_INIT;
+			if (g->n_game == 0) { // as play_force_go(): the first move is F5
+				board_get_move_flip(&board, F5, &move);
+				t_real += real_clock() + 1;
+			} else if (options.book_allowed && book_get_random_move_with(s->book, &board, &move, g->randomness, &lane->random) && move.x != NOMOVE) {
+				t_real += real_clock() + 1;
+			} else {
+				learn_lane_share_threads(lane);
+				search->options.verbosity = 0;
+				search_set_board(search, &board, player);
+				search_set_level(search, play_level(), search->eval.n_empties);
+				if (options.play_type == EDAX_TIME_PER_MOVE) search_set_move_time(search, options.time);
+				else search_set_game_time(search, left[player]);
+				search_time_init(search);
+				search_run(search);
+#ifdef BOOK_TEST_NODES
+				{ extern void book_test_count_play(const unsigned long long); book_test_count_play(search_count_nodes(search)); }
+#endif
+				if (!board_get_move_flip(&board, search->result->move, &move) && move.x != PASS) {
+					fatal_error("bad move found: %s\n", move_to_string(move.x, player, s_move));
+				}
+				t_real += real_clock() + 1;
+				if (options.nps > 0) t_real = search->result->time; // virtual clock (node count / nps), as used by the search
+			}
+			// as play_go(): with a time per game, the time of the move is taken from the time left to the player
+			// (up to v4.5.5-nikque.8 every move got the time of the whole game)
+			if (options.play_type != EDAX_TIME_PER_MOVE) left[player] -= t_real;
+			board_update(&board, &move);
+			g->game[g->n_game++] = move;
+			player ^= 1;
+		}
+
+		lock(&s->lock);
+		n_done = ++s->n_done;
+		unlock(&s->lock);
+		if (lane->progress && real_clock() >= t) {
+			book_print("Playing games...%d/%d\r", n_done, s->n);
+			t = real_clock() + 1000;
+		}
+	}
+	return NULL;
+}
+
+/**
+ * @brief Play games and store them into the opening book, one after the other, with the game of the user
+ * interface (see play_learn_games): as the commands init, play, go (until the game is over) and book store.
+ *
+ * @param play Play.
+ * @param moves First moves of each game.
+ * @param randomness Randomness of the book moves of each game (NULL: the current setting).
+ * @param n Number of games.
+ * @param status Set for each game (see play_learn_games). Can be NULL.
+ * @param verbosity Verbosity of the search for the book store, as set by the book command.
+ * @return number of learned games.
+ */
+static int learn_games_in_turn(Play *play, const char *const *moves, const int *randomness, const int n, int *status, const int verbosity)
+{
+	Book *book = play->book;
+	const int book_randomness = options.book_randomness;
+	int i, n_learned = 0;
+
+	for (i = 0; i < n; ++i) {
+		char copy[LEARN_MOVES_SIZE], played[256];
+		int j, k;
+
+		if (randomness) options.book_randomness = randomness[i];
+		// init
+		board_init(&play->initial_board);
+		play->initial_player = BLACK;
+		play_force_init(play, "F5");
+		play_new(play);
+		// play
+		learn_moves_copy(copy, moves[i]);
+		play_game(play, copy);
+		for (j = k = 0; j < play->n_game; ++j) {
+			if (play->game[j].x != PASS) { move_to_string(play->game[j].x, WHITE, played + k); k += 2; }
+		}
+		played[k] = '\0';
+		string_to_lowercase(played);
+		if (strcmp(played, copy) != 0) { // Edax ignores an illegal move and the following ones: such a game is not learned
+			if (status) status[i] = 1;
+			continue;
+		}
+		// go
+		while (!play_is_game_over(play)) play_go(play, true);
+		// book store
+		play->search.options.verbosity = verbosity; // as set by the book command (play_go() changed it)
+		play_store(play);
+		if (book->failed) { // a position could not be added: this game and the following ones are not learned
+			if (status) for (; i < n; ++i) status[i] = 2;
+			break;
+		}
+		if (status) status[i] = 0;
+		++n_learned;
+	}
+	options.book_randomness = book_randomness;
+	play->search.options.verbosity = verbosity;
+	return n_learned;
+}
+
+/**
+ * @brief Play games and store them into the opening book.
+ *
+ * For each game: play its first moves from the initial position, let Edax play both sides to
+ * the end (as the go command does), then store the game (as book store does).
+ *
+ * With book-store-tasks = 1, the games are played and stored one after the other, with the
+ * game of the user interface: it is the same as the commands init, play, go (until the game is
+ * over) and book store, for each game.
+ *
+ * With book-store-tasks > 1, as many games are played at the same time, each one with its own
+ * search (n-tasks / book-store-tasks threads), reading the book as it was before the call;
+ * then all the games are stored: their positions are searched at the same time, and the book
+ * is linked, negamaxed and saved (to <book-file>.store) once. The game of the user interface
+ * is not changed. (If the memory for the searches of these games is not available, the games
+ * are learned one after the other, as with book-store-tasks = 1.)
+ *
+ * @param play Play.
+ * @param moves First moves of each game.
+ * @param randomness Randomness of the book moves of each game (NULL: the current setting).
+ * @param n Number of games.
+ * @param status Set for each game: 0 = learned, 1 = not learned (illegal move), 2 = not learned
+ * (failure: a position could not be added to the book, see Book.failed). Can be NULL.
+ * @return number of learned games.
+ */
+int play_learn_games(Play *play, const char *const *moves, const int *randomness, const int n, int *status)
+{
+	Book *book = play->book;
+	const int book_randomness = options.book_randomness;
+	const int n_lanes = MIN(book_store_task_count(), n);
+	const int verbosity = play->search.options.verbosity;
+	LearnGame *game = NULL;
+	char *buffer = NULL;
+	LearnLane *lane = NULL;
+	Search **search = NULL;
+	LearnShared shared;
+	Board initial_board;
+	int i, n_learned = 0, lane_tasks = 1;
+
+	if (n <= 0) return 0;
+	play_stop_pondering(play);
+
+	if (book_store_task_count() > 1) {
+		const int n_tasks = lane_tasks = options.book_reproducible ? 1 : MAX(1, book_store_thread_count() / n_lanes); // (a search with several threads can give another game)
+
+		game = (LearnGame*) calloc(n, sizeof *game);
+		buffer = (char*) malloc((size_t) n * LEARN_MOVES_SIZE);
+		lane = (LearnLane*) calloc(n_lanes, sizeof *lane);
+		if (game && buffer && lane) search = book_store_searches(book, n_lanes, n_tasks);
+		if (search == NULL) { // not enough memory to play the games at the same time: one game after the other
+			warn("not enough memory to play %d games at the same time: they are learned one after the other\n", n_lanes);
+			free(game); free(buffer); free(lane);
+			game = NULL;
+		}
 	}
 
-	for (--i; i >= 0; --i) {
-		book_add_board(play->book, &board);
-		board_restore(&board, play->game + i);
+	if (game == NULL) return learn_games_in_turn(play, moves, randomness, n, status, verbosity);
+
+	// play the games
+	for (i = 0; i < n; ++i) {
+		learn_moves_copy(buffer + i * LEARN_MOVES_SIZE, moves[i]);
+		game[i].moves = buffer + i * LEARN_MOVES_SIZE;
+		game[i].randomness = randomness ? randomness[i] : book_randomness;
+		game[i].seed = random_get(&book->random);
 	}
-	book_add_board(play->book, &board);
-	if (play->book->stats.n_nodes + play->book->stats.n_links) {
-		book_link(play->book);
-		book_negamax(play->book);
-		book_save(play->book, file);
+	shared.book = book; shared.game = game; shared.n = n; shared.next = shared.n_done = 0;
+	shared.n_threads = book_store_thread_count(); shared.n_busy = n_lanes;
+	lock_init(&shared.lock);
+	for (i = 0; i < n_lanes; ++i) {
+		lane[i].shared = &shared;
+		lane[i].search = search[i];
+		lane[i].progress = (i == 0);
+		lane[i].n_tasks = lane_tasks;
 	}
+	book_print("Playing games...\r");
+	thread_run_workers(learn_lane_run, lane, sizeof *lane, n_lanes, true, false); // (this thread runs the first lane)
+	lock_free(&shared.lock);
+	for (i = 0; i < n_lanes; ++i) { // back to the state of the pool
+		if (lane[i].n_tasks != lane_tasks) search_set_task_number(search[i], lane_tasks);
+	}
+	book_print("Playing games...%d done\n", n);
+
+	// store the games
+	book->stats.n_nodes = book->stats.n_links = 0;
+	board_init(&initial_board);
+	if (book_plan_begin(book)) {
+		for (i = 0; i < n; ++i) if (game[i].legal) play_store_boards(book, &initial_board, game[i].game, game[i].n_game, true);
+		book_plan_search(book);
+	}
+	for (i = 0; i < n; ++i) {
+		if (game[i].legal) {
+			play_store_boards(book, &initial_board, game[i].game, game[i].n_game, false);
+			++n_learned;
+		}
+		if (status) status[i] = game[i].legal ? 0 : 1;
+	}
+	book_plan_end(book);
+	if (book->failed) { // a position could not be added: which games are complete in the book is not known
+		if (status) for (i = 0; i < n; ++i) if (game[i].legal) status[i] = 2;
+		n_learned = 0;
+	}
+	play_store_end(book);
+	free(game); free(buffer); free(lane);
+
+	return n_learned;
+}
+
+/**
+ * @brief Parse a line that describes a game to learn.
+ *
+ * A line holds the first moves of a game from the initial position ("f5d6c3"), or
+ * "<book randomness>,<moves>" ("2,f5d6c3"). Empty lines, lines that start with '#' and
+ * lines with "//" are comments.
+ *
+ * @param line Line (modified).
+ * @param randomness Set to the book randomness, if the line gives it.
+ * @return the moves (inside line); an empty string for a comment; NULL if the line is not a game.
+ */
+char* play_learn_parse(char *line, int *randomness)
+{
+	char *s = parse_skip_spaces(line), *e;
+
+	for (e = s + strlen(s); e > s && isspace((unsigned char) e[-1]); --e) ;
+	*e = '\0';
+	if (*s == '\0' || *s == '#' || strstr(s, "//")) return e;
+	if (isdigit((unsigned char) *s)) { // <book randomness>,<moves>
+		const long long r = strtoll(s, &e, 10); // as the book-randomness setting: any number, INT_MAX if larger
+		e = parse_skip_spaces(e);
+		if (*e != ',' || r < 0) return NULL;
+		*randomness = (r > INT_MAX) ? INT_MAX : (int) r;
+		s = parse_skip_spaces(e + 1);
+	}
+	if (*s == '\0') return NULL;
+	for (e = s; *e; ) {
+		if (*e == ' ') ++e;
+		else if (strchr("abcdefghABCDEFGH", e[0]) && e[1] >= '1' && e[1] <= '8') e += 2;
+		else return NULL;
+	}
+	return s;
+}
+
+/*
+ * Progress of book learn <file>.
+ *
+ * Each time the book is saved to <book-file>.store while the games of a file are learned, the file
+ * <book-file>.learn tells how many lines of the file of games are learned in this book, with a hash of
+ * these lines and the size, level and depth of the book. book learn run again with the same file, on this
+ * book (<book-file>.store loaded, or the book saved at the exit), skips these lines: the games are not
+ * played again. When the whole file is learned, the progress file is removed. With book-store-auto-save off
+ * (no save to <book-file>.store), no progress is kept.
+ */
+
+/** what a progress file of book learn tells */
+typedef struct LearnProgress {
+	long long lines;               /**< lines of the file of games learned in the book */
+	unsigned long long hash;       /**< hash of these lines (learn_hash_line) */
+	long long games, learned;      /**< games read and learned in these lines */
+	unsigned long long positions;  /**< number of positions of the book */
+	int level, empties;            /**< level and depth (empty squares) of the book */
+} LearnProgress;
+
+/** first value of the hash of the lines of a file of games (FNV-1a, 64 bits) */
+#define LEARN_HASH_START 0xcbf29ce484222325ULL
+
+/**
+ * @brief Add a line of a file of games to a hash of its lines.
+ *
+ * @param h Hash of the lines before.
+ * @param line Line, as read (without its end).
+ * @return the hash with the line.
+ */
+static unsigned long long learn_hash_line(unsigned long long h, const char *line)
+{
+	const unsigned char *s;
+
+	for (s = (const unsigned char*) line; *s; ++s) {
+		h ^= *s;
+		h *= 0x100000001b3ULL;
+	}
+	h ^= '\n';
+	h *= 0x100000001b3ULL;
+	return h;
+}
+
+/**
+ * @brief Read the progress file of book learn.
+ *
+ * @param path Progress file.
+ * @param p Progress (out).
+ * @return false if there is no progress file, or if it does not hold every value.
+ */
+static bool learn_progress_read(const char *path, LearnProgress *p)
+{
+	FILE *f = fopen(path, "r");
+	char *line;
+	int seen = 0;
+
+	if (f == NULL) return false;
+	memset(p, 0, sizeof *p);
+	while ((line = string_read_line(f)) != NULL) {
+		if (sscanf(line, "lines=%lld", &p->lines) == 1) seen |= 1;
+		else if (sscanf(line, "hash=%llx", &p->hash) == 1) seen |= 2;
+		else if (sscanf(line, "games=%lld", &p->games) == 1) seen |= 4;
+		else if (sscanf(line, "learned=%lld", &p->learned) == 1) seen |= 8;
+		else if (sscanf(line, "positions=%llu", &p->positions) == 1) seen |= 16;
+		else if (sscanf(line, "level=%d", &p->level) == 1) seen |= 32;
+		else if (sscanf(line, "empties=%d", &p->empties) == 1) seen |= 64;
+		free(line);
+	}
+	fclose(f);
+	return seen == 127 && p->lines > 0;
+}
+
+/**
+ * @brief Write the progress file of book learn.
+ *
+ * @param path Progress file.
+ * @param p Progress.
+ * @param file File of games.
+ * @return true if the file was written.
+ */
+static bool learn_progress_write(const char *path, const LearnProgress *p, const char *file)
+{
+	FILE *f = fopen(path, "w");
+	bool ok;
+
+	if (f == NULL) {
+		warn("cannot write %s: the progress of book learn is not kept\n", path);
+		return false;
+	}
+	fprintf(f, "# book learn %s: the first lines of this file of games are learned in the book that has these positions.\n", file);
+	fprintf(f, "# book learn with the same file, on this book, skips them. This file is removed when the whole file is learned.\n");
+	fprintf(f, "lines=%lld\nhash=%016llx\ngames=%lld\nlearned=%lld\npositions=%llu\nlevel=%d\nempties=%d\n",
+		p->lines, p->hash, p->games, p->learned, p->positions, p->level, p->empties);
+	ok = (ferror(f) == 0);
+	if (fclose(f) != 0) ok = false;
+	if (!ok) warn("cannot write %s: the progress of book learn is not kept\n", path);
+	return ok;
+}
+
+/**
+ * @brief Play and learn the games of a file (book learn command).
+ *
+ * Each line of the file holds the first moves of a game from the initial position ("f5d6c3"),
+ * or "<book randomness>,<moves>" ("2,f5d6c3"). Empty lines, lines that start with '#' and lines
+ * with "//" are ignored. The games are learned by groups of book-store-tasks games (see
+ * play_learn_games).
+ *
+ * The lines learned by a run that did not end are skipped (see LearnProgress). (Up to
+ * v4.5.5-nikque.28, a new run played and learned all the games of the file again.)
+ *
+ * @param play Play.
+ * @param file File name.
+ * @return number of learned games, -1 if the file cannot be read.
+ */
+int play_learn_file(Play *play, const char *file)
+{
+	enum { LEARN_GROUP_MAX = MAX_THREADS };
+	FILE *f = fopen(file, "r");
+	const int n_group = MIN(book_store_task_count(), LEARN_GROUP_MAX);
+	char *line, *moves[LEARN_GROUP_MAX];
+	int randomness[LEARN_GROUP_MAX], status[LEARN_GROUP_MAX], number[LEARN_GROUP_MAX];
+	int i, n = 0, n_line = 0, n_games = 0, n_learned = 0;
+	bool more = true;
+	Book *book = play->book;
+	char progress_file[FILENAME_MAX + 1];
+	LearnProgress done = {0, 0, 0, 0, 0, 0, 0};
+	unsigned long long hash = LEARN_HASH_START;
+	bool own_progress = false; // the progress file is the one of this file (read, or written by this run)
+
+	if (f == NULL) {
+		warn("cannot open game file %s\n", file);
+		return -1;
+	}
+
+	// the lines learned by a run that did not end
+	file_add_ext(options.book_file, ".learn", progress_file);
+	if (learn_progress_read(progress_file, &done)) {
+		if (done.positions != book->n_nodes || done.level != book->options.level || done.empties != book->options.n_empties) {
+			warn("%s is the progress of book learn of another book (%llu positions, level %d, depth %d; the book in use: %u positions, level %d, depth %d): the games of %s are learned from the first line\n",
+				progress_file, done.positions, done.level, 61 - done.empties, book->n_nodes, book->options.level, 61 - book->options.n_empties, file);
+		} else {
+			while (n_line < done.lines && (line = string_read_line(f)) != NULL) {
+				hash = learn_hash_line(hash, line);
+				++n_line;
+				free(line);
+			}
+			if (n_line == done.lines && hash == done.hash) {
+				own_progress = true;
+				book_print("Book learn: the first %d lines of %s (%lld games) were learned by a run that did not end: they are skipped\n", n_line, file, done.games);
+			} else {
+				warn("%s is the progress of book learn of another file: the games of %s are learned from the first line\n", progress_file, file);
+				rewind(f);
+				n_line = 0;
+				hash = LEARN_HASH_START;
+			}
+		}
+	}
+	if (!own_progress) done.lines = done.games = done.learned = 0;
+
+	while (more) {
+		line = string_read_line(f);
+		more = (line != NULL);
+		if (line) {
+			int r = options.book_randomness;
+			char *s;
+
+			hash = learn_hash_line(hash, line); // (as read: play_learn_parse changes the line)
+			s = play_learn_parse(line, &r);
+			++n_line;
+			if (s == NULL || *s == '\0') {
+				if (s == NULL) warn("%s:%d: not the moves of a game: ignored\n", file, n_line);
+				free(line);
+				continue;
+			}
+			memmove(line, s, strlen(s) + 1);
+			moves[n] = line; randomness[n] = r; number[n] = n_line;
+			++n;
+		}
+		if (n == n_group || (!more && n > 0)) {
+			const long long n_saves = store_save_count;
+
+			n_learned += play_learn_games(play, (const char *const*) moves, randomness, n, status);
+			n_games += n;
+			for (i = 0; i < n; ++i) {
+				if (status[i] == 1) warn("%s:%d: illegal move: the game was not learned\n", file, number[i]);
+				else if (status[i]) warn("%s:%d: a position could not be added to the book: the game was not learned\n", file, number[i]);
+				free(moves[i]);
+			}
+			n = 0;
+			if (play->book->failed) more = false; // a position could not be added: stop learning
+			else if (store_save_count != n_saves && store_save_ok) {
+				// the book with the games of these lines is saved to <book-file>.store (the games after its last save added
+				// nothing): a new run on it skips these lines
+				const LearnProgress p = {n_line, hash, done.games + n_games, done.learned + n_learned, book->n_nodes, book->options.level, book->options.n_empties};
+				if (learn_progress_write(progress_file, &p, file)) own_progress = true;
+			}
+		}
+	}
+	fclose(f);
+	// the whole file is learned: the progress is removed (it is kept when learning stopped)
+	if (own_progress && !play->book->failed && remove(progress_file) == 0) book_print("Book learn: %s is learned to its end: %s removed\n", file, progress_file);
+	book_print("%d/%d games learned\n", n_learned, n_games);
+	return n_learned;
 }
 
 /**

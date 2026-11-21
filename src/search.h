@@ -141,6 +141,7 @@ extern const unsigned char QUADRANT_ID[];
 extern const unsigned long long quadrant_mask[];
 extern const V4DI X_TO_LINES[];
 extern const Selectivity selectivity_table[];
+extern const double probcut_refit_t[];
 extern const int NO_SELECTIVITY;
 extern const signed char NWS_STABILITY_THRESHOLD[];
 // extern const signed char PVS_STABILITY_THRESHOLD[];
@@ -149,6 +150,7 @@ extern const unsigned char SQUARE_TYPE[];
 /* function definition */
 void search_global_init(void);
 void search_init(Search*);
+void search_init_with(Search*, const int, const int);
 void search_free(Search*);
 void search_cleanup(Search*);
 void search_setup(Search*);
@@ -157,6 +159,7 @@ void search_set_board(Search*, const Board*, const int);
 void search_set_level(Search*, const int, const int);
 void search_set_ponder_level(Search*, const int, const int);
 void search_resize_hashtable(Search*);
+void search_set_hash_size(Search*, const int);
 void search_alloc_thread_hash(Search*);
 
 void search_set_game_time(Search*, const long long);
@@ -227,6 +230,7 @@ int search_count_tasks(const Search *);
 
 bool is_depth_solving(const int, const int);
 int solvable_depth(const long long, int);
+void search_update_speed(Search*);
 void pv_debug(Search*, const Move*, FILE*);
 int search_get_pv_cost(Search*);
 void show_current_move(FILE *f, Search*, const Move*, const int, const int, const bool);

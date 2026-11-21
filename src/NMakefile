@@ -7,17 +7,21 @@
 # add /D POPCOUNT to the compiler option set.
 #
 
+# /d1trimfile removes the build folder ($(MAKEDIR), the src folder) from __FILE__:
+# the error messages name only the source file, and the programs hold no build folder.
+
 # Microsoft Visual C++ 2008 or better for Windows (7 or Vista).
 # VC_FLAGS = /source-charset:.1252 /execution-charset:.1252\
-VC_FLAGS = /D UNICODE /utf-8 /D _CRT_SECURE_NO_DEPRECATE /O2 /fp:fast /GS- /D NDEBUG /MT
-# add /I"..\include" for VS2013 or earlier
+VC_FLAGS = /D UNICODE /utf-8 /D _CRT_SECURE_NO_DEPRECATE /I"..\include" /O2 /fp:fast /GS- /D NDEBUG /MT "/d1trimfile:$(MAKEDIR)\\"
 
 vc-x64-v3:
 	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /arch:AVX2 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v3.exe /link /VERSION:4.5
 
 vc-x64-v4:
 # remove /vlen=256 for cl earlier than 14.42
+	if not exist ..\bin mkdir ..\bin
 	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /arch:AVX512 /vlen=256 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v4.exe /link /VERSION:4.5
+	copy /Y ..\config.ini ..\bin\config.ini
 
 vc-x64-v2:
 	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /D POPCOUNT /D __SSSE3__ /D __SSE4_1__ /D __SSE4_2__ all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v2.exe /link /VERSION:4.5
@@ -98,16 +102,56 @@ clang-a64-v9:
 #	vcvarsamd64_arm64.bat
 	clang-cl --target=aarch64-win32-msvc -march=armv9-a $(VC_FLAGS) /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-armv9a.exe /link /VERSION:4.5
 
+# Profile-guided builds (used for the release binaries): an instrumented build is trained
+# on single-thread runs (so the profile is reproducible), then linked again with the profile.
+# Build the x86 targets from a native x86 prompt (vcvarsall x86): the instrumented exe needs the x86 pgort140.dll.
+PGO_SOLVE = -n 1 -l 60 -solve ..\problem\fforum-20-39.obf
+PGO_PLAY = -n 1 -l 18 -auto-store on -auto-start on -repeat 4 -auto-quit on -mode 2 -book-file book.pgo < nul
+
+vc-pgo-x64-v4:
+	if not exist ..\bin mkdir ..\bin
+	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /arch:AVX512 /vlen=256 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v4.exe /link /LTCG:PGI /VERSION:4.5
+	cd ..\bin && .\wEdax-x86-64-v4.exe $(PGO_SOLVE) >nul && .\wEdax-x86-64-v4.exe $(PGO_PLAY) >nul
+	-del ..\bin\book.pgo ..\bin\book.pgo.store 2>nul
+	link /nologo all.obj ws2_32.lib /out:..\bin\wEdax-x86-64-v4.exe /LTCG:PGO /PGD:..\bin\wEdax-x86-64-v4.pgd /VERSION:4.5
+	del ..\bin\wEdax-x86-64-v4*.pgc ..\bin\wEdax-x86-64-v4.pgd
+	copy /Y ..\config.ini ..\bin\config.ini
+
 vc-pgo-x64-v3:
-	set VCPROFILE_PATH=..\src
-	cl $(VC_FLAGS) /GL /arch:AVX2 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v3.exe /link /ltcg:pgi /VERSION:4.5
-	cd ..\bin
-	wEdax-x86-64-v3 -l 60 -solve ..\problem\fforum-20-39.obf
-	wEdax-x86-64-v3 -l 18 -auto-store on -auto-start on -repeat 2 -auto-quit on -mode 2 -book-file book.pgo
-	del book.pgo book.pgo.store
-	cd ..\src
-	link all.obj  ws2_32.lib /out:..\bin\wEdax-x86-64-v3.exe /ltcg:pgo /VERSION:4.5
-	del *.pgc ..\bin\*.pgd
+	if not exist ..\bin mkdir ..\bin
+	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /arch:AVX2 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v3.exe /link /LTCG:PGI /VERSION:4.5
+	cd ..\bin && .\wEdax-x86-64-v3.exe $(PGO_SOLVE) >nul && .\wEdax-x86-64-v3.exe $(PGO_PLAY) >nul
+	-del ..\bin\book.pgo ..\bin\book.pgo.store 2>nul
+	link /nologo all.obj ws2_32.lib /out:..\bin\wEdax-x86-64-v3.exe /LTCG:PGO /PGD:..\bin\wEdax-x86-64-v3.pgd /VERSION:4.5
+	del ..\bin\wEdax-x86-64-v3*.pgc ..\bin\wEdax-x86-64-v3.pgd
+	copy /Y ..\config.ini ..\bin\config.ini
+
+vc-pgo-x64:
+	if not exist ..\bin mkdir ..\bin
+	cl $(VC_FLAGS) /GL /D HAS_CPU_64 all.c ws2_32.lib /Fe..\bin\wEdax-x86-64.exe /link /LTCG:PGI /VERSION:4.5
+	cd ..\bin && .\wEdax-x86-64.exe $(PGO_SOLVE) >nul && .\wEdax-x86-64.exe $(PGO_PLAY) >nul
+	-del ..\bin\book.pgo ..\bin\book.pgo.store 2>nul
+	link /nologo all.obj ws2_32.lib /out:..\bin\wEdax-x86-64.exe /LTCG:PGO /PGD:..\bin\wEdax-x86-64.pgd /VERSION:4.5
+	del ..\bin\wEdax-x86-64*.pgc ..\bin\wEdax-x86-64.pgd
+	copy /Y ..\config.ini ..\bin\config.ini
+
+vc-pgo-x86-sse:
+	if not exist ..\bin mkdir ..\bin
+	cl $(VC_FLAGS) /GL /D hasSSE2 all.c ws2_32.lib /Fe..\bin\wEdax-x86-sse.exe /link /LTCG:PGI /VERSION:4.5
+	cd ..\bin && .\wEdax-x86-sse.exe $(PGO_SOLVE) >nul && .\wEdax-x86-sse.exe $(PGO_PLAY) >nul
+	-del ..\bin\book.pgo ..\bin\book.pgo.store 2>nul
+	link /nologo all.obj ws2_32.lib /out:..\bin\wEdax-x86-sse.exe /LTCG:PGO /PGD:..\bin\wEdax-x86-sse.pgd /VERSION:4.5
+	del ..\bin\wEdax-x86-sse*.pgc ..\bin\wEdax-x86-sse.pgd
+	copy /Y ..\config.ini ..\bin\config.ini
+
+vc-pgo-x86:
+	if not exist ..\bin mkdir ..\bin
+	cl $(VC_FLAGS) /GL /arch:IA32 all.c ws2_32.lib /Fe..\bin\wEdax-x86.exe /link /LTCG:PGI /VERSION:4.5
+	cd ..\bin && .\wEdax-x86.exe $(PGO_SOLVE) >nul && .\wEdax-x86.exe $(PGO_PLAY) >nul
+	-del ..\bin\book.pgo ..\bin\book.pgo.store 2>nul
+	link /nologo all.obj ws2_32.lib /out:..\bin\wEdax-x86.exe /LTCG:PGO /PGD:..\bin\wEdax-x86.pgd /VERSION:4.5
+	del ..\bin\wEdax-x86*.pgc ..\bin\wEdax-x86.pgd
+	copy /Y ..\config.ini ..\bin\config.ini
 
 vc-pgo-x64-k10:
 	set VCPROFILE_PATH=..\src
@@ -120,17 +164,6 @@ vc-pgo-x64-k10:
 	link all.obj  ws2_32.lib /out:..\bin\wEdax-x86-64-k10.exe /ltcg:pgo /VERSION:4.5
 	del *.pgc ..\bin\*.pgd
 
-vc-pgo-x64:
-	set VCPROFILE_PATH=..\src
-	cl $(VC_FLAGS) /GL all.c ws2_32.lib /Fe..\bin\wEdax-x86-64.exe /link /ltcg:pgi /VERSION:4.5
-	cd ..\bin
-	wEdax-x86-64 -l 60 -solve ..\problem\fforum-20-39.obf
-	wEdax-x86-64 -l 18 -auto-store on -auto-start on -repeat 2 -auto-quit on -mode 2 -book-file book.pgo
-	del book.pgo book.pgo.store
-	cd ..\src
-	link all.obj  ws2_32.lib /out:..\bin\wEdax-x86-64.exe /ltcg:pgo /VERSION:4.5
-	del *.pgc ..\bin\*.pgd
-
 icc-pgo-x64-v3:
 	icl $(VC_FLAGS) /arch:AVX2 /D POPCOUNT /Qprof-gen all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v3.exe /link /VERSION:4.5
 	cd ..\bin
@@ -139,6 +172,29 @@ icc-pgo-x64-v3:
 	del book.pgo book.pgo.store
 	cd ..\src
 	icl $(VC_FLAGS) /GL /arch:AVX2 /D POPCOUNT /Qprof-use /Qip all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v3.exe /link /VERSION:4.5
+
+# Library (libedax): Edax as a dll with the api of src\libedax.h, for the programs written for
+# libedax (libedax4dart, edax_runner). These programs load libedax-x64.dll; edax_runner loads
+# libedax-x64-v3.dll or libedax-x64-v4.dll instead when the CPU supports it (libedax_cpu_level).
+# No profile-guided build: it was measured to bring nothing here.
+VC_LIB_FLAGS = $(VC_FLAGS) /GL /D HAS_CPU_64 /D LIB_BUILD /LD
+
+vc-lib-x64-v4:
+	if not exist ..\bin mkdir ..\bin
+	cl $(VC_LIB_FLAGS) /arch:AVX512 /vlen=256 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\libedax-x64-v4.dll /link /VERSION:4.5 /IMPLIB:libedax-x64-v4.lib
+	del libedax-x64-v4.lib libedax-x64-v4.exp
+
+vc-lib-x64-v3:
+	if not exist ..\bin mkdir ..\bin
+	cl $(VC_LIB_FLAGS) /arch:AVX2 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\libedax-x64-v3.dll /link /VERSION:4.5 /IMPLIB:libedax-x64-v3.lib
+	del libedax-x64-v3.lib libedax-x64-v3.exp
+
+vc-lib-x64:
+	if not exist ..\bin mkdir ..\bin
+	cl $(VC_LIB_FLAGS) all.c ws2_32.lib /Fe..\bin\libedax-x64.dll /link /VERSION:4.5 /IMPLIB:libedax-x64.lib
+	del libedax-x64.lib libedax-x64.exp
+
+vc-lib: vc-lib-x64 vc-lib-x64-v3 vc-lib-x64-v4
 
 clean:
 	del -f pgopti* *.dyn all.gc* *~ *.p* *.obj

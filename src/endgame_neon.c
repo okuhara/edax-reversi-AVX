@@ -87,7 +87,7 @@ static int solve_2(uint64x2_t OP, int alpha, volatile unsigned long long *n_node
 	unsigned long long opponent;
 	// const int beta = alpha + 1;
 
-	SEARCH_STATS(++statistics.n_solve_2);
+	SEARCH_STATS(++statistics.n_board_solve_2);
 
 	opponent = vgetq_lane_u64(OP, 1);
 	if ((NEIGHBOUR[x1] & opponent) && !TESTZ_FLIP(flipped = mm_Flip(OP, x1))) {
@@ -151,7 +151,7 @@ static int solve_3(uint64x2_t OP, int alpha, volatile unsigned long long *n_node
 	int score, bestscore, x, pol;
 	unsigned long long opponent;
 
-	SEARCH_STATS(++statistics.n_solve_3);
+	SEARCH_STATS(++statistics.n_search_solve_3);
 	SEARCH_UPDATE_INTERNAL_NODES(*n_nodes);
 
 	bestscore = -SCORE_INF;

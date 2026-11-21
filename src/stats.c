@@ -59,6 +59,7 @@ void statistics_init(void)
 	statistics.n_search_solve = 0;
 	statistics.n_search_solve_0 = 0;
 	statistics.n_board_solve_2 = 0;
+	statistics.n_solve_1 = 0;
 	statistics.n_search_solve_3 = 0;
 	statistics.n_search_solve_4 = 0;
 	statistics.n_search_eval_0 = 0;
@@ -145,6 +146,7 @@ void statistics_print(FILE *f)
 		fprintf(f, "NWS_solve_4       = %12llu\n", statistics.n_search_solve_4);
 		fprintf(f, "NWS_solve_3       = %12llu\n", statistics.n_search_solve_3);
 		fprintf(f, "NWS_solve_2       = %12llu\n", statistics.n_board_solve_2);
+		fprintf(f, "NWS_solve_1       = %12llu\n", statistics.n_solve_1);
 		fprintf(f, "search_solve_0    = %12llu\n", statistics.n_search_solve_0);
 		fprintf(f, "search_solve      = %12llu\n\n\n", statistics.n_search_solve);
 	}

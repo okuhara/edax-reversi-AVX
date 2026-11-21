@@ -310,12 +310,13 @@ void estimate_games(const Board *board, const long long n, const bool count_pass
 	int i, j;
 	unsigned long long t;
 	double x[128], m[128], s[128], em[128], es[128], en[128];
-	double M, S, EM, ES;
+	double total_mean = 0.0, total_squared_deviations = 0.0;
+	double EM, ES;
 	Random r;
 	const char *(bool_string[2]) = {"false", "true"};
 
 	random_seed(&r, real_clock());
-	M = S = EM = ES = 0.0;
+	EM = ES = 0.0;
 	for (i = 0; i < 128; ++i) m[i] = s[i] = 0.0;
 	for (i = 0; i < 128; ++i) em[i] = es[i] = en[i] = 0.0;
 
@@ -324,13 +325,20 @@ void estimate_games(const Board *board, const long long n, const bool count_pass
 
 	t = -cpu_clock();
 	for (j = 1; j <= n; ++j) {
+		double trial_total = 0.0;
 		for (i = 0; i < 128; ++i) x[i] = 0.0;
 		if (size == 6)  estimate_game_6x6(board, 1, count_pass, &r, x);
 		else estimate_game(board, 1, count_pass, &r, x);
 		for (i = 1; x[i]; ++i) {
 			m[i] += x[i]; s[i] += x[i] * x[i];
-			M += x[i]; S += x[i] * x[i];
+			trial_total += x[i];
 		}
+
+		// Each trial contributes one sample to the total and its variance.
+		const double delta = trial_total - total_mean;
+		total_mean += delta / j;
+		total_squared_deviations += delta * (trial_total - total_mean);
+
 		{
 			em[i] += x[i - 1]; es[i] += x[i - 1] * x[i - 1];
 			EM += x[i - 1]; ES += x[i - 1] * x[i - 1];
@@ -353,11 +361,9 @@ void estimate_games(const Board *board, const long long n, const bool count_pass
 		}
 		putchar('\n');
 	}
-	M /= n;
-	S = sqrt((S / n - M * M)/n);
 	EM /= n;
 	ES = sqrt((ES / n - EM * EM)/n);
-	printf("Total %e +/- %e: %e +/- %e in ", M, S, EM, ES);
+	printf("Total %e +/- %e: %e +/- %e in", total_mean, sqrt(total_squared_deviations) / n, EM, ES);
 	time_print(t, false, stdout); printf("\n");
 }
 
@@ -1144,7 +1150,7 @@ static unsigned long long count_shape(ShapeHash *hash, BoardCache *cache, const 
 			}
 		} else {
 			board_next(board, PASS, &next);
-			if (can_move(board->player, board->opponent)) {
+			if (can_move(next.player, next.opponent)) { // (the board after the pass: up to v4.5.5-nikque.15 the board that has no move)
 				nodes += count_shape(hash, cache, &next, depth - count_pass, count_pass);
 			}
 		}
@@ -1179,7 +1185,7 @@ static unsigned long long count_shape_6x6(ShapeHash *hash, BoardCache *cache, co
 			}
 		} else {
 			board_next(board, PASS, &next);
-			if (can_move_6x6(board->player, board->opponent)) {
+			if (can_move_6x6(next.player, next.opponent)) { // (the board after the pass: see count_shape)
 				nodes += count_shape_6x6(hash, cache, &next, depth - count_pass, count_pass);
 			}
 		}
@@ -1243,7 +1249,7 @@ bool seek_position(const Board *target, const Board *board, Line *line) {
 	if (moves) {
 		moves &= mask;
 		foreach_bit (x, moves) {
-			line_push(line, x);
+			if (!line_push(line, x)) return false; // (a full line)
 			board_next(board, x, &next);
 			if (seek_position(target, &next, line)) return true;
 			line_pop(line);
@@ -1251,7 +1257,11 @@ bool seek_position(const Board *target, const Board *board, Line *line) {
 	} else {
 		board_next(board, PASS, &next);
 		if (can_move(next.player, next.opponent)) {
+			// the pass is in the line, as in the other lines (up to v4.5.5-nikque.15 it was left out: the moves after it
+			// were printed with the colors of the other player)
+			if (!line_push(line, PASS)) return false;
 			if (seek_position(target, &next, line)) return true;
+			line_pop(line);
 		}
 	}
 

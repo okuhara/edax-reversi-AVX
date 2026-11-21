@@ -55,7 +55,7 @@ extern Log search_log;
  * @param n_moves Move count.
  * @param parent The parent node.
  */
-void node_init(Node* node, Search *search, const int alpha, const int beta, const int depth, const int n_moves, const bool esc_done, Node* parent)
+void node_init(Node* node, Search *search, const int alpha, const int beta, const int depth, const int n_moves, Node* parent)
 {
 	int i;
 
@@ -69,7 +69,6 @@ void node_init(Node* node, Search *search, const int alpha, const int beta, cons
 
 	node->alpha = alpha;
 	node->beta = beta;
-	node->ESC_done = esc_done;
 	node->depth = depth;
 	// node->height = search->height;
 	node->move = NULL;
@@ -107,7 +106,7 @@ void node_free(Node *node)
  * @param parent A parent node.
  * @param node Searched node.
  * @param move Searched move.
- * @return true if a helper task has been launched, false otherwise.
+ * @return the task if a helper task has been launched, NULL otherwise.
  */
 static Task* get_helper(Node *parent, Node *node, Move *move)
 {
@@ -226,10 +225,19 @@ void node_wait_slaves(Node* node)
 	}
 
 	// wake-up master thread!
-	if (search_get_state(node->search) == STOP_PARALLEL_SEARCH && node->stop_point) {
-		search_set_state(node->search, RUNNING);
-		node->stop_point = false;
-		YBWC_STATS(atomic_add(&statistics.n_wake_up, 1);)
+	// (the stop state is tested and changed under the lock of the search, as search_stop_all() does: without
+	// it, a stop asked by another thread between the test and the change was lost, the search went on
+	// while its slaves had been stopped, and could end "normally" with moves that were never searched)
+	// Only the stop by the cut of this node is undone (STOP_PARALLEL_CUT): a stop that came meanwhile from
+	// a node above (STOP_PARALLEL_SEARCH), or from search_stop_all(), stays.
+	if (node->stop_point) {
+		spin_lock(&node->search->spin);
+		if (search_get_state(node->search) == STOP_PARALLEL_CUT) {
+			search_set_state(node->search, RUNNING);
+			YBWC_STATS(atomic_add(&statistics.n_wake_up, 1);)
+		}
+		node->stop_point = false; // (under the lock of the search: the tasks that start read it, see task_search)
+		spin_unlock(&node->search->spin);
 	}
 	unlock(&node->lock);
 }
@@ -371,9 +379,32 @@ void task_search(Task *task)
 	Move *move = task->move;
 	Eval eval0;
 	Board board0;
+	Stop stop;
 	int i;
 
-	search_set_state(search, search_get_state(node->search));
+	// The task takes the stop state of the search of its node, with two exceptions:
+	// - STOP_PARALLEL_CUT: that search only goes back to one of its nodes, where a cut was found, and runs
+	//   again from there. If the node of the task is above the node of the cut, it goes on: the move of the
+	//   task must be searched (the task used to end at once, and the move was never searched). Else (the node
+	//   of the cut, or a node below it) the task ends at once, as before.
+	// - the task was stopped (search_stop_all) between its creation and now: it stays stopped (it used to
+	//   take the state read just before, and to run although the search above it was stopped).
+	spin_lock(&node->search->spin); // (its stop state and the stop points of its nodes do not change meanwhile)
+	stop = search_get_state(node->search);
+	if (stop == STOP_PARALLEL_CUT) {
+		const Node *n;
+		stop = RUNNING;
+		for (n = node; n && n->search == node->search; n = n->parent) {
+			if (n->stop_point) { // the cut is at this node or above it
+				stop = STOP_PARALLEL_SEARCH;
+				break;
+			}
+		}
+	}
+	spin_unlock(&node->search->spin);
+	spin_lock(&search->spin);
+	if (search_get_state(search) == STOP_END) search_set_state(search, stop);
+	spin_unlock(&search->spin);
 
 	YBWC_STATS(++task->n_calls;)
 
@@ -387,6 +418,7 @@ void task_search(Task *task)
 			move->score = -NWS_midgame(search, -alpha - 1, node->depth - 1, node);
 			if (alpha < move->score && move->score < node->beta) {
 				move->score = -PVS_midgame(search, -node->beta, -alpha, node->depth - 1, node);
+				assert(node->pv_node == true);
 			}
 		search_restore_midgame(search, move->x, &eval0);
 		search->board = board0;
@@ -411,6 +443,13 @@ void task_search(Task *task)
 					node->stop_point = true;
 					search_set_state(node->search, STOP_PARALLEL_SEARCH);
 					YBWC_STATS(atomic_add(&statistics.n_stopped_master, 1);)
+					spin_lock(&node->search->spin); // (see node_wait_slaves)
+					if (search_get_state(node->search) == RUNNING) {
+						node->stop_point = true;
+						search_set_state(node->search, STOP_PARALLEL_CUT);
+						YBWC_STATS(atomic_add(&statistics.n_stopped_master, 1);)
+					}
+					spin_unlock(&node->search->spin);
 				}
 			}
 		}
@@ -463,7 +502,8 @@ void* task_loop(void *param)
 	Task *task = (Task*) param;
 
 	lock(&task->lock);
-	task->loop = true;
+	// task->loop is set before the thread is created (task_stack_init), so that
+	// task_free() always stops and joins it, even before it has started.
 
 	while (task->loop) {
 		if (!task->run) {
@@ -552,8 +592,10 @@ void task_free(Task *task)
 {
 	assert(task->run == false);
 	if (task->loop) {
+		lock(&task->lock); // the thread holds the lock except while waiting: the signal cannot be lost
 		task->loop = false; // stop the main loop
 		condition_signal(&task->cond);
+		unlock(&task->lock);
 		thread_join(task->thread);
 	}
 	lock_free(&task->lock);
@@ -590,9 +632,18 @@ void task_stack_init(TaskStack *stack, const int n)
 
 		// init the tasks.
 		for (i = 0; i < stack->n; ++i) {
-			task_init(stack->task + i);
 			if (i) {
-				thread_create(&stack->task[i].thread, task_loop, stack->task + i);
+				task_init(stack->task + i);
+				stack->task[i].loop = true;
+				if (!thread_create(&stack->task[i].thread, task_loop, stack->task + i)) {
+					// no thread for this task (memory exhausted): the search works with the tasks created so far.
+					// (The task used to be given moves to search, and its master waited for it for ever.)
+					warn("cannot create a thread: the search uses %d threads instead of %d\n", i, stack->n);
+					stack->task[i].loop = false; // (there is no thread to join)
+					task_free(stack->task + i);
+					stack->n = i;
+					break;
+				}
 				if (options.cpu_affinity) thread_set_cpu(stack->task[i].thread, i); /* CPU 0 to n - 1 */
 			}
 			stack->task[i].container = stack;

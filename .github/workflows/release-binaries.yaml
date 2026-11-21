@@ -1,0 +1,146 @@
+name: release binaries
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            targets: vc-x64 vc-x64-v3 vc-x64-v4 vc-lib
+            built: bin/wEdax-x86-64*.exe bin/libedax-x64*.dll
+          - arch: x64_x86
+            targets: vc-x86 vc-x86-sse
+            built: bin/wEdax-x86.exe bin/wEdax-x86-sse.exe
+          - arch: x64_arm64
+            targets: vc-a64
+            built: bin/wEdax-arm64.exe
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Windows ${{ matrix.arch }}
+        shell: cmd
+        run: |
+          if not exist bin mkdir bin
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.arch }}
+          cd src
+          for %%t in (${{ matrix.targets }}) do (nmake -f nmakefile %%t || exit /b 1)
+      - name: No build folder in the programs
+        run: python tests/check-build-paths.py ${{ matrix.built }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-${{ matrix.arch }}
+          path: |
+            bin/*.exe
+            bin/*.dll
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install 32-bit compiler libraries
+        run: sudo apt-get update && sudo apt-get install -y gcc-multilib
+      - name: Build Linux x86 variants
+        run: |
+          mkdir -p bin
+          for arch in x86 x86-64 x86-64-v3 x86-64-v4; do
+            make -C src build ARCH="$arch" COMP=gcc OS=linux
+          done
+          for arch in x86-64 x86-64-v3 x86-64-v4; do
+            make -C src libbuild ARCH="$arch" COMP=gcc OS=linux
+          done
+      - name: No build folder in the programs
+        run: python3 tests/check-build-paths.py "bin/lEdax-*" "bin/libedax-*.so"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: |
+            bin/lEdax-*
+            bin/libedax-*.so
+          if-no-files-found: error
+      - name: Test the library
+        run: |
+          mkdir -p t/data && cp bin/data/eval.dat t/data/ && cp bin/libedax-x86-64.so t/
+          gcc -O1 -D_GNU_SOURCE tests/libedax_test.c -Lbin -l:libedax-x86-64.so -Wl,-rpath,'$ORIGIN' -ldl -o t/libedax_test
+          cd t && ./libedax_test libedax-x86-64.so > libedax_test.log 2>&1 || { cat libedax_test.log; exit 1; }
+          grep 'checks,' libedax_test.log
+
+  macos-x64:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build macOS x64
+        run: |
+          mkdir -p bin
+          make -C src build ARCH=x64-modern COMP=clang OS=osx CC='clang -arch x86_64'
+      - name: No build folder in the program
+        run: python3 tests/check-build-paths.py bin/mEdax-x64-modern
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-x64
+          path: bin/mEdax-x64-modern
+          if-no-files-found: error
+      - name: Test the executable
+        run: cd bin && ./mEdax-x64-modern -n 1 -l 60 -solve ../problem/fforum-1-19.obf
+
+  # Apple silicon executable, and the library (libedax) for both kinds of Mac in one file
+  macos-arm64:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build macOS arm64 executable and universal library
+        run: |
+          mkdir -p bin
+          make -C src build ARCH=arm64 COMP=clang OS=osx CC='clang -arch arm64'
+          make -C src libbuild ARCH=arm64 COMP=clang OS=osx CC='clang -arch arm64'
+          make -C src libbuild ARCH=x64-modern COMP=clang OS=osx CC='clang -arch x86_64'
+          lipo -create bin/libedax-arm64.dylib bin/libedax-x64-modern.dylib -output bin/libedax.universal.dylib
+          lipo -info bin/libedax.universal.dylib
+          rm bin/libedax-arm64.dylib bin/libedax-x64-modern.dylib
+      - name: No build folder in the programs
+        run: python3 tests/check-build-paths.py bin/mEdax-arm64 bin/libedax.universal.dylib
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-arm64
+          path: |
+            bin/mEdax-arm64
+            bin/libedax.universal.dylib
+          if-no-files-found: error
+      - name: Test the executable and the library
+        run: |
+          mkdir -p t/data && cp bin/data/eval.dat t/data/ && cp bin/libedax.universal.dylib bin/mEdax-arm64 t/
+          clang -O1 tests/libedax_test.c t/libedax.universal.dylib -Wl,-rpath,@loader_path -o t/libedax_test
+          cd t
+          ./mEdax-arm64 -n 1 -l 60 -solve ../problem/fforum-1-19.obf
+          ./libedax_test libedax.universal.dylib > libedax_test.log 2>&1 || { cat libedax_test.log; exit 1; }
+          grep 'checks,' libedax_test.log
+
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Android ARM variants
+        run: |
+          "$ANDROID_NDK_HOME/ndk-build" -C src NDK_PROJECT_PATH=. NDK_APPLICATION_MK=./Application.mk APP_ABI='armeabi-v7a arm64-v8a' APP_PLATFORM=android-21 -j2
+          "$ANDROID_NDK_HOME/ndk-build" -C src NDK_PROJECT_PATH=. NDK_APPLICATION_MK=./Application-lib.mk NDK_OUT=./obj-lib NDK_LIBS_OUT=./libs-lib -j2
+          mkdir -p bin
+          cp src/libs/armeabi-v7a/aEdax bin/aEdax-armeabi-v7a
+          cp src/libs/arm64-v8a/aEdax bin/aEdax-arm64-v8a
+          cp src/libs-lib/armeabi-v7a/libedax.so bin/libedax-armeabi-v7a.so
+          cp src/libs-lib/arm64-v8a/libedax.so bin/libedax-arm64-v8a.so
+      - name: No build folder in the programs
+        run: python3 tests/check-build-paths.py "bin/aEdax-*" "bin/libedax-a*.so"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-android
+          path: |
+            bin/aEdax-*
+            bin/libedax-a*.so
+          if-no-files-found: error

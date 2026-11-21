@@ -78,6 +78,8 @@ ifeq ($(COMP),gcc)
 	endif
 	ifeq ($(ARCH),x86)
 		CFLAGS += -m32 -march=i386 -mtune=generic -DUSE_GAS_X86 -fno-pie -no-pie
+		# i386 has no cmpxchg: the book's atomic compare-exchange calls libatomic
+		LIBS += -l:libatomic.a
 		ifeq ($(BUILD),optimize)
 			CFLAGS += -fomit-frame-pointer
 		endif
@@ -211,6 +213,13 @@ ifeq ($(COMP),clang)
 			CFLAGS += -fomit-frame-pointer
 		endif
 	endif
+	# macOS (release-binaries workflow): x64-modern is the Intel build, for any x86-64 CPU (the compiler's default:
+	# no AVX2, so that every Intel Mac runs it); arm64 is the Apple silicon build (the compiler targets the Apple
+	# CPUs). Up to v4.5.5-nikque.15 these names were not defined here: they were built with the same flags.
+	ifeq ($(ARCH),x64-modern)
+		CFLAGS += -m64
+	endif
+	# (arm64: no flag to add)
 
 	ifeq ($(OS),osx)
 		CFLAGS += -mmacosx-version-min=10.4 -mdynamic-no-pic
@@ -243,8 +252,28 @@ ifeq ($(OS),osx)
 	LIBS += -lpthread
 endif
 
-ifneq (,$(findstring x64,$(ARCH))$(findstring x32,$(ARCH)))
+# 64-bit CPUs (up to v4.5.5-nikque.15 only the names with x64 or x32: not x86-64-*, armv8, arm64, arm-sve256;
+# the Windows builds define it in NMakefile)
+ifneq (,$(findstring x64,$(ARCH))$(findstring x32,$(ARCH))$(findstring x86-64,$(ARCH))$(findstring armv8,$(ARCH))$(findstring arm64,$(ARCH))$(findstring arm-sve,$(ARCH)))
 	CFLAGS += -DHAS_CPU_64
+endif
+
+# library: the api functions must stay visible, and the code must be position independent
+LIB_CFLAGS = $(filter-out -fwhole-program -mdynamic-no-pic -fno-pie -no-pie,$(CFLAGS)) -DLIB_BUILD -fPIC -shared
+LIB_EXT = so
+ifeq ($(OS),linux)
+	# the library calls its own functions, even when the program has functions with the same names
+	# (-fno-semantic-interposition: the compiler can then inline them and call them directly, as in the
+	# executable: the library was 7% slower without it)
+	LIB_CFLAGS += -Wl,-Bsymbolic -fno-semantic-interposition
+endif
+ifeq ($(OS),windows)
+	LIB_EXT = dll
+endif
+ifeq ($(OS),osx)
+	LIB_EXT = dylib
+	# the programs find the library next to them (the two architectures are joined in libedax.universal.dylib)
+	LIB_CFLAGS += -Wl,-install_name,@rpath/libedax.universal.dylib
 endif
 
 
@@ -262,6 +291,7 @@ help:
 	@echo ""
 	@echo "Targets:"
 	@echo "   build*     Build optimized version"
+	@echo "   libbuild   Build the library (libedax)"
 	@echo "   pgo-build  Build PGO-optimized version"
 	@echo "   release    Cross compile for linux/windows/mac (from fedora only)"
 	@echo "   debug      Build debug version."
@@ -296,6 +326,13 @@ help:
 build:
 	@echo "building edax..."
 	$(CC) $(CFLAGS) $(LTOFLAG) all.c -s -o $(BIN)/$(EXE) $(LIBS)
+
+# Library (libedax): Edax as a shared library with the api of libedax.h, for the programs
+# written for libedax (libedax4dart, edax_runner). They load libedax.so (linux),
+# libedax.universal.dylib (osx) or libedax-x64.dll (windows): rename the built library.
+libbuild:
+	@echo "building libedax..."
+	$(CC) $(LIB_CFLAGS) $(LTOFLAG) all.c -s -o $(BIN)/libedax-$(ARCH).$(LIB_EXT) $(LIBS)
 
 source:
 	$(CC) $(CFLAGS) -S all.c
@@ -332,6 +369,10 @@ release:
 
 android:
 	ndk-build NDK_PROJECT_PATH=. NDK_APPLICATION_MK=./Application.mk # NDK_DEBUG=1
+
+# Library (libedax) for Android: libs-lib/<abi>/libedax.so (arm64-v8a, armeabi-v7a)
+android-lib:
+	ndk-build NDK_PROJECT_PATH=. NDK_APPLICATION_MK=./Application-lib.mk NDK_OUT=./obj-lib NDK_LIBS_OUT=./libs-lib
 
 macuniversal:
 	$(MAKE) build ARCH=x86 OS=osx COMP=clang

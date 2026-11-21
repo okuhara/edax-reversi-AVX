@@ -53,10 +53,33 @@ static int accumlate_eval(int ply, Eval *eval)
 		W_C9 = offsetof(Eval_weight, C9) / 4,
 		W_C10 = offsetof(Eval_weight, C10) / 4,
 		W_S100 = offsetof(Eval_weight, S100) / 4,
-		W_S101 = offsetof(Eval_weight, S101) / 4
+		W_S101 = offsetof(Eval_weight, S101) / 4,
+		W_S8 = offsetof(Eval_weight, S8x4) / 4,
+		W_S7 = offsetof(Eval_weight, S7654) / 4
 	};
 	w = *EVAL_WEIGHT + ply;
 	__m128i SW = _mm_loadl_epi64((__m128i *)(shift_even + b0));	// 16 for even, 0 for odd
+
+   #if defined(__AVX512F__) && (defined(AVX512_PREFER512) || defined(EVAL_GATHER512))
+	// 46 features in 3 x 16-lane gathers (the last 2 lanes unused); integer sums, so the same value as below.
+	__m512i FF = _mm512_add_epi32(_mm512_cvtepu16_epi32(eval->feature.v16[0]), _mm512_set_epi32(
+		W_S101, W_S101, W_S101, W_S101, W_S100, W_S100, W_S100, W_S100, W_C10, W_C10, W_C10, W_C10, W_C9, W_C9, W_C9, W_C9));
+	__m512i DD = _mm512_i32gather_epi32(FF, (const int *) w, 4);
+	__m512i SS = _mm512_srai_epi32(_mm512_sll_epi32(DD, SW), 16);	// select word and sign extend
+
+	FF = _mm512_add_epi32(_mm512_cvtepu16_epi32(eval->feature.v16[1]), _mm512_set_epi32(
+		W_S7, W_S7, W_S8, W_S8, W_S8, W_S8, W_S8, W_S8, W_S8, W_S8, W_S8, W_S8, W_S8, W_S8, W_S8, W_S8));
+	DD = _mm512_i32gather_epi32(FF, (const int *) w, 4);
+	SS = _mm512_add_epi32(SS, _mm512_srai_epi32(_mm512_sll_epi32(DD, SW), 16));
+
+	FF = _mm512_add_epi32(_mm512_cvtepu16_epi32(eval->feature.v16[2]), _mm512_set1_epi32(W_S7));
+	DD = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), 0x3fff, FF, (const int *) w, 4);
+	SS = _mm512_add_epi32(SS, _mm512_srai_epi32(_mm512_sll_epi32(DD, SW), 16));
+	sum = _mm512_reduce_add_epi32(SS);
+	w = (Eval_weight *)(w->S0 + b0);
+	return sum + *(w->S0);
+
+  #else
 	__m256i FF = _mm256_add_epi32(_mm256_cvtepu16_epi32(eval->feature.v8[0]),
 		_mm256_set_epi32(W_C10, W_C10, W_C10, W_C10, W_C9, W_C9, W_C9, W_C9));
 	__m256i DD = _mm256_i32gather_epi32((int *) w, FF, 4);
@@ -70,10 +93,10 @@ static int accumlate_eval(int ply, Eval *eval)
 	DD = _mm256_i32gather_epi32((int *) w->S8x4, _mm256_cvtepu16_epi32(eval->feature.v8[2]), 4);
 	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(_mm256_sll_epi32(DD, SW), 16));
 
-	DD = _mm256_i32gather_epi32((int *) w->S7654, _mm256_cvtepu16_epi32(*(__m128i *) &eval->feature.us[30]), 4);
+	DD = _mm256_i32gather_epi32((int *) w->S7654, _mm256_cvtepu16_epi32(_mm_loadu_si128((__m128i *) &eval->feature.us[30])), 4);
 	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(_mm256_sll_epi32(DD, SW), 16));
 
-	DD = _mm256_i32gather_epi32((int *) w->S7654, _mm256_cvtepu16_epi32(*(__m128i *) &eval->feature.us[38]), 4);
+	DD = _mm256_i32gather_epi32((int *) w->S7654, _mm256_cvtepu16_epi32(_mm_loadu_si128((__m128i *) &eval->feature.us[38])), 4);
 	SS = _mm256_add_epi32(SS, _mm256_srai_epi32(_mm256_sll_epi32(DD, SW), 16));
 	__m128i S = _mm_add_epi32(_mm256_castsi256_si128(SS), _mm256_extracti128_si256(SS, 1));
 
@@ -83,6 +106,8 @@ static int accumlate_eval(int ply, Eval *eval)
 	S = _mm_add_epi32(S, _mm_unpackhi_epi64(S, S));
 	sum = _mm_cvtsi128_si32(_mm_add_epi32(S, _mm_shufflelo_epi16(S, 0x4e)));
 	w = (Eval_weight *)(w->S0 + b0);
+	return sum + *(w->S8x4[f[28]]) + *(w->S8x4[f[29]]) + *(w->S0);
+  #endif
 
 #else
 	w = (Eval_weight *)((*EVAL_WEIGHT)[ply].S0 + b0);
@@ -97,8 +122,8 @@ static int accumlate_eval(int ply, Eval *eval)
 	  + *(w->S7654[f[34]]) + *(w->S7654[f[35]]) + *(w->S7654[f[36]]) + *(w->S7654[f[37]])
 	  + *(w->S7654[f[38]]) + *(w->S7654[f[39]]) + *(w->S7654[f[40]]) + *(w->S7654[f[41]])
 	  + *(w->S7654[f[42]]) + *(w->S7654[f[43]]) + *(w->S7654[f[44]]) + *(w->S7654[f[45]]);
-#endif
 	return sum + *(w->S8x4[f[28]]) + *(w->S8x4[f[29]]) + *(w->S0);
+#endif
 }
 
 /**
@@ -305,7 +330,7 @@ static bool search_probcut(Search *search, const int alpha, const int depth, Nod
 		int eval_score, eval_beta, eval_alpha;
 		int score;
 		const int beta = alpha + 1;
-		double t = selectivity_table[search->selectivity].t;
+		const double t = options.probcut_model ? probcut_refit_t[search->selectivity] : selectivity_table[search->selectivity].t;
 		const int saved_selectivity = search->selectivity;
 		const NodeType node_type = search->node_type[search->height];
 
@@ -315,7 +340,8 @@ static bool search_probcut(Search *search, const int alpha, const int depth, Nod
 		probcut_depth = 2 * floor(options.probcut_d * depth) + (depth & 1);
 		if (probcut_depth == 0) probcut_depth = depth - 2;
 		assert(probcut_depth > 1 && probcut_depth <= depth - 2 && (probcut_depth & 1) == (depth & 1));
-		probcut_error = t * eval_sigma(search->eval.n_empties, depth, probcut_depth) + RCD;
+		if (options.probcut_model) probcut_error = t * probcut_sigma(search->eval.n_empties, depth, probcut_depth) + RCD;	// refit (experimental)
+		else probcut_error = t * eval_sigma(search->eval.n_empties, depth, probcut_depth) + RCD;
 
 		// compute evaluation error (i.e. error at depth 0) averaged for both depths
 		eval_score = search_eval_0(search);
@@ -589,6 +615,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	Eval eval0;
 	vBoard board0;
 	long long nodes_org;
+	bool esc_done;
 
 	assert(search->eval.n_empties == bit_count(~(search->board.player | search->board.opponent)));
 	assert((2 <= depth && depth < search->eval.n_empties) || depth == search->eval.n_empties);
@@ -613,7 +640,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	// stability cutoff
-	if (!parent->ESC_done && search_SC_NWS(search, alpha, &score)) return score;
+	if (search_SC_NWS(search, alpha, &score)) return score;
 
 	// transposition prefetch
 	hash_code = board_get_hash_code(&search->board);
@@ -624,7 +651,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	search_get_movelist(search, &movelist);
 
 	if (movelist_is_empty(&movelist)) { // no moves ?
-		node_init(&node, search, alpha, alpha + 1, depth, movelist.n_moves, false, parent);
+		node_init(&node, search, alpha, alpha + 1, depth, movelist.n_moves, parent);
 		if (can_move(search->board.opponent, search->board.player)) { // pass ?
 			search_update_pass_midgame(search, &eval0);
 			node.bestscore = -NWS_midgame(search, -node.beta, depth, &node);
@@ -632,8 +659,6 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		} else { // game-over !
 			node.bestscore = search_solve(search);
 		}
-		if (search_get_state(search) != RUNNING)
-			node.bestscore = alpha;
 
 	} else {
 		// transposition cutoff
@@ -651,11 +676,14 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 		}
 
 		// ETC
-		if (USE_ETC && depth > ETC_MIN_DEPTH)
-			if (search_ETC_NWS(search, &movelist, hash_code, depth, search->selectivity, alpha, &score))
-				return score;
+		esc_done = false;
+		if (USE_ETC && depth > ETC_MIN_DEPTH) {
+			if (search_ETC_NWS(search, &movelist, hash_code, depth, search->selectivity, alpha, &score)) return score;
+			esc_done = true;
+		}
 
-		node_init(&node, search, alpha, alpha + 1, depth, movelist.n_moves, (USE_ETC && depth > ETC_MIN_DEPTH), parent);
+		node_init(&node, search, alpha, alpha + 1, depth, movelist.n_moves, parent);
+		node.ESC_done = esc_done;
 
 		// loop over all moves
 		board0.bb = search->board;
@@ -670,31 +698,34 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 			}
 		}
 		node_wait_slaves(&node);
+	}
 
-		// save the best result in hash tables
-		if (search_get_state(search) == RUNNING) {
-			if (depth <= ((search->eval.n_empties <= depth) ? DEPTH_MIDGAME_TO_ENDGAME : 4))
-				hash_data.data.wl.c.selectivity = NO_SELECTIVITY; // hack
-			else hash_data.data.wl.c.selectivity = search->selectivity;
-			hash_data.data.wl.c.depth = depth;
-			hash_data.data.wl.c.cost = last_bit(search->n_nodes + search->child_nodes - nodes_org);
-			hash_data.data.move[0] = node.bestmove;
-			hash_data.alpha = alpha;
-			hash_data.beta = alpha + 1;
-			hash_data.score = node.bestscore;
+	// save the best result in hash tables
+	if (search_get_state(search) == RUNNING) {
+		// hack: Up to 4.5.6, an endgame node of DEPTH_MIDGAME_TO_ENDGAME is exact, its moves being searched by NWS_endgame; not after
+		// a pass, whose search stays here at the same depth and may be cut by probcut: stored as exact, that score was
+		// taken by the exact search after a selective one (a wrong score at level 60 from 17 empties on)
+		if (depth <= ((search->eval.n_empties <= depth) ? DEPTH_MIDGAME_TO_ENDGAME : 4))
+			hash_data.data.wl.c.selectivity = NO_SELECTIVITY; // hack
+		else hash_data.data.wl.c.selectivity = search->selectivity;
+		hash_data.data.wl.c.depth = depth;
+		hash_data.data.wl.c.cost = last_bit(search->n_nodes + search->child_nodes - nodes_org);
+		hash_data.data.move[0] = node.bestmove;
+		hash_data.alpha = alpha;
+		hash_data.beta = alpha + 1;
+		hash_data.score = node.bestscore;
 
-			if (search->height <= PV_HASH_HEIGHT) hash_store(&search->pv_table, &search->board, hash_code, &hash_data);
-			hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
+		if (search->height <= PV_HASH_HEIGHT) hash_store(&search->pv_table, &search->board, hash_code, &hash_data);
+		hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
 
-			SQUARE_STATS(foreach_move(move, &movelist))
-			SQUARE_STATS(++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];)
-			SQUARE_STATS(if (node.bestscore > alpha) ++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[node->bestmove]];)
+		SQUARE_STATS(foreach_move(move, &movelist))
+		SQUARE_STATS(++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];)
+		SQUARE_STATS(if (node.bestscore > alpha) ++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[node.bestmove]];)
 
-			assert(SCORE_MIN <= node.bestscore && node.bestscore <= SCORE_MAX);
+	 	assert(SCORE_MIN <= node.bestscore && node.bestscore <= SCORE_MAX);
 
-		} else {
-			node.bestscore = alpha;
-		}
+	} else {
+		node.bestscore = alpha;
 	}
 
 	node_free(&node);
@@ -759,7 +790,8 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 
 	// move list & node initialization
 	search_get_movelist(search, &movelist);
-	node_init(&node, search, alpha, beta, depth, movelist.n_moves, false, parent);
+	node_init(&node, search, alpha, beta, depth, movelist.n_moves, parent);
+	node.pv_node = true;
 
 	// special cases
 	if (movelist_is_empty(&movelist)) {
@@ -774,8 +806,6 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 			node.bestscore = search_solve(search);
 			node.bestmove = NOMOVE;
 		}
-		if (search_get_state(search) != RUNNING)
-			node.bestscore = alpha;
 
 	} else { // normal PVS
 		if (movelist.n_moves > 1) {
@@ -829,55 +859,55 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 			}
 			node_wait_slaves(&node);
 		}
+	}
 
-		// save the best result in hash tables
-		if (search_get_state(search) == RUNNING) {
-			if (depth <= ((search->eval.n_empties <= depth) ? DEPTH_MIDGAME_TO_ENDGAME : 4))
-				hash_data.data.wl.c.selectivity = NO_SELECTIVITY;
-			else	hash_data.data.wl.c.selectivity = search->selectivity;
-			hash_data.data.wl.c.depth = depth;
-			hash_data.data.wl.c.cost = last_bit(search_count_nodes(search) - nodes_org);
-			hash_data.data.move[0] = node.bestmove;
-			hash_data.alpha = alpha;
-			hash_data.beta = beta;
-			hash_data.score = node.bestscore;
+	// save the best result in hash tables
+	if (search_get_state(search) == RUNNING) {
+		if (depth <= ((search->eval.n_empties <= depth) ? DEPTH_MIDGAME_TO_ENDGAME : 4))
+			hash_data.data.wl.c.selectivity = NO_SELECTIVITY;
+		else	hash_data.data.wl.c.selectivity = search->selectivity;
+		hash_data.data.wl.c.depth = depth;
+		hash_data.data.wl.c.cost = last_bit(search_count_nodes(search) - nodes_org);
+		hash_data.data.move[0] = node.bestmove;
+		hash_data.alpha = alpha;
+		hash_data.beta = beta;
+		hash_data.score = node.bestscore;
 
-			hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
-			hash_store(&search->pv_table, &search->board, hash_code, &hash_data);
+		hash_store(&search->hash_table, &search->board, hash_code, &hash_data);
+		hash_store(&search->pv_table, &search->board, hash_code, &hash_data);
 
-			// lacal hash (main thread only)
-			if (search->eval.n_empties <= depth && depth <= DEPTH_TO_USE_LOCAL_HASH && depth > DEPTH_TO_SHALLOW_SEARCH) {
-				vBoard hashboard;
+		// lacal hash (main thread only)
+		if (search->eval.n_empties <= depth && depth <= DEPTH_TO_USE_LOCAL_HASH && depth > DEPTH_TO_SHALLOW_SEARCH) {
+			vBoard hashboard;
   #ifdef USE_SOLID
-				unsigned long long solid = search->eval.full_lines.ull[0] & search->eval.full_lines.ull[1]
-					& search->eval.full_lines.ull[2] & search->eval.full_lines.ull[3] & 0x3c7effffffff7e3c;
-				int ofssolid = bit_count(solid) * 2;
-				// apply only if ofssolid will not alter the winner, i.e. the window is apart enough from 0.
-				if (((alpha > ofssolid) && (node.bestscore > ofssolid)) || ((beta < -ofssolid) && (node.bestscore < -ofssolid))) {
-					solid &= search->board.player;
-					if (solid) {
-						ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
-						hashboard.bb.player = search->board.player ^ solid;	// normalize solid to opponent
-						hashboard.bb.opponent = search->board.opponent ^ solid;
-						vhash_store_local(search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask),
-							hashboard, alpha - ofssolid, beta - ofssolid, node.bestscore - ofssolid, node.bestmove);
-					}
+			unsigned long long solid = search->eval.full_lines.ull[0] & search->eval.full_lines.ull[1]
+				& search->eval.full_lines.ull[2] & search->eval.full_lines.ull[3] & 0x3c7effffffff7e3c;
+			int ofssolid = bit_count(solid) * 2;
+			// apply only if ofssolid will not alter the winner, i.e. the window is apart enough from 0.
+			if (((alpha > ofssolid) && (node.bestscore > ofssolid)) || ((beta < -ofssolid) && (node.bestscore < -ofssolid))) {
+				solid &= search->board.player;
+				if (solid) {
+					ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
+					hashboard.bb.player = search->board.player ^ solid;	// normalize solid to opponent
+					hashboard.bb.opponent = search->board.opponent ^ solid;
+					vhash_store_local(search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask),
+						hashboard, alpha - ofssolid, beta - ofssolid, node.bestscore - ofssolid, node.bestmove);
 				}
-  #endif
-				hashboard.bb = search->board;
-				vhash_store_local(search->thread_hash.hash + (hash_code & search->thread_hash.hash_mask),
-					hashboard, alpha, beta, node.bestscore, node.bestmove);
 			}
-
-			SQUARE_STATS(foreach_move(move, movelist))
-			SQUARE_STATS(++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];)
-			SQUARE_STATS(if (node.bestscore > alpha) ++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[node.bestmove]];)
-
-			assert(SCORE_MIN <= node.bestscore && node.bestscore <= SCORE_MAX);
-
-		} else {
-			node.bestscore = alpha;
+  #endif
+			hashboard.bb = search->board;
+			vhash_store_local(search->thread_hash.hash + (hash_code & search->thread_hash.hash_mask),
+				hashboard, alpha, beta, node.bestscore, node.bestmove);
 		}
+
+		SQUARE_STATS(foreach_move(move, movelist))
+		SQUARE_STATS(++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];)
+		SQUARE_STATS(if (node.bestscore > alpha) ++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[node.bestmove]];)
+
+	 	assert(SCORE_MIN <= node.bestscore && node.bestscore <= SCORE_MAX);
+
+	} else {
+		node.bestscore = alpha;
 	}
 
 	node_free(&node);

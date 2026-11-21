@@ -79,7 +79,7 @@ void ui_init_xboard(UI *ui)
 	search->options.header = NULL;
 	search->options.separator = NULL;
 	ui->book.search = search;
-	book_load(&ui->book, options.book_file);
+	book_load_at_startup(&ui->book);
 	// search->id = 1;
 	search_set_observer(search, xboard_observer);
 	options.level = 60;
@@ -198,10 +198,10 @@ static void xboard_hint(Play *play)
 		printf("Hint:P@");
 		move_print(x, 1, stdout);
 		putchar('\n');
-		fflush(stdout);
 	}
+	fflush(stdout);
 	if (log_is_open(&xboard_log)) {
-		if (x == PASS) printf("edax> Hint:@@@@\n");
+		if (x == PASS) fprintf(xboard_log.f, "edax> Hint:@@@@\n");
 		else {
 			fprintf(xboard_log.f, "edax> Hint:P@");
 			move_print(x, 1, xboard_log.f);
@@ -277,13 +277,18 @@ static inline int hash_size(int n)
  * @param ui User Interface.
  * @param stats total nodes & time statistics.
  */
-static void xboard_go(UI *ui, XBoardStats *stats)
+static void xboard_go(UI *ui, XBoardStats *stats, long long increment)
 {
-	Play *play = ui->play;
-	Search *search = &play->search;
-	Result *result = search->result;
+	Play *const play = ui->play;
+	Search *const search = &play->search;
+	// The result of the move that is played: play_go() sets it in every case. (Up to v4.5.5-nikque.12 the result
+	// of the search itself was read, after the pondering had started on it; a move from the book or a forced
+	// move does not fill it, and the totals printed at "quit" were meaningless.)
+	Result *const result = &play->result;
 
 	play_go(play, true);
+	if (options.play_type == EDAX_TIME_PER_GAME)
+		play->time[!play->player].left += increment;
 	xboard_move(play_get_last_move(play)->x);
 	play_ponder(play);
 	xboard_check_game_over(play);
@@ -349,8 +354,8 @@ static void xboard_analyze(Play *play)
 		play->state = IS_ANALYZING;
 		search_cleanup(&play->search);
 		log_print(&xboard_log, "edax (analyze)> start\n");
-		thread_create(&play->ponder.thread, play_ponder_run, play);
-		play->ponder.launched = true;
+		if (thread_create(&play->ponder.thread, play_ponder_run, play)) play->ponder.launched = true;
+		else play->state = IS_WAITING; // no thread (memory exhausted): no analysis (its end was waited for, for ever)
 	}
 }
 
@@ -400,8 +405,7 @@ static void xboard_loop_analyze(UI *ui)
 
 		} else if ((strcmp(cmd, "setboard") == 0)) {
 			xboard_stop_analyzing(play);
-			play_set_board_from_FEN(play, param);
-			if (play->initial_player == EMPTY) xboard_error("(bad FEN): %s\n", param);
+			if (!play_set_board_from_FEN(play, param)) xboard_error("(bad FEN): %s\n", param);
 			xboard_analyze(play);
 
 		} else if (strcmp(cmd, "exit") == 0) {
@@ -410,7 +414,7 @@ static void xboard_loop_analyze(UI *ui)
 			ui_loop_xboard(ui);
 			return;
 
-		} else if (strcmp(cmd, "quit") == 0) {
+		} else if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "eof") == 0 || strcmp(cmd, "q") == 0) { // (the end of the input: nothing else will come)
 			xboard_stop_analyzing(play);
 			free(cmd); free(param);
 			return;
@@ -442,6 +446,7 @@ void ui_loop_xboard(UI *ui)
 	XBoardStats stats = {0, 0, 0};
 	int edax_turn = EMPTY;
 	int last_edax_turn = !play->player;
+	long long increment = 0;
 	const char *(color[2]) = {"black", "white"};
 
 	// loop forever
@@ -450,7 +455,7 @@ void ui_loop_xboard(UI *ui)
 
 		if (!ui_event_exist(ui) && !play_is_game_over(play) && (edax_turn == play->player)) {
 			log_print(&xboard_log, "edax (auto_play)> turn = %s\n", color[edax_turn]);
-			xboard_go(ui, &stats);
+			xboard_go(ui, &stats, increment);
 
 		// proceed by reading a command
 		} else {
@@ -542,13 +547,13 @@ void ui_loop_xboard(UI *ui)
 			// random command
 			} else if ((strcmp(cmd, "force") == 0)) {
 				play_stop_pondering(play);
-				last_edax_turn = edax_turn;
+				if (edax_turn != EMPTY) last_edax_turn = edax_turn; // (a second "force" kept EMPTY, an index out of the clocks, up to v4.5.5-nikque.15)
 				edax_turn = EMPTY;
 
 			// go think!
 			} else if (strcmp(cmd, "go") == 0) {
 				edax_turn = play->player;
-				xboard_go(ui, &stats);
+				xboard_go(ui, &stats, increment);
 
 			// playother
 			} else if (strcmp(cmd, "playother") == 0) {
@@ -574,11 +579,13 @@ void ui_loop_xboard(UI *ui)
 				if (*next == ':') next = parse_int(next + 1, &s);
 				base = 60 * m + s;
 				inc = 0; next = parse_int(next, &inc);
+				increment = inc > 0 ? 1000ll * inc : 0;
 
-				if ((mps == 0 || mps > 30) && inc == 0) {
+				if (mps == 0 || (mps > 30 && inc == 0)) {
 					options.time = 1000ull * base ;
 					options.play_type = EDAX_TIME_PER_GAME;
 					log_print(&xboard_log, "edax setup> time per game = %.2f s.\n", 0.001 * options.time);
+					play->time[BLACK].left = play->time[WHITE].left = options.time;
 				} else {
 					int t1 = base * 1000ull / mps;
 					int t2 = (base + inc * mps) * 30; // 30 <- 1000ms / 30moves
@@ -597,6 +604,7 @@ void ui_loop_xboard(UI *ui)
 			} else if (strcmp(cmd, "sd") == 0) {
 				options.level = string_to_int(param, 60);
 				BOUND(options.level, 0, 60, "level");
+				options.level_set = true;
 				log_print(&xboard_log, "edax setup> fixed level = %d\n", options.level);
 
 			// nps
@@ -641,8 +649,7 @@ void ui_loop_xboard(UI *ui)
 
 			// setboard
 			} else if ((strcmp(cmd, "setboard") == 0)) {
-				play_set_board_from_FEN(play, param);
-				if (play->initial_player == EMPTY) xboard_error("(bad FEN): %s\n", param);
+				if (!play_set_board_from_FEN(play, param)) xboard_error("(bad FEN): %s\n", param);
 				xboard_check_game_over(play);
 
 			} else if ((strcmp(cmd, "edit") == 0)) {
@@ -699,13 +706,15 @@ void ui_loop_xboard(UI *ui)
 				int size = string_to_int(param, 100);
 
 				for (options.hash_table_size = 10; hash_size(options.hash_table_size + 1) < size; ++options.hash_table_size) ;
-				BOUND(options.hash_table_size, 10, 30, "hash-table-size");
+				BOUND(options.hash_table_size, 10, (sizeof (void*) == 4 ? 25 : 30), "hash-table-size");
+				options.hash_table_auto = false;
 				log_print(&xboard_log, "edax setup> hash table size: 2**%d entries\n", options.hash_table_size);
 				play_stop_pondering(play);
 				search_resize_hashtable(&play->search);
 
 			} else if ((strcmp(cmd, "cores") == 0)) {
 				options.n_task = string_to_int(param, 1);
+				BOUND(options.n_task, 1, MIN(get_cpu_number(), MAX_THREADS), "cores");
 				log_print(&xboard_log, "edax setup> cores: %d\n", options.n_task);
 				if (search_count_tasks(&play->search) != options.n_task) {
 					play_stop_pondering(play);

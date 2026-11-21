@@ -475,6 +475,9 @@ typedef struct {
 /** eval weight load status */
 static int EVAL_LOADED = 0;
 
+/** name of the file of the loaded weights (another file is loaded again: see eval_open) */
+static char *EVAL_FILE = NULL;
+
 /** eval weights */
 Eval_weight (*EVAL_WEIGHT)[EVAL_N_2PLY - 1];	// for 2..53
 
@@ -578,7 +581,12 @@ void eval_open(const char* file)
 	static const int kd_C10[] = { 19683, 6561, 2187, 729, 81, 243, 27, 9, 3, 1 };
 	static const int kd_C9[] = { 1, 9, 3, 81, 27, 243, 2187, 729, 6561 };
 
-	if (EVAL_LOADED++) return;
+	if (EVAL_LOADED) {
+		// the same file (libedax initialized again): the weights are kept; another file: it is loaded
+		if (EVAL_FILE != NULL && file != NULL && strcmp(EVAL_FILE, file) == 0) { ++EVAL_LOADED; return; }
+		eval_close();
+	}
+	EVAL_LOADED = 1;
 
 	// the following is assumed:
 	//	-(unsigned) int are 32 bits
@@ -588,7 +596,7 @@ void eval_open(const char* file)
 
 	// create unpacking tables
 	OPPONENT_FEATURE = (unsigned short *) malloc(59049 * sizeof(unsigned short));	// 3^10
-	P = (SymmetryPacking (*)[2]) malloc(2 * sizeof(*P));
+	P = (SymmetryPacking (*)[2]) malloc(sizeof(*P)); // (*P is the 2 tables: up to v4.5.5-nikque.15 twice their size)
 	T = (int *) malloc(2 * 59049 * sizeof(*T));
 	if ((OPPONENT_FEATURE == NULL) || (P == NULL) || (T == NULL))
 		fatal_error("Cannot allocate temporary table variable.\n");
@@ -644,7 +652,7 @@ void eval_open(const char* file)
 	// File header
 	r = fread(&edax_header, sizeof (int), 1, f);
 	r += fread(&eval_header, sizeof (int), 1, f);
-	if (r != 2 || (!(edax_header == EDAX || eval_header == EVAL) && !(edax_header == XADE || eval_header == LAVE))) fatal_error("%s is not an Edax evaluation file\n", file);
+	if (r != 2 || !((edax_header == EDAX && eval_header == EVAL) || (edax_header == XADE && eval_header == LAVE))) fatal_error("%s is not an Edax evaluation file\n", file);
 	r = fread(&version, sizeof (int), 1, f);
 	r += fread(&release, sizeof (int), 1, f);
 	r += fread(&build, sizeof (int), 1, f);
@@ -718,8 +726,12 @@ void eval_open(const char* file)
 void eval_close(void)
 {
 	free(OPPONENT_FEATURE);
+	OPPONENT_FEATURE = NULL;
 	free(EVAL_WEIGHT);
 	EVAL_WEIGHT = NULL;
+	free(EVAL_FILE);
+	EVAL_FILE = NULL;
+	EVAL_LOADED = 0;
 }
 
 #ifdef ANDROID
@@ -953,6 +965,30 @@ double eval_sigma(const int n_empty, const int depth, const int probcut_depth)
 
 	sigma = EVAL_A * n_empty + EVAL_B * depth + EVAL_C * probcut_depth;
 	sigma = EVAL_a * sigma * sigma + EVAL_b * sigma + EVAL_c;
+
+	return sigma;
+}
+
+/**
+ * @brief Compute the error-type of a shallow search, as used by probcut.
+ *
+ * Refit (v4.5.5-nikque.5) on the exact fixed-depth scores (no selectivity) of 1200 positions
+ * with 24 to 52 empty squares, taken from learning lines: the error of the probcut search
+ * (score at depth probcut_depth vs. score at depth) hardly depends on the depths (checked up to
+ * depth 20) and decreases with the number of empty squares: about 2.4 discs at 24 empties,
+ * 2.0 at 36 and 1.4 at 48. The older eval_sigma() grows with the depth.
+ * It is used with the t values of the selectivity table scaled by 1.3.
+ *
+ * @param n_empty Number of empty squares on the board.
+ * @param depth Depth used in alphabeta.
+ * @param probcut_depth A shallow depth used in probcut algorithm.
+ */
+double probcut_sigma(const int n_empty, const int depth, const int probcut_depth)
+{
+	double sigma;
+
+	sigma = -0.01068643 * n_empty + 0.03835657 * depth - 0.07515706 * probcut_depth;
+	sigma = -1.15396452 * sigma * sigma + 2.98473985 * sigma + 3.26812153;
 
 	return sigma;
 }

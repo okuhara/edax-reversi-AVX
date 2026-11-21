@@ -43,7 +43,8 @@ void ui_event_init(UI*);
 bool ui_event_peek(UI*, char**, char**);
 void ui_event_wait(UI*, char**, char**);
 bool ui_event_exist(UI*);
-void ui_event_free(UI*);
+void ui_event_close(UI*);
+bool ui_event_free(UI*);
 
 void ui_init_edax(UI*);
 void ui_loop_edax(UI*);

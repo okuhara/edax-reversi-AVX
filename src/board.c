@@ -109,7 +109,7 @@ int board_set(Board *board, const char *string)
 
 	board->player = board->opponent = 0;
 	for (i = A1; (i <= H8) && (*s != '\0'); ++s) {
-		switch (tolower(*s)) {
+		switch (tolower((unsigned char) *s)) {
 		case 'b':
 		case 'x':
 		case '*':
@@ -131,7 +131,7 @@ int board_set(Board *board, const char *string)
 	board_check(board);
 
 	for (; *s != '\0'; ++s) {
-		switch (tolower(*s)) {
+		switch (tolower((unsigned char) *s)) {
 		case 'b':
 		case 'x':
 		case '*':
@@ -161,30 +161,31 @@ int board_set(Board *board, const char *string)
  */
 int board_from_FEN(Board *board, const char *string)
 {
-	int i;
+	int row, col;
 	const char *s;
 
+	// 8 rows of 8 squares (up to v4.5.5-nikque.15 a row of more than 8 squares, or more than 8 rows, went
+	// beyond the board: a shift of 64 bits or more)
 	board->player = board->opponent = 0;
-	i = A8;
+	row = 7; col = 0;
 	for (s = parse_skip_spaces(string); *s && *s != ' '; ++s) {
-		if (isdigit(*s)) {
-			i += (*s - '0');
+		if (isdigit((unsigned char) *s)) {
+			col += (*s - '0');
+			if (col > 8) return EMPTY;
 		} else if (*s == '/') {
-			if (i & 7) return EMPTY;
-			i -= 16;
-		} else if (*s == 'p') {
-			board->player |= x_to_bit(i);
-			++i;
-		} else if (*s == 'P') {
-			board->opponent |= x_to_bit(i);
-			++i;
+			if (col != 8 || row == 0) return EMPTY;
+			--row; col = 0;
+		} else if (*s == 'p' || *s == 'P') {
+			if (col >= 8) return EMPTY;
+			if (*s == 'p') board->player |= x_to_bit(row * 8 + col);
+			else board->opponent |= x_to_bit(row * 8 + col);
+			++col;
 		} else {
 			return EMPTY;
 		}
 	}
-
 	// check for truncated FEN
-	if (i != 8) return EMPTY;
+	if (row != 0 || col != 8) return EMPTY;
 
 	s = parse_skip_spaces(s);
 	if (*s == 'b') {
@@ -386,6 +387,21 @@ unsigned long long board_get_move_flip(const Board *board, const int x, Move *mo
 }
 
 /**
+ * @brief Check that a board given from outside (a board to set, a game file...) can be searched.
+ *
+ * The searches and the levels take at most 60 empty squares (LEVEL[61][61]...): a board holds at least
+ * 4 discs, never two on the same square. Up to v4.5.5-nikque.15 a board of 2 discs was searched with 62
+ * empties.
+ *
+ * @param board board.
+ * @return true if the board can be used.
+ */
+bool board_is_usable(const Board *board)
+{
+	return (board->player & board->opponent) == 0 && bit_count(board->player | board->opponent) >= 4;
+}
+
+/**
  * @brief Check if a move is legal.
  *
  * @param board board
@@ -396,6 +412,7 @@ bool board_check_move(const Board *board, Move *move)
 {
 	if (move->x == PASS) return !can_move(board->player, board->opponent);
 	else if (x_to_bit(move->x) & (board->player | board->opponent)) return false;
+	else if (move->flipped == 0) return false; // (a move turns over at least one disc. Up to v4.5.5-nikque.12 a move of a game file that turns over nothing was accepted)
 	else if (move->flipped != board_flip(board, move->x)) return false;
 	else return true;
 }
@@ -1072,6 +1089,12 @@ int get_corner_stability(const unsigned long long P)
  * @param board the board.
  * @return the hash code of the bitboard
  */
+#if defined(_MSC_VER) && !defined(__clang__) && defined(_M_IX86) && defined(__AVX2__)
+// MSVC x86 /O2 /GL can reuse the CRC accumulator as board->opponent's
+// low word in the caller's subsequent AVX2 move generation. Keep the
+// destructive CRC intrinsics out of that optimization context.
+__declspec(noinline)
+#endif
 unsigned long long board_get_hash_code(const Board *board)
 {
 	unsigned long long crc = crc32c_u64(0, board->player);

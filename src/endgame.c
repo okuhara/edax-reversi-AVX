@@ -119,7 +119,7 @@ static int solve_2(unsigned long long player, unsigned long long opponent, int a
 	int score, bestscore, nodes;
 	// const int beta = alpha + 1;
 
-	SEARCH_STATS(++statistics.n_solve_2);
+	SEARCH_STATS(++statistics.n_board_solve_2);
 
 	if ((NEIGHBOUR[x1] & opponent) && (flipped = Flip(x1, player, opponent))) {	// (84%/84%)
 		bestscore = solve_1(opponent ^ flipped, alpha, x2);
@@ -186,7 +186,7 @@ static int solve_3(unsigned long long player, unsigned long long opponent, int a
 	int x2 = (empties3 >> ((shuf3 & 0x0C) << 1)) & 0xFF;
 	int x3 = (empties3 >> ((shuf3 & 0x03) * 8)) & 0xFF;
 
-	SEARCH_STATS(++statistics.n_solve_3);
+	SEARCH_STATS(++statistics.n_search_solve_3);
 	SEARCH_UPDATE_INTERNAL_NODES(*n_nodes);
 
 	bestscore = -SCORE_INF;
@@ -472,7 +472,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 	V4DI full0;
 	MoveList movelist;
 
-	assert(bit_count(~(search->board.player|search->board.opponent)) < DEPTH_TO_USE_LOCAL_HASH);
+	assert(bit_count(~(search->board.player|search->board.opponent)) <= DEPTH_TO_USE_LOCAL_HASH);
 	assert(SCORE_MIN <= alpha && alpha <= SCORE_MAX);
 
 	SEARCH_STATS(++statistics.n_NWS_endgame);
@@ -594,10 +594,11 @@ static int NWS_endgame_local(Search *search, const int alpha)
 	if (SQUARE_STATS(1) + 0) {
 		foreach_move(move, movelist)
 			++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];
-		if (bestscore > alpha)
-			++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[bestscore]];
+		if (bestscore > alpha && movelist.n_moves > 0) // (the square of the best move: up to v4.5.5-nikque.15 the score was the index)
+			++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[bestmove]];
 	}
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
+ 	// assert((bestscore & 1) == 0);	// (a search that was stopped returns alpha: after a pass, alpha + 1 comes here)
 	return bestscore;
 }
 
@@ -706,9 +707,10 @@ int NWS_endgame(Search *search, const int alpha)
 	if (SQUARE_STATS(1) + 0) {
 		foreach_move(move, movelist)
 			++statistics.n_played_square[search->eval.n_empties][SQUARE_TYPE[move->x]];
-		if (bestscore > alpha)
-			++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[bestscore]];
+		if (bestscore > alpha && movelist.n_moves > 0) // (the square of the best move: up to v4.5.5-nikque.15 the score was the index)
+			++statistics.n_good_square[search->eval.n_empties][SQUARE_TYPE[hash_data.data.move[0]]];
 	}
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
+ 	// assert((bestscore & 1) == 0);	// (a search that was stopped returns alpha: after a pass, alpha + 1 comes here)
 	return bestscore;
 }

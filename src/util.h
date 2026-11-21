@@ -46,6 +46,8 @@ void print_scientific(double, const char*, FILE*);
 char* string_duplicate(const char*);
 long long string_to_time(const char*);
 char* string_read_line(FILE*);
+bool file_replace(const char*, const char*);
+bool file_same(const char*, const char*);
 char* string_copy_line(FILE*);
 void string_to_lowercase(char*);
 void string_to_uppercase(char*);
@@ -244,14 +246,28 @@ void random_seed(Random*, const unsigned long long);
 	#include <winsock2.h>
 	#include <windows.h>
 
+  /** Light locks like pthread spin lock / mutex on other systems (not recursive); CRITICAL_SECTION when unavailable. */
+  #if !defined(EDAX_WIN_CRITICAL_SECTION) && (defined(_MSC_VER) || (defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0600))
+	#define WIN_SPINLOCK
+	#define WIN_SRWLOCK
+  #endif
+
 	/** Typedef to a personalized Thread type for portability */
 	typedef HANDLE Thread;
 
 	/** Typedef to a personalized Lock type for portability */
+  #ifdef WIN_SRWLOCK
+	typedef SRWLOCK Lock;
+  #else
 	typedef CRITICAL_SECTION Lock;
+  #endif
 
 	/** Typedef to a personalized SpinLock type for portability */
+  #ifdef WIN_SPINLOCK
+	typedef volatile long SpinLock;
+  #else
 	typedef CRITICAL_SECTION SpinLock;
+  #endif
 
   /** Some buggy compilers need the following declarations */
   #if defined __MINGW32__ && (_WIN32_WINNT < 0x0600)
@@ -273,7 +289,11 @@ void random_seed(Random*, const unsigned long long);
 	#define condition_init(c) InitializeConditionVariable(c)
 
 	/** wait for a condition change */
-	#define condition_wait(c,lock) SleepConditionVariableCS((c), (lock), INFINITE)
+  #ifdef WIN_SRWLOCK
+	#define condition_wait(c,lock) SleepConditionVariableSRW((c), (lock), INFINITE, 0)
+  #else
+	#define condition_wait(c,clock) SleepConditionVariableCS((c), (lock), INFINITE)
+  #endif
 
 	/** signal a condition change */
 	#define condition_signal(c) WakeConditionVariable(c)
@@ -287,6 +307,13 @@ void random_seed(Random*, const unsigned long long);
 	/** @macro to detach a thread */
 	#define thread_detach(thread) CloseHandle(thread)
 
+  #ifdef WIN_SRWLOCK
+	/** slim reader/writer lock used as a mutex (like pthread_mutex on other systems; not recursive) */
+	#define lock(c) AcquireSRWLockExclusive(c)
+	#define unlock(c) ReleaseSRWLockExclusive(c)
+	#define lock_init(c) InitializeSRWLock(c)
+	#define lock_free(c) ((void) 0)
+  #else
 	/** @macro Lock a spinlock with a macro for genericity */
 	#define lock(c) EnterCriticalSection(c)
 
@@ -298,6 +325,32 @@ void random_seed(Random*, const unsigned long long);
 
 	/** @macro Initialize a mutex with a macro for genericity. */
 	#define lock_free(c) DeleteCriticalSection(c)
+  #endif
+
+  #ifdef WIN_SPINLOCK
+	/** Test-and-test-and-set spin lock (like pthread_spin_lock on other systems; not recursive). */
+	static inline void win_spin_lock(volatile long *s)
+	{
+		while (_InterlockedExchange(s, 1)) {
+			do YieldProcessor(); while (*s);
+		}
+	}
+
+	static inline void win_spin_unlock(volatile long *s)
+	{
+    #if defined(_M_X64) || defined(_M_IX86) || defined(__x86_64__) || defined(__i386__)
+		_ReadWriteBarrier();	// x86 stores have release semantics
+		*s = 0;
+    #else
+		_InterlockedExchange(s, 0);
+    #endif
+	}
+
+	#define spin_lock(c) win_spin_lock(c)
+	#define spin_unlock(c) win_spin_unlock(c)
+	#define spin_init(c) (*(c) = 0)
+	#define spin_free(c) ((void) 0)
+  #else
 
 	/** @macro Lock a spinlock with a macro for genericity */
 	#define spin_lock(c) EnterCriticalSection(c)
@@ -310,19 +363,23 @@ void random_seed(Random*, const unsigned long long);
 
 	/** @macro Initialize a mutex with a macro for genericity. */
 	#define spin_free(c) DeleteCriticalSection(c)
+  #endif
 
 #endif
 
-void thread_create(Thread*, void* (*f)(void*), void*);
+bool thread_create(Thread*, void* (*f)(void*), void*);
 void thread_join(Thread);
+void thread_run_workers(void* (*f)(void*), void*, const size_t, const int, const bool, const bool);
 void thread_set_cpu(Thread, int);
+bool thread_cpu_bound(void);
 Thread thread_self(void);
 
 /** atomic addition */
 static inline void atomic_add(volatile unsigned long long *value, long long i)
 {
-#if defined(USE_GAS_X64)
-  __asm__ __volatile__("lock xaddq %1, %0":"=m"(*value) :"r"(i), "m" (*value));
+#if defined(__GNUC__)
+	// (up to v4.5.5-nikque.15 a "lock xaddq" whose register, written back by xadd, was declared as an input)
+	__atomic_fetch_add(value, i, __ATOMIC_RELAXED);
 #elif defined(USE_MSVC_X64)
 	_InterlockedAdd64(value, i);
 #else
@@ -332,6 +389,7 @@ static inline void atomic_add(volatile unsigned long long *value, long long i)
 
 void cpu(void);
 int get_cpu_number(void);
+unsigned long long get_physical_memory(void);
 
 /*
  * Error management

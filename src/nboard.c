@@ -70,7 +70,7 @@ static void nboard_observer(Result *result)
 		result_print(result, nboard_log->f);
 		putc('\n', nboard_log->f);
 	}
-	nboard_send("nodestats %lld %.2f", result->n_nodes, result->time);
+	nboard_send("nodestats %llu %.2f", result->n_nodes, 0.001 * result->time);
 }
 
 /**
@@ -85,7 +85,7 @@ void ui_init_nboard(UI *ui)
 	play_init(play, &ui->book);
 	play->search.options.header = play->search.options.separator = NULL;
 	ui->book.search = &play->search;
-	book_load(&ui->book, options.book_file);
+	book_load_at_startup(&ui->book);
 	play->search.id = 1;
 	search_set_observer(&play->search, nboard_observer);
 	ui->mode = 3;
@@ -133,6 +133,8 @@ void ui_loop_nboard(UI *ui)
 
 		} else if (strcmp(cmd, "depth") == 0) {
 			options.level = string_to_int(param, 21);
+			BOUND(options.level, 0, 60, "level");
+			options.level_set = true;
 			nboard_send("set myname Edax%d", options.level);
 
 		} else if (strcmp(cmd, "game") == 0) {

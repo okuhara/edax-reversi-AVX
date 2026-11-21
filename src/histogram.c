@@ -32,7 +32,7 @@ void histogram_print(unsigned long long h[129][65])
 	int i, j;
 	unsigned long long n, N;
 	double x, y, s, s2;
-	double mean[65], variance[65], median[65];
+	double mean[65], variance[65], median[65], bias[65], precision[65];
 
 	for (j = 0; j < 65; ++j) printf("; %d", j * 2 - 64);
 	printf("; total; mean; error; bias; precision");
@@ -47,8 +47,9 @@ void histogram_print(unsigned long long h[129][65])
 			s += y * h[i][j];
 			s2 += (x - y) * (x - y) * h[i][j];
 		}
-		s /= n;
-		s2 /= (n - 1);
+		// (a row of 0 or 1 position: up to v4.5.5-nikque.26 divided by 0, nan and inf were printed)
+		s = n > 0 ? s / n : 0.0;
+		s2 = n > 1 ? s2 / (n - 1) : 0.0;
 		if (n > 5) printf("; %lld; %.2f; %.2f; %.2f; %.2f", n, s, sqrt(s2), x - s, sqrt(s2 - (x - s) * (x - s)));
 		else if (n > 0) printf("; %lld; %.2f; %.2f", n, s, sqrt(s2));
 		else printf("; %lld", n);
@@ -67,28 +68,23 @@ void histogram_print(unsigned long long h[129][65])
 			s2 += (x - y) * (x - y) * h[i][j];
 		}
 		N += n;
-		mean[j] = s / n;
-		variance[j] = s2 / (n - 1) ;
-		s = 0;
-		if ((n & 1) == 1) {
-			for (i = 0; i < 129; ++i) {
+		// (a column of 0 or 1 position: 0, as for the rows)
+		mean[j] = n > 0 ? s / n : 0.0;
+		variance[j] = n > 1 ? s2 / (n - 1) : 0.0;
+		bias[j] = n > 0 ? y - mean[j] : 0.0;
+		precision[j] = n > 1 && variance[j] > bias[j] * bias[j] ? sqrt(variance[j] - bias[j] * bias[j]) : 0.0;
+		// the mean of the values of rank (n - 1) / 2 and n / 2 (up to v4.5.5-nikque.15, with an even count, the bin
+		// after the lower one was taken for the upper one, even when it was empty)
+		median[j] = 0.0;
+		if (n > 0) {
+			long long lower = -1, upper = -1;
+			s = 0;
+			for (i = 0; i < 129 && upper < 0; ++i) {
 				s += h[i][j];
-				if (s >= (n + 1) / 2) {
-					median[j] = i - 64;
-					break;
-				}
+				if (lower < 0 && s > (n - 1) / 2) lower = i;
+				if (s > n / 2) upper = i;
 			}
-		} else {
-			for (i = 0; i < 129; ++i) {
-				s += h[i][j];
-				if (s == n / 2) {
-					median[j] = i - 63.5;
-					break;
-				} else if (s > n / 2) {
-					median[j] = i - 64;
-					break;
-				}
-			}
+			median[j] = (lower + upper) * 0.5 - 64;
 		}
 		printf("; %lld", n);
 	}
@@ -96,8 +92,8 @@ void histogram_print(unsigned long long h[129][65])
 	printf("mean"); for (j = 0; j < 65; ++j) printf("; %.2f", mean[j]); printf("\n");
 	printf("median"); for (j = 0; j < 65; ++j) printf("; %.2f", median[j]); printf("\n");
 	printf("error"); for (j = 0; j < 65; ++j) printf("; %.2f", sqrt(variance[j])); printf("\n");
-	printf("bias"); for (j = 0; j < 65; ++j) printf("; %.2f", (2*j - 64) - mean[j]); printf("\n");
-	printf("precision"); for (j = 0; j < 65; ++j) {x = (2*j - 64) - mean[j]; printf("; %.2f", sqrt(variance[j] - x * x));} printf("\n");
+	printf("bias"); for (j = 0; j < 65; ++j) printf("; %.2f", bias[j]); printf("\n");
+	printf("precision"); for (j = 0; j < 65; ++j) printf("; %.2f", precision[j]); printf("\n");
 }
 
 void histogram_stats(unsigned long long h[129][65])
@@ -124,6 +120,11 @@ void histogram_stats(unsigned long long h[129][65])
 		s_xy += x[i] * y[j] * h[i][j];
 	}
 
+	if (n == 0.0) { // (no position: up to v4.5.5-nikque.26 divided by 0, and nan was printed)
+		printf("statistics summary\n");
+		printf("n  = 0\n\n");
+		return;
+	}
 	m_x /= n;
 	m_y /= n;
 
@@ -138,13 +139,13 @@ void histogram_stats(unsigned long long h[129][65])
 	printf("n  = %.0f\n", n);
 	printf("m_eval  = %.6f; m_score = %.6f\n", m_x, m_y);
 	printf("s_eval = %.6f; s_score = %.6f; cov = %.6f\n", s_x, s_y, s_xy);
-	a = sqrt(s_xy) / s_x; // regression
+	a = s_xy / (s_x * s_x); // regression (covariance / variance: up to v4.5.5-nikque.15 sqrt(covariance) / deviation)
 	b = m_y - a * m_x;
 	printf("score = %.6f * eval + %.6f; r = %.6f; r2 = %.6f (regression)\n", a, b, r, r*r);
 	a = s_y / s_x; // correlation
 	b = m_y - a * m_x;
 	printf("score = %.6f * eval + %.6f;(correlation)\n", a, b);
-	a = sqrt(s_xy) / s_y; // correlation
+	a = s_xy / (s_y * s_y); // regression (covariance / variance)
 	b = m_x - a * m_y;
 	printf("eval = %.6f * score + %.6f;(regression)\n", a, b);
 	a = s_x / s_y; // correlation
@@ -174,7 +175,7 @@ void histogram_to_ppm(const char *file, unsigned long long histogram[129][65])
 	for (j = 0; j < 65; ++j) {
 		if (histogram[i][j] > max) max = histogram[i][j];
 	}
-	w = 255.0/max;
+	w = (max > 0 ? 255.0 / max : 0.0); // (an empty histogram: up to v4.5.5-nikque.15 a division by 0)
 
 	// palette
 	r[0] = g[0] = b[0] = 255;

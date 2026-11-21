@@ -99,7 +99,7 @@ void ui_init_gtp(UI *ui)
 
 	play_init(play, &ui->book);
 	ui->book.search = &play->search;
-	book_load(&ui->book, options.book_file);
+	book_load_at_startup(&ui->book);
 	play->search.id = 1;
 	search_set_observer(&play->search, gtp_observer);
 	ui->mode = 3;
@@ -136,6 +136,8 @@ void ui_loop_gtp(UI *ui)
 	// loop forever
 	for (;;) {
 		errno = 0;
+		id = 0;
+		has_id = false;
 
 		if (log_is_open(gtp_log)) {
 			play_print(play, gtp_log->f);
@@ -145,10 +147,10 @@ void ui_loop_gtp(UI *ui)
 
 		log_print(gtp_log, "received: \"%s %s\"\n", cmd, param);
 
-		if (isdigit(*cmd)) {
+		if (isdigit((unsigned char) *cmd)) {
 			has_id = true;
 			parse_int(cmd, &id);
-			parse_command(param, cmd, param, strlen(param));
+			parse_command(param, cmd, param, strlen(param) + 1);
 		}
 
 		if (*cmd == '\0') {
@@ -229,7 +231,8 @@ void ui_loop_gtp(UI *ui)
 				gtp_fail("illegal move", id, has_id);
 			}
 
-		} else if (strcmp(cmd, "genmove") == 0) {
+		} else if (strcmp(cmd, "genmove") == 0 || strcmp(cmd, "reg_genmove") == 0) {
+			const bool update = strcmp(cmd, "genmove") == 0;
 			char m[4];
 			gtp_parse_color(param, &color);
 			if (color == EMPTY) {
@@ -243,9 +246,13 @@ void ui_loop_gtp(UI *ui)
 					continue;
 				}
 			}
-			play_go(play, true);
-			if (play_get_last_move(play)->x == PASS) gtp_send("pass", id, has_id);
-			else gtp_send(move_to_string(play_get_last_move(play)->x, WHITE, m), id, has_id);
+			if (play_is_game_over(play)) {
+				gtp_send("pass", id, has_id);
+				continue;
+			}
+			play_go(play, update);
+			if (play->result.move == PASS) gtp_send("pass", id, has_id);
+			else gtp_send(move_to_string(play->result.move, WHITE, m), id, has_id);
 
 		// optional GTP commands but needed or supported by Quarry
 		} else if (strcmp(cmd, "undo") == 0) {
@@ -274,11 +281,15 @@ void ui_loop_gtp(UI *ui)
 			double t = 0.0;
 			int n = 0;
 			s = gtp_parse_color(param, &color);
+			if (color == EMPTY) {
+				gtp_fail("syntax error (wrong or missing color)", id, has_id);
+				continue;
+			}
 			s = parse_real(s, &t); t *= 1000;
 			s = parse_int(s, &n);
 			options.level = 60;
 			if (options.play_type == EDAX_TIME_PER_MOVE) {// time_per_move ?
-				if (n == 0) play->time[color].left = (t + byo_yomi_time * 1000) / byo_yomi_stone;
+				if (n == 0) play->time[color].left = byo_yomi_stone > 0 ? (t + byo_yomi_time * 1000) / byo_yomi_stone : t;
 				else play->time[color].left = t / n;
 			} else { // time_per_game
 				play->time[color].left = t;

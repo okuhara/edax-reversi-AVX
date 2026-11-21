@@ -131,7 +131,13 @@ static int guess_move(Search *search, Board *board)
 
 	search->board = saved; search_setup(search);
 
-	assert(hash_data.move[0] != NOMOVE || board_is_game_over(board));
+	// PVS_shallow() does not store a position with one move, or a pass (nor at depth 2...): its only move is
+	// the guess (up to v4.5.5-nikque.15 the line stopped there, and a debug build failed its assertion)
+	if (hash_data.move[0] == NOMOVE && !board_is_game_over(board)) {
+		const unsigned long long moves = board_get_moves(board);
+		if (moves == 0) return PASS;
+		if ((moves & (moves - 1)) == 0) return first_bit(moves);
+	}
 
 	return hash_data.move[0];
 }
@@ -192,7 +198,7 @@ void record_best_move(Search *search, const Move *bestmove, const int alpha, con
 		board_get_move_flip(&board, x, &move);
 		if (board_check_move(&board, &move)) {
 			board_update(&board, &move);
-			--expected_depth;
+			if (move.x != PASS) --expected_depth; // a pass is searched at the same depth (as in is_pv_ok; up to v4.5.5-nikque.15 the depth went down)
 			tmp = expected_bound.upper; expected_bound.upper = -expected_bound.lower; expected_bound.lower = -tmp;
 			fail_low = !fail_low;
 			line_push(&result->pv, move.x);
@@ -348,13 +354,14 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 	SEARCH_STATS(++statistics.n_PVS_root);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
-	node_init(&node, search, alpha, beta, depth, movelist->n_moves, false, NULL);
+	node_init(&node, search, alpha, beta, depth, movelist->n_moves, NULL);
 	search->node_type[0] = PV_NODE;
 	search->time.can_update = false;
 
 	// special cases: pass or game over
 	if (movelist_is_empty(movelist)) {
 		move = movelist->move->next = movelist->move + 1;
+		move->next = NULL; // (the list was left open: the next aspiration_search() followed a pointer that nothing had set)
 		move->flipped = 0;
 		if (can_move(search->board.opponent, search->board.player)) {
 			search_update_pass_midgame(search, &eval0);
@@ -850,6 +857,7 @@ void* search_run(void *v)
 
 	// finalizations
 	search->result->n_nodes = search_count_nodes(search);
+	search_update_speed(search);
 	if (search->options.verbosity) {
 		if (search->options.verbosity == 1 || options.noise > search->result->depth) search->observer(search->result);
 		if (search_get_state(search) == STOP_TIMEOUT) {info("[Search out of time]\n");}

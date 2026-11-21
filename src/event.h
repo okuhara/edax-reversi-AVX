@@ -17,6 +17,8 @@
 /** Event management data */
 typedef struct Event {
 	volatile bool loop;         /*!< flag allowing to loop, waiting for events */
+	volatile bool reading;      /*!< the input thread of the user interface is running */
+	volatile bool closing;      /*!< the user interface ends: its input thread must not use it any more */
 	char **ring;                /*!< ring of buffers */
 	int size;                   /*!< size of the buffer ring */
 	int first;                  /*!< first position in the ring */

@@ -158,6 +158,7 @@ static void wthor_players_load(WthorBase *base, const char *file)
 		if (base->player) {
 			for (i = 0; i < base->n_players; ++i) {
 				r += fread(base->player[i], 20, 1, f);
+				base->player[i][19] = '\0'; // (a name of 20 characters has no end)
 			}
 		} else {
 			warn("Cannot allocate Wthor players' array\n");
@@ -268,6 +269,7 @@ static void wthor_tournaments_load(WthorBase *base, const char *file)
 		if (base->tournament) {
 			for (i = r = 0; i < base->n_tournaments; ++i) {
 				r += fread(base->tournament[i], 26, 1, f);
+				base->tournament[i][25] = '\0'; // (a name of 26 characters has no end)
 			}
 		} else {
 			warn("Cannot allocate Wthor tournaments' array\n");
@@ -352,15 +354,22 @@ bool wthor_load(WthorBase *base, const char *file)
 	wthor_players_load(base, path);
 
 	if ((f = fopen(file, "rb")) != NULL) {
-		if (wthor_header_read(&base->header, f) && base->header.board_size == 8) {
+		if (wthor_header_read(&base->header, f) && base->header.board_size == 8 && (int) base->header.n_games >= 0) {
 			base->n_games = base->header.n_games;
 
-			base->game = (WthorGame*) malloc(base->n_games * sizeof (WthorGame));
+			base->game = (WthorGame*) malloc((base->n_games ? base->n_games : 1) * sizeof (WthorGame));
 			if (base->game) {
 				r = (fread(base->game, sizeof (WthorGame), base->n_games, f) == (size_t) base->n_games);
 				if (!r) warn("Error while reading %s\n", file);
 			} else {
 				warn("Cannot allocate wthor games\n");
+			}
+			// a file that could not be read completely holds no game (up to v4.5.5-nikque.15 the games that were
+			// not read were kept as they were in memory, and saved with the next games)
+			if (!r) {
+				free(base->game);
+				base->game = NULL;
+				base->n_games = base->header.n_games = 0; // (foreach_wthorgame goes through header.n_games)
 			}
 		}
 		fclose(f);
@@ -397,20 +406,20 @@ bool wthor_save(WthorBase *base, const char *file)
 {
 	FILE *f;
 	char path[FILENAME_MAX];
-	int r = 0;
+	bool r = false;
 
 	path_get_dir(file, path); strcat(path, "WTHOR.JOU");
 	wthor_players_save(base, path);
 
 	if ((f = fopen(file, "wb")) != NULL) {
+		// the header, then every game (up to v4.5.5-nikque.15 the count of the writes, at most 2, was compared
+		// with the count of the games, and any write was taken for a success)
 		wthor_header_set(&base->header, base->n_games, 0, 0);
 		if (wthor_header_write(&base->header, f) && base->game) {
 			r = (fwrite(base->game, sizeof (WthorGame), base->n_games, f) == (size_t) base->n_games);
-			if (!r) {
-				warn("Error while writing %s\n", file);
-			}
 		}
-		fclose(f);
+		if (fclose(f) != 0) r = false;
+		if (!r) warn("Error while writing %s\n", file);
 	} else {
 		warn("Cannot open file %s\n", file);
 	}
@@ -429,11 +438,14 @@ bool base_to_wthor(const Base *base, WthorBase *wthor)
 {
 	bool ok = true;
 	int i, j;
+	WthorGame *game;
 
+	// (up to v4.5.5-nikque.15 the number of games was changed and the games lost when there was no memory)
 	j = wthor->n_games;
-	wthor->n_games = j + base->n_games;
-	wthor->game = (WthorGame*) realloc(wthor->game, wthor->n_games * sizeof (WthorGame));
-	if (wthor->game) {
+	game = (WthorGame*) realloc(wthor->game, (j + base->n_games ? j + base->n_games : 1) * sizeof (WthorGame));
+	if (game) {
+		wthor->game = game;
+		wthor->n_games = j + base->n_games;
 		for (i = 0; i < base->n_games; ++i, ++j) {
 			game_to_wthor(base->game + i, wthor->game + j);
 			wthor->game[j].black = wthor_player_get(wthor, base->game[i].name[BLACK]);
@@ -459,12 +471,14 @@ void wthor_print_game(WthorBase *base, int i, FILE *f)
 	Game game;
 
 	if (0 <= i && i < base->n_games) {
+		// the numbers of a damaged file may be beyond the names (or the names were not read)
+		const WthorGame *g = base->game + i;
+		const char *tournament = (base->tournament && 0 <= g->tournament && g->tournament < base->n_tournaments) ? base->tournament[g->tournament] : "?";
+		const char *black = (base->player && 0 <= g->black && g->black < base->n_players) ? base->player[g->black] : "?";
+		const char *white = (base->player && 0 <= g->white && g->white < base->n_players) ? base->player[g->white] : "?";
 
 		fprintf(f, "Game #%d: %s: %4d - %s vs. %s: ",
-			i, base->tournament[base->game[i].tournament],
-			base->header.game_year,
-			base->player[base->game[i].black],
-			base->player[base->game[i].white]);
+			i, tournament, base->header.game_year, black, white);
 
 		wthor_to_game(base->game + i, &game);
 		game_export_text(&game, f);
@@ -489,11 +503,17 @@ static void wthorgame_get_board(WthorGame *game, const int n_empties, Board *boa
 	char s_move[4];
 
 	*player = BLACK; board_init(board);
-	for (i = 0; i < 60 - n_empties && game->x[i]; ++i) {
+	// (the depth of the header may be negative, and a move of a damaged file may be no square)
+	for (i = 0; i < 60 && i < 60 - n_empties && game->x[i]; ++i) {
+		const int x = move_from_wthor(game->x[i]);
 		if (board_is_pass(board)) {
 			board_pass(board); *player ^= 1;
 		}
-		board_get_move_flip(board, move_from_wthor(game->x[i]), &move);
+		if (x < A1 || x > H8) {
+			warn("Illegal move %d\n", game->x[i]);
+			break;
+		}
+		board_get_move_flip(board, x, &move);
 		if (board_check_move(board, &move)) {
 			board_update(board, &move); *player ^= 1;
 		} else {
@@ -703,8 +723,9 @@ void base_free(Base *base)
  *
  * @param base Game base.
  * @param game Game to add.
+ * @return false if the memory is exhausted (the game is not added).
  */
-void base_append(Base *base, const Game *game)
+bool base_append(Base *base, const Game *game)
 {
 	if (base->n_games == base->size) {
 		Game *ptr;
@@ -715,16 +736,49 @@ void base_append(Base *base, const Game *game)
 		ptr = (Game*) realloc(base->game, size * sizeof (Game));
 		if (ptr == NULL) {
 			error("cannot reallocate base game");
-			return;
+			return false;
 		}
 		base->game = ptr;
 		base->size = size;
 	}
 	base->game[base->n_games++] = *game;
+	return true;
+}
+
+/** A game and its place in the base, to sort the games (base_unique). */
+typedef struct {
+	const Game *game;
+	int i;
+} BaseGameRef;
+
+/** @brief Order of the games, on what game_equals() compares; the place in the base last. */
+static int base_game_compare(const void *a, const void *b)
+{
+	const BaseGameRef *ra = (const BaseGameRef*) a, *rb = (const BaseGameRef*) b;
+	const Game *g1 = ra->game, *g2 = rb->game;
+	int r;
+
+	if (g1->hash != g2->hash) return g1->hash < g2->hash ? -1 : 1;
+	if (g1->player != g2->player) return g1->player < g2->player ? -1 : 1;
+	if (g1->initial_board.player != g2->initial_board.player) return g1->initial_board.player < g2->initial_board.player ? -1 : 1;
+	if (g1->initial_board.opponent != g2->initial_board.opponent) return g1->initial_board.opponent < g2->initial_board.opponent ? -1 : 1;
+	if (g1->date.year != g2->date.year) return g1->date.year < g2->date.year ? -1 : 1;
+	if (g1->date.month != g2->date.month) return g1->date.month < g2->date.month ? -1 : 1;
+	if (g1->date.day != g2->date.day) return g1->date.day < g2->date.day ? -1 : 1;
+	if (g1->date.hour != g2->date.hour) return g1->date.hour < g2->date.hour ? -1 : 1;
+	if (g1->date.minute != g2->date.minute) return g1->date.minute < g2->date.minute ? -1 : 1;
+	if (g1->date.second != g2->date.second) return g1->date.second < g2->date.second ? -1 : 1;
+	if ((r = strcmp(g1->name[0], g2->name[0])) != 0) return r;
+	if ((r = strcmp(g1->name[1], g2->name[1])) != 0) return r;
+	if ((r = memcmp(g1->move, g2->move, sizeof g1->move)) != 0) return r;
+	return ra->i - rb->i;
 }
 
 /**
  * @brief Make games unique in the game database.
+ *
+ * The first of the same games is kept, in the order of the base. The games are sorted to find the same ones
+ * (up to v4.5.5-nikque.15 each game was compared with all the games kept before it: hours for a million games).
  *
  * @param base Game base.
  */
@@ -732,14 +786,102 @@ void base_unique(Base *base)
 {
 	int i, j, k;
 	bool found;
+	BaseGameRef *ref;
+	bool *keep;
 
-	for (i = k = 0; i < base->n_games; ++i) {
-		for (j = 0, found = false; j < k && !found; ++j)
-			found = game_equals(base->game + j, base->game + i);
-		if (!found) base->game[k++] = base->game[i];
+	ref = (BaseGameRef*) malloc((base->n_games ? base->n_games : 1) * sizeof (BaseGameRef));
+	keep = (bool*) malloc((base->n_games ? base->n_games : 1) * sizeof (bool));
+	if (ref && keep) {
+		for (i = 0; i < base->n_games; ++i) {
+			ref[i].game = base->game + i;
+			ref[i].i = i;
+		}
+		qsort(ref, base->n_games, sizeof (BaseGameRef), base_game_compare);
+		for (i = 0; i < base->n_games; ++i) {
+			keep[ref[i].i] = (i == 0 || !game_equals(ref[i - 1].game, ref[i].game));
+		}
+		for (i = k = 0; i < base->n_games; ++i) {
+			if (keep[i]) base->game[k++] = base->game[i];
+		}
+	} else { // no memory: as before
+		for (i = k = 0; i < base->n_games; ++i) {
+			for (j = 0, found = false; j < k && !found; ++j)
+				found = game_equals(base->game + j, base->game + i);
+			if (!found) base->game[k++] = base->game[i];
+		}
 	}
+	free(ref);
+	free(keep);
 
 	base->n_games = k;
+}
+
+/** @brief Read a game from a ggf, sgf or wthor file: a game was read unless the end of the file was reached. */
+static bool base_import_ggf(Game *game, FILE *f) { game_import_ggf(game, f); return !feof(f); }
+static bool base_import_sgf(Game *game, FILE *f) { game_import_sgf(game, f); return !feof(f); }
+static bool base_import_wthor(Game *game, FILE *f) { game_import_wthor(game, f); return !feof(f); }
+
+/**
+ * @brief Load a game database, telling whether the whole file was read.
+ *
+ * @param base Game base (the games are added to it).
+ * @param file Game filename.
+ * @param complete Set to true if the file was opened and read to its end, without any error.
+ * @return true if the base holds games.
+ */
+static bool base_load_checked(Base *base, const char *file, bool *complete)
+{
+	bool (*load)(Game*, FILE*) = game_import_text_checked;
+	Game game;
+	FILE *f;
+	char ext[8];
+	int l, n_games;
+	bool ok = true;
+	WthorHeader header;
+
+	*complete = false;
+	l = strlen(file);
+	if (l < 4) { warn("Unknown game format extension: %s\n", file); return false; }
+	strcpy(ext, file + l - 4); string_to_lowercase(ext);
+	if (strcmp(ext, ".txt") == 0) load = game_import_text_checked;
+	else if (strcmp(ext, ".ggf") == 0) load = base_import_ggf;
+	else if (strcmp(ext, ".sgf") == 0) load = base_import_sgf;
+	else if (strcmp(ext, ".pgn") == 0) load = game_import_pgn_checked;
+	else if (strcmp(ext, ".wtb") == 0) load = base_import_wthor;
+	else if (strcmp(ext, ".edx") == 0) load = game_read_checked;
+	else {
+		warn("Unknown game format extension: %s\n", ext);
+		return false;
+	}
+
+	if (load == base_import_wthor || load == game_read_checked) f = fopen(file, "rb");
+	else f = fopen(file, "r");
+	if (f == NULL) {
+		warn("Cannot open file %s\n", file);
+		return false;
+	}
+
+	info("[loading games...");
+	n_games = base->n_games;
+	if (load == base_import_wthor && !wthor_header_read(&header, f)) ok = false;
+	// the last game of a file is read when the end of the file is reached (a text file without an end of line
+	// after its last game, a pgn file): up to v4.5.5-nikque.15 it was not added
+	while (load(&game, f)) {
+		if (ferror(f) || !base_append(base, &game)) { ok = false; break; }
+	}
+	if (ferror(f)) ok = false;
+	// a binary file ends after its last game: a truncated or damaged game stops before (up to v4.5.5-nikque.15
+	// the games read until then were taken for the whole file)
+	if (load == game_read_checked && (!feof(f) || ftell(f) % (long) sizeof (Game) != 0)) ok = false;
+	// a wthor file holds the count of its games in its header: fewer games is a truncated file
+	if (ok && load == base_import_wthor && base->n_games - n_games < header.n_games) ok = false;
+	info("done (%d games loaded)]\n", base->n_games);
+	if (!ok) warn("%s could not be read completely (%d games loaded)\n", file, base->n_games);
+
+	fclose(f);
+	*complete = ok;
+
+	return base->n_games > 0;
 }
 
 /**
@@ -747,99 +889,147 @@ void base_unique(Base *base)
  *
  * @param base Game base.
  * @param file Game filename.
+ * @return true if the base holds games, and the file was read to its end without any error.
  */
 bool base_load(Base *base, const char *file)
 {
-	void (*load)(Game*, FILE*);
-	Game game;
-	FILE *f;
-	char ext[8];
-	int l;
-	WthorHeader header;
-
-	l = strlen(file); strcpy(ext, file + l - 4); string_to_lowercase(ext);
-	if (strcmp(ext, ".txt") == 0) load = game_import_text;
-	else if (strcmp(ext, ".ggf") == 0) load = game_import_ggf;
-	else if (strcmp(ext, ".sgf") == 0) load = game_import_sgf;
-	else if (strcmp(ext, ".pgn") == 0) load = game_import_pgn;
-	else if (strcmp(ext, ".wtb") == 0) load = game_import_wthor;
-	else if (strcmp(ext, ".edx") == 0) load = game_read;
-	else {
-		warn("Unknown game format extension: %s\n", ext);
-		return false;
-	}
-
-	if (load == game_import_wthor) f = fopen(file, "rb");
-	else f = fopen(file, "r");
-	if (f == NULL) {
-		warn("Cannot open file %s\n", file);
-		return false;
-	}
-
-	info("[loading games...]\r");
-	if (load == game_import_wthor) wthor_header_read(&header, f);
-	for (;;) {
-		load(&game, f);
-		if (ferror(f) || feof(f)) break;
-		base_append(base, &game);
-	}
-	info("[loading games done (%d games loaded)]\n", base->n_games);
-
-	fclose(f);
-
-	return base->n_games > 0;
+	bool complete;
+	return base_load_checked(base, file, &complete) && complete;
 }
 
 /**
  * @brief Save a game database.
  *
+ * The games are added to the games the file already holds.
+ *
  * @param base Game base.
  * @param file Game filename.
+ * @return true if the games were written (false: the file could not be read completely, or written).
  */
-void base_save(const Base *base, const char *file, const bool append)
+bool base_save(const Base *base, const char *file, const bool append)
 {
 	void (*save)(const Game*, FILE*);
 	FILE *f;
 	char ext[8];
 	int i, l;
+	bool ok, complete;
 	WthorBase wbase;
 	Base old;
 
-	l = strlen(file); strcpy(ext, file + l - 4); string_to_lowercase(ext);
+	l = strlen(file);
+	if (l < 4) { warn("Unknown game format extension: %s\n", file); return false; }
+	strcpy(ext, file + l - 4); string_to_lowercase(ext);
 	if (strcmp(ext, ".txt") == 0) save = game_export_text;
 	else if (strcmp(ext, ".ggf") == 0) save = game_export_ggf;
 	else if (strcmp(ext, ".sgf") == 0) save = game_export_sgf;
 	else if (strcmp(ext, ".pgn") == 0) save = game_export_pgn;
 	else if (strcmp(ext, ".wtb") == 0) {
-		if (append) wthor_load(&wbase, file);
-		else wthor_init(&wbase);
-		base_to_wthor(base, &wbase);
-		wthor_save(&wbase, file);
+		if (append) {
+			// the games of the file are kept: it must be read completely (up to v4.5.5-nikque.15 a file that could
+			// not be read was replaced, with the games that were not read)
+			if ((f = fopen(file, "rb")) != NULL) {
+				fclose(f);
+				if (!wthor_load(&wbase, file)) {
+					warn("Cannot read all the games of %s: it was not replaced\n", file);
+					wthor_free(&wbase);
+					return false;
+				}
+			} else {
+				wthor_load(&wbase, file); // (no file: the names of the players and tournaments, and no game)
+			}
+		} else wthor_init(&wbase);
+		ok = base_to_wthor(base, &wbase) && wthor_save(&wbase, file);
 		wthor_free(&wbase);
-		return;
+		return ok;
 	} else if (strcmp(ext, ".edx") == 0) save = game_write;
 	else {
 		warn("Unknown game format extension: %s\n", ext);
-		return;
+		return false;
 	}
 
 	base_init(&old);
-	if (append) base_load(&old, file);
-	for (i = 0; i < base->n_games; ++i) {
-		base_append(&old, base->game + i);
+	if (append && ((f = fopen(file, "r")) != NULL)) { // the games of the file are kept: it must be read completely
+		fclose(f);
+		base_load_checked(&old, file, &complete);
+		if (!complete) {
+			warn("Cannot read all the games of %s: it was not replaced\n", file);
+			base_free(&old);
+			return false;
+		}
 	}
 
-	f = fopen(file, "w");
+	f = fopen(file, save == game_write ? "wb" : "w");
 	if (f == NULL) {
 		warn("Cannot open file %s\n", file);
-		return;
+		base_free(&old);
+		return false;
 	}
+	// the games of the file, then the new ones (up to v4.5.5-nikque.15 the new games were copied after the games
+	// of the file first: all of them were held twice)
 	for (i = 0; i < old.n_games && !ferror(f); ++i) {
 		save(old.game + i, f);
 	}
+	for (i = 0; i < base->n_games && !ferror(f); ++i) {
+		save(base->game + i, f);
+	}
 
-	fclose(f);
+	ok = !ferror(f);
+	if (fclose(f) != 0) ok = false;
+	if (!ok) warn("Error while writing %s\n", file);
+	base_free(&old);
 
+	return ok;
+}
+
+/**
+ * @brief Replace a game database by the games of a base (base correct, base complete).
+ *
+ * The games are saved to another file first: the file is only replaced once they are written.
+ * Up to v4.5.5-nikque.15 the file was removed before the games were saved.
+ *
+ * @param base Game base.
+ * @param file Game filename.
+ * @return true if the file was replaced.
+ */
+bool base_replace(const Base *base, const char *file)
+{
+	const int l = strlen(file);
+	char *tmp_file;
+	bool ok;
+
+	if (l < 4) { warn("Unknown game format extension: %s\n", file); return false; }
+	tmp_file = (char*) malloc(l + 16);
+	if (tmp_file == NULL) return false;
+	sprintf(tmp_file, "%s.saving%s", file, file + l - 4); // (the same extension: the same format)
+	remove(tmp_file);
+	ok = base_save(base, tmp_file, false);
+	if (ok && !file_replace(tmp_file, file)) ok = false;
+	if (!ok) {
+		warn("Cannot save the games to %s: it was not replaced\n", file);
+		remove(tmp_file);
+	}
+	free(tmp_file);
+	return ok;
+}
+
+/**
+ * @brief Open the file of the problems of a game database (base_to_problem, base_to_FEN).
+ *
+ * @param n_empties Number of empties of the problems.
+ * @param problem Problems filename.
+ * @return the file; NULL (with a warning) if the number of empties is out of range or if the file cannot be opened.
+ */
+static FILE* base_problem_open(const int n_empties, const char *problem)
+{
+	FILE *f;
+
+	if (n_empties < 0 || n_empties > 60) { // (a game holds 60 moves)
+		warn("%s: %d empties is out of range\n", problem, n_empties);
+		return NULL;
+	}
+	f = fopen(problem, "w");
+	if (f == NULL) warn("Cannot open file %s\n", problem); // (up to v4.5.5-nikque.15 a file that could not be opened stopped Edax)
+	return f;
 }
 
 /**
@@ -856,7 +1046,8 @@ void base_to_problem(Base *base, const int n_empties, const char *problem)
 	char s[80];
 	FILE *f;
 
-	f = fopen(problem, "w");
+	f = base_problem_open(n_empties, problem);
+	if (f == NULL) return;
 
 	for (i = 0; i < base->n_games; ++i) {
 		if (game_get_board(base->game + i, 60 - n_empties, &board)) {
@@ -881,7 +1072,8 @@ void base_to_FEN(Base *base, const int n_empties, const char *problem)
 	Board board;
 	FILE *f;
 
-	f = fopen(problem, "w");
+	f = base_problem_open(n_empties, problem);
+	if (f == NULL) return;
 
 	for (i = 0; i < base->n_games; ++i) {
 		if (game_get_board(base->game + i, 60 - n_empties, &board)) {
@@ -958,7 +1150,7 @@ void base_complete(Base *base, Search *search, const int level)
 		}
 		fflush(stdout);
 	}
-	printf("%d - %d games completed / %d (all done).          \n", i, n, base->n_games);
+	printf("%d - %d games completed / %d (all done).    \n", i, n, base->n_games);
 }
 
 /**

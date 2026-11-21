@@ -69,6 +69,7 @@ typedef struct HashTable {
 	unsigned int n_hash;          /*!< hash table size */
 	int n_lock;                   /*!< number of locks */
 	unsigned char date;           /*!< date */
+	unsigned char base;           /*!< entries dated before base are empty (lazy cleanup); stored date = date + base */
 } HashTable;
 
 /** HashStoreData : data to store */
@@ -85,6 +86,7 @@ typedef struct HashStoreData {
 void hash_move_init(void);
 void hash_init(HashTable*, const unsigned long long);
 void hash_cleanup(HashTable*);
+void hash_wipe(HashTable*);
 void hash_clear(HashTable*);
 void hash_free(HashTable*);
 void hash_feed(HashTable*, const Board *, const unsigned long long, HashStoreData *);

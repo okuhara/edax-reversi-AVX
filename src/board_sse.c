@@ -13,20 +13,19 @@
 #include "board.h"
 
 #if defined(ANDROID) && !defined(HAS_CPU_64) && !defined(hasSSE2)
-#include "android/cpu-features.h"
-
 bool	hasSSE2 = false;
 
 void init_neon (void)
 {
   #ifdef __arm__
-	if (android_getCpuFeatures() & ANDROID_CPU_ARM_FEATURE_NEON) {
+	// Current Android NDK builds require NEON for armeabi-v7a.
+	#ifdef __ARM_NEON
 	#if (MOVE_GENERATOR == MOVE_GENERATOR_BITSCAN)
 		extern unsigned long long (*flip_neon[66])(const unsigned long long, const unsigned long long);
 		memcpy(flip, flip_neon, sizeof(flip_neon));
 	#endif
 		hasSSE2 = true;	// for eval_update_sse
-	}
+	#endif
   #elif defined(__i386__)	// android x86 w/o SSE2 - uncommon and not tested
 	int	cpuid_edx, cpuid_ecx;
 	__asm__ (

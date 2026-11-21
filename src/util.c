@@ -100,12 +100,12 @@ long long cpu_clock(void)
 
 long long real_clock(void)
 {
-	return GetTickCount();
+	return (long long) GetTickCount64(); // GetTickCount() wraps after 49.7 days
 }
 
 long long cpu_clock(void)
 {
-	return GetTickCount();
+	return (long long) GetTickCount64();
 }
 
 #endif
@@ -140,45 +140,10 @@ void time_print(long long t, bool justified, FILE* f)
 	s = t / 1000;
 	c = (t - s * 1000);
 
-	if (d) fprintf(f, "%2d:%02d:%02d:%02d.%03d", sign*d, h, m, s, c);
-	else if (h) fprintf(f, "%s%2d:%02d:%02d.%03d", space, sign*h, m, s, c);
-	else fprintf(f, "%s%s%2d:%02d.%03d", space, space, sign*m, s, c);
-}
-
-/**
- * @brief read time as "D:HH:MM:SS.C".
- *
- * @param f Input stream.
- * @return time in milliseconds.
- */
-long long time_read(FILE *f)
-{
-	long long t = 0;
-	int n, c;
-
-	while (isspace(c = getc(f)))
-		;
-	ungetc(c, f);
-	n = 0; while (isdigit(c = getc(f))) n = n * 10 + (c - '0');
-	if (c == ':') {
-		t = 60 * n; //  time has the form MM:SS ?
-		n = 0; while (isdigit(c = getc(f))) n = n * 10 + (c - '0');
-		if (c == ':') {
-			t = 60 * (t + n); // 	time has the form HH:MM:SS ?
-			n = 0; while (isdigit(c = getc(f))) n = n * 10 + (c - '0');
-			if (c == ':') {
-				t = 24 * (t + n); // 	time has the form D:HH:MM:SS ?
-				n = 0; while (isdigit(c = getc(f))) n = n * 10 + (c - '0');
-			}
-		}
-	}
-
-	t = (t + n) * 1000;
-	if (c != '.') return t;
-	n = 0; while (isdigit(c = getc(f))) n = n * 10 + (c - '0');
-	while (n > 1000) n /= 10;
-	t += n;
-	return t;
+	// the sign is printed apart: up to v4.5.5-nikque.15 it was lost under a minute (or an hour, a day), as -0
+	if (d) fprintf(f, "%s%d:%02d:%02d:%02d.%03d", sign < 0 ? "-" : (d < 10 ? " " : ""), d, h, m, s, c);
+	else if (h) fprintf(f, "%s%s%d:%02d:%02d.%03d", space, sign < 0 ? "-" : (h < 10 ? " " : ""), h, m, s, c);
+	else fprintf(f, "%s%s%s%d:%02d.%03d", space, space, sign < 0 ? "-" : (m < 10 ? " " : ""), m, s, c);
 }
 
 /**
@@ -304,6 +269,63 @@ char* string_read_line(FILE *f)
 	return line;
 }
 
+/**
+ * @brief Replace a file by another one, that was written under another name first.
+ *
+ * The book, the game files and the OBF files are saved this way: a file is never left half written.
+ *
+ * @param from File written.
+ * @param to File to replace (it may not exist).
+ * @return true if the file was replaced.
+ */
+bool file_replace(const char *from, const char *to)
+{
+#ifdef _WIN32
+	return MoveFileExA(from, to, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+#else
+	return rename(from, to) == 0;
+#endif
+}
+
+/**
+ * @brief Tell whether two file names are of the same file.
+ *
+ * A name written another way (relative or full, with '/' or '\\', in another case on Windows, through a
+ * link) is of the same file: the files are compared (their volume and index on Windows, their device and
+ * inode elsewhere). A name of no file is only the same as itself.
+ *
+ * @param a File name.
+ * @param b File name.
+ * @return true if the two names are of the same file.
+ */
+bool file_same(const char *a, const char *b)
+{
+	if (a == NULL || b == NULL) return false;
+	if (strcmp(a, b) == 0) return true;
+#ifdef _WIN32
+	{
+		// (the attributes only: a file opened by another program without sharing is compared too)
+		const DWORD share = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+		HANDLE ha = CreateFileA(a, FILE_READ_ATTRIBUTES, share, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+		HANDLE hb = CreateFileA(b, FILE_READ_ATTRIBUTES, share, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+		BY_HANDLE_FILE_INFORMATION ia, ib;
+		bool same = false;
+
+		if (ha != INVALID_HANDLE_VALUE && hb != INVALID_HANDLE_VALUE && GetFileInformationByHandle(ha, &ia) && GetFileInformationByHandle(hb, &ib)) {
+			same = (ia.dwVolumeSerialNumber == ib.dwVolumeSerialNumber && ia.nFileIndexHigh == ib.nFileIndexHigh && ia.nFileIndexLow == ib.nFileIndexLow);
+		}
+		if (ha != INVALID_HANDLE_VALUE) CloseHandle(ha);
+		if (hb != INVALID_HANDLE_VALUE) CloseHandle(hb);
+		return same;
+	}
+#else
+	{
+		struct stat sa, sb;
+		return stat(a, &sa) == 0 && stat(b, &sb) == 0 && sa.st_dev == sb.st_dev && sa.st_ino == sb.st_ino;
+	}
+#endif
+}
+
 
 /**
  * @brief Duplicate a string.
@@ -339,24 +361,24 @@ long long string_to_time(const char *string)
 	double x = 0.0;
 
 	if (string) {
+		// SS, MM:SS, HH:MM:SS or D:HH:MM:SS: the fields are read first (up to v4.5.5-nikque.15 the form
+		// D:HH:MM:SS was read as if a day lasted 24 minutes)
+		static const int ratio[3] = {60, 60, 24}; // seconds in a minute, minutes in an hour, hours in a day
+		int field[4], k = 0, i;
 		const char *s = parse_skip_spaces(string);
 		s = parse_int(s, &n);
-		if (*s == ':') {
-			t = 60 * n; //  time has the form MM:SS ?
+		field[k++] = n;
+		while (*s == ':' && k < 4) {
+			n = 0; // (an empty field is 0: up to v4.5.5-nikque.26 parse_int left the field before, "5:" was 5 minutes 5 seconds)
 			s = parse_int(s + 1, &n);
-			if (*s == ':') {
-				t = 60 * (t + n); // 	time has the form HH:MM:SS ?
-				s = parse_int(s + 1, &n);
-				if (*s == ':') {
-					t = 24 * (t + n); // 	time has the form D:HH:MM:SS ?
-					s = parse_int(s + 1, &n);
-				}
-			}
+			field[k++] = n;
 		}
-		if (*s == '.' && isdigit(s[1])) {
+		t = field[0];
+		for (i = 1; i < k; ++i) t = t * ratio[k - 1 - i] + field[i];
+		if (*s == '.' && isdigit((unsigned char) s[1])) {
 			s = parse_real(s, &x);
 		}
-		t = (t + n + x) * 1000;
+		t = (t + x) * 1000;
 	}
 
 	return t;
@@ -371,7 +393,7 @@ void string_to_lowercase(char *s)
 {
 	if (s) {
 		do {
-			*s = tolower(*s);
+			*s = tolower((unsigned char) *s);
 		} while (*s++);
 	}
 }
@@ -385,7 +407,7 @@ void string_to_uppercase(char *s)
 {
 	if (s) {
 		do {
-			*s = toupper(*s);
+			*s = toupper((unsigned char) *s);
 		} while (*s++);
 	}
 }
@@ -401,13 +423,14 @@ int string_to_coordinate(const char *s)
 	int x = NOMOVE;
 
 	if (s && *s) {
-		if (tolower(s[0]) == 'p' && s[1] == '@') s += 2;
+		if (tolower((unsigned char) s[0]) == 'p' && s[1] == '@') s += 2;
 		else if (s[0] == '@') ++s;
+		if (*s == '\0') return NOMOVE; // ("P@" or "@" alone: up to v4.5.5-nikque.15 the char after the end was read)
 
-		if (tolower(s[0]) == 'p' && (tolower(s[1]) == 'a' || tolower(s[1]) == 's')) x = PASS;
+		if (tolower((unsigned char) s[0]) == 'p' && (tolower((unsigned char) s[1]) == 'a' || tolower((unsigned char) s[1]) == 's')) x = PASS;
 		else if (s[0] == '@' && s[1] == '@') x = PASS; // xboard pass = "@@@@"
 		else {
-			int c = tolower(s[0]) - 'a';
+			int c = tolower((unsigned char) s[0]) - 'a';
 			int r = s[1] - '1';
 			if (0 <= c && c <= 7 && 0 <= r && r <= 7) x = r * 8 + c;
 		}
@@ -428,9 +451,9 @@ char* string_to_word(char *s)
 	char *w = NULL;
 
 	if (s) {
-		while (*s && isspace(*s++)) ;
+		while (*s && isspace((unsigned char) *s++)) ;
 		w = --s;
-		while (*s && !isspace(*s++)) ;
+		while (*s && !isspace((unsigned char) *s++)) ;
 		*s = '\0';
 	}
 	return w;
@@ -529,7 +552,7 @@ double string_to_real(const char *s, const double default_value)
 char* parse_skip_spaces(const char *string)
 {
 	if (string) {
-		while (*string && isspace(*string)) ++string;
+		while (*string && isspace((unsigned char) *string)) ++string;
 	}
 	return (char*) string;
 }
@@ -543,9 +566,9 @@ char* parse_skip_spaces(const char *string)
 char* parse_skip_word(const char *string)
 {
 	if (string) {
-		while (*string && isspace(*string)) ++string;
-		while (*string && !isspace(*string)) ++string;
-		while (*string && isspace(*string)) ++string;
+		while (*string && isspace((unsigned char) *string)) ++string;
+		while (*string && !isspace((unsigned char) *string)) ++string;
+		while (*string && isspace((unsigned char) *string)) ++string;
 	}
 	return (char*) string;
 }
@@ -576,9 +599,13 @@ char* parse_find(const char *string, const int c)
  */
 char* parse_word(const char *string, char *word, unsigned int n)
  {
+	if (n == 0) return (char*) string;
 	if (string) {
 		string = parse_skip_spaces(string);
-		while (*string && !isspace(*string) && n--) *word++ = *string++;
+		while (*string && !isspace((unsigned char)*string)) {
+			if (n > 1) { *word++ = *string; --n; }
+			++string;
+		}
 	}
 	*word = '\0';
 	return (char*) string;
@@ -596,9 +623,13 @@ char* parse_word(const char *string, char *word, unsigned int n)
  */
 char* parse_field(const char *string, char *word, unsigned int n, char separator)
  {
+	if (n == 0) return (char*) string;
 	if (string) {
 		string = parse_skip_spaces(string);
-		while (*string && *string != separator && n--) *word++ = *string++;
+		while (*string && *string != separator) {
+			if (n > 1) { *word++ = *string; --n; }
+			++string;
+		}
 		if (*string == separator) ++string;
 	}
 	*word = '\0';
@@ -619,8 +650,9 @@ char* parse_field(const char *string, char *word, unsigned int n, char separator
 char* parse_line(const char *string, char *line, unsigned int n)
 {
 	const char *s = string;
+	if (n == 0) return (char*) string;
 	if (s) {
-		while (*s &&  *s != '\n' && *s != '\r' && n--) *line++ = *s++;
+		while (*s && *s != '\n' && *s != '\r' && n > 1) { *line++ = *s++; --n; }
 		if (*s == '\0') s = string;
 		else {
 			while (*s && *s != '\n' && *s != '\r' ) ++s;
@@ -680,7 +712,7 @@ char* parse_game(const char *string, const Board *board_init, Line *line)
 	board = *board_init;
 
 	while ((next = parse_move(string, &board, &move)) != string || move.x == PASS) {
-		line_push(line, move.x);
+		if (!line_push(line, move.x)) break; // (a full line)
 		board_update(&board, &move);
 		string = next;
 	}
@@ -706,7 +738,7 @@ char* parse_board(const char *string, Board *board, int *player)
 		board->player = board->opponent = 0;
 		for (i = A1; i <= H8; ++i) {
 			s = parse_skip_spaces(s);
-			switch (tolower(*s)) {
+			switch (tolower((unsigned char) *s)) {
 			case 'b':
 			case 'x':
 			case '*':
@@ -728,7 +760,7 @@ char* parse_board(const char *string, Board *board, int *player)
 		board_check(board);
 
 		for (; *s; ++s) {
-			switch (tolower(*s)) {
+			switch (tolower((unsigned char) *s)) {
 			case 'b':
 			case 'x':
 			case '*':
@@ -946,16 +978,34 @@ void path_get_dir(const char *path, char *dir)
  *
  * @param base Base name.
  * @param ext  Extension (.dat, .ext, .bin, etc.)
- * @param file Output file name.
+ * @param file Output file name (FILENAME_MAX characters at most: a longer base name is cut).
  * @return The output file name.
  */
 char* file_add_ext(const char *base, const char *ext, char *file)
 {
-	while (*base) *file++ = *base++;
-	while (*ext) *file++ = *ext++;
-	*file = '\0';
-	return file;
+	const size_t n_ext = MIN(strlen(ext), (size_t) FILENAME_MAX - 1);
+	const size_t n_base = MIN(strlen(base), (size_t) FILENAME_MAX - 1 - n_ext);
+
+	memcpy(file, base, n_base);
+	memcpy(file + n_base, ext, n_ext);
+	file[n_base + n_ext] = '\0';
+	return file + n_base + n_ext;
 }
+
+#ifdef BOOK_TEST_THREAD_MAX
+/* test builds: thread_create() fails, as if the memory was exhausted, while BOOK_TEST_THREAD_MAX threads that it
+ * created are not joined yet */
+static volatile long thread_test_count = 0;
+
+static bool thread_test_add(const long n)
+{
+#if defined(_MSC_VER)
+	return _InterlockedExchangeAdd(&thread_test_count, n) + n <= BOOK_TEST_THREAD_MAX;
+#else
+	return __atomic_add_fetch(&thread_test_count, n, __ATOMIC_SEQ_CST) <= BOOK_TEST_THREAD_MAX;
+#endif
+}
+#endif
 
 /**
  * @brief Create a thread.
@@ -963,14 +1013,23 @@ char* file_add_ext(const char *base, const char *ext, char *file)
  * @param thread Thread.
  * @param function Function to run in parallel.
  * @param data Data for the function.
+ * @return false if the thread cannot be created (memory exhausted): the function is not run, and
+ * there is no thread to join.
  */
-void thread_create(Thread *thread, void* (*function)(void*), void *data)
+bool thread_create(Thread *thread, void* (*function)(void*), void *data)
 {
+#ifdef BOOK_TEST_THREAD_MAX
+	if (!thread_test_add(1)) {
+		thread_test_add(-1);
+		return false;
+	}
+#endif
 #if defined(__unix__) || (defined(_WIN32) && defined(USE_PTHREAD)) || defined(__APPLE__)
-	pthread_create(thread, NULL, function, data);
+	return pthread_create(thread, NULL, function, data) == 0;
 #elif defined(_WIN32)
 	DWORD id;
 	*thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)(void (*)(void)) function, data, 0, &id);
+	return *thread != NULL;
 #endif
 }
 
@@ -990,7 +1049,45 @@ void thread_join(Thread thread)
 	WaitForSingleObject(thread, INFINITE);
 	CloseHandle(thread);
 #endif
+#ifdef BOOK_TEST_THREAD_MAX
+	thread_test_add(-1);
+#endif
 }
+
+/**
+ * @brief Run a function on each worker of an array, at the same time.
+ *
+ * Each worker gets its own thread, except the first one when main_works is set: the calling
+ * thread runs it. A worker whose thread cannot be created (memory exhausted) is run by the calling
+ * thread, after its own worker: the work is done anyway, with fewer threads. (Such a thread used to
+ * be waited for although it did not exist, and its work was not done.)
+ *
+ * @param function Function to run on each worker (it must not need the other workers to be running).
+ * @param worker Array of workers.
+ * @param size Size of a worker.
+ * @param n Number of workers (MAX_THREADS at most).
+ * @param main_works The calling thread runs the first worker (else it only waits for the threads).
+ * @param set_cpu Give its own cpu to each thread: cpu i to the worker i (see thread_set_cpu).
+ */
+void thread_run_workers(void* (*function)(void*), void *worker, const size_t size, const int n, const bool main_works, const bool set_cpu)
+{
+	Thread thread[MAX_THREADS];
+	bool created[MAX_THREADS];
+	const int first = main_works ? 1 : 0;
+	int i;
+
+	assert(n <= MAX_THREADS);
+	for (i = first; i < n; ++i) {
+		created[i] = thread_create(thread + i, function, (char*) worker + i * size);
+		if (created[i] && set_cpu) thread_set_cpu(thread[i], i);
+	}
+	if (main_works && n > 0) function(worker);
+	for (i = first; i < n; ++i) {
+		if (created[i]) thread_join(thread[i]);
+		else function((char*) worker + i * size);
+	}
+}
+
 /**
  * @brief Current thread.
  *
@@ -1021,6 +1118,24 @@ void thread_set_cpu(Thread thread, int i)
 	SetThreadIdealProcessor(thread, i);
 #else
 	(void) thread; (void) i;
+#endif
+}
+
+/**
+ * @brief Tell if thread_set_cpu() binds a thread to its cpu.
+ *
+ * Where it does (linux), a new thread also starts on the cpu of the thread that creates it:
+ * with the cpu option, every thread created by the main thread stays on cpu 0 until it is given
+ * a cpu. (On Windows thread_set_cpu() only gives a preferred cpu.)
+ *
+ * @return true if thread_set_cpu() binds the thread.
+ */
+bool thread_cpu_bound(void)
+{
+#if defined(__linux__) && defined(CPU_SET)
+	return true;
+#else
+	return false;
 #endif
 }
 
@@ -1075,6 +1190,30 @@ int get_cpu_number(void)
 	if (n < 1) n = 1;
 
 	return n;
+}
+
+/**
+ * @brief Get the size of the physical memory.
+ * @return Memory size in bytes, 0 if unknown.
+ */
+unsigned long long get_physical_memory(void)
+{
+#if defined(_WIN32)
+	MEMORYSTATUSEX status;
+
+	status.dwLength = sizeof (status);
+	if (GlobalMemoryStatusEx(&status)) return status.ullTotalPhys;
+	return 0;
+
+#elif defined(_SC_PHYS_PAGES) && defined(_SC_PAGESIZE)
+	long pages = sysconf(_SC_PHYS_PAGES), page_size = sysconf(_SC_PAGESIZE);
+
+	if (pages > 0 && page_size > 0) return (unsigned long long) pages * page_size;
+	return 0;
+
+#else
+	return 0;
+#endif
 }
 
 /**

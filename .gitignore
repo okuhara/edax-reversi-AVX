@@ -1,6 +1,8 @@
 *.o
 *.s
 *.exe
+*.obj
+/audit-*
 *~
 pgopti*
 *.dyn
@@ -13,3 +15,4 @@ bin/
 data/
 doc/
 problem/
+tests/libedax/

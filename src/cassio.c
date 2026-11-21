@@ -108,6 +108,7 @@ static void engine_get_input(Engine *engine)
 		string_to_lowercase(cmd);
 		// stop or quit: Interrupt immediately the current search & remove unprocessed messages.
 		if (strcmp(cmd, "stop") == 0) {
+			free(buffer); // (not queued: up to v4.5.5-nikque.15 it was not freed)
 			event_clear_messages(event);
 			if (engine->is_searching) {
 				engine_stop(engine->search);
@@ -115,6 +116,7 @@ static void engine_get_input(Engine *engine)
 				engine_send("ready.");
 			}
 		} else if (strcmp(cmd, "get-search-infos") == 0) {
+			free(buffer); // (not queued)
 			if (engine->is_searching) {
 				engine_send("node %lld, time %.3f", search_count_nodes(engine->search), 0.001 * search_time(engine->search));
 			} else {
@@ -167,7 +169,10 @@ static void* engine_input_loop(void *v)
 {
 	Engine *engine = (Engine*) v;
 
-	while (engine->event.loop && !feof(stdin) && !ferror(stdin)) {
+	// A final line without '\n' already sets feof while returning that line.
+	// Read once more so engine_get_input queues the eof command and wakes the
+	// engine thread, instead of leaving it waiting forever for another message.
+	while (engine->event.loop) {
 		engine_get_input(engine);
 	}
 
@@ -191,8 +196,11 @@ static bool is_position_new(Engine *engine, Board *board)
 
 	if (i == ENGINE_N_POSITION) {
 		cassio_debug("Position list: removing position %llx\n", board_get_hash_code(board));
+		--i; // (the last one is removed)
 	}
-	while (--i > 0) {
+	// every position moves one place further (up to v4.5.5-nikque.15 the last one was lost, and the new last place
+	// was left as it was)
+	for (; i > 0; --i) {
 		engine->last_position.board[i] = engine->last_position.board[i - 1];
 	}
 	cassio_debug("Position list: adding position %llx\n", board_get_hash_code(board));
@@ -388,12 +396,14 @@ void* engine_init(void)
 		exit(EXIT_FAILURE);
 	}
 	engine->is_searching = false;
+	engine->last_position.n = 0; // (up to v4.5.5-nikque.15 it was only set by new-position and empty-hash)
 	engine->search = engine_create_search();
 	event_init(&engine->event);
-
+	
+	// the input thread is waited for before the engine is freed (see "quit"): up to v4.5.5-nikque.15 it was
+	// detached, and could still use the engine and its event once they were freed
 	thread_create(&engine->event.thread, engine_input_loop, engine);
-	thread_detach(engine->event.thread);
-
+	
 	return engine;
 }
 
@@ -416,6 +426,9 @@ void feed_all_hash_table(Search *search, Board *board, const int depth, const in
 	HashStoreData hash_data;
 	const unsigned long long hash_code = board_get_hash_code(board);
 
+	// the positions beyond the depth are not stored: a negative depth was stored as 255 (an unsigned char)
+	// up to v4.5.5-nikque.15, as if they had been searched deeper than any other
+	if (depth < 0) return;
 	hash_data.data.wl.c.depth = depth;
 	hash_data.data.wl.c.selectivity = selectivity;
 	hash_data.data.move[0] = move;
@@ -452,7 +465,8 @@ void engine_feed_hash(void *v, Board *board, int lower, int upper, const int dep
 	else if (precision <= 98) selectivity = 3;
 	else if (precision <= 99) selectivity = 4;
 	else selectivity = 5;
-
+	
+	if (pv->n_moves >= GAME_SIZE) pv->n_moves = GAME_SIZE - 1; // (room for the NOMOVE after the line)
 	pv->move[pv->n_moves] = NOMOVE;
 
 	for (i = 0; i <= pv->n_moves; ++i) {
@@ -745,6 +759,7 @@ void engine_loop(void)
 			engine_empty_hash(engine);
 
 		} else if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "eof") == 0) {
+			thread_join(engine->event.thread); // (the input loop ends after quit or the end of the input)
 			engine_free(engine->search);
 			event_free(&engine->event);
 			free(engine);

@@ -74,12 +74,52 @@ static void obf_write(OBF *obf, FILE *f)
 		if (i == 0) fprintf(f, " %+d;", obf->best_score);
 
 	}
-	if (obf->comments) printf(" %% %s", obf->comments);
+	if (obf->comments) fprintf(f, " %% %s", obf->comments); // (to f: up to v4.5.5-nikque.15 to the standard output)
 	putc('\n', f);
 	fflush(f);
 }
 
 /**
+ * @brief Open an output file that may be the input file under another name.
+ *
+ * It is written to "<file>.tmp" first, then renamed when complete (obf_output_close): up to v4.5.5-nikque.15 the
+ * output was opened at once, and an input of the same file (or the same file under another name) was emptied
+ * before it was read.
+ *
+ * @param file Output file name.
+ * @param tmp Name of the file written (to give to obf_output_close).
+ * @return the output stream, NULL if it cannot be opened.
+ */
+static FILE* obf_output_open(const char *file, char **tmp)
+{
+	FILE *f;
+
+	*tmp = (char*) malloc(strlen(file) + 5);
+	if (*tmp == NULL) return NULL;
+	sprintf(*tmp, "%s.tmp", file);
+	f = fopen(*tmp, "w");
+	if (f == NULL) { free(*tmp); *tmp = NULL; }
+	return f;
+}
+
+/**
+ * @brief Close an output file opened by obf_output_open, and give it its name.
+ *
+ * @param f Output stream.
+ * @param file Output file name.
+ * @param tmp Name of the file written.
+ */
+static void obf_output_close(FILE *f, const char *file, char *tmp)
+{
+	const bool ok = (fclose(f) == 0) && file_replace(tmp, file);
+	if (!ok) {
+		warn("cannot write %s\n", file);
+		remove(tmp);
+	}
+	free(tmp);
+}
+
+/** 
  * @brief Read an OBF structure.
  * @param obf OBF structure.
  * @param f Input stream.
@@ -133,6 +173,10 @@ static int obf_read(OBF *obf, FILE *f)
 				break;
 			}
 
+			if (obf->n_moves == MAX_MOVE) { // (up to v4.5.5-nikque.15 the moves were written beyond the list)
+				warn("too many moves in %s\n", line);
+				break;
+			}
 			if (move.score > obf->best_score) obf->best_score = move.score;
 			obf->move[obf->n_moves].x = move.x;
 			obf->move[obf->n_moves].score = move.score;
@@ -223,7 +267,7 @@ static void obf_build(Search *search, OBF *obf, int n)
 	search_set_board(search, &obf->board, obf->player);
 	search_set_level(search, options.level, search->eval.n_empties);
 	if (options.depth >= 0) {
-		search->options.depth = MAX(options.depth, search->eval.n_empties);
+		search->options.depth = MIN(options.depth, search->eval.n_empties); // (the depth asked, up to the end: up to v4.5.5-nikque.15 at least the end)
 		search->options.selectivity = 0;
 	}
 	if (options.selectivity >= 0) search->options.selectivity = options.selectivity;
@@ -293,6 +337,7 @@ static void obf_build(Search *search, OBF *obf, int n)
 void obf_test(Search *search, const char *obf_file, const char *wrong_file)
 {
 	FILE *f, *w = NULL;
+	char *w_tmp = NULL;
 	OBF obf;
 	unsigned long long T = 0, n_nodes = 0;
 	int n = 0, n_bad_score = 0, n_bad_move = 0;
@@ -313,7 +358,7 @@ void obf_test(Search *search, const char *obf_file, const char *wrong_file)
 		exit(EXIT_FAILURE);
 	}
 	if (wrong_file && *wrong_file) {
-		w = fopen(wrong_file, "w");
+		w = obf_output_open(wrong_file, &w_tmp);
 		if (w == NULL) {
 			fprintf(stderr, "obf_test: cannot open Othello Position Description's file %s\n", wrong_file);
 			exit(EXIT_FAILURE);
@@ -334,11 +379,23 @@ void obf_test(Search *search, const char *obf_file, const char *wrong_file)
 			for (i = 0; i < obf.n_moves; ++i) {
 				if (obf.move[i].x == search->result->move) break;
 			}
+			// a move that is not in the list of the moves of the position is not one of its best moves, and a score
+			// is compared with the best score when the move is not in the list (up to v4.5.5-nikque.15 they were not
+			// counted as errors)
 			if (i < obf.n_moves) {
 				if (obf.move[i].score < obf.best_score) ++n_bad_move;
 				if (obf.move[i].score != search->result->score) ++n_bad_score;
 				move_error += abs(obf.best_score - obf.move[i].score);
 				if (w && obf.move[i].score < obf.best_score) obf_write(&obf, w);
+			} else if (obf.best_score > -SCORE_INF) {
+				if (obf.n_moves > 0) ++n_bad_move;
+				if (search->result->score != obf.best_score) ++n_bad_score;
+				if (w && (obf.n_moves > 0 || search->result->score != obf.best_score)) obf_write(&obf, w);
+			}
+			// the summary is printed when the positions have a score (up to v4.5.5-nikque.15 when one had none)
+			if (obf.best_score > -SCORE_INF) {
+				score_error += abs(obf.best_score - search->result->score);
+				print_summary = true;
 			}
 			if (obf.best_score > -SCORE_INF) score_error += abs(obf.best_score - search->result->score);
 			else print_summary = true;
@@ -364,7 +421,7 @@ void obf_test(Search *search, const char *obf_file, const char *wrong_file)
 	options.width += 4;
 
 	fclose(f);
-	if (w) fclose(w);
+	if (w) obf_output_close(w, wrong_file, w_tmp);
 }
 
 /**
@@ -378,6 +435,7 @@ void script_to_obf(Search *search, const char *script_file, const char *obf_file
 {
 
 	FILE *i, *o;
+	char *o_tmp;
 	OBF obf;
 	int n = 0, ok;
 
@@ -400,7 +458,7 @@ void script_to_obf(Search *search, const char *script_file, const char *obf_file
 		warn("script_to_obf: cannot open script file %s\n", script_file);
 		return;
 	}
-	o = fopen(obf_file, "w");
+	o = obf_output_open(obf_file, &o_tmp); // (the script may be the same file under another name)
 	if (o == NULL) {
 		warn("script_to_obf: cannot open obf file %s\n", obf_file);
 		fclose(i);
@@ -423,8 +481,8 @@ void script_to_obf(Search *search, const char *script_file, const char *obf_file
 	if (options.verbosity == 1 && search->options.separator) printf("---+%s\n", search->options.separator);
 	putchar('\n');
 
-	fclose(o);
 	fclose(i);
+	obf_output_close(o, obf_file, o_tmp);
 
 }
 
@@ -436,6 +494,7 @@ void script_to_obf(Search *search, const char *script_file, const char *obf_file
 void obf_filter(const char *input_file, const char *output_file)
 {
 	FILE *in, *out;
+	char *out_tmp;
 	int i, n, f, ok;
 	int n_best, second_best;
 	OBF obf;
@@ -446,7 +505,7 @@ void obf_filter(const char *input_file, const char *output_file)
 		fprintf(stderr, "obf_filter: cannot open Othello Position Description's file %s\n", input_file);
 		exit(EXIT_FAILURE);
 	}
-	out = fopen(output_file, "w");
+	out = obf_output_open(output_file, &out_tmp); // (the input may be the same file)
 	if (out == NULL) {
 		fprintf(stderr, "obf_filter: cannot open Othello Position Description's file %s\n", output_file);
 		exit(EXIT_FAILURE);
@@ -473,7 +532,7 @@ void obf_filter(const char *input_file, const char *output_file)
 	printf("OBF filter: %d selected out of %d positions\n", f, n);
 
 	fclose(in);
-	fclose(out);
+	obf_output_close(out, output_file, out_tmp);
 }
 
 /**

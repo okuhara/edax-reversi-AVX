@@ -73,7 +73,8 @@ typedef enum Stop {
 	STOP_PONDERING,
 	STOP_TIMEOUT,
 	STOP_ON_DEMAND,
-	STOP_END
+	STOP_END,
+	STOP_PARALLEL_CUT /* a slave found a cut at a node of the search: its thread goes back to this node, then runs again (see ybwc.c) */
 } Stop;
 
 /** node type */
@@ -111,7 +112,8 @@ enum {
 	UI_GGS,
 	UI_GTP,
 	UI_NBOARD,
-	UI_XBOARD
+	UI_XBOARD,
+	UI_LIBEDAX
 };
 
 #endif

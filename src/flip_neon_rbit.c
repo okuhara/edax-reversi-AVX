@@ -100,7 +100,9 @@ uint64x2_t mm_Flip(uint64x2_t OP, int pos)
 	uint64x2_t PP = vdupq_lane_u64(vget_low_u64(OP), 0); 	uint64x2_t rPP = vdupq_lane_u64(vget_low_u64(rOP), 0);
 	uint64x2_t OO = vdupq_lane_u64(vget_high_u64(OP), 0);	uint64x2_t rOO = vdupq_lane_u64(vget_high_u64(rOP), 0);
 
-	mask0 = lrmask_v4[pos][0];                           	mask1 = lrmask_v4[pos][1];
+	// [0] and [1] are the masks of the reversed board, [2] and [3] those of the board (up to v4.5.6 they
+	// were used the other way round: wrong flips; this generator is not chosen by default)
+	mask0 = lrmask_v4[pos][1];				mask1 = lrmask_v4[pos][0];
 		// get outflank with carry-propagation
 	oflank0 = vaddq_u64(vornq_u64(rOO, mask0), one);     	oflank1 = vaddq_u64(vornq_u64(rOO, mask1), one);
 	oflank0 = vandq_u64(vandq_u64(rPP, mask0), oflank0); 	oflank1 = vandq_u64(vandq_u64(rPP, mask1), oflank1);
@@ -109,7 +111,7 @@ uint64x2_t mm_Flip(uint64x2_t OP, int pos)
 	flip = vbslq_u64(mask1, oflank1, vandq_u64(mask0, oflank0));
 	flip = vreinterpretq_u64_u8(vrev64q_u8(vrbitq_u8(vreinterpretq_u8_u64(flip))));
 
-	mask0 = lrmask_v4[pos][2];                           	mask1 = lrmask_v4[pos][3];
+	mask0 = lrmask_v4[pos][3];				mask1 = lrmask_v4[pos][2];
 		// get outflank with carry-propagation
 	oflank0 = vaddq_u64(vornq_u64(OO, mask0), one);      	oflank1 = vaddq_u64(vornq_u64(OO, mask1), one);
 	oflank0 = vandq_u64(vandq_u64(PP, mask0), oflank0);  	oflank1 = vandq_u64(vandq_u64(PP, mask1), oflank1);

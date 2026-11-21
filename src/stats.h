@@ -84,6 +84,7 @@ typedef struct Statistics {
 	unsigned long long n_search_solve;
 	unsigned long long n_search_solve_0;
 	unsigned long long n_board_solve_2;
+	unsigned long long n_solve_1;     /* (counted by the last flip code of AVX: not in the structure up to v4.5.5-nikque.15) */
 	unsigned long long n_search_solve_3;
 	unsigned long long n_search_solve_4;
 	unsigned long long n_search_eval_0;

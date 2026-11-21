@@ -10,10 +10,10 @@
  * Options:
  * Options must be entered in the form '[set] <option> [=] <value>', with [set] and\n[=] being optional.
  *   -verbose [n]          set Edax verbosity (default 1).
- *   -noise [n]            start displaying Edax search result from this depth\n  (default 5).
+ *   -noise [n]            start displaying Edax search result from this depth\n  (default 0).
  *   -width [n]            display edax search results using <width> characters\n  (default 80).
  *   -hash-table-size [n]  set hashtable size (default 21 bits).
- *   -n-tasks [n]          control the number of parallel threads used in searching\n  (default 1).
+ *   -n-tasks [n]          control the number of parallel threads used in searching\n  (default: the number of logical CPUs).
  *   -l|level [n]          search using limited depth (default 21).
  *   -t|game-time <time>   search using limited time per game.
  *   -move-time <time>     search using limited time per move.
@@ -30,8 +30,8 @@
  *   -i|nit               start a new game from standard initial position.
  *   -n|ew                start a new game from a personalized position.
  *   -setboard <board>    set a personalized position to start from.
- *   -o|open|load [file]  load a played game.
- *   -s|save [file]       save a played game.
+ *   -o|open|load <file>  load a played game.
+ *   -s|save <file>       save a played game.
  *   -q|quit|exit         quit from edax.
  *   -u|undo              undo the last played move.
  *   -r|redo              redo the last played move.
@@ -60,10 +60,11 @@
  *   -a|analyze [n]       retro-analyze the game using the opening book.
  *   -randomness [n]      play more various but worse move from the opening book.
  *   -depth [n]           change book depth (up to which to add positions).
- *   -deepen [n]          change book level & reevaluate the whole book (very slow!).
+ *   -deepen              search again with the level of the book the positions of a lower level.
  *   -fix                 fix the opening book: add missing links and negamax the whole book tree.
  *   -store               add the last played game to the opening book.
  *   -deviate <n1> <n2>   add positions by deviating with a relative error <n1> and an absolute error <n2>.
+ *   -deviate2 <n1> <n2>  add positions with a per-move loss limit <n1> and a cumulative loss limit for both players <n2>.
  *   -enhance <n1> <n2>   add positions by improving score accuracy with a midgame error <n1> and an endcut error <n2>.
  *   -fill [n]            add positions between existing positions.
  *   -play                add positions by expanding positions without child positions.
@@ -80,8 +81,7 @@
  *   -problem [file_in] [n] [file_out] build a set of problems @ <n> empties from a game database.
  *
  * Tests commands:
- *   -solve [file]        solve a set of positions.
- *   -obftest [file]      Test from an obf file.
+ *   -solve <file> [hard-file]   Solve problems from an OBF file.
  *   -script-to-obf [file]Convert a script to an obf file.
  *   -wtest [file]        check the theoric scores of a wthor base file.
  *   -count games [d]     compute the number of moves from the current position up\n  to depth [d].
@@ -107,6 +107,8 @@
 #include "search.h"
 #include "util.h"
 #include "ui.h"
+
+#include <ctype.h>
 #ifdef __linux__
 	#include <sys/time.h>
 	#include <sys/resource.h>
@@ -124,7 +126,9 @@ void bench(void);
  */
 static void edax_observer(Result *result)
 {
+	ui_output_lock(); // (whole lines, between the lines of the book analyses)
 	search_observer(result);
+	ui_output_unlock(false);
 	if (log_is_open(&edax_log)) {
 		result_print(result, edax_log.f);
 		putc('\n', edax_log.f);
@@ -140,9 +144,10 @@ void ui_init_edax(UI *ui)
 	Play *play = ui->play;
 
 	book_verbose = true;
+	book_analysis_init();
 	play_init(play, &ui->book);
 	ui->book.search = &play->search;
-	book_load(&ui->book, options.book_file);
+	book_load_at_startup(&ui->book);
 	play->search.id = 1;
 	search_set_observer(&play->search, edax_observer);
 	ui->mode = options.mode;
@@ -157,7 +162,8 @@ void ui_init_edax(UI *ui)
  */
 void ui_free_edax(UI *ui)
 {
-	if (ui->book.need_saving) book_save(&ui->book, options.book_file);
+	book_analysis_end();
+	if (ui->book.need_saving) book_save_to_book_file(&ui->book); // (a book file replaced by "book new" is kept under another name)
 	book_free(&ui->book);
 	play_free(ui->play);
 	log_close(&edax_log);
@@ -172,10 +178,10 @@ void help_options(void)
 	printf("Options:\n"
 		"Options must be entered in the form '[set] <option> [=] <value>', with [set] and\n[=] being optional.\n"
 		"  verbose [n]          set Edax verbosity (default 1).\n"
-		"  noise [n]            start displaying Edax search result from this depth\n  (default 5).\n"
+		"  noise [n]            start displaying Edax search result from this depth\n  (default 0).\n"
 		"  width [n]            display edax search results using <width> characters\n  (default 80).\n"
 		"  hash-table-size [n]  set hashtable size (default 21 bits).\n"
-		"  n-tasks [n]          control the number of parallel threads used in searching\n  (default 1).\n"
+		"  n-tasks [n]          control the number of parallel threads used in searching\n  (default: the number of logical CPUs).\n"
 		"  l|level [n]          search using limited depth (default 21).\n"
 		"  t|game-time <time>   search using limited time per game.\n"
 		"  move-time <time>     search using limited time per move.\n"
@@ -199,8 +205,8 @@ void help_commands(void)
 		"  i|nit               start a new game from standard initial position.\n"
 		"  n|ew                start a new game from a personalized position.\n"
 		"  setboard <board>    set a personalized position to start from.\n"
-		"  o|open|load [file]  load a played game.\n"
-		"  s|save [file]       save a played game.\n"
+		"  o|open|load <file>  load a played game.\n"
+		"  s|save <file>       save a played game.\n"
 		"  q|quit|exit         quit from edax.\n"
 		"  u|undo              undo the last played move.\n"
 		"  r|redo              redo the last played move.\n"
@@ -235,19 +241,29 @@ void help_book(void)
 		"  a|analyze [n]       retro-analyze the game using the opening book.\n"
 		"  randomness [n]      play more various but worse move from the opening book.\n"
 		"  depth [n]           change book depth (up to which to add positions).\n"
-		"  deepen [n]          change book level & reevaluate the whole book (very slow!).\n"
-		"  fix                 fix the opening book: add missing links and negamax the\n  whole book tree.\n"
+		"  deepen              search again with the level of the book the positions of a lower level.\n"
+		"  fix                 fix the opening book: add missing links and negamax the whole book tree.\n"
 		"  store               add the last played game to the opening book.\n"
-		"  deviate [n1] [n2]   add positions by deviating with a relative error <n1> and\n  an absolute error <n2>.\n"
-		"  enhance [n1] [n2]   add positions by improving score accuracy with a midgame\n  error <n1> and an endcut error <n2>.\n"
-		"  fill [n]            add positions between existing positions.\n"
-		"  play                add positions by expanding leaves of positions without links\n  to next positions.\n"
-		"  extend              add positions by expanding leaves with a best score.\n"
+		"  deviate <n1> <n2>   add positions by deviating with a relative error <n1> and an absolute error <n2>.\n"
+		"  deviate2 <n1> <n2>  add positions with a per-move loss limit <n1> and a cumulative loss limit for both players <n2>; skip solved leaves.\n"
+		"  deviate3 <n1> <n2>  same loss limits as deviate2, including solved leaves.\n"
+		"  deviate.. <n1> <n2> export <file> [leaf|ends|all]  write the lines that deviate, deviate2 or deviate3 walks to a text file, without adding positions: the\n  positions whose leaf it would expand (leaf, default), the ends of its lines\n  (ends), or every position of its lines (all).\n"
+		"  enhance <n1> <n2>   add positions by improving score accuracy with a midgame error <n1> and an endcut error <n2>.\n"
+		"  fill [n] [n1 n2]    add positions between existing positions exactly <n> moves apart (default 1); with <n1> <n2>, only from the positions that deviate3\n  <n1> <n2> walks.\n"
+		"  fill2 [n] [n1 n2]   same as fill (default 2), only through the leaf (best move not in the book yet) of a position; with <n1> <n2>, only from the leaves\n  that deviate3 <n1> <n2> would expand.\n"
+		"  leaf recalculate <n1> <n2>  search again the leaves that deviate <n1> <n2> would expand (leaf recalculate2: deviate2; 3, 4: the leaves of all the positions\n  of the walk of deviate, deviate2).\n"
+		"  leaf expand [n1 n2] expand the leaves better than every link of their position; with <n1> <n2>, only in the walk of deviate3 <n1> <n2>.\n"
 		"  prune               remove unreachable positions.\n"
 		"  subtree             only keep positions from the current position.\n"
-		"  add [file]          add positions from a game base file (txt, ggf, sgf or\n  wthor format).\n"
-		"  extract <d> [file]   extract the book to a game database <file>. if the <d>\n  optional argument is 'draw', only the draw\n  skeleton is extracted.\n");
-
+		"  reduce <n1> <n2>    only keep the positions that deviate3 <n1> <n2> walks from the current position, and those its moves lead to.\n"
+		"  add [file]          add positions from a game base file (txt, ggf, sgf or wthor format).\n"
+		"  moveinfo id=<n> ... for every legal move: book value, precision stage, missing leaves, umigame numbers, positions (answers: lines starting with '@').\n"
+		"  missing id=<n> ...  the lines to the leaves missing for the next stage.\n"
+		"  levels id=<n> ...   the positions of each level after the current position.\n"
+		"  bestlines id=<n> ... the lines of best moves: counts, and a file of their ends.\n"
+		"  findline id=<n> target=<position> ... the lines from the current position to a position, through book positions only.\n"
+		"  reducecount id=<n> x=<n1> y=<n2>  the positions that reduce <n1> <n2> would keep and remove.\n"
+		"  (these six commands run beside the others and only read the book; \"stop id=<n>\" stops one of them.)\n");
 }
 
 /**
@@ -258,14 +274,14 @@ void help_test(void)
 	printf("\nTests:\n"
 		"  bench               test edax speed.\n"
 		"  microbench          test CPU cycle speed of some major functions.\n"
-		"  obftest [file]      Test from an obf file.\n"
+		"  solve <file> [hard-file]  Solve problems from an OBF file.\n"
 		"  script-to-obf [file]Convert a script to an obf file.\n"
 		"  wtest [file]        check the theoric scores of a wthor base file.\n"
-		"  count games [d]     compute the number of moves from the current position up\n  to depth [d].\n"
+		"  count games [d]     compute the number of moves from the current position up to depth [d].\n"
 		"  perft [d]           same as above, but without hash table.\n"
-		"  estimate [d] [n]    estimate the number of moves from the current position up\n  to depth [d].\n"
-		"  count positions [d] compute the number of positions from the current position\n  up to depth [d].\n"
-		"  count shapes [d]    compute the number of shapes from the current position up\n  to depth [d].\n");
+		"  estimate [d] [n]    estimate the number of moves from the current position up to depth [d].\n"
+		"  count positions [d] compute the number of positions from the current position up to depth [d].\n"
+		"  count shapes [d]    compute the number of shapes from the current position up to depth [d].\n");
 }
 
 /**
@@ -278,8 +294,123 @@ void help_base(void)
 		"  unique [file_in] [file_out]      remove doublons in the base.\n"
 		"  check [file_in] [n]              check error in the last <n> moves.\n"
 		"  correct [file_in] [n]            correct error in the last <n> moves.\n"
-		"  complete [file_in]               complete a database by playing the last\n  missing moves.\n"
-		"  problem [file_in] [n] [file_out] build a set of <n> problems from a game\n  database.\n");
+		"  complete [file_in]               complete a database by playing the last missing moves.\n"
+		"  problem [file_in] [n] [file_out] build a set of problems from a game database with <n> empties.\n");
+}
+
+/**
+ * @brief The hint of the warning of an unknown command that is the name of a book command ("leaf expand 30 30"
+ * for "book leaf expand 30 30"). The names of top-level commands, of options and of base commands are left out.
+ * @param cmd Command (small letters).
+ * @param param Its parameters.
+ * @return " (book command: type ...)", to free; NULL if the command is no book command.
+ */
+static char* book_command_hint(const char *cmd, const char *param)
+{
+	static const char *const names[] = {
+		"store", "on", "off", "randomness", "import", "export", "merge", "fix", "negamax", "prune", "subtree", "reduce",
+		"show", "stats", "add", "learn", "extract", "deviate", "deviate2", "deviate3", "leaf", "pick-count", "enhance",
+		"fill", "fill2", "deepen", "feed-hash", "moveinfo", "missing", "levels", "bestlines", "findline", "reducecount"
+	};
+	const char *space = (param && *param) ? " " : "";
+	char *s;
+	size_t i, size;
+
+	if (param == NULL) param = "";
+	for (i = 0; i < sizeof names / sizeof *names && strcmp(cmd, names[i]) != 0; ++i) ;
+	if (i == sizeof names / sizeof *names) return NULL;
+	size = 2 * (strlen(cmd) + strlen(param)) + 64;
+	s = (char*) malloc(size);
+	if (s) snprintf(s, size, " (book command: type \"book %s%s%s\" or \"b %s%s%s\")", cmd, space, param, cmd, space, param);
+	return s;
+}
+
+/** @return true if a word starts with a number, signed or not (as parse_int reads it). */
+static bool starts_with_number(const char *s)
+{
+	return isdigit((unsigned char) s[0]) || ((s[0] == '+' || s[0] == '-') && isdigit((unsigned char) s[1]));
+}
+
+/**
+ * @brief Read the loss limits of book deviate2, deviate3 (and of the commands that walk as they do): 2 and 4 when
+ * they are not given.
+ * @param param Parameters.
+ * @param move_loss Per-move loss limit (out).
+ * @param total_loss Cumulative loss limit for both players (out).
+ * @return the rest of the parameters.
+ */
+static char* parse_loss_limits(char *param, int *move_loss, int *total_loss)
+{
+	*move_loss = 2; param = parse_int(param, move_loss); BOUND(*move_loss, 0, 129, "per-move loss");
+	*total_loss = 4; param = parse_int(param, total_loss); BOUND(*total_loss, 0, 7740, "cumulative loss");
+	return param;
+}
+
+/**
+ * @brief Read a file name: a word, or a name between double quotes, which may hold spaces (the quotes are dropped).
+ * @param s Words.
+ * @param name File name (out: empty if there is none).
+ * @param size Size of name.
+ * @param wrong What is wrong with the name (out): NULL, or the name is longer than size - 1 characters (it is not cut),
+ * or its quote is not closed.
+ * @return the rest of the words.
+ */
+static const char* parse_file_name(const char *s, char *name, const size_t size, const char **wrong)
+{
+	size_t n = 0;
+	const bool quoted = (*(s = parse_skip_spaces(s)) == '"');
+
+	*wrong = NULL;
+	if (quoted) ++s;
+	for (; *s && (quoted ? *s != '"' : !isspace((unsigned char) *s)); ++s, ++n) if (n + 1 < size) name[n] = *s;
+	name[n + 1 < size ? n : size - 1] = '\0';
+	if (n + 1 > size) *wrong = "the file name is too long";
+	else if (quoted && *s != '"') *wrong = "the quote of the file name is not closed";
+	if (quoted && *s == '"') ++s;
+	return s;
+}
+
+/**
+ * @brief "export <file> [leaf|ends|all]" after the numbers of book deviate, deviate2, deviate3: the lines of its walk
+ * are written to the file, nothing is expanded (see book_deviate_export). The file name may be written between double
+ * quotes ("C:\a b\lines.txt"). Another word after the numbers is an error (up to v4.5.5-nikque.26 it was skipped, and
+ * the book expanded: "exprot" for "export"), and so is a file name too long (it was cut).
+ * @return false if nothing follows the numbers (the command expands the book).
+ */
+static bool deviate_export(Play *play, const char *param, const int base, const int x, const int y)
+{
+	static const char *names[] = {"", "deviate", "deviate2", "deviate3"};
+	char word[64], file[FILENAME_MAX], game_line[2 * PLAY_GAME_SIZE + 1];
+	const char *wrong;
+	int which = BOOK_EXPORT_LEAF;
+
+	param = parse_skip_spaces(param);
+	if (*param == '\0') return false;
+	param = parse_word(param, word, sizeof word);
+	string_to_lowercase(word);
+	if (strcmp(word, "export") != 0) {
+		printf("ERROR: book %s: unknown word %s after the numbers (export, or nothing); the book is not expanded\n", names[base], word);
+		return true;
+	}
+	param = parse_file_name(param, file, sizeof file, &wrong);
+	if (wrong) {
+		printf("ERROR: book deviate export: %s\n", wrong);
+		return true;
+	}
+	parse_word(param, word, sizeof word);
+	string_to_lowercase(word);
+	if (strcmp(word, "ends") == 0) which = BOOK_EXPORT_ENDS;
+	else if (strcmp(word, "all") == 0) which = BOOK_EXPORT_ALL;
+	else if (*word && strcmp(word, "leaf") != 0) {
+		printf("ERROR: book deviate export: unknown word %s (leaf, ends or all)\n", word);
+		return true;
+	}
+	if (!*file) {
+		printf("ERROR: book deviate export: no file\n");
+		return true;
+	}
+	book_deviate_export(play->book, &play->board, play_get_moves(play, game_line), base, x, y, file, which);
+	return true;
 }
 
 /**
@@ -304,6 +435,7 @@ void ui_loop_edax(UI *ui)
 	char *cmd = NULL, *param = NULL;
 	Play *play = ui->play;
 	char book_file[FILENAME_MAX];
+	char game_line[2 * PLAY_GAME_SIZE + 1]; // (moves of the game, for book bestlines)
 	unsigned long long histogram[129][65];
 	int repeat = options.repeat;
 
@@ -323,14 +455,17 @@ void ui_loop_edax(UI *ui)
 		if (!ui_event_exist(ui) && !play_is_game_over(play) && (ui->mode == !play->player || ui->mode == 2)) {
 			putchar('\n');
 			play_go(play, true);
-			printf("\nEdax plays "); move_print(play_get_last_move(play)->x, 0, stdout); putchar('\n');
+			ui_output_lock(); printf("\nEdax plays "); move_print(play_get_last_move(play)->x, 0, stdout); putchar('\n'); ui_output_unlock(false);
 			if (ui->mode != 2) play_ponder(play);
 
 		// proceed by reading a command
 		} else {
 			/* automatic rules after a game over*/
 			if (play_is_game_over(play)) {
-				if (options.auto_store) play_store(play);
+				if (options.auto_store) {
+					book_analysis_quiesce(); // (the book changes)
+					play_store(play);
+				}
 				if (options.auto_swap && ui->mode < 2) ui->mode = !ui->mode;
 				if (options.repeat && repeat > 1) {
 					--repeat;
@@ -347,10 +482,10 @@ void ui_loop_edax(UI *ui)
 				}
 			}
 
-			putchar('>'); fflush(stdout);
+			ui_output_lock(); putchar('>'); fflush(stdout); ui_output_unlock(true);
 			ui_event_wait(ui, &cmd, &param);
 			log_print(&edax_log, "cmd=\"%s\" ; param=\"%s\"\n", cmd, param);
-			putchar('\n');
+			ui_output_lock(); putchar('\n'); ui_output_unlock(false);
 
 			if (cmd == NULL) {
 				warn("unexpected null command?\n");
@@ -381,7 +516,7 @@ void ui_loop_edax(UI *ui)
 
 			// open a saved game
 			} else if (strcmp(cmd, "o") == 0 || strcmp(cmd, "open") == 0 || strcmp(cmd, "load") == 0) {
-				play_load(play, param);
+				if (!play_load(play, param)) warn("%s", play->error_message); // (a load that failed used to say nothing here; the "loadsgf" of GTP gives this message)
 
 			// save a game
 			} else if (strcmp(cmd, "s") == 0 || strcmp(cmd, "save") == 0) {
@@ -409,6 +544,7 @@ void ui_loop_edax(UI *ui)
 			// mode
 			} else if (strcmp(cmd, "m") == 0 || strcmp(cmd, "mode") == 0) {
 				ui->mode = string_to_int(param, 3);
+				BOUND(ui->mode, 0, 3, "mode");
 
 			// analyze a game
 			} else if (strcmp(cmd, "a") == 0 || strcmp(cmd, "analyze") == 0 || strcmp(cmd, "analyse") == 0) {
@@ -596,7 +732,7 @@ void ui_loop_edax(UI *ui)
 					printf("\n*** Game Over ***\n");
 				} else {
 					play_go(play, true);
-					printf("\nEdax plays "); move_print(play_get_last_move(play)->x, 0, stdout); putchar('\n');
+					ui_output_lock(); printf("\nEdax plays "); move_print(play_get_last_move(play)->x, 0, stdout); putchar('\n'); ui_output_unlock(false);
 				}
 
 			// hint for [n] moves
@@ -614,7 +750,7 @@ void ui_loop_edax(UI *ui)
 
 			// user move
 			} else if (play_user_move(play, cmd)) {
-				printf("\nYou play "); move_print(play_get_last_move(play)->x, 0, stdout); putchar('\n');
+				ui_output_lock(); printf("\nYou play "); move_print(play_get_last_move(play)->x, 0, stdout); putchar('\n'); ui_output_unlock(false);
 
 			// debug pv
 			} else if (strcmp(cmd, "debug-pv") == 0) {
@@ -657,15 +793,37 @@ void ui_loop_edax(UI *ui)
 				if (name == NULL) name = "?";
 				puts(name);
 
+			// book analyses for a user interface (book moveinfo, missing, levels): done by a thread of their own
+			} else if ((strcmp(cmd, "book") == 0 || strcmp(cmd, "b") == 0) && book_analysis_command(play->book, param, &play->board, play->player, play_get_moves(play, game_line))) {
+
 			// opening book commands
 			} else if (strcmp(cmd, "book") == 0 || strcmp(cmd, "b") == 0) {
 				char book_cmd[FILENAME_MAX + 1], *book_param;
 				int val_1, val_2;
 				Book *book = play->book;
 
+				{ // the analyses only read the book: they are stopped before a command that may change it
+					char word[16];
+					parse_word(param, word, 15);
+					string_to_lowercase(word);
+					if (strcmp(word, "reduce") == 0) book_analysis_quiesce_reduce(); // (it may use the positions counted by book reducecount)
+					else if (strcmp(word, "on") != 0 && strcmp(word, "off") != 0 && strcmp(word, "randomness") != 0
+					 && strcmp(word, "show") != 0 && strcmp(word, "info") != 0 && strcmp(word, "stats") != 0) book_analysis_quiesce();
+				}
+				play_no_stop(play, true); // the word "stop" does not cut the searches of a book command short (see play_stop)
 				book->search = &play->search;
 				book->search->options.verbosity = book->options.verbosity;
+				book->failed = false; // see book_add()
 				book_param = parse_word(param, book_cmd, FILENAME_MAX);
+				string_to_lowercase(book_cmd); // "book Deviate 5 5" as "book deviate 5 5" (the arguments, as file names, are kept as typed)
+				// "book leaf recalculate 5 5", "book leaf expand 5 5": two words, read as the command "leaf recalculate", "leaf expand"
+				// (a word never holds a space: the names with a hyphen of v4.5.5-nikque.13, as book leaf-recalculate, are unknown commands)
+				if (strcmp(book_cmd, "leaf") == 0) {
+					char word[32];
+					book_param = parse_word(book_param, word, sizeof word - 1);
+					string_to_lowercase(word);
+					snprintf(book_cmd, sizeof book_cmd, "leaf %s", word);
+				}
 
 				// store the last played game
 				if (strcmp(book_cmd, "store") == 0) {
@@ -687,35 +845,39 @@ void ui_loop_edax(UI *ui)
 				// set book depth (until which to learn)
 				} else if (strcmp(book_cmd, "depth") == 0) { // learn
 					val_1 = 36; book_param = parse_int(book_param, &val_1);
+					BOUND(val_1, 1, 61, "book depth"); // (up to v4.5.5-nikque.15 any depth: a game of 60 moves was read beyond its moves)
 					book->options.n_empties = 61 - val_1;
 
 				// create a new empty book
 				} else if (strcmp(book_cmd, "new") == 0) {
 					val_1 = 21; book_param = parse_int(book_param, &val_1);
 					val_2 = 36; book_param = parse_int(book_param, &val_2);
-					book_free(book);
-					book_new(book, val_1, 61 - val_2);
+					if (val_1 < 0 || val_1 > 60) { // such a level would read outside the table of the levels
+						warn("book new: level %d is out of range; current book retained\n", val_1);
+					} else {
+						BOUND(val_2, 1, 61, "book depth"); // as book depth (up to v4.5.5-nikque.26 any depth)
+						book_free(book) ;
+						book_new(book, val_1, 61 - val_2);
+						book_set_replaced_file(options.book_file); // the book file still holds the previous book: see book_save_to_book_file()
+					}
 
 				// load an opening book (binary format) from the disc
 				} else if (strcmp(book_cmd, "load") == 0 || strcmp(book_cmd, "open") == 0) {
-					book_free(book);
 					parse_word(book_param, book_file, FILENAME_MAX);
-					book_load(book, book_file);
+					play_book_load(play, book_file); // (the current book is kept when the file cannot be loaded)
 
 				// save an opening book (binary format) to the disc
 				} else if (strcmp(book_cmd, "save") == 0) {
 					parse_word(book_param, book_file, FILENAME_MAX);
-					book_save(book, book_file);
+					if (*book_file == '\0') {
+						// without a file name: the book file of the settings (up to v4.5.5-nikque.12: an error, nothing was saved)
+						if (book_save_to_book_file(book)) printf("Book saved to %s\n", options.book_file);
+					} else book_save(book, book_file);
 
 				// import an opening book (text format)
 				} else if (strcmp(book_cmd, "import") == 0) {
-					book_free(book);
 					parse_word(book_param, book_file, FILENAME_MAX);
-					book_import(book, book_file);
-					book_link(book);
-					book_fix(book);
-					book_negamax(book);
-					book_sort(book);
+					play_book_import(play, book_file); // (as book load: the current book is kept when nothing is imported)
 
 				// export an opening book (text format)
 				} else if (strcmp(book_cmd, "export") == 0) {
@@ -724,13 +886,8 @@ void ui_loop_edax(UI *ui)
 
 				// merge an opening book to the current one
 				} else if (strcmp(book_cmd, "merge") == 0) {
-					Book src;
 					parse_word(book_param, book_file, FILENAME_MAX);
-					src.search = &play->search;
-					book_load(&src, book_file);
-					book_merge(book, &src);
-					book_free(&src);
-					warn("Book needs to be fixed before usage\n");
+					play_book_merge(play, book_file);
 
 				// fix an opening book
 				} else if (strcmp(book_cmd, "fix") == 0) {
@@ -764,9 +921,33 @@ void ui_loop_edax(UI *ui)
 				} else if (strcmp(book_cmd, "subtree") == 0) {
 					book_subtree(book, &play->board); // remove unreachable lines.
 					book_fix(book); // do nothing (or edax is buggy)
+#ifdef BOOK_TEST_SUBTREE_LINK_OLD
 					book_link(book); // links nodes
+#endif
+					// (up to v4.5.5-nikque.11 the book was linked again here. Cutting a book adds no position: the only links
+					// to add were those that the book already lacked before, and book fix or book link still adds them.)
 					book_negamax(book); // negamax nodes
+					book_negamax_subtree(book, &play->board); // (from this position, when the initial one is no longer in the book)
 					book_sort(book); // sort moves
+
+				// keep only the positions that book deviate3 <n1> <n2> walks from the current position
+				} else if (strcmp(book_cmd, "reduce") == 0) {
+					char *s = book_param, *e;
+					bool words; // two numbers, each a whole word, and nothing after them
+					val_1 = val_2 = -1;
+					e = parse_int(s, &val_1);
+					words = e && e != parse_skip_spaces(s) && (*e == '\0' || isspace((unsigned char) *e));
+					s = e;
+					e = parse_int(s, &val_2);
+					words = words && e && e != parse_skip_spaces(s) && *parse_skip_spaces(e) == '\0';
+					if (!words || val_1 < 0 || val_1 > 129 || val_2 < 0 || val_2 > 254) {
+						warn("book reduce: two loss limits are needed, from 0 to 129 and from 0 to 254, and nothing after them (book reduce <n1> <n2>); the book is not changed\n");
+					} else if (book_reduce(book, &play->board, val_1, val_2)) {
+						book_fix(book); // do nothing (or edax is buggy)
+						book_negamax(book); // negamax nodes
+						book_negamax_subtree(book, &play->board); // (from this position, when the initial one is no longer in the book)
+						book_sort(book); // sort moves
+					}
 
 				// show the current position as stored in the book
 				} else if (strcmp(book_cmd, "show") == 0) {
@@ -799,6 +980,11 @@ void ui_loop_edax(UI *ui)
 					base_load(&base, book_file);
 					book_add_base(book, &base);
 					base_free(&base);
+
+				// play the games of a file (first moves, then edax vs edax) and store them
+				} else if (strcmp(book_cmd, "learn") == 0) {
+					parse_word(book_param, book_file, FILENAME_MAX);
+					play_learn_file(play, book_file);
 
 				// check positions from a game database
 				} else if (strcmp(book_cmd, "check") == 0) {
@@ -835,7 +1021,46 @@ void ui_loop_edax(UI *ui)
 				} else if (strcmp(book_cmd, "deviate") == 0) {
 					val_1 = 2; book_param = parse_int(book_param, &val_1); BOUND(val_1, -129, 129, "relative error");
 					val_2 = 4; book_param = parse_int(book_param, &val_2); BOUND(val_2, 0, 65, "absolute error");
-					book_deviate(book, &play->board, val_1, val_2);
+					if (!deviate_export(play, book_param, 1, val_1, val_2)) book_deviate(book, &play->board, val_1, val_2);
+
+				// add positions while limiting per-move and cumulative errors
+				} else if (strcmp(book_cmd, "deviate2") == 0) {
+					book_param = parse_loss_limits(book_param, &val_1, &val_2);
+					if (!deviate_export(play, book_param, 2, val_1, val_2)) book_deviate2(book, &play->board, val_1, val_2);
+
+				} else if (strcmp(book_cmd, "deviate3") == 0) {
+					book_param = parse_loss_limits(book_param, &val_1, &val_2);
+					if (!deviate_export(play, book_param, 3, val_1, val_2)) book_deviate3(book, &play->board, val_1, val_2);
+
+				// search again the leaves that book deviate (1, 3) or book deviate2 (2, 4) reaches:
+				// the leaves it would expand (1, 2), or the leaves of all the positions of its walk (3, 4)
+				} else if (strcmp(book_cmd, "leaf recalculate") == 0 || strcmp(book_cmd, "leaf recalculate3") == 0) {
+					val_1 = 2; book_param = parse_int(book_param, &val_1); BOUND(val_1, -129, 129, "relative error");
+					val_2 = 4; book_param = parse_int(book_param, &val_2); BOUND(val_2, 0, 65, "absolute error");
+					book_leaf_recalculate(book, &play->board, book_cmd[16] == '3' ? 3 : 1, val_1, val_2);
+
+				} else if (strcmp(book_cmd, "leaf recalculate2") == 0 || strcmp(book_cmd, "leaf recalculate4") == 0) {
+					book_param = parse_loss_limits(book_param, &val_1, &val_2);
+					book_leaf_recalculate(book, &play->board, book_cmd[16] == '4' ? 4 : 2, val_1, val_2);
+
+				// expand the leaves better than every link of their position: of the whole book, or with a per-move
+				// and a cumulative loss limit, of the positions of a deviate3 walk
+				} else if (strcmp(book_cmd, "leaf expand") == 0) {
+					char *limits = parse_skip_spaces(book_param);
+					if (starts_with_number(limits)) { // (the limits are numbers, signed or not: another word is ignored, as by the other commands)
+						book_param = parse_loss_limits(limits, &val_1, &val_2);
+						book_leaf_expand(book, &play->board, true, val_1, val_2);
+					} else {
+						book_leaf_expand(book, &play->board, false, 0, 0);
+					}
+
+#ifdef BOOK_TEST_PICK_COUNT
+				// test builds: count what book fill 2 / fill2 2 / leaf expand would start from, without and with limits
+				} else if (strcmp(book_cmd, "pick-count") == 0) {
+					val_1 = 5; book_param = parse_int(book_param, &val_1); BOUND(val_1, 0, 129, "per-move loss");
+					val_2 = 5; book_param = parse_int(book_param, &val_2); BOUND(val_2, 0, 7740, "cumulative loss");
+					book_test_pick_count(book, &play->board, val_1, val_2);
+#endif
 
 				// add position using the "enhance algorithm"
 				} else if (strcmp(book_cmd, "enhance") == 0) {
@@ -850,9 +1075,21 @@ void ui_loop_edax(UI *ui)
 					book_exhaust(book, &play->board);
 
 				// add position by filling hole in the book
-				} else if (strcmp(book_cmd, "fill") == 0) {
-					val_1 = 1; book_param = parse_int(book_param, &val_1); BOUND(val_1, 1, 61, "fill depth");
-					book_fill(book, val_1);
+				// (fill2: from the leaves only; with a per-move and a cumulative loss limit: from the positions of a deviate3 walk)
+				} else if (strcmp(book_cmd, "fill") == 0 || strcmp(book_cmd, "fill2") == 0) {
+					const bool leaf_only = (book_cmd[4] == '2');
+					char *limits;
+					int total_loss;
+					val_1 = leaf_only ? 2 : 1; book_param = parse_int(book_param, &val_1); BOUND(val_1, 1, 61, "fill depth"); // (fill2 1 adds no position)
+					limits = parse_skip_spaces(book_param);
+					if (starts_with_number(limits)) { // (the limits are numbers, signed or not: another word is ignored, as by the other commands)
+						book_param = parse_loss_limits(limits, &val_2, &total_loss);
+						book_fill_walk(book, &play->board, val_1, leaf_only, val_2, total_loss);
+					} else if (leaf_only) {
+						book_fill2(book, val_1);
+					} else {
+						book_fill(book, val_1);
+					}
 
 				// add positions by expanding positions with no-link
 				} else if (strcmp(book_cmd, "play") == 0) {
@@ -875,8 +1112,13 @@ void ui_loop_edax(UI *ui)
 				} else {
 					warn("Unknown book command: \"%s %s\"\n", cmd, param);
 				}
+				// the searches used to learn games or to link the book at the same time (book-store-tasks) are
+				// kept from a book store to the next one (as with auto-store), and released by the other commands
+				if (strcmp(book_cmd, "store") != 0) book_store_release();
+				book_pool_reclaim(book); // (no position is pointed to between two commands)
 				book->options.verbosity = book->search->options.verbosity;
 				book->search->options.verbosity = options.verbosity;
+				play_no_stop(play, false);
 
 			/* base TODO: add more actions... */
 			} else if (strcmp(cmd, "base") == 0) {
@@ -884,8 +1126,10 @@ void ui_loop_edax(UI *ui)
 				char base_cmd[512], *base_param;
 				Base base;
 
+				play_no_stop(play, true); // (as the book commands)
 				base_init(&base);
 				base_param = parse_word(param, base_cmd, 511);
+				string_to_lowercase(base_cmd); // "base Problem ..." as "base problem ..." (the file names are kept as typed)
 				base_param = parse_word(base_param, base_file, FILENAME_MAX);
 
 				// extract problem from a game base
@@ -913,9 +1157,10 @@ void ui_loop_edax(UI *ui)
 					int n_empties = 24;
 					base_param = parse_int(base_param, &n_empties);
 
-					base_load(&base, base_file);
-					base_analyze(&base, &play->search, n_empties, true);
-					base_save(&base, base_file, false);
+					if (base_load(&base, base_file)) { // a file which was not loaded (or not completely) is kept as it is
+						base_analyze(&base, &play->search, n_empties, true);
+						base_replace(&base, base_file); // (the file is replaced once the games are saved to another file)
+					}
 
 				// check erroneous games
 				} else if (strcmp(base_cmd, "check") == 0) {
@@ -927,10 +1172,11 @@ void ui_loop_edax(UI *ui)
 
 				// terminate unfinished base
 				} else if (strcmp(base_cmd, "complete") == 0) {
-					base_load(&base, base_file);
-					base_param = parse_word(base_param, base_file, FILENAME_MAX);
-					base_complete(&base, &play->search, options.level);
-					base_save(&base, base_file, false);
+					if (base_load(&base, base_file)) { // a file which was not loaded (or not completely) is kept as it is
+						base_param = parse_word(base_param, base_file, FILENAME_MAX);
+						base_complete(&base, &play->search, options.level);
+						base_save(&base, base_file, false);
+					}
 
 				// convert a base to another format
 				} else if (strcmp(base_cmd, "convert") == 0) {
@@ -962,6 +1208,7 @@ void ui_loop_edax(UI *ui)
 				}
 
 				base_free(&base);
+				play_no_stop(play, false);
 
 			/* edax options */
 			} else if (options_read(cmd, param)) {
@@ -970,6 +1217,12 @@ void ui_loop_edax(UI *ui)
 				if (search_count_tasks(&play->search) != options.n_task) {
 					play_stop_pondering(play);
 					search_set_task_number(&play->search, options.n_task);
+				}
+				// hash table size changes (as the "memory" command of XBoard does; before, the setting changed
+				// and the tables of the search kept the size they had at the start):
+				if (play->search.options.hash_size != options.hash_table_size) {
+					play_stop_pondering(play);
+					search_resize_hashtable(&play->search);
 				}
 
 			/* switch to another protocol */
@@ -1023,7 +1276,9 @@ void ui_loop_edax(UI *ui)
 #endif
 			/* illegal cmd/move */
 			} else {
-				warn("Unknown command/Illegal move: \"%s %s\"\n", cmd, param);
+				char *hint = book_command_hint(cmd, param);
+				warn("Unknown command/Illegal move: \"%s %s\"%s\n", cmd, param, hint ? hint : "");
+				free(hint);
 			}
 		}
 	}

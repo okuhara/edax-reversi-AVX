@@ -70,6 +70,7 @@ void eval_set(Eval*, const struct Board*);
 void eval_restore(Eval*, const struct Move*);
 void eval_pass(Eval*);
 double eval_sigma(const int, const int, const int);
+double probcut_sigma(const int, const int, const int);
 
 #if defined(hasSSE2) || defined(__ARM_NEON) || defined(USE_MSVC_X86) || defined(ANDROID)
 void eval_update_sse(int, unsigned long long, Eval *, const Eval *);
