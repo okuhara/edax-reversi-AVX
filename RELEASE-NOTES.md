@@ -46,7 +46,7 @@ The exact endgame search is faster.
 
 **Speed**
 
-- At 5 and 6 empty squares, a quadrant's only empty square is played first, and a small thread-local transposition table (2^14 entries) is probed. The ideas come from KUROOBI (MIT).
+- At 5 and 6 empty squares, a quadrant's only empty square is played first, and a small thread-local transposition table (2^14 entries) is probed.
 - With one thread, exact solves of fforum-40-59 take 97.8% of the time (431.4 s to 421.7 s), and fforum-20-39 searches 89.1% of the positions. Every score and best move is the same as in the previous release.
 - The midgame search is unchanged: positions that are not solved search the same number of positions as before.
 
