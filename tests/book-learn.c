@@ -1008,6 +1008,58 @@ static void test_exhaust(void)
 	book_free(&seed);
 }
 
+/* pgn: the games with a pass, of black and of white, then a game after each */
+static void test_pgn(void)
+{
+	Base want, got;
+	int tries, n[2] = {0, 0}, i;
+
+	base_init(&want);
+	for (tries = 0; tries < 100000 && (n[0] < 20 || n[1] < 20); ++tries) {
+		Board b;
+		Game g;
+		int ply = 0, side = 0, passed = -1;
+
+		game_init(&g);
+		board_init(&g.initial_board);
+		b = g.initial_board;
+		while (ply < 60) {
+			unsigned long long m = board_get_moves(&b);
+			int k, x;
+
+			if (!m) {
+				if (!can_move(b.opponent, b.player)) break;
+				if (passed < 0) passed = side;
+				board_pass(&b);
+				side ^= 1;
+				m = board_get_moves(&b);
+			}
+			for (k = rr() % bit_count(m); k--; ) m &= m - 1;
+			x = first_bit(m);
+			g.move[ply++] = (char) x;
+			board_next(&b, x, &b);
+			side ^= 1;
+		}
+		if (passed < 0 || n[passed] >= 20) continue;
+		++n[passed];
+		base_append(&want, &g);
+	}
+	CHECK(n[0] == 20 && n[1] == 20, "pgn: no games with a pass of each side");
+	remove("pass.pgn");
+	CHECK(base_save(&want, "pass.pgn"), "pgn: not written");
+	base_init(&got);
+	base_load(&got, "pass.pgn");
+	CHECK(got.n_games == want.n_games, "pgn: %d games of %d", got.n_games, want.n_games);
+	for (i = 0; i < got.n_games && i < want.n_games; ++i) {
+		if (memcmp(got.game[i].move, want.game[i].move, sizeof got.game[i].move)) {
+			CHECK(false, "pgn: the game %d differs", i);
+			break;
+		}
+	}
+	base_free(&got);
+	base_free(&want);
+}
+
 int main(int argc, char **argv)
 {
 	const char *t = argc > 1 ? argv[1] : "all";
@@ -1023,6 +1075,7 @@ int main(int argc, char **argv)
 	if (all || !strcmp(t, "playto")) test_play_to();
 	if (all || !strcmp(t, "reached")) test_reached();
 	if (all || !strcmp(t, "exhaust")) test_exhaust();
+	if (all || !strcmp(t, "pgn")) test_pgn();
 	if (all || !strcmp(t, "dangling")) test_dangling();
 	printf("book-learn: %d checks, %d failures\n", n_check, n_fail);
 	return (n_check && !n_fail) ? 0 : 1;

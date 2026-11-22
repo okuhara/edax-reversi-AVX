@@ -1106,6 +1106,13 @@ bool game_import_pgn_checked(Game *game, FILE *f)
 	i = j = k = 0;
 	while(state != STATE_END_GAME) {
 		c = getc(f);
+		if (state == STATE_BEGIN_MOVE && (c == EOF || c == '{' || c == '*' || isspace(c))) {
+			// a word without a square that is a pass, as game_export_pgn() writes it: no move of a game (the passes
+			// are implied). Up to v4.5.5-nikque.32 it was read with the number after it as one move: the rest of
+			// the game was lost, and often the game after it.
+			move[k] = '\0';
+			if (string_to_coordinate(move) == PASS) state = STATE_END_MOVE;
+		}
 		if  (c == EOF) {
 			state = STATE_END_GAME;
 		}  else  if  (c == '{') { // skip comments
