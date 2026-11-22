@@ -4,6 +4,22 @@ Tests and measurements done for each version, moved without changes from the for
 
 For what changed, see the [release notes](../../RELEASE-NOTES.md). "Above" and "below" in the text refer to positions in the former document.
 
+## v4.5.5-nikque.33-pre1
+
+- The tests of regressions (51/51), libedax (290 checks), book analysis (11/11), resuming, and book and base (557 checks) passed with no failure.
+- The test that stops `book learn` at each write and resumes it passed with no failure.
+- With the default settings, the number of positions searched on 20 midgame positions (level 14) was that of the previous version (7,668,847).
+- The exact solves of fforum-20-39 had no wrong move or score (93,711,935 positions searched).
+- The new search settings were run one by one and all together: no wrong exact solve and no abnormal end.
+- `stop`, and `?` of XBoard, sent just before a search began were never lost in 90 runs each. A `ping` just after `go` in NBoard was never lost in 60 runs.
+- `book deviate`, `deviate2` and `book enhance` made the same books with one and four threads and `book-reproducible on`.
+- The midgame speedup was 0.896 of the CPU time (AMD Ryzen 9 9950X, AVX-512 build, one thread, level 21, median of 8 runs). In 27 runs of 1,050 positions, depths, scores, best moves, positions searched and lines were unchanged.
+- Loading a book of 80,068 positions 80 times took 0.936 of the CPU time for a book saved in order and 0.629 for one that is not (median of 10 runs). The books saved again were byte for byte the same.
+
+Not checked: playing strength, 32 threads, large production books, Android devices, running the Linux and macOS builds, and use from a GUI.
+
+---
+
 ## v4.5.5-nikque.32
 
 - Exact solves with one thread (`-n 1 -l 60 -solve`) were timed alternately with nikque.31 (AMD Ryzen 9 9950X, one logical CPU while other work used every CPU). fforum-40-59: nikque.31 took 432.7, 432.8, 428.7 and 431.4 s (431.4 s on average, 24.52 billion positions searched), nikque.32 took 422.7, 425.6, 416.8 and 421.9 s (421.7 s, 22.11 billion), 0.978 times. fforum-20-39 searched 93,713,436 positions instead of 105,199,471. Both had zero move and score errors.

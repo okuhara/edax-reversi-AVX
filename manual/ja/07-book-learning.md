@@ -481,7 +481,7 @@ Book play...1/153 done: 1 positions, 1 links
 | 設定 | 配布版の値 | 意味 |
 |---|---|---|
 | `book-save-interval` | 360（分） | 展開の途中で、この時間ごとに保存する。`0` は、時間では保存しない |
-| `book-deviate-save-rounds` | 1 | `book deviate` 系列で、局面や Link が増えた周を、この数だけ終えるごとに保存する。`0` は、コマンドが終わったときだけ |
+| `book-deviate-save-rounds` | 1 | `book deviate` 系列で、局面や Link が増えた周を、この数だけ終えるごとに保存する。`0` は、コマンドが終わったときだけ。`book enhance` も従う（v4.5.5-nikque.33 から） |
 
 - 保存先は、`<book のファイル名>.dev2` など（[6.6](06-book-basics.md)の表）です。`book.dat` そのものは、コマンドの途中では書き換えられません。
 - 大きな book では、1 回の保存に時間とディスクの空きが要ります（[9 章](09-large-books.md)）。

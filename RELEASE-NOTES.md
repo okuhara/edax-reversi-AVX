@@ -14,6 +14,7 @@ Each eval2 and Heath (formerly newedax) version contains all changes of the nikq
 
 | nikque | eval2 | Heath (newedax) |
 |---|---|---|
+| nikque.33-pre1 | eval2.20-pre1 | heath.20-pre1 |
 | nikque.32 | — | heath.19 |
 | nikque.31 | eval2.19 | heath.18 |
 | nikque.30 | eval2.18 | heath.17 |
@@ -39,6 +40,91 @@ Each eval2 and Heath (formerly newedax) version contains all changes of the nikq
 ---
 
 # nikque line
+
+## v4.5.5-nikque.33-pre1
+
+A pre-release with the book and base functions of Edax 4.7, new search settings and fixes.
+
+**Changes**
+
+| Command | Description |
+|---|---|
+| `book play n` | Extends the ends of the lines from the current position down to n empty squares. It can be resumed |
+| `book extend` | Expands, from the current position, the Leaves that are no worse than any Link |
+| `book exhaust` | Adds every move from the current position down to the book depth |
+| `book extract all`, `book extract draw` | Writes all lines, or the best lines, to a game file |
+| `base append` | Appends games to another file |
+
+- `book play` expands several positions at the same time as set by `book-expand-tasks`, and saves at each `book-save-interval`.
+- `base complete` completes several games at the same time as set by `book-store-tasks`, and can be resumed.
+- Five corresponding functions were added to libedax.
+- `symetry` can also be spelled `symmetry`.
+
+- The midgame search of the AVX-512 builds is faster: 0.90 of the CPU time in a test at level 21 with one thread. Memory use grows by about 28 MB.
+- Books load faster: 0.94 of the CPU time in a test with a book saved in order, 0.63 with one that is not.
+- Sorting in the book and base functions is faster. The results are unchanged.
+
+The following search settings are new. All of them are off by default. Their playing strength has not been checked.
+
+| Setting | Description |
+|---|---|
+| `-lazy n` | n idle threads search the root position ahead |
+| `-sort-eval-shift a,b,c`, `-sort-min-depth n` | Move ordering |
+| `-lmr 1`, `2` | Searches late moves less deeply |
+| `-corr on` | Corrects the static evaluation used by the ProbCut test |
+| `-pc-r`, `-pc-end`, `-pc-dev`, `-pc-mob`, `-pc-gate` | ProbCut margins and test |
+| `-time-model 1`, `-time-ext 1`, `-time-sep n`, `-time-close 1` | Use of time in games with a clock |
+| `-split-probe off` | Does not split the search inside a ProbCut probe |
+
+**Fixes**
+
+- In a timed search with several threads, the whole search could stop just after its time had been extended. Split searches now use the extended time.
+- Reading a `.pgn` with a pass (`pass`) could lose the rest of that game and the next game. Passes are now read.
+- `stop`, and `?` of XBoard, could be lost when they arrived just before a search began. They now stop it.
+- Starting a new game while pondering waited for the pondering to end. The pondering is now stopped first.
+- `book learn` could fail to continue after a stop around a save to `.store` (since v4.5.5-nikque.29, eval2.17 and heath.16). It can now continue wherever it stops. A `.learn` written by the previous versions can still be used.
+- In NBoard, a `ping` just after `go` did not stop the search. It now stops it and the move is sent.
+- Loading a book that was not saved in order could take up to about twice the memory of its positions. It now takes the same as a book saved in order.
+- Failing to allocate memory while reading `eval.dat` ended the program without a message. It now ends with an error.
+- No warning was given for the `eval.dat` of eval2. A warning is now shown.
+- `base convert` and `base unique` now write nothing in these cases.
+  - The games of the input or of the output file cannot be read to their end.
+  - The input and the output are the same file.
+- Game files are written to another file that then replaces the original, which remains if writing stops.
+- Undefined bytes were written after the names in `WTHOR.JOU`. They are now zeros.
+- `book extract` reports a failed write and keeps the original file.
+- `book play` always searched one position at a time whatever the setting, and searched some positions more than once. Both are fixed.
+- `book deviate`, `deviate2`, `deviate3`, `book enhance` and `book leaf expand` searched some positions more than once. Each is now searched once.
+- `book enhance` followed the book with one thread and saved at every round whatever the setting. It now uses `n-tasks` threads and saves as set by `book-deviate-save-rounds`.
+- `book extract` wrote the rest of a line again at each join. A line now ends where it joins another.
+- A book with a damaged board (two discs on one square, or fewer than four discs) could be loaded. It is now refused.
+- On Windows, `WTHOR.JOU` was not put in the folder of a game file given with a `\` separator. It now is.
+
+**Compatibility**
+
+- The previous release's `eval.dat` and books remain compatible. The book file format is unchanged.
+- With the default settings, searches with a given level or depth give the same scores and best moves as the previous version.
+- Timed searches with several threads can give different results because of the fix.
+- `book play` and `base complete` can give results different from the previous version when they run in parallel.
+- Books made by the `book deviate` family, `book enhance` and `book leaf expand` can differ slightly from the previous version, as the repeated searches are gone.
+- The lines written by `book extract` end where they join, so they can be shorter and fewer than before.
+- `book play` can give other values to positions that cannot be reached from the initial position.
+- `book play` no longer saves at every round. An interrupted run can lose up to `book-save-interval` (60 minutes by default).
+- Saving games needs free space for two copies of the file.
+- `book play n` creates a `.play-to` file and `base complete` a file with `.completing` for their progress. Do not delete them before resuming.
+- `book play` without a number, `book extract`, `base convert` and `base unique` keep their previous meaning, which differs from Edax 4.7.
+
+**Notes**
+
+- This is a pre-release for testing. Setting names and defaults may change before the final version.
+- Keep a copy of important books before use.
+- To continue `book learn`, load `.store` with `book load` first. Without this, `.learn` is overwritten and it may no longer be possible to continue from that `.store`.
+
+**Not checked**: playing strength, 32 threads, large production books, Android devices, running the Linux and macOS builds, and use from a GUI.
+
+[Tests and measurements](docs/validation/nikque.en.md#v455-nikque33-pre1)
+
+---
 
 ## v4.5.5-nikque.32
 

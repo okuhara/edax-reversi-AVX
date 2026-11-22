@@ -440,7 +440,7 @@ The automatic expansion commands run for a long time. **If they stop (power fail
 | Setting | Value in the package | Meaning |
 |---|---|---|
 | `book-save-interval` | 360 (minutes) | During the expansions, save each time this much time has passed. `0`: no save by time |
-| `book-deviate-save-rounds` | 1 | For the `book deviate` family: save each time this many rounds that added positions or links have ended. `0`: only when the command ends |
+| `book-deviate-save-rounds` | 1 | For the `book deviate` family: save each time this many rounds that added positions or links have ended. `0`: only when the command ends. `book enhance` follows it too (since v4.5.5-nikque.33) |
 
 - The save goes to `<book file name>.dev2` and so on (table in [6.6](06-book-basics.md)). `book.dat` itself is not rewritten while a command runs.
 - With a large book, each save takes time and free disk space ([chapter 9](09-large-books.md)).
