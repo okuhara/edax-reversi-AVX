@@ -195,6 +195,7 @@ static long long book_test_serial = 0;    /* rounds of 2 positions or more expan
 static long long book_test_parallel = 0;  /* rounds expanded by several searches at the same time */
 static long long book_test_save_ms = -1;  /* time between two timed saves, in milliseconds (-1: book-save-interval) */
 static long long book_test_wide_walks = 0, book_test_wide_threaded = 0; /* levels of 4096 boards or more walked, and by several threads */
+static void (*book_test_saved)(const char *file) = NULL; /* called after the timed saves of the commands that learn by rounds */
 #define book_test_add(counter) (++(counter))
 #else
 #define book_test_add(counter) ((void) 0)
@@ -8850,6 +8851,27 @@ static void learn_keys_sort(unsigned long long *key, const long long n)
 	qsort(key, (size_t) n, sizeof *key, todo_item_cmp);
 }
 
+/*
+ * book play <n> can go beyond the depth of the book, where the next run could not find the ends of its lines
+ * (it only starts from positions within this depth). With each save of the book, the ends are saved to
+ * <book-file>.play-to, as book learn saves its progress to <book-file>.learn: the ends at this save and at
+ * the save before (the book of the file is then found by one or the other, wherever a run stops). The file
+ * is written before the book. It is read by the same command from the same position (a board that is not in
+ * the book in use, or that has a link, is left out), and removed when the command ends.
+ */
+
+/** the state of book play <n> */
+typedef struct PlayTo {
+	Board start;               /**< position to start from (unique board) */
+	int n_empties;             /**< positions with as many empty squares or more are expanded */
+	const unsigned long long *keys; /**< the positions of the round (NULL: between two rounds) */
+	long long n_keys;
+	Board *saved;              /**< the ends at the last save */
+	long long n_saved;
+	bool owned;                /**< the file is of this command */
+	char file[FILENAME_MAX + 1];
+} PlayTo;
+
 /** one command that learns by rounds */
 typedef struct LearnRun {
 	Book *book;
@@ -8860,7 +8882,100 @@ typedef struct LearnRun {
 	long long n_diffs;         /**< positions and links added by the last round */
 	long long n_total;         /**< positions and links added by the command */
 	unsigned long long t;      /**< time of the last save */
+	PlayTo *to;                /**< book play <n> (NULL: another command) */
 } LearnRun;
+
+/**
+ * @brief Write the ends of the lines of book play <n>.
+ *
+ * @param run Command.
+ * @param current The ends now (out: to free), NULL if the memory is exhausted.
+ * @param n_current Their number (out).
+ * @return true if the file was written.
+ */
+static bool play_to_write(LearnRun *run, Board **current, long long *n_current)
+{
+	PlayTo *to = run->to;
+	const Book *book = run->book;
+	Board *now = (Board*) malloc((size_t) (to->n_keys + run->n_child + 1) * sizeof *now);
+	char tmp_file[FILENAME_MAX + 1];
+	long long i, n = 0;
+	FILE *f;
+	bool ok = false;
+
+	*current = now;
+	*n_current = 0;
+	if (now) {
+		for (i = 0; i < to->n_keys; ++i) now[n++] = book_position(book, to->keys[i])->board;
+		for (i = 0; i < run->n_child; ++i) {
+			if (i == 0 || !board_equal(&run->child[i - 1].board, &run->child[i].board)) now[n++] = run->child[i].board;
+		}
+		*n_current = n;
+		file_add_ext(to->file, ".tmp", tmp_file);
+		if ((f = fopen(tmp_file, "w")) != NULL) {
+			fprintf(f, "edax-play-to 1 %d %016llx %016llx\n", to->n_empties, to->start.player, to->start.opponent);
+			for (i = 0; i < to->n_saved; ++i) fprintf(f, "%016llx %016llx\n", to->saved[i].player, to->saved[i].opponent);
+			for (i = 0; i < n; ++i) fprintf(f, "%016llx %016llx\n", now[i].player, now[i].opponent);
+			fprintf(f, "end %lld\n", to->n_saved + n);
+			ok = !ferror(f);
+			if (fclose(f) != 0) ok = false;
+			if (ok) ok = file_replace(tmp_file, to->file);
+			if (!ok) remove(tmp_file);
+		}
+	}
+	if (ok) to->owned = true;
+	else warn("cannot write %s: book play %d could not go on from a book saved now\n", to->file, to->n_empties);
+	return ok;
+}
+
+/**
+ * @brief Read the ends of the lines of a book play <n> that did not end.
+ *
+ * @param to State of the command (out: the ends, as if they were saved by it).
+ */
+static void play_to_read(PlayTo *to)
+{
+	FILE *f = fopen(to->file, "r");
+	char line[128];
+	Board start, board;
+	long long size = 0, count;
+	int n_empties;
+	bool complete = false;
+
+	if (f == NULL) return;
+	if (fgets(line, sizeof line, f) == NULL
+	 || sscanf(line, "edax-play-to 1 %d %llx %llx", &n_empties, &start.player, &start.opponent) != 3) {
+		warn("%s is not a file of book play <n>: it is not used\n", to->file);
+	} else if (n_empties != to->n_empties || !board_equal(&start, &to->start)) {
+		warn("%s is of book play %d from another position or to other empty squares: it is not used, and replaced by the next save\n", to->file, n_empties);
+	} else {
+		while (fgets(line, sizeof line, f) != NULL) {
+			if (sscanf(line, "end %lld", &count) == 1) {
+				complete = (count == to->n_saved);
+				break;
+			}
+			if (sscanf(line, "%llx %llx", &board.player, &board.opponent) != 2 || (board.player & board.opponent)) break;
+			if (to->n_saved == size) {
+				Board *p;
+
+				size += size / 2 + 1024;
+				p = (Board*) realloc(to->saved, (size_t) size * sizeof *p);
+				if (p == NULL) break;
+				to->saved = p;
+			}
+			board_unique(&board, to->saved + to->n_saved);
+			++to->n_saved;
+		}
+		if (complete) {
+			to->owned = true;
+			bprint("Book play: going on from the %lld boards of %s\n", to->n_saved, to->file);
+		} else {
+			warn("%s could not be read completely: it is not used\n", to->file);
+			to->n_saved = 0;
+		}
+	}
+	fclose(f);
+}
 
 /**
  * @brief Save the book when the interval of the timed saves is over since the last save of the command.
@@ -8870,7 +8985,31 @@ typedef struct LearnRun {
 static void learn_save_timed(LearnRun *run)
 {
 	if (book_save_interval_elapsed((long long) run->t)) {
-		book_save_progress(run->book, run->file);
+		PlayTo *to = run->to;
+		Board *now = NULL;
+		long long n_now = 0;
+		const bool written = (to != NULL && play_to_write(run, &now, &n_now));
+		const bool saved = book_save_progress(run->book, run->file);
+
+		if (now) {
+			if (written && saved) { // the book of the file has these ends
+				free(to->saved);
+				to->saved = now;
+				to->n_saved = n_now;
+			} else { // it has those of this save or of one before: all are kept
+				Board *all = (Board*) realloc(to->saved, (size_t) (to->n_saved + n_now + 1) * sizeof *all);
+
+				if (all) {
+					memcpy(all + to->n_saved, now, (size_t) n_now * sizeof *all);
+					to->saved = all;
+					to->n_saved += n_now;
+				}
+				free(now);
+			}
+		}
+#ifdef BOOK_TEST_COUNTS
+		if (book_test_saved) book_test_saved(run->file);
+#endif
 		run->t = real_clock();
 	}
 }
@@ -8884,6 +9023,7 @@ static void learn_begin(LearnRun *run, Book *book, const char *name, const char 
 	run->child = NULL;
 	run->n_child = run->n_diffs = run->n_total = 0;
 	run->t = real_clock();
+	run->to = NULL;
 }
 
 /** @brief End a command that learns by rounds. */
@@ -9225,6 +9365,101 @@ void book_extend(Book *book, const Board *board)
 	}
 	if (run.n_total) book_save_progress(book, file);
 	bprint("Book extend... finished\n");
+	learn_end(&run);
+}
+
+/**
+ * @brief Play to a number of empty squares.
+ *
+ * book play <n> (as book play of Edax 4.7): from a position, the positions without link within the depth of the
+ * book that links reach, then the lines from their leaves, one move after the other, while the position to
+ * expand has n empty squares or more (the last position added has n - 1). A line that reaches a position of the
+ * book that has a link ends there; one that reaches a position without link goes on from it. Every line gets
+ * one move by round: they are searched at the same time.
+ *
+ * @param book opening book.
+ * @param board Position to start from.
+ * @param n_empties The positions with fewer empty squares are not expanded.
+ */
+void book_play_to(Book *book, const Board *board, const int n_empties)
+{
+	const Board start = *board;
+	LearnRun run;
+	PlayTo to;
+	unsigned long long *keys;
+	long long n, i;
+	bool saved = true;
+	char file[FILENAME_MAX + 1];
+
+	if (book_probe(book, &start) == NULL) {
+		warn("book play %d: the current position is not in the book\n", n_empties);
+		return;
+	}
+	if (n_empties < book->options.n_empties) {
+		bprint("Book play %d: beyond the depth of the book (book prune removes these positions)\n", n_empties);
+	}
+	file_add_ext(options.book_file, ".play", file);
+	memset(&to, 0, sizeof to);
+	board_unique(&start, &to.start);
+	to.n_empties = n_empties;
+	file_add_ext(options.book_file, ".play-to", to.file);
+	play_to_read(&to);
+
+	learn_begin(&run, book, "Book play", file);
+	run.to = &to;
+	keys = learn_walk(book, &start, LEARN_NO_LINK, MAX(book->options.n_empties, n_empties), &n);
+	if (keys && to.n_saved) { // and the ends of the run that did not end
+		unsigned long long *all = (unsigned long long*) realloc(keys, (size_t) (n + to.n_saved + 1) * sizeof *all);
+
+		if (all) {
+			long long m;
+
+			keys = all;
+			for (i = 0; i < to.n_saved; ++i) {
+				const Position *p = book_probe(book, to.saved + i);
+
+				if (p && p->n_link == 0 && p->leaf.move != NOMOVE && board_count_empties(&p->board) >= n_empties && !board_is_game_over(&p->board)) {
+					keys[n++] = position_key(book, p);
+				}
+			}
+			learn_keys_sort(keys, n);
+			for (i = m = 0; i < n; ++i) if (m == 0 || keys[m - 1] != keys[i]) keys[m++] = keys[i];
+			n = m;
+		} else {
+			free(keys);
+			keys = NULL;
+		}
+	}
+	for (;;) {
+		if (keys == NULL) {
+			learn_no_memory(book);
+			break;
+		}
+		bprint("Book play %d...%lld todo\n", n_empties, n);
+		if (n == 0) break;
+		free(run.child); // (the children of the round before are the positions of this one)
+		run.child = NULL;
+		run.n_child = 0;
+		to.keys = keys;
+		to.n_keys = n;
+		learn_round(&run, keys, n);
+		to.keys = NULL;
+		to.n_keys = 0;
+		free(keys);
+		keys = NULL;
+		if (!run.n_diffs || book->failed) break; // stop if a position cannot be added
+		if (book_save_interval_elapsed((long long) run.t)) {
+			book_negamax_from(book, &start);
+			learn_save_timed(&run);
+		}
+		keys = learn_next(&run, n_empties, &n);
+	}
+	free(keys);
+	book_negamax_from(book, &start);
+	if (run.n_total) saved = book_save_progress(book, file);
+	if (saved && !book->failed && to.owned) remove(to.file);
+	free(to.saved);
+	bprint("Book play %d... finished\n", n_empties);
 	learn_end(&run);
 }
 

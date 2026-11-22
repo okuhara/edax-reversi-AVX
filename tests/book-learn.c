@@ -268,11 +268,58 @@ static void ref_extend(Book *b, const Board *start)
 	book_negamax_from(b, start);
 }
 
+typedef struct PlayToArg {
+	Board start;
+	int n_empties;
+} PlayToArg;
+
+static void ref_play_to(Book *b, const PlayToArg *arg)
+{
+	const int limit = MAX(b->options.n_empties, arg->n_empties);
+	unsigned long long *keys = (unsigned long long*) malloc((b->n_nodes + 1) * sizeof *keys);
+	PositionArray *a;
+	Position *p;
+	long long n = 0, i, j;
+
+	book_clean(b);
+	ref_reach(b, &arg->start, limit);
+	foreach_position(p, a, b) if (position_is_done(p, b) && linkless(b, p, limit) && p->leaf.move != NOMOVE) keys[n++] = position_key(b, p);
+	while (n) {
+		Board *child = (Board*) malloc((size_t) n * sizeof *child);
+		long long m = 0;
+
+		for (i = 0; i < n; ++i) {
+			Board next = position_leaf_board(book_position(b, keys[i]));
+
+			board_unique(&next, child + i);
+		}
+		if (!ref_round(b, keys, n, NULL)) { free(child); break; }
+		for (i = 0; i < n; ++i) {
+			const Position *q = book_probe(b, child + i);
+			unsigned long long key;
+
+			if (q == NULL || q->n_link || q->leaf.move == NOMOVE) continue;
+			if (board_count_empties(child + i) < arg->n_empties || board_is_game_over(child + i)) continue;
+			key = position_key(b, q);
+			for (j = m; j > 0 && keys[j - 1] > key; --j) ;
+			if (j > 0 && keys[j - 1] == key) continue;
+			memmove(keys + j + 1, keys + j, (size_t) (m - j) * sizeof *keys);
+			keys[j] = key;
+			++m;
+		}
+		free(child);
+		n = m;
+	}
+	free(keys);
+	book_negamax_from(b, &arg->start);
+}
+
 /* ---- the cases ---- */
 
 typedef void (*Command)(Book*, const void*);
 
 static void run_play(Book *b, const void *arg) { (void) arg; book_play(b); }
+static void run_play_to(Book *b, const void *arg) { const PlayToArg *a = (const PlayToArg*) arg; book_play_to(b, &a->start, a->n_empties); }
 static void run_extend(Book *b, const void *arg) { book_extend(b, (const Board*) arg); }
 
 /* the board after the first moves */
@@ -535,6 +582,174 @@ static void test_dangling(void)
 	book_free(&b);
 }
 
+static bool copy_file(const char *from, const char *to)
+{
+	FILE *in = fopen(from, "rb"), *out;
+	int c;
+
+	if (in == NULL) return false;
+	if ((out = fopen(to, "wb")) == NULL) { fclose(in); return false; }
+	while ((c = fgetc(in)) != EOF) fputc(c, out);
+	fclose(in);
+	return fclose(out) == 0;
+}
+
+/* what is left on the disk when a run is stopped just after a timed save */
+static int n_snapshot = 0;
+static void take_snapshot(const char *file)
+{
+	char name[128];
+
+	if (n_snapshot >= 400) return;
+	sprintf(name, "snap-%d.play", n_snapshot);
+	if (!copy_file(file, name)) return;
+	sprintf(name, "snap-%d.play-to", n_snapshot);
+	if (!copy_file("learn-test.dat.play-to", name)) return;
+	++n_snapshot;
+}
+
+/* T8: from every save of a run, a new run ends with the positions of the run that was not stopped */
+static void test_resume(const Book *seed, const Book *ref, const PlayToArg *arg)
+{
+	Book b;
+	int k, n_same = 0, n_run = 0;
+
+	book_copy(&b, seed);
+	set_threads(4);
+	n_snapshot = 0;
+	remove("learn-test.dat.play-to");
+	book_test_save_ms = 0;
+	book_test_saved = take_snapshot;
+	book_play_to(&b, &arg->start, arg->n_empties);
+	book_test_save_ms = -1;
+	book_test_saved = NULL;
+	CHECK(book_differences(&b, ref, "book play <n> with timed saves") == 0, "book play <n>: the timed saves changed the book");
+	book_free(&b);
+	CHECK(n_snapshot > 2, "book play <n>: %d snapshots", n_snapshot);
+	{
+		FILE *f = fopen("learn-test.dat.play-to", "r");
+
+		CHECK(f == NULL, "book play <n>: the file of the ends is left");
+		if (f) fclose(f);
+	}
+
+	for (k = 0; k < n_snapshot; k += MAX(1, n_snapshot / 12)) {
+		char name[128];
+		PositionArray *a;
+		Position *p;
+		const Book *bp = &b;
+		int left = 0, missing = 0;
+
+		sprintf(name, "snap-%d.play-to", k);
+		if (!copy_file(name, "learn-test.dat.play-to")) continue;
+		sprintf(name, "snap-%d.play", k);
+		memset(&b, 0, sizeof b);
+		b.search = &main_search;
+		if (!book_load(&b, name)) { CHECK(false, "cannot load %s", name); continue; }
+		book_play_to(&b, &arg->start, arg->n_empties);
+		++n_run;
+		foreach_position(p, a, bp) {
+			const Position *r = book_probe(ref, &p->board);
+
+			if (r == NULL) ++missing;
+			else if (r->n_link > 0 && p->n_link == 0) ++left;
+		}
+		if (b.n_nodes == ref->n_nodes && missing == 0) ++n_same;
+		CHECK(left == 0, "book play <n> from the save %d: %d lines were not played on", k, left);
+		CHECK(b.n_nodes == ref->n_nodes && missing == 0, "book play <n> from the save %d: %u positions (%d others), the run that was not stopped %u", k, b.n_nodes, missing, ref->n_nodes);
+		book_free(&b);
+	}
+	remove("learn-test.dat.play-to");
+	printf("book play <n> stopped at %d saves: %d of the %d new runs end with the same positions\n", n_snapshot, n_same, n_run);
+}
+
+static void test_play_to(void)
+{
+	static const int shapes[][5] = {{2, 56, 53, 44, 0}, {2, 54, 54, 46, 1}, {1, 55, 52, 55, 0}};
+	int k;
+
+	for (k = 0; k < 3; ++k) {
+		PlayToArg arg;
+		Book seed, ref;
+		const Book *rp = &ref;
+		PositionArray *a;
+		Position *p;
+		long long searches;
+		int deepest = 64;
+
+		arg.start = start_board(shapes[k][4]);
+		arg.n_empties = shapes[k][3];
+		seed_book(&seed, shapes[k][0], shapes[k][1], shapes[k][2]);
+		book_copy(&ref, &seed);
+		book_test_searches = 0;
+		ref_play_to(&ref, &arg);
+		searches = book_test_searches;
+		foreach_position(p, a, rp) if (book_probe(&seed, &p->board) == NULL) deepest = MIN(deepest, board_count_empties(&p->board));
+		CHECK(ref.n_nodes > seed.n_nodes, "book play <n> %d: nothing was added", k);
+		if (arg.n_empties < seed.options.n_empties) CHECK(deepest == arg.n_empties - 1, "book play %d: the last position has %d empty squares", arg.n_empties, deepest);
+		else CHECK(deepest >= arg.n_empties - 1, "book play %d: a position has %d empty squares", arg.n_empties, deepest);
+		printf("book play %d: %u -> %u positions, %lld searches, the last has %d empty squares\n", arg.n_empties, seed.n_nodes, ref.n_nodes, searches, deepest);
+		remove("learn-test.dat.play-to");
+		against_reference(&seed, &ref, searches, run_play_to, &arg, "book play <n>");
+		if (k == 0) test_resume(&seed, &ref, &arg);
+		book_free(&ref);
+		book_free(&seed);
+	}
+}
+
+/* T2: a line that reaches a position of the book goes on if it has no link, and ends if it has one */
+static void test_reached(void)
+{
+	int linked, tries;
+
+	for (linked = 0; linked < 2; ++linked) {
+		Board head, child, grand, next;
+		unsigned long long m;
+		Book b;
+		Position p, *q;
+		int x = 0;
+
+		for (tries = 0; tries < 1000; ++tries) {
+			next = random_board(20);
+			board_unique(&next, &head);
+			if ((m = board_get_moves(&head)) == 0) continue;
+			x = first_bit(m);
+			board_next(&head, x, &next);
+			board_unique(&next, &child);
+			if (bit_count(board_get_moves(&child)) < 2) continue;
+			board_next(&child, first_bit(board_get_moves(&child)), &next);
+			board_unique(&next, &grand);
+			if (board_get_moves(&grand)) break;
+		}
+		book_bare(&b, 2, 20);
+		if (linked) {
+			position_init(&p); p.board = grand; p.level = 2;
+			position_search(&p, &b);
+			book_add(&b, &p);
+		}
+		position_init(&p); p.board = child; p.level = 2;
+		position_link(&p, &b);
+		position_search(&p, &b);
+		book_add(&b, &p);
+		add_position(&b, &head, x);
+		{
+			const unsigned int before = b.n_nodes;
+			const int n_link = book_probe(&b, &child)->n_link;
+			const int leaf = book_probe(&b, &child)->leaf.move;
+
+			book_play_to(&b, &head, 18);
+			q = book_probe(&b, &child);
+			CHECK(book_probe(&b, &head)->n_link > 0, "reached (linked=%d): the head is not linked", linked);
+			if (linked) {
+				CHECK(b.n_nodes == before && q->n_link == n_link && q->leaf.move == leaf, "reached: a position with a link was played on");
+			} else {
+				CHECK(b.n_nodes > before && q->n_link > 0, "reached: a position without link was not played on");
+			}
+		}
+		book_free(&b);
+	}
+}
+
 int main(int argc, char **argv)
 {
 	const char *t = argc > 1 ? argv[1] : "all";
@@ -547,6 +762,8 @@ int main(int argc, char **argv)
 	if (all || !strcmp(t, "play")) test_play();
 	if (all || !strcmp(t, "shared")) test_shared();
 	if (all || !strcmp(t, "extend")) test_extend();
+	if (all || !strcmp(t, "playto")) test_play_to();
+	if (all || !strcmp(t, "reached")) test_reached();
 	if (all || !strcmp(t, "dangling")) test_dangling();
 	printf("book-learn: %d checks, %d failures\n", n_check, n_fail);
 	return (n_check && !n_fail) ? 0 : 1;

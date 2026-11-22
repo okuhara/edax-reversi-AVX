@@ -249,6 +249,7 @@ void help_book(void)
 		"  enhance <n1> <n2>   add positions by improving score accuracy with a midgame\n  error <n1> and an endcut error <n2>.\n"
 		"  fill [n] [n1 n2]    add positions between existing positions exactly <n> moves\n  apart (default 1); with <n1> <n2>, only from the positions that deviate3\n  <n1> <n2> walks.\n"
 		"  fill2 [n] [n1 n2]   same as fill (default 2), only through the leaf (best move\n  not in the book yet) of a position; with <n1> <n2>, only from the leaves\n  that deviate3 <n1> <n2> would expand.\n"
+		"  play [n]            expand the positions without link to the depth of the book;\n  with <n>, only those from the current position, then play on from them while\n  a position has <n> empty squares or more.\n"
 		"  extend              from the current position, expand the leaves that no link\n  is better than (as good as the best link, or no link), until none is left.\n"
 		"  leaf recalculate <n1> <n2>  search again the leaves that deviate <n1> <n2> would\n  expand (leaf recalculate2: deviate2; 3, 4: the leaves of all the positions\n  of the walk of deviate, deviate2).\n"
 		"  leaf expand [n1 n2] expand the leaves better than every link of their\n  position; with <n1> <n2>, only in the walk of deviate3 <n1> <n2>.\n"
@@ -1048,7 +1049,16 @@ void ui_loop_edax(UI *ui)
 
 				// add positions by expanding positions with no-link
 				} else if (strcmp(book_cmd, "play") == 0) {
-					book_play(book);
+					char word[32];
+					parse_word(book_param, word, sizeof word - 1);
+					if (*word == '\0') { // the whole book, to its depth
+						book_play(book);
+					} else if (starts_with_number(word)) { // from the current position, to n empty squares
+						val_1 = string_to_int(word, 20); BOUND(val_1, 0, 60, "number of empties");
+						book_play_to(book, &play->board, val_1);
+					} else {
+						warn("book play: %s is not a number of empty squares; nothing is done\n", word);
+					}
 
 				// add positions by expanding positions with no-link
 				} else if (strcmp(book_cmd, "deepen") == 0) {
