@@ -28,6 +28,8 @@ Additional case names are listed in `tests/regression.c`. Some cases write small
 
 To check that `book correct`, `book leaf recalculate`, `book deepen` and `book learn` go on from a book saved before they ended (the progress marks, removed when the command ends; the level given by `book deepen`; the progress file `<book-file>.learn`), run `python tests/book-resume.py bin/wEdax-x86-64-v4.exe bin/data/eval.dat` (one thread, a few seconds; `--old <exe>`: a version without marks reads a book with marks as a damaged book).
 
+To check that `book learn` can be resumed wherever it stops, build `tests/book-learn-stop.c` with `tests\build-book-learn-stop.cmd` and add `--stop-exe tests\book-learn-stop.exe` to that command (about 4 minutes, up to 2 threads). This Edax stops at a chosen write to `.store` or `.learn`, or fails a chosen save. The test stops it at every write and checks that the next run skips exactly the lines that the book left on the disk has.
+
 To check Cassio's input thread, including EOF immediately after a command with
 no final newline, run `python tests/cassio-eof.py bin/wEdax-x86-64-v4.exe`.
 Use `--cwd bin` if the executable is elsewhere and `bin/data/eval.dat` is used.

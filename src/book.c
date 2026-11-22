@@ -6911,6 +6911,22 @@ void book_enhance(Book *book, Board *board, const int midgame_error, const int e
 }
 
 /**
+ * @brief Count the links of a book.
+ *
+ * @param book Opening book.
+ * @return number of links.
+ */
+long long book_count_links(const Book *book)
+{
+	PositionArray *a;
+	Position *p;
+	long long n = 0;
+
+	foreach_position(p, a, book) n += p->n_link;
+	return n;
+}
+
+/**
  * @brief display some book's informations.
  *
  * @param book opening book.

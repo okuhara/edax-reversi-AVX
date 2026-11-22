@@ -1,6 +1,7 @@
 """Check that book correct, book leaf recalculate, book deepen and book learn go on from a book saved before they ended.
 
 Run with Python 3: book-resume.py <Edax executable> <eval.dat> [--work <folder>] [--form2] [--old <executable>]
+                                    [--stop-exe <executable>]
 
 book correct and book leaf recalculate mark the positions that they have searched again (the two upper bits
 of the byte of the level of a book file: 0x40 book correct, 0x80 book leaf recalculate). A run that did not
@@ -18,10 +19,13 @@ marked positions a wrong score, which the new run must keep: it does not search 
   half of them marked with a wrong leaf score: these keep it, the marks go.
 - learn: a file of 6 games; a progress file of its first 3 lines (written here): the next run learns the 3 others
   and removes it; the progress of another book or another file is not used; a run stopped as soon as its
-  progress file is written, then a new run on the book it saved to <book-file>.store.
+  progress file and its .store are written, then a new run on the book it saved to <book-file>.store.
 - --form2 (C++23 version): the marks are kept by a book saved in form 2 and read again.
+- --stop-exe: the build of tests/book-learn-stop.c; book learn stopped at each of its writes (before and after
+  each file opened to write and each file replaced): the book left on the disk is the book of exactly the lines
+  that the next run skips, and the next run learns all the others, once.
 - --old: an executable of a version without marks reads a book with marks as a damaged book.
-Small searches only (one thread, a few seconds in all).
+Small searches only (one thread, a few seconds in all; --stop-exe: up to 2 threads, about 4 minutes).
 """
 
 import argparse
@@ -248,6 +252,11 @@ def learn_hash(lines):
     return h
 
 
+def book_links(path):
+    data, records = read_book(path)
+    return sum(data[r["level_at"] - 1] for r in records)
+
+
 def book_header(path):
     data = open(path, "rb").read(HEADER)
     level, empties = struct.unpack_from("<ii", data, 18)
@@ -286,6 +295,18 @@ def test_learn(args, work):
     check(re.search(r"3/3 games learned", text) is not None, "the new run learns the 3 other games only")
     check(not os.path.exists(progress), "the progress file is removed at the end")
 
+    n, level, empties = book_header(b("g3.dat"))
+    for next_links, left in ((999999, 6), (book_links(b("g3.dat")), 3)):  # the same positions before and after a save
+        with open(progress, "w", newline="\n") as f:
+            f.write(f"lines=0\nhash={learn_hash([]):016x}\ngames=0\nlearned=0\npositions={n}\nlevel={level}\nempties={empties}\n"
+                    f"next_lines=3\nnext_hash={learn_hash(GAMES[:3]):016x}\nnext_games=3\nnext_learned=3\n"
+                    f"next_positions={n}\nnext_links={next_links}\n")
+        text = run(args, work, ["book load g3.dat", "book learn games.txt"], extra=opts)
+        check(re.search(rf"{left}/{left} games learned", text) is not None,
+              f"the same positions before and after a save: told apart by the links ({left} games to learn)")
+        if os.path.exists(progress):
+            os.remove(progress)
+
     write_progress(progress, GAMES[:3], b("g3.dat"), positions=1)
     text = run(args, work, ["book load g3.dat", "book learn games.txt"], extra=opts)
     check(re.search(r"progress of book learn of another book", text) is not None and re.search(r"6/6 games learned", text) is not None,
@@ -302,20 +323,24 @@ def test_learn(args, work):
     with open(b("many.txt"), "w", newline="\n") as f:
         f.write("\n".join(many) + "\n")
     shutil.copy(b("g0.dat"), b("book.dat"))
+    if os.path.exists(b("book.dat.store")):
+        os.remove(b("book.dat.store"))
     stopped = learn_and_stop(args, work, "many.txt", opts, progress)
     if stopped is None or re.search(r"lines=(\d+)", stopped) is None:
         print("skip the run stopped while it learns (it ended before its progress file could be read)")
         return
-    lines = int(re.search(r"lines=(\d+)", stopped).group(1))
-    check(0 < lines < len(many), f"a run stopped while it learns leaves its progress ({lines} lines of {len(many)})")
+    states = [int(x) for x in re.findall(r"^(?:next_)?lines=(\d+)", stopped, re.M)]  # before a save, and after it
+    check(any(0 < x < len(many) for x in states), f"a run stopped while it learns leaves its progress ({states} lines of {len(many)})")
     text = run(args, work, ["book load book.dat.store", "book learn many.txt"], extra=opts)
+    m = re.search(r"the first (\d+) lines of many\.txt", text)
+    lines = int(m.group(1)) if m and int(m.group(1)) in states else -1
     check(re.search(rf"the first {lines} lines of many\.txt", text) is not None, "a new run on the book saved to .store skips these lines")
     check(re.search(rf"{len(many) - lines}/{len(many) - lines} games learned", text) is not None, "and learns the others")
     check(not os.path.exists(progress), "the progress file is removed at the end")
 
 
 def learn_and_stop(args, work, games, opts, progress):
-    """Start book learn, stop the process as soon as its progress file is written; return the file (None if the run ended first)."""
+    """Start book learn, stop the process as soon as its progress file and its .store are written; return the file (None if the run ended first)."""
     import time
     cmd_file = os.path.join(work, "cmds.txt")
     with open(cmd_file, "w", newline="\n") as f:
@@ -326,7 +351,7 @@ def learn_and_stop(args, work, games, opts, progress):
         p = subprocess.Popen(line, stdin=stdin, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=work)
         text = None
         while p.poll() is None:
-            if os.path.exists(progress):
+            if os.path.exists(progress) and os.path.exists(os.path.join(work, "book.dat.store")):
                 p.kill()
                 p.wait()
                 time.sleep(0.2)
@@ -334,6 +359,144 @@ def learn_and_stop(args, work, games, opts, progress):
                 break
             time.sleep(0.005)
     return text
+
+
+def book_content(path):
+    """board -> its record (the header, with the date of the save, is left out)"""
+    data, records = read_book(path)
+    return {r["key"]: bytes(data[r["level_at"] - 39:r["leaf_at"] + 2]) for r in records}
+
+
+def without_links(path, out):
+    """Copy a book without the links of its positions: book learn then adds links, and no position."""
+    data, records = read_book(path)
+    copy = data[:HEADER]
+    for r in records:
+        fixed = data[r["level_at"] - 39:r["level_at"] + 1]
+        fixed[38] = 0
+        copy += fixed + data[r["leaf_at"]:r["leaf_at"] + 2]
+    open(out, "wb").write(copy)
+
+
+def is_game(line):
+    return line != "" and not line.startswith("#")
+
+
+STOP_LINES = ["f5d6", "# a comment", "f5f6", "", "f5d6", "a1", "f5f4", "f5d6c3", "# the end"]
+ILLEGAL = "a1"
+
+
+def test_learn_stops(args, work):
+    """book learn stopped at each of its writes (--stop-exe)."""
+    b = lambda name: os.path.join(work, name)
+    one = ("-l", "2", "-book-seed", "1", "-book-store-tasks", "1")
+    two = ("-l", "2", "-book-seed", "1", "-book-store-tasks", "2", "-book-reproducible", "on")
+    run(args, work, ["book new 2 50", "book save g0.dat"], extra=one)
+    with open(b("same.txt"), "w", newline="\n") as f:
+        f.write("f5d6\n")
+    shutil.copy(b("g0.dat"), b("book.dat"))
+    run(args, work, ["book learn same.txt", "book save linked.dat"], extra=one)
+    without_links(b("linked.dat"), b("unlinked.dat"))
+    cases = [  # name, book at the start, lines, threads, settings, the save that fails
+        ("1 game at a time", "g0.dat", STOP_LINES, 1, one, 0),
+        ("2 games at a time", "g0.dat", STOP_LINES, 2, two, 0),
+        ("the first save fails", "g0.dat", STOP_LINES, 1, one, 1),
+        ("the second save fails", "g0.dat", STOP_LINES, 1, one, 2),
+        ("only links are added", "unlinked.dat", ["f5d6", "f5f6"], 1, one, 0),
+        ("form 2", "g0.dat", STOP_LINES[:5], 1, one + ("-book-format", "2"), 0),
+    ]
+    for name, start, lines, threads, opts, fail in cases:
+        print(f"-- book learn <file> stopped at each write: {name}")
+        for resumed in (False, True):  # the run stopped: the first one, or one that goes on after a stop
+            stop_at_each_write(args, work, start, lines, threads, opts, fail, resumed)
+
+
+def stop_at_each_write(args, work, start, lines, threads, opts, fail, resumed):
+    b = lambda name: os.path.join(work, name)
+    store, progress = b("book.dat.store"), b("book.dat.learn")
+    form1 = tuple(opts) + ("-book-format", "1")
+
+    def clear():
+        for name in os.listdir(work):
+            if name.startswith("book.dat"):
+                os.remove(b(name))
+        shutil.copy(b(start), b("book.dat"))
+
+    def write_lines(name, n):
+        with open(b(name), "w", newline="\n") as f:
+            f.write("".join(line + "\n" for line in lines[:n]))
+
+    prefix = {}
+
+    def book_of(n):
+        """the book of the first n lines, learned by a run that is not stopped"""
+        if n not in prefix:
+            clear()
+            write_lines("prefix.txt", n)
+            commands = ["book learn prefix.txt"] if n else ["book load book.dat"]
+            run(args, work, commands + ["book save prefix.dat"], threads, form1)
+            prefix[n] = book_content(b("prefix.dat"))
+        return prefix[n]
+
+    def learn(stop=0, fail=0):
+        env = dict(os.environ, EDAX_TEST_STOP_AT=str(stop), EDAX_TEST_FAIL_STORE=str(fail))
+        commands = (["book load book.dat.store"] if os.path.exists(store) else []) + ["book learn lines.txt"]
+        with open(b("cmds.txt"), "w", newline="\n") as f:
+            f.write("\n".join(commands + ["quit"]) + "\n")
+        line = [args.stop_exe, "-eval-file", args.eval, "-book-file", b("book.dat"), "-n", str(threads),
+                "-book-save-interval", "0", "-book-usage", "off", "-auto-store", "off", *opts]
+        with open(b("cmds.txt"), "rb") as stdin:
+            r = subprocess.run(line, stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=work, env=env, timeout=600)
+        text = r.stdout.decode("utf-8", "replace").replace("\r", "\n")
+        if r.returncode not in (0, 77) and not fail:
+            check(False, f"the Edax of --stop-exe ends with the exit code {r.returncode}")
+        return r.returncode == 77, text
+
+    write_lines("lines.txt", len(lines))
+    first = 0
+    if resumed:  # the stop before the run to test: in the middle of the writes of a first run
+        n = 0
+        while True:
+            clear()
+            if not learn(n + 1)[0]:
+                break
+            n += 1
+        first = n // 2
+
+    bad = []
+    stop = 0
+    while True:
+        stop += 1
+        clear()
+        if first:
+            learn(first)
+        stopped, out = learn(stop, fail)
+        if not stopped:
+            break
+        where = re.findall(r"stopped (.*)", out)[-1].replace(work + os.sep, "")
+        book = "book.dat.store" if os.path.exists(store) else "book.dat"
+        text = run(args, work, [f"book load {book}", "book save loaded.dat", "book learn lines.txt"], threads, form1)
+        left = book_content(b("loaded.dat"))
+        m = re.search(r"the first (\d+) lines of lines\.txt \((\d+) games\)", text)
+        skipped, n_skipped = (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+        total = re.findall(r"(\d+)/(\d+) games learned", text)
+        games = [x for x in lines if is_game(x)]
+        games_skipped = [x for x in lines[:skipped] if is_game(x)]
+        if re.search(r"progress of book learn of another", text):
+            bad.append(f"{where}: the progress is not used")
+        elif n_skipped != len(games_skipped):
+            bad.append(f"{where}: {n_skipped} games told for the {skipped} lines skipped")
+        elif not total or int(total[-1][1]) != len(games) - n_skipped or int(total[-1][0]) != sum(
+                1 for x in games[n_skipped:] if x != ILLEGAL):
+            bad.append(f"{where}: the games left are not the ones learned")
+        elif os.path.exists(progress):
+            bad.append(f"{where}: the progress file is left")
+        elif left != book_of(skipped):
+            bad.append(f"{where}: the book left is not the one of the {skipped} lines skipped")
+    for x in bad[:8]:
+        print("     " + x)
+    what = "a run that goes on after a stop" if resumed else "a first run"
+    check(stop > 1 and not bad, f"{what}: stopped at each of its {stop - 1} writes, each time resumed exactly ({len(bad)} wrong)")
 
 
 def test_form2(args, work, marked):
@@ -359,6 +522,7 @@ def main():
     ap.add_argument("--work")
     ap.add_argument("--form2", action="store_true")
     ap.add_argument("--old")
+    ap.add_argument("--stop-exe")
     args = ap.parse_args()
     args.exe, args.eval = os.path.abspath(args.exe), os.path.abspath(args.eval)
     work = args.work or tempfile.mkdtemp(prefix="book-resume-")
@@ -372,6 +536,9 @@ def main():
     sub = os.path.join(work, "deepen"); os.makedirs(sub, exist_ok=True); test_deepen(args, sub)
     sub = os.path.join(work, "leaf"); os.makedirs(sub, exist_ok=True); test_leaf_recalculate(args, sub)
     sub = os.path.join(work, "learn"); os.makedirs(sub, exist_ok=True); test_learn(args, sub)
+    if args.stop_exe:
+        args.stop_exe = os.path.abspath(args.stop_exe)
+        sub = os.path.join(work, "stops"); os.makedirs(sub, exist_ok=True); test_learn_stops(args, sub)
     if args.form2:
         test_form2(args, os.path.dirname(marked), marked)
     if args.old:

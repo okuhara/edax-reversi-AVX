@@ -127,6 +127,7 @@ void book_play_to(Book*, const Board*, const int);
 void book_exhaust(Book*, const Board*);
 
 void book_info(Book*);
+long long book_count_links(const Book*);
 void book_show(Book*, Board*);
 void book_stats(Book *book);
 bool book_get_moves(Book*, const Board*, MoveList*);

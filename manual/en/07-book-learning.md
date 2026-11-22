@@ -158,15 +158,16 @@ f5f4e3
 
 **Continuing a run that did not end** (since v4.5.5-nikque.29):
 
-Each time it saves to `.store`, `book learn` also writes a small text file, `<book file name>.learn`. It records:
+Before and after each save to `.store`, `book learn` also writes a small text file, `<book file name>.learn`. It records:
 
 - how many lines of the file of games have been learned;
 - a check value of these lines;
-- the number of positions, the level and the depth of the book at that time.
+- the number of positions, the level and the depth of the book at that time;
+- during a save only: the same values for the end of this save.
 
 When a run stops before its end (Edax closed, the PC stopped, …), continue it as follows:
 
-1. Load `.store`, or the book saved at the exit, with `book load`.
+1. Load `.store`, or the book saved at the exit, with `book load`. If the run stopped before its first save and there is no `.store`, load the book that was in use when learning started.
 2. Run `book learn` again **with the same file of games**. The lines already learned are skipped; only the other lines are played and learned.
 
 ```
@@ -178,6 +179,8 @@ Book learn: the first 120 lines of learn.txt (118 games) were learned by a run t
   - the book in use does not match `.learn` (a different number of positions, level or depth);
   - the first lines of the file of games are not the ones learned.
 - Lines added at the end of the file of games do not prevent continuing.
+- A run stopped during or just after a save can be continued too. `book learn` finds whether the loaded book is the one before or after the save, and learns from the first line that this book does not have.
+- In v4.5.5-nikque.29 to 32, a run stopped between the save to `.store` and the write of `.learn` could not be continued: the file was learned from its first line. A `.learn` written by these versions can still be continued.
 - With the setting `book-store-auto-save = off` (no save to `.store`), no `.learn` is written.
 - Up to v4.5.5-nikque.28 there was no `.learn`. A new run played every line again from the beginning (with `book-randomness`, these were other games).
 
