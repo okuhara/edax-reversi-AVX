@@ -1637,6 +1637,36 @@ static void position_prune(Position *position, Book *book, const int player_devi
 
 static void book_clean(Book*);
 
+/** @return true if book enhance goes on from a position to this child. */
+static bool enhance_follows(const Position *position, const Position *child)
+{
+	return -child->score.upper >= position->score.lower || -child->score.lower >= position->score.upper;
+}
+
+/** @return true if book enhance expands the leaf of this position. */
+static bool enhance_selects(const Position *position, const Book *book)
+{
+	if (position->leaf.score > -SCORE_INF) {
+		const int n_empties = board_count_empties(&position->board);
+		const int search_depth = LEVEL[position->level][n_empties].depth;
+		const int bias = (search_depth & 1) - (n_empties & 1);
+		int lower, upper;
+		// is solving
+		if (search_depth == n_empties && LEVEL[position->level][n_empties].selectivity == NO_SELECTIVITY) {
+			lower = upper = position->leaf.score;
+		// is pre-solving
+		} else if (search_depth == n_empties) {
+			lower = position->leaf.score - book->options.endcut_error;
+			upper = position->leaf.score + book->options.endcut_error;
+		} else { // midgame
+			lower = position->leaf.score - book->options.midgame_error - bias;
+			upper = position->leaf.score + book->options.midgame_error - bias;
+		}
+
+		return lower >= position->score.lower || upper >= position->score.upper;
+	}
+	return false;
+}
 /** list of positions to walk: pointer | kind of walk (0 or 1) */
 typedef struct PruneMarkList {
 	uintptr_t *item;
@@ -1651,6 +1681,7 @@ typedef struct PruneMarkShared {
 	long long n_marked;        /**< marks so far (progress), with those of the walks before */
 	int deviation[2];          /**< deviation of the side to move, for each kind of walk */
 	unsigned char seen[2];     /**< state flag of each kind of walk */
+	bool enhance;              /**< the walk of book enhance (see book_enhance_mark) */
 	unsigned char hungry;      /**< a thread waits for positions */
 	unsigned char oom;
 } PruneMarkShared;
@@ -1658,6 +1689,7 @@ typedef struct PruneMarkShared {
 typedef struct PruneMarkWorker {
 	PruneMarkShared *shared;
 	PruneMarkList stack;
+	PruneMarkList found;       /**< book enhance: the positions to expand */
 	long long n_marked, n_new, n_flushed; /**< marks; marks of positions that were not kept yet (only counted in the test builds); marks given to the shared count */
 	bool busy;
 } PruneMarkWorker;
@@ -1681,7 +1713,9 @@ static void prune_mark_push(PruneMarkWorker *w, Position *p, const int kind)
 	const unsigned char seen = s->seen[kind];
 	unsigned char state;
 
-	if (board_count_empties(&p->board) < book->options.n_empties - 1) return; // (the bounds of position_prune are infinite)
+	if (s->enhance) {
+		if (board_count_empties(&p->board) < book->options.n_empties || board_is_game_over(&p->board)) return;
+	} else if (board_count_empties(&p->board) < book->options.n_empties - 1) return; // (the bounds of position_prune are infinite)
 	do {
 		state = atomic_load_uchar(&p->state);
 		if (position_state_is(state, book, seen)) return; // already walked
@@ -1721,8 +1755,12 @@ static void prune_mark_walk(PruneMarkWorker *w, const uintptr_t item)
 		for (i = 0; i < n; ++i) if (array[i]) position_array_prefetch(array[i]);
 		for (i = 0; i < n; ++i) if (array[i]) {
 			Position *child = position_array_probe(array[i], unique + i);
-			if (child) prune_mark_push(w, child, kind ^ 1);
+			if (child && (!s->enhance || enhance_follows(position, child))) prune_mark_push(w, child, kind ^ 1);
 		}
+	}
+	if (s->enhance && enhance_selects(position, book)) {
+		if (prune_mark_reserve(&w->found, 1)) w->found.item[w->found.n++] = (uintptr_t) position;
+		else atomic_store_uchar(&s->oom, 1);
 	}
 }
 
@@ -1732,7 +1770,7 @@ static void prune_mark_flush(PruneMarkWorker *w)
 	PruneMarkShared *s = w->shared;
 	const long long n = w->n_marked - w->n_flushed;
 
-	if (n == 0) return;
+	if (n == 0 || s->enhance) return;
 	lock(s);
 	s->n_marked += n;
 	if (s->n_marked / BOOK_INFO_RESOLUTION != (s->n_marked - n) / BOOK_INFO_RESOLUTION) {
@@ -1853,6 +1891,57 @@ static bool book_prune_mark(Book *book, Position *root, const int deviation_0, c
 		book_clean(book);
 	}
 	for (i = 0; i < n; ++i) free(w[i].stack.item);
+	free(shared.pool.item);
+	lock_free(&shared);
+	free(w);
+	return ok;
+}
+/**
+ * @brief The walk of book enhance with several threads (the marks of position_enhance).
+ *
+ * The positions to expand are what can be reached by the links that enhance_follows() takes: the book does not
+ * change meanwhile, so the order of the walk does not matter, and the list is sorted before it is expanded.
+ *
+ * @param book Opening book (book_clean() must have been called).
+ * @param root Position to walk from.
+ * @return false if nothing was marked (one thread; or memory exhausted): position_enhance() is to be used.
+ */
+static bool book_enhance_mark(Book *book, Position *root)
+{
+	PruneMarkShared shared;
+	PruneMarkWorker *w;
+	const int n = book_walk_threads();
+	long long j;
+	int i;
+	bool ok;
+
+	if (n <= 1) return false;
+	w = (PruneMarkWorker*) calloc(n, sizeof *w);
+	if (w == NULL) return false;
+	memset(&shared, 0, sizeof shared);
+	shared.book = book;
+	shared.enhance = true;
+	shared.deviation[0] = shared.deviation[1] = 4 * SCORE_INF; // (every link)
+	shared.seen[0] = shared.seen[1] = POSITION_DONE;
+	lock_init(&shared);
+	for (i = 0; i < n; ++i) w[i].shared = &shared;
+
+	prune_mark_push(w, root, 0);
+	while (w->stack.n > 0 && w->n_marked < PRUNE_MARK_SEQUENTIAL) prune_mark_walk(w, w->stack.item[--w->stack.n]);
+	if (w->stack.n > 0) {
+		w->busy = true; shared.n_busy = 1;
+		book_run_workers(prune_mark_worker, w, sizeof *w, n);
+	}
+
+	ok = !shared.oom;
+	if (ok) {
+		for (i = 0; i < n; ++i) {
+			for (j = 0; j < w[i].found.n; ++j) book_mark_todo(book, (Position*) w[i].found.item[j]);
+		}
+	} else {
+		book_clean(book);
+	}
+	for (i = 0; i < n; ++i) { free(w[i].stack.item); free(w[i].found.item); }
 	free(shared.pool.item);
 	lock_free(&shared);
 	free(w);
@@ -2145,32 +2234,12 @@ static void position_enhance(Position *position, Book *book)
 		foreach_link(l, position) {
 			board_next(&position->board, l->move, &target);
 			child = book_probe(book, &target);
-			if (child && (-child->score.upper >= position->score.lower || -child->score.lower >= position->score.upper)) {
+			if (child && enhance_follows(position, child)) {
 				position_enhance(child, book);
 			}
 		}
 
-		if (position->leaf.score > -SCORE_INF) {
-			const int n_empties = board_count_empties(&position->board);
-			const int search_depth = LEVEL[position->level][n_empties].depth;
-			const int bias = (search_depth & 1) - (n_empties & 1);
-			int lower, upper;
-			// is solving
-			if (search_depth == n_empties && LEVEL[position->level][n_empties].selectivity == NO_SELECTIVITY) {
-				lower = upper = position->leaf.score;
-			// is pre-solving
-			} else if (search_depth == n_empties) {
-				lower = position->leaf.score - book->options.endcut_error;
-				upper = position->leaf.score + book->options.endcut_error;
-			} else { // midgame
-				lower = position->leaf.score - book->options.midgame_error - bias;
-				upper = position->leaf.score + book->options.midgame_error - bias;
-			}
-
-			if (lower >= position->score.lower || upper >= position->score.upper) {
-				book_mark_todo(book, position);
-			}
-		}
+		if (enhance_selects(position, book)) book_mark_todo(book, position);
 	}
 }
 
@@ -5956,17 +6025,8 @@ static void book_expand_learn(Book *book, const char *action, const char *tmp_fi
 	bprint("%s...%d/%lld done: %lld positions, %lld links\n", action, i, book->stats.n_todo, book->stats.n_nodes, book->stats.n_links);
 }
 
-/**
- * @brief Expand the positions to do (book deviate, enhance, leaf expand).
- *
- * @param book opening book.
- * @param action String with a description of current action.
- * @param tmp_file Temporary file name.
- */
-static void book_expand(Book *book, const char *action, const char *tmp_file)
-{
-	book_expand_learn(book, action, tmp_file, NULL);
-}
+// (book deviate, deviate2, deviate3, enhance, leaf expand: defined with the parts of book play)
+static void book_expand(Book*, const char*, const char*);
 
 /**
  * @brief Sort a book.
@@ -6412,6 +6472,7 @@ void book_deviate(Book *book, Board *board, const int relative_error, const int 
 		bprint("Book deviate %d %d...finished\n", relative_error, absolute_error);
 	}
 	search_pool_release(&expand_pool);
+	book_store_release(); // (the searches of the positions linked)
 }
 
 /**
@@ -6451,6 +6512,7 @@ static void book_deviate_total(Book *book, Board *board, const int move_loss, co
 		bprint("%s %d %d...finished\n", name, move_loss, total_loss);
 	}
 	search_pool_release(&expand_pool);
+	book_store_release(); // (the searches of the positions linked)
 }
 
 /**
@@ -6986,6 +7048,7 @@ void book_enhance(Book *book, Board *board, const int midgame_error, const int e
 	Position *root = book_probe(book, board);
 	if (root) {
 		long long n_diffs;
+		int rounds_since_save = 0;
 		char file[FILENAME_MAX + 1];
 
 		file_add_ext(options.book_file, ".enh", file);
@@ -7003,7 +7066,8 @@ void book_enhance(Book *book, Board *board, const int midgame_error, const int e
 		do {
 			bprint("Book enhance %d %d...%lld %lld:\n", midgame_error, endcut_error, book->stats.n_nodes, book->stats.n_links);
 			book_clean(book);
-			position_enhance(root, book);
+			if (!book_enhance_mark(book, root)) position_enhance(root, book); // (with n-tasks threads: the same marks)
+			if (book->todo_list.valid) book->stats.n_todo = book->todo_list.n;
 			book_expand(book, "Book enhance", file);
 			n_diffs = book->stats.n_nodes + book->stats.n_links;
 
@@ -7014,11 +7078,12 @@ void book_enhance(Book *book, Board *board, const int midgame_error, const int e
 #else
 			book_negamax_position(root, book);
 #endif
-			if (n_diffs) book_save_progress(book, file);
+			book_deviate_save_progress(book, file, n_diffs, &rounds_since_save); // (book-deviate-save-rounds, as book deviate)
 		} while (n_diffs && !book->failed); // stop if a position cannot be added
 		bprint("Book enhance %d %d...finished\n", midgame_error, endcut_error);
 	}
 	search_pool_release(&expand_pool);
+	book_store_release(); // (the searches of the positions linked)
 }
 
 /**
@@ -9412,6 +9477,45 @@ static void learn_round(LearnRun *run, const unsigned long long *keys, const lon
 	run->n_total += run->n_diffs;
 }
 
+/**
+ * @brief Expand the positions to do (book deviate, deviate2, deviate3, enhance, leaf expand).
+ *
+ * As in book play, a new position is searched once: when the leaves of several positions lead to one position,
+ * or to one that the book has, the others are linked to it, and their next leaves are searched. (Up to
+ * v4.5.5-nikque.32 each of them searched the position again, and all these searches but one were thrown away.)
+ *
+ * @param book opening book.
+ * @param action String with a description of current action.
+ * @param tmp_file Temporary file name.
+ */
+static void book_expand(Book *book, const char *action, const char *tmp_file)
+{
+	LearnRun run;
+	unsigned long long *keys = NULL;
+	long long i, n = 0;
+
+	if (book->todo_list.valid && book->todo_list.n > 0) {
+		keys = (unsigned long long*) malloc((size_t) book->todo_list.n * sizeof *keys);
+	}
+	if (keys) {
+		todo_sort(book->todo_list.item, book->todo_list.n);
+		for (i = 0; i < book->todo_list.n; ++i) {
+			const unsigned long long key = book->todo_list.item[i];
+			const Position *p = book_position(book, key);
+
+			if (position_is_todo(p, book) && p->leaf.move != NOMOVE && (n == 0 || keys[n - 1] != key)) keys[n++] = key;
+		}
+	}
+	if (n == 0) { // nothing to expand, or no memory for the list: one search for each position to do
+		free(keys);
+		book_expand_learn(book, action, tmp_file, NULL);
+		return;
+	}
+	learn_begin(&run, book, action, tmp_file);
+	learn_round(&run, keys, n);
+	free(run.child);
+	free(keys);
+}
 /**
  * @brief The positions to expand in the next round of book play: the positions that the last round reached
  * (added, or already in the book) that have no link.
