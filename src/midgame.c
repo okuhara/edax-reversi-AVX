@@ -53,6 +53,30 @@
 static int accumlate_eval(int ply, Eval *eval)
 {
 	unsigned short *f = eval->feature.us;
+#ifdef EVAL_FLAT_TABLE
+	// one by one: faster than 16-lane gathers on Zen 5, with the same value
+	const short *t = EVAL_FLAT + (size_t) ply * EVAL_FLAT_N;
+	const short *c9 = t + offsetof(Eval_weight, C9) / 4;
+	const short *c10 = t + offsetof(Eval_weight, C10) / 4;
+	const short *s100 = t + offsetof(Eval_weight, S100) / 4;
+	const short *s101 = t + offsetof(Eval_weight, S101) / 4;
+	const short *s8 = t + offsetof(Eval_weight, S8x4) / 4;
+	const short *s7 = t + offsetof(Eval_weight, S7654) / 4;
+
+	return t[0]
+	  + c9[f[0]] + c9[f[1]] + c9[f[2]] + c9[f[3]]
+	  + c10[f[4]] + c10[f[5]] + c10[f[6]] + c10[f[7]]
+	  + s100[f[8]] + s100[f[9]] + s100[f[10]] + s100[f[11]]
+	  + s101[f[12]] + s101[f[13]] + s101[f[14]] + s101[f[15]]
+	  + s8[f[16]] + s8[f[17]] + s8[f[18]] + s8[f[19]]
+	  + s8[f[20]] + s8[f[21]] + s8[f[22]] + s8[f[23]]
+	  + s8[f[24]] + s8[f[25]] + s8[f[26]] + s8[f[27]]
+	  + s8[f[28]] + s8[f[29]]
+	  + s7[f[30]] + s7[f[31]] + s7[f[32]] + s7[f[33]]
+	  + s7[f[34]] + s7[f[35]] + s7[f[36]] + s7[f[37]]
+	  + s7[f[38]] + s7[f[39]] + s7[f[40]] + s7[f[41]]
+	  + s7[f[42]] + s7[f[43]] + s7[f[44]] + s7[f[45]];
+#else
 	const Eval_weight *w;
 	int b0, sum;
 
@@ -144,6 +168,7 @@ static int accumlate_eval(int ply, Eval *eval)
 	  + *(w->S7654[f[42]]) + *(w->S7654[f[43]]) + *(w->S7654[f[44]]) + *(w->S7654[f[45]]);
 #endif
 	return sum + *(w->S8x4[f[28]]) + *(w->S8x4[f[29]]) + *(w->S0);
+#endif // EVAL_FLAT_TABLE
 }
 
 /**
@@ -239,6 +264,38 @@ int search_eval_1(Search *search, int alpha, int beta, unsigned long long moves)
 	return bestscore;
 }
 
+#ifdef EVAL_UPDATE_PARITY
+/**
+ * @brief The moves of search_eval_2(), with the parity of the empty squares as a constant.
+ *
+ * The loop then neither keeps the parity across the calls of search_eval_1(), nor tests it at each move.
+ */
+static EVAL_INLINE int search_eval_2_moves(Search *search, int alpha, const int beta, unsigned long long moves, const Eval *eval0, const V2DI board0, const int parity)
+{
+	int x = NOMOVE, bestscore = -SCORE_INF, score;
+	unsigned long long flipped;
+
+	do {
+		do {
+			x = search->empties[x].next;
+		} while (!(moves & x_to_bit(x)));
+
+		moves &= ~x_to_bit(x);
+		flipped = vboard_next(board0, x, &search->board);
+		eval_update_sse_parity(x, flipped, &search->eval, eval0, parity);
+		score = search_eval_1(search, alpha, beta, board_get_moves(&search->board));
+
+		if (score > bestscore) {
+			bestscore = score;
+			if (bestscore >= beta) break;
+			else if (bestscore > alpha) alpha = bestscore;
+		}
+	} while (moves);
+
+	return bestscore;
+}
+#endif
+
 /**
  * @brief Evaluate a position at depth 2.
  *
@@ -269,6 +326,11 @@ int search_eval_2(Search *search, int alpha, int beta, unsigned long long moves)
 		eval0.feature = search->eval.feature;
 		eval0.n_empties = search->eval.n_empties--;
 		board0.board = search->board;
+#ifdef EVAL_UPDATE_PARITY
+		(void) x; (void) flipped; (void) score;
+		if (eval0.n_empties & 1) bestscore = search_eval_2_moves(search, alpha, beta, moves, &eval0, board0, 1);
+		else bestscore = search_eval_2_moves(search, alpha, beta, moves, &eval0, board0, 0);
+#else
 		x = NOMOVE;
 		do {
 			do {
@@ -288,6 +350,7 @@ int search_eval_2(Search *search, int alpha, int beta, unsigned long long moves)
 				else if (bestscore > alpha) alpha = bestscore;
 			}
 		} while (moves);
+#endif
 		search->eval.feature = eval0.feature;
 		search->eval.n_empties = eval0.n_empties;
 		search->board = board0.board;

@@ -58,6 +58,13 @@ typedef struct Eval_weight {
 /** number of plies */
 enum { EVAL_N_2PLY = 54 / 2 };	// decreased from 60 in 4.5.1
 
+#if defined(__AVX512F__) && !defined(EVAL_NO_FLAT)
+/** the weights again, one table for each ply: accumlate_eval() reads them one by one */
+#define EVAL_FLAT_TABLE
+#define EVAL_FLAT_N ((int) (sizeof (Eval_weight) / 4))
+extern short *EVAL_FLAT;
+#endif
+
 extern Eval_weight (*EVAL_WEIGHT)[EVAL_N_2PLY - 1];	// for 2..53, interleaved
 
 /* function declaration */

@@ -31,14 +31,30 @@ extern const EVAL_FEATURE_V EVAL_FEATURE_all_opponent;
 
 #if defined(hasSSE2) || defined(__ARM_NEON) || defined(USE_MSVC_X86)
 
-void eval_update_sse(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
+#if defined(_MSC_VER)
+#define EVAL_INLINE __forceinline
+#elif defined(__GNUC__)
+#define EVAL_INLINE inline __attribute__((always_inline))
+#else
+#define EVAL_INLINE inline
+#endif
+#if (defined(hasSSE2) || defined(__ARM_NEON)) && !defined(ANDROID)
+#define EVAL_UPDATE_PARITY // (midgame.c: search_eval_2)
+#endif
+
+/**
+ * @brief Update the features after a move, with the parity of the empty squares given.
+ *
+ * eval_update_sse() with parity = eval_in->n_empties & 1.
+ */
+static EVAL_INLINE void eval_update_sse_parity(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in, const int parity)
 {
   #ifdef __AVX2__
 	__m256i	f0 = eval_in->feature.v16[0];
 	__m256i	f1 = eval_in->feature.v16[1];
 	__m256i	f2 = eval_in->feature.v16[2];
 
-	if (eval_in->n_empties & 1) {
+	if (parity) {
 		f0 = _mm256_sub_epi16(f0, EVAL_FEATURE[x].v16[0]);
 		f1 = _mm256_sub_epi16(f1, EVAL_FEATURE[x].v16[1]);
 		f2 = _mm256_sub_epi16(f2, EVAL_FEATURE[x].v16[2]);
@@ -73,7 +89,7 @@ void eval_update_sse(int x, unsigned long long f, Eval *eval_out, const Eval *ev
 		svuint16_t	f1 = svld1_u16(pg, eval_in->feature.us + 16);
 		svuint16_t	f2 = svld1_u16(pg, eval_in->feature.us + 32);
 
-		if (eval_in->n_empties & 1) {
+		if (parity) {
 			f0 = svsub_u16_x(pg, f0, svld1_u16(pg, EVAL_FEATURE[x].us));
 			f1 = svsub_u16_x(pg, f1, svld1_u16(pg, EVAL_FEATURE[x].us + 16));
 			f2 = svsub_u16_x(pg, f2, svld1_u16(pg, EVAL_FEATURE[x].us + 32));
@@ -108,7 +124,7 @@ void eval_update_sse(int x, unsigned long long f, Eval *eval_out, const Eval *ev
 	__m128i	f4 = eval_in->feature.v8[4];
 	__m128i	f5 = eval_in->feature.v8[5];
 
-	if (eval_in->n_empties & 1) {
+	if (parity) {
 		f0 = _mm_sub_epi16(f0, EVAL_FEATURE[x].v8[0]);
 		f1 = _mm_sub_epi16(f1, EVAL_FEATURE[x].v8[1]);
 		f2 = _mm_sub_epi16(f2, EVAL_FEATURE[x].v8[2]);
@@ -150,6 +166,11 @@ void eval_update_sse(int x, unsigned long long f, Eval *eval_out, const Eval *ev
 	eval_out->feature.v8[4] = f4;
 	eval_out->feature.v8[5] = f5;
   #endif
+}
+
+void eval_update_sse(int x, unsigned long long f, Eval *eval_out, const Eval *eval_in)
+{
+	eval_update_sse_parity(x, f, eval_out, eval_in, eval_in->n_empties & 1);
 }
 
 #else	// SSE dispatch (Eval may not be aligned)

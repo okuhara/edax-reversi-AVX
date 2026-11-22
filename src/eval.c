@@ -555,6 +555,33 @@ static int set_eval_packing(short *pe, int *T, const int *kd, int l, int k, int 
 	return n;
 }
 
+#ifdef EVAL_FLAT_TABLE
+short *EVAL_FLAT;
+
+/**
+ * @brief Copy the interleaved weights to one table for each ply.
+ */
+static void eval_flat(void)
+{
+	int ply, p, i;
+
+	free(EVAL_FLAT);
+	EVAL_FLAT = (short*) malloc(sizeof (short) * 61 * EVAL_FLAT_N);
+	if (EVAL_FLAT == NULL) fatal_error("Cannot allocate evaluation weights.\n");
+	for (ply = 0; ply <= 60; ++ply) {
+		const short *w;
+		short *t = EVAL_FLAT + (size_t) ply * EVAL_FLAT_N;
+
+		p = ply - 2;
+		if (p < 0) p = 0;
+		p >>= 1;
+		if (p >= EVAL_N_2PLY - 1) p = EVAL_N_2PLY - 2;
+		w = (const short*) &(*EVAL_WEIGHT)[p];
+		for (i = 0; i < EVAL_FLAT_N; ++i) t[i] = w[2 * i + (ply & 1)];
+	}
+}
+#endif
+
 /**
  * @brief Load the evaluation function features' weights.
  *
@@ -721,6 +748,9 @@ void eval_open(const char* file)
 	// f = fopen("eval.bin", "wb");
 	// fwrite(*EVAL_WEIGHT, sizeof(Eval_weight), EVAL_N_PLY, f);
 	// fclose(f);
+#ifdef EVAL_FLAT_TABLE
+	eval_flat();
+#endif
 }
 
 /**
@@ -730,6 +760,10 @@ void eval_close(void)
 {
 	free(OPPONENT_FEATURE);
 	OPPONENT_FEATURE = NULL;
+#ifdef EVAL_FLAT_TABLE
+	free(EVAL_FLAT);
+	EVAL_FLAT = NULL;
+#endif
 	free(EVAL_WEIGHT);
 	EVAL_WEIGHT = NULL;
 	free(EVAL_FILE);
