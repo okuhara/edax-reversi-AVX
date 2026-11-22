@@ -7294,6 +7294,7 @@ typedef struct BookPlan {
 	int n_worker, n_threads;       /**< workers started, threads that they share */
 	int n_continued;               /**< searches stopped and continued with more threads (only counted in the test builds) */
 	int max_workers;               /**< searches at the same time at most (book fill: book-expand-tasks); 0: one for each thread */
+	bool isolate;                  /**< book play, extend, exhaust: every search starts with empty hash tables, planned or not (see learn_plan_begin) */
 } BookPlan;
 
 /** a thread doing planned searches */
@@ -7463,7 +7464,9 @@ void book_plan_board(Book *book, const Board *board)
 	int n_moves, n_link;
 	bool pass;
 
-	if (plan == NULL || plan->failed || board_count_empties(board) < book->options.n_empties - 1) return;
+	if (plan == NULL || plan->failed) return;
+	// (book play <n> links positions beyond the depth of the book)
+	if (!plan->isolate && board_count_empties(board) < book->options.n_empties - 1) return;
 	board_unique(board, &unique);
 	node = plan_node_find(plan, &unique);
 	if (node == NULL) {
@@ -7653,7 +7656,8 @@ static int book_plan_hash_bits(const Book *book, const int n_tasks)
  * The searches of the pool are created while there are searches left to start: a few short searches
  * do not pay for the memory of as many searches as threads.
  * A single search is not done here: it is done as usual when its position is added (all the threads,
- * the hash tables of the main search), exactly as with book-store-tasks = 1.
+ * the hash tables of the main search), exactly as with book-store-tasks = 1 (except in an isolated plan: it
+ * is then searched here as the others, so that a book does not depend on the number of threads).
  *
  * @param book Opening book (not changed).
  */
@@ -7667,7 +7671,7 @@ void book_plan_search(Book *book)
 
 	if (plan == NULL || plan->failed || plan->n_job == 0) return;
 #ifndef BOOK_TEST_ONE_THREAD
-	if (plan->n_job == 1) { plan->usual = true; return; }
+	if (plan->n_job == 1 && !plan->isolate) { plan->usual = true; return; }
 #endif
 	plan->n_threads = book_store_thread_count();
 	n = MIN(plan->n_threads, plan->n_job);
@@ -7763,6 +7767,7 @@ static int position_search_planned(Position *position, Book *book)
 			r |= position_search_with(position, book_search(book));
 		} else { // not planned: search now
 			++plan->n_missed;
+			if (plan->isolate) search_cleanup(book_search(book)); // (as the planned searches)
 #ifdef BOOK_TEST_STORE
 			fprintf(stderr, "<not planned: %016llx %016llx links %016llx pass %d level %d n_link %d n_moves %d leaf %d empties %d>\n", position->board.player, position->board.opponent, links, pass, position->level, position->n_link, n_moves, position->leaf.move, board_count_empties(&position->board));
 #endif
@@ -8745,6 +8750,210 @@ static long long book_link_moves(Book *book, const char *name, const char *file,
 	return book->stats.n_links; // (the links added: 0 if none could be, a link that cannot be allocated is not added)
 }
 
+/*
+ * The rounds of book play, book play <n> and book extend.
+ *
+ * A round expands the leaves of a list of positions. A leaf that leads to a position of the book is only linked,
+ * and when the leaves of several positions lead to the same position (the 8 symmetries are the same position),
+ * the first one in the order of the book is expanded and the others are linked to the new position: no position
+ * is searched twice. The searches of the links are planned as those of book fill, but each one starts with empty
+ * hash tables, alone or not and with any number of threads (an isolated plan): with book-reproducible on, the
+ * book does not depend on the number of threads.
+ */
+
+/** the leaf of a position to expand: where it leads (unique board), and the position */
+typedef struct LearnChild {
+	Board board;
+	unsigned long long key;    /**< place of the parent (see position_key) */
+} LearnChild;
+
+/** @brief Order of the boards (player, then opponent). */
+static int learn_board_cmp(const void *a, const void *b)
+{
+	const Board *x = (const Board*) a, *y = (const Board*) b;
+
+	if (x->player != y->player) return x->player < y->player ? -1 : 1;
+	if (x->opponent != y->opponent) return x->opponent < y->opponent ? -1 : 1;
+	return 0;
+}
+
+/** @brief Order of the children: their boards, then the order of their parents in the book. */
+static int learn_child_cmp(const void *a, const void *b)
+{
+	const LearnChild *x = (const LearnChild*) a, *y = (const LearnChild*) b;
+	const int r = learn_board_cmp(&x->board, &y->board);
+
+	return r ? r : (x->key > y->key) - (x->key < y->key);
+}
+
+/** @brief Sort boards (player, then opponent). */
+static void learn_boards_sort(Board *board, const long long n)
+{
+	qsort(board, (size_t) n, sizeof *board, learn_board_cmp);
+}
+
+/** @brief Sort children (see learn_child_cmp). */
+static void learn_children_sort(LearnChild *child, const long long n)
+{
+	qsort(child, (size_t) n, sizeof *child, learn_child_cmp);
+}
+
+/** @brief Sort places of positions in the order of the book. */
+static void learn_keys_sort(unsigned long long *key, const long long n)
+{
+	qsort(key, (size_t) n, sizeof *key, todo_item_cmp);
+}
+
+/** one command that learns by rounds */
+typedef struct LearnRun {
+	Book *book;
+	const char *name;          /**< name of the command (progress) */
+	const char *file;          /**< file of the saves */
+	LearnChild *child;         /**< children of the last round, sorted */
+	long long n_child;
+	long long n_diffs;         /**< positions and links added by the last round */
+} LearnRun;
+
+/** @brief Start a command that learns by rounds. */
+static void learn_begin(LearnRun *run, Book *book, const char *name, const char *file)
+{
+	run->book = book;
+	run->name = name;
+	run->file = file;
+	run->child = NULL;
+	run->n_child = run->n_diffs = 0;
+}
+
+/** @brief End a command that learns by rounds. */
+static void learn_end(LearnRun *run)
+{
+	free(run->child);
+	run->child = NULL;
+	run->n_child = 0;
+	search_pool_release(&expand_pool);
+	book_store_release(); // (the searches of the links)
+}
+
+/** @brief Report that the memory of a command that learns is exhausted: the command stops. */
+static void learn_no_memory(Book *book)
+{
+	error("cannot allocate the lists of the positions to learn\n");
+	book->failed = true;
+}
+
+/**
+ * @brief Start an isolated plan.
+ *
+ * @param book Opening book.
+ * @return false if it cannot be allocated (the command stops).
+ */
+static bool learn_plan_begin(Book *book)
+{
+	if (!book_plan_begin(book)) {
+		learn_no_memory(book);
+		return false;
+	}
+	book_plan->isolate = true;
+	book_plan->max_workers = book_one_search_at_a_time() ? 1 : MAX(0, options.book_expand_tasks);
+	return true;
+}
+
+/**
+ * @brief Link positions to all their children in the book, and search again the leaves that became links.
+ *
+ * @param run Command.
+ * @param keys Places of the positions (see position_key), in the order of the book.
+ * @param n Number of positions.
+ */
+static void learn_link(LearnRun *run, const unsigned long long *keys, const long long n)
+{
+	Book *book = run->book;
+	const int max_jobs = BOOK_FILL_PLAN_SEARCHES * book_store_thread_count();
+	const long long max_positions = 16LL * max_jobs;
+	long long i = 0, j, end;
+	unsigned long long t = real_clock();
+
+	while (i < n && !book->failed) {
+		if (!learn_plan_begin(book)) break;
+		for (j = i; j < n; ) {
+			book_plan_board(book, &book_position(book, keys[j])->board); // (a board of the book is unique)
+			++j;
+			if (book_plan->failed || book_plan->n_job >= max_jobs || j - i >= max_positions) break;
+		}
+		end = j;
+		book_plan_search(book);
+		for (j = i; j < end && !book->failed; ++j) {
+			Position *p = book_position(book, keys[j]);
+			const int x = p->leaf.move;
+			const long long n_links = book->stats.n_links;
+
+			position_link(p, book);
+			if (book->stats.n_links != n_links) book->need_saving = true;
+			// the leaf is a link now (position_add_link has removed it): search the next leaf, if a move is left
+			if (x != NOMOVE && p->leaf.move == NOMOVE) position_search(p, book);
+		}
+		book_plan_end(book);
+		i = end;
+		bprint("%s (links)...%lld/%lld: %lld links\r", run->name, i, n, book->stats.n_links);
+		book_save_timed(book, run->file, &t);
+	}
+}
+
+/**
+ * @brief A round: expand the leaves of some positions.
+ *
+ * @param run Command (out: the children of the round, and what it added).
+ * @param keys Places of the positions (see position_key).
+ * @param n Number of positions.
+ */
+static void learn_round(LearnRun *run, const unsigned long long *keys, const long long n)
+{
+	Book *book = run->book;
+	LearnChild *child = (LearnChild*) malloc((size_t) (n + 1) * sizeof *child);
+	unsigned long long *link_keys = (unsigned long long*) malloc((size_t) (n + 1) * sizeof *link_keys);
+	long long i, m = 0, n_link = 0;
+
+	run->n_diffs = 0;
+	if (child == NULL || link_keys == NULL) {
+		free(child); free(link_keys);
+		learn_no_memory(book);
+		return;
+	}
+	for (i = 0; i < n; ++i) {
+		const Position *p = book_position(book, keys[i]);
+		Board next;
+
+		if (p->leaf.move == NOMOVE) continue; // nothing to expand
+		next = position_leaf_board(p);
+		board_unique(&next, &child[m].board);
+		child[m].key = keys[i];
+		++m;
+	}
+	learn_children_sort(child, m);
+	free(run->child);
+	run->child = child;
+	run->n_child = m;
+
+	book_clean(book);
+	for (i = 0; i < m; ++i) {
+		const bool first = (i == 0 || !board_equal(&child[i - 1].board, &child[i].board));
+
+		if (first && book_probe(book, &child[i].board) == NULL) {
+			book_mark_todo(book, book_position(book, child[i].key));
+			++book->stats.n_todo;
+		} else { // the position is in the book, or will be when the first one is expanded
+			link_keys[n_link++] = child[i].key;
+		}
+	}
+	if (book->stats.n_todo) book_expand(book, run->name, run->file);
+	if (n_link && !book->failed) {
+		learn_keys_sort(link_keys, n_link);
+		learn_link(run, link_keys, n_link);
+	}
+	free(link_keys);
+	run->n_diffs = book->stats.n_nodes + book->stats.n_links;
+}
+
 /**
  * @brief Play.
  *
@@ -8760,34 +8969,29 @@ static long long book_link_moves(Book *book, const char *name, const char *file,
 void book_play(Book *book)
 {
 	static const BookPick play_pick = {0, false, false, false, true};
+	LearnRun run;
 	unsigned long long *keys;
-	long long n_diffs, n, i;
+	long long n;
 	char file[FILENAME_MAX + 1];
 
 	file_add_ext(options.book_file, ".play", file);
+	learn_begin(&run, book, "Book play", file);
 	do {
-		book_clean(book);
 		keys = book_pick_scan(book, "Book play", &play_pick, &n);
 		if (keys == NULL) {
-			error("cannot allocate the list of the positions to expand\n");
-			book->failed = true;
+			learn_no_memory(book);
 			break;
 		}
-		for (i = 0; i < n; ++i) book_mark_todo(book, book_position(book, keys[i]));
+		bprint("Book play...%lld todo\n", n);
+		learn_round(&run, keys, n);
 		free(keys);
-		book->stats.n_todo = n;
-		bprint("Book play...%lld todo\n", book->stats.n_todo);
-
-		book_expand(book, "Book play", file);
-
-		n_diffs = book->stats.n_nodes + book->stats.n_links;
-		if (n_diffs) {
+		if (run.n_diffs) {
 			book_negamax(book);
 			book_save_progress(book, file);
 		}
-	} while (n_diffs && !book->failed); // stop if a position cannot be added
+	} while (run.n_diffs && !book->failed); // stop if a position cannot be added
 	bprint("Book play... finished\n");
-	search_pool_release(&expand_pool);
+	learn_end(&run);
 }
 
 /**
