@@ -314,6 +314,49 @@ static void ref_play_to(Book *b, const PlayToArg *arg)
 	book_negamax_from(b, &arg->start);
 }
 
+/* ---- book exhaust: the boards by plain recursion, the searches and the values by their definitions ---- */
+
+#define REF_SET_SIZE (1u << 20)
+static Board ref_set[REF_SET_SIZE];
+static bool ref_set_used[REF_SET_SIZE];
+static unsigned int ref_set_n;
+
+static bool ref_set_add(const Board *unique)
+{
+	unsigned int i = (unsigned int) ((unique->player * 0x9E3779B97F4A7C15ULL ^ unique->opponent * 0xC2B2AE3D27D4EB4FULL) >> 40) & (REF_SET_SIZE - 1);
+
+	while (ref_set_used[i]) {
+		if (board_equal(ref_set + i, unique)) return false;
+		i = (i + 1) & (REF_SET_SIZE - 1);
+	}
+	ref_set_used[i] = true;
+	ref_set[i] = *unique;
+	++ref_set_n;
+	return true;
+}
+
+static void ref_exhaust_boards(const Board *board, const int limit)
+{
+	Board unique, next;
+	unsigned long long moves;
+
+	if (ref_set_n >= REF_SET_SIZE / 2) return;
+	board_unique(board, &unique);
+	if (!ref_set_add(&unique)) return;
+	if (board_count_empties(board) < limit) return;
+	moves = board_get_moves(board);
+	if (moves) {
+		for (; moves; moves &= moves - 1) {
+			board_next(board, first_bit(moves), &next);
+			ref_exhaust_boards(&next, limit);
+		}
+	} else if (can_move(board->opponent, board->player)) {
+		next.player = board->opponent;
+		next.opponent = board->player;
+		ref_exhaust_boards(&next, limit);
+	}
+}
+
 /* ---- the cases ---- */
 
 typedef void (*Command)(Book*, const void*);
@@ -750,6 +793,221 @@ static void test_reached(void)
 	}
 }
 
+/* number of children of a board, and how many are in the set (a pass is a child) */
+static int ref_children(const Board *board, int *n_in, const Book *seed)
+{
+	unsigned long long moves = board_get_moves(board);
+	Board child[64], unique;
+	int n = 0, k;
+
+	if (moves) {
+		for (; moves; moves &= moves - 1) board_next(board, first_bit(moves), child + n++);
+	} else if (can_move(board->opponent, board->player)) {
+		child[0].player = board->opponent;
+		child[0].opponent = board->player;
+		n = 1;
+	}
+	*n_in = 0;
+	for (k = 0; k < n; ++k) {
+		unsigned int i;
+		bool in = false;
+
+		board_unique(child + k, &unique);
+		i = (unsigned int) ((unique.player * 0x9E3779B97F4A7C15ULL ^ unique.opponent * 0xC2B2AE3D27D4EB4FULL) >> 40) & (REF_SET_SIZE - 1);
+		while (ref_set_used[i]) {
+			if (board_equal(ref_set + i, &unique)) { in = true; break; }
+			i = (i + 1) & (REF_SET_SIZE - 1);
+		}
+		if (in || book_probe(seed, &unique)) ++*n_in;
+	}
+	return n;
+}
+
+/*
+ * One exhaust against the definitions: the positions are those of the recursion and those of the seed, every
+ * position above the bottom has every move as a link, the searches are those of the new positions that still
+ * have a move out of the book, the values are the best of the links and the leaf; and the same book with 4, 2
+ * and 1 threads.
+ */
+static void exhaust_case(const Book *seed, const Board *start, const char *what)
+{
+	static const int n_tasks[] = {4, 2, 1};
+	const int limit = seed->options.n_empties;
+	long long n_new = 0, n_searches = 0;
+	Book first;
+	unsigned int i;
+	int k;
+
+	memset(ref_set_used, 0, sizeof ref_set_used);
+	ref_set_n = 0;
+	ref_exhaust_boards(start, limit);
+	CHECK(ref_set_n < REF_SET_SIZE / 2, "%s: too large for the test", what);
+	for (i = 0; i < REF_SET_SIZE; ++i) {
+		int n_in, n;
+
+		if (!ref_set_used[i] || book_probe(seed, ref_set + i)) continue;
+		++n_new;
+		n = ref_children(ref_set + i, &n_in, seed);
+		if (board_get_moves(ref_set + i) ? n_in < n : n_in == 0) ++n_searches;
+	}
+
+	for (k = 0; k < 3; ++k) {
+		Book b;
+		PositionArray *a;
+		Position *p;
+		const Book *bp = &b;
+		int n_bad_link = 0, n_bad_value = 0, n_absent = 0;
+
+		book_copy(&b, seed);
+		set_threads(n_tasks[k]);
+		book_test_searches = book_test_negamaxes = book_test_saves = 0;
+		book_test_wide_walks = book_test_wide_threaded = 0;
+		book_exhaust(&b, start);
+
+		CHECK(b.n_nodes == seed->n_nodes + n_new, "%s, %d threads: %u positions, %lld expected", what, n_tasks[k], b.n_nodes, seed->n_nodes + n_new);
+		for (i = 0; i < REF_SET_SIZE; ++i) if (ref_set_used[i] && !book_probe(&b, ref_set + i)) ++n_absent;
+		CHECK(n_absent == 0, "%s, %d threads: %d boards are absent", what, n_tasks[k], n_absent);
+
+		// the searches: a position of the seed is searched again only if its leaf became a link and a move is left
+		{
+			long long n_again = 0;
+
+			foreach_position(p, a, seed) {
+				const Position *q = book_probe(&b, &p->board);
+
+				if (p->leaf.move != NOMOVE && q && link_in(q, &p->leaf, false) && q->leaf.move != NOMOVE) ++n_again;
+			}
+			CHECK(book_test_searches == n_searches + n_again, "%s, %d threads: %lld searches, %lld + %lld expected", what, n_tasks[k], book_test_searches, n_searches, n_again);
+		}
+		CHECK(book_test_negamaxes == 1, "%s: %lld negamax", what, book_test_negamaxes);
+		CHECK(book_test_saves == (n_new ? 1 : book_test_saves), "%s: %lld saves", what, book_test_saves);
+		if (n_tasks[k] > 1) CHECK(book_test_wide_threaded == book_test_wide_walks, "%s: a wide level was walked by one thread", what);
+		if (k == 0) printf("%s: %lld new positions, %lld searches, %lld levels of 4096 boards or more\n", what, n_new, book_test_searches, book_test_wide_walks);
+
+		foreach_position(p, a, bp) {
+			const unsigned long long moves = board_get_moves(&p->board);
+			const Link *l;
+			int best = p->leaf.score;
+
+			unsigned int j = (unsigned int) ((p->board.player * 0x9E3779B97F4A7C15ULL ^ p->board.opponent * 0xC2B2AE3D27D4EB4FULL) >> 40) & (REF_SET_SIZE - 1);
+
+			while (ref_set_used[j] && !board_equal(ref_set + j, &p->board)) j = (j + 1) & (REF_SET_SIZE - 1);
+			if (!ref_set_used[j]) continue;
+			if (board_count_empties(&p->board) >= limit) {
+				const int need = moves ? bit_count(moves) : (can_move(p->board.opponent, p->board.player) ? 1 : 0);
+
+				if (p->n_link != need) ++n_bad_link;
+				if (need && p->leaf.move != NOMOVE) ++n_bad_link;
+			}
+			foreach_link(l, p) {
+				Board next;
+				const Position *c;
+
+				if (l->move == PASS) { next.player = p->board.opponent; next.opponent = p->board.player; }
+				else board_next(&p->board, l->move, &next);
+				c = book_probe(bp, &next);
+				if (c == NULL || l->score != -c->score.value) { ++n_bad_value; continue; }
+				best = MAX(best, l->score);
+			}
+			if (p->score.value != best) ++n_bad_value;
+		}
+		CHECK(n_bad_link == 0, "%s, %d threads: %d positions without all their links", what, n_tasks[k], n_bad_link);
+		CHECK(n_bad_value == 0, "%s, %d threads: %d wrong values", what, n_tasks[k], n_bad_value);
+		CHECK(book_unsound(&b) == 0, "%s, %d threads: not sound", what, n_tasks[k]);
+		if (k == 0) {
+			book_copy(&first, &b);
+		} else {
+			CHECK(book_differences(&b, &first, what) == 0, "%s: another book with %d threads", what, n_tasks[k]);
+		}
+		book_free(&b);
+	}
+	book_free(&first);
+}
+
+/* the book of a board alone: searched */
+static void book_of_board(Book *b, const Board *board, const int level, const int n_empties)
+{
+	Position p;
+
+	book_bare(b, level, n_empties);
+	position_init(&p);
+	board_unique(board, &p.board);
+	p.level = b->options.level;
+	position_search(&p, b);
+	book_add(b, &p);
+	book_clean(b);
+}
+
+/* a board of n empty squares whose player has no move, the opponent has */
+static bool pass_board(const int n_empties, Board *board)
+{
+	int i;
+
+	for (i = 0; i < 2000000; ++i) {
+		const Board b = random_board(n_empties + 1);
+		unsigned long long m;
+
+		for (m = board_get_moves(&b); m; m &= m - 1) {
+			Board next;
+
+			board_next(&b, first_bit(m), &next);
+			if (!board_get_moves(&next) && can_move(next.opponent, next.player)) {
+				*board = next;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+static void test_exhaust(void)
+{
+	Board start;
+	Book seed;
+
+	board_init(&start);
+	set_threads(1);
+	book_start(&seed, 1, 54);
+	exhaust_case(&seed, &start, "book exhaust of a new book");
+	book_free(&seed);
+
+	seed_book(&seed, 2, 56, 54);
+	exhaust_case(&seed, &start, "book exhaust of a book");
+	book_free(&seed);
+
+	seed_book(&seed, 2, 54, 53);
+	start = start_board(1);
+	exhaust_case(&seed, &start, "book exhaust from a move, wide");
+	book_free(&seed);
+
+	// T5: the passes, the end of games, the positions without leaf
+	if (pass_board(8, &start)) {
+		book_of_board(&seed, &start, 2, 8);
+		exhaust_case(&seed, &start, "book exhaust from a pass, at the depth");
+		book_free(&seed);
+		book_of_board(&seed, &start, 2, 1);
+		exhaust_case(&seed, &start, "book exhaust from a pass, to the end of the games");
+		{
+			Position *p = book_probe(&seed, &start);
+
+			p->leaf = BAD_LINK; // (Edax 4.7 left such a position as it was)
+			exhaust_case(&seed, &start, "book exhaust from a pass without leaf");
+		}
+		book_free(&seed);
+	} else {
+		CHECK(false, "no board with a pass");
+	}
+	start = random_board(8);
+	book_of_board(&seed, &start, 2, 3);
+	{
+		Position *p = book_probe(&seed, &start);
+
+		p->leaf = BAD_LINK;
+		exhaust_case(&seed, &start, "book exhaust from a position without leaf");
+	}
+	book_free(&seed);
+}
+
 int main(int argc, char **argv)
 {
 	const char *t = argc > 1 ? argv[1] : "all";
@@ -764,6 +1022,7 @@ int main(int argc, char **argv)
 	if (all || !strcmp(t, "extend")) test_extend();
 	if (all || !strcmp(t, "playto")) test_play_to();
 	if (all || !strcmp(t, "reached")) test_reached();
+	if (all || !strcmp(t, "exhaust")) test_exhaust();
 	if (all || !strcmp(t, "dangling")) test_dangling();
 	printf("book-learn: %d checks, %d failures\n", n_check, n_fail);
 	return (n_check && !n_fail) ? 0 : 1;

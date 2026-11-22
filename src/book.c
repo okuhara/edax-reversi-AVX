@@ -9463,6 +9463,387 @@ void book_play_to(Book *book, const Board *board, const int n_empties)
 	learn_end(&run);
 }
 
+/*
+ * book exhaust: every move from a position to the depth of the book (with the passes).
+ *
+ * The boards are found level by level, from this position down, by several threads: each board once (the 8
+ * symmetries are one board), whether it is in the book or not. The book is not changed meanwhile. The boards
+ * of a level have as many empty squares; those without a move (a pass, or the end of a game) come before the
+ * others, as their children have as many empty squares. The new boards are then added from the bottom up: a
+ * position is added after all its children, so it has all its links and is not searched (only the boards at the
+ * bottom are, once each). Last, the positions of the book get their new links. An interrupted run leaves whole
+ * positions: the next one finds them by the moves, whether they are linked or not.
+ */
+
+#define EXHAUST_SHARDS 64            /**< parts of a list sorted apart (always as many: the order does not depend on the threads) */
+#define EXHAUST_CHUNK (1LL << 22)    /**< boards walked before the lists of their children are reduced */
+
+/** a list of boards */
+typedef struct BoardList {
+	Board *item;
+	long long n, size;
+	long long n_unique;        /**< boards left by the last board_list_unique */
+} BoardList;
+
+/** a list of the places of positions */
+typedef struct KeyList {
+	unsigned long long *item;
+	long long n, size;
+} KeyList;
+
+static bool board_list_reserve(BoardList *list, const long long n)
+{
+	if (n > list->size) {
+		const long long size = MAX(n, list->size + list->size / 2 + 1024);
+		Board *item = (Board*) realloc(list->item, (size_t) size * sizeof *item);
+
+		if (item == NULL) return false;
+		list->item = item;
+		list->size = size;
+	}
+	return true;
+}
+
+static bool board_list_push(BoardList *list, const Board *board)
+{
+	if (list->n == list->size && !board_list_reserve(list, list->n + 1)) return false;
+	list->item[list->n++] = *board;
+	return true;
+}
+
+static bool board_list_append(BoardList *dest, const BoardList *src)
+{
+	if (src->n == 0) return true;
+	if (!board_list_reserve(dest, dest->n + src->n)) return false;
+	memcpy(dest->item + dest->n, src->item, (size_t) src->n * sizeof *src->item);
+	dest->n += src->n;
+	return true;
+}
+
+static bool key_list_push(KeyList *list, const unsigned long long key)
+{
+	if (list->n == list->size) {
+		const long long size = list->size + list->size / 2 + 1024;
+		unsigned long long *item = (unsigned long long*) realloc(list->item, (size_t) size * sizeof *item);
+
+		if (item == NULL) return false;
+		list->item = item;
+		list->size = size;
+	}
+	list->item[list->n++] = key;
+	return true;
+}
+
+/** a thread of board_list_unique */
+typedef struct ShardWorker {
+	Board *item;
+	const long long *first;    /**< start of each part */
+	long long *kept;           /**< boards left in each part */
+	int id, n_workers;
+} ShardWorker;
+
+static void* shard_worker_run(void *v)
+{
+	ShardWorker *w = (ShardWorker*) v;
+	int s;
+
+	for (s = w->id; s < EXHAUST_SHARDS; s += w->n_workers) {
+		Board *part = w->item + w->first[s];
+		const long long n = w->first[s + 1] - w->first[s];
+		long long i, k = 0;
+
+		learn_boards_sort(part, n);
+		for (i = 0; i < n; ++i) if (k == 0 || !board_equal(part + k - 1, part + i)) part[k++] = part[i];
+		w->kept[s] = k;
+	}
+	return NULL;
+}
+
+/**
+ * @brief Leave each board once in a list, with several threads. The order only depends on the boards.
+ *
+ * @param list List of unique boards.
+ * @return false if the memory is exhausted.
+ */
+static bool board_list_unique(BoardList *list)
+{
+	long long count[EXHAUST_SHARDS] = {0}, first[EXHAUST_SHARDS + 1], next[EXHAUST_SHARDS], kept[EXHAUST_SHARDS];
+	ShardWorker w[MAX_THREADS];
+	Board *part;
+	long long i, n = 0;
+	int s, m = MIN(book_walk_threads(), EXHAUST_SHARDS);
+
+	if (list->n == 0) {
+		list->n_unique = 0;
+		return true;
+	}
+	if (list->n < 4096) m = 1;
+	part = (Board*) malloc((size_t) list->n * sizeof *part);
+	if (part == NULL) return false;
+#define exhaust_shard(b) ((int) (board_get_hash_code(b) >> 58) & (EXHAUST_SHARDS - 1))
+	for (i = 0; i < list->n; ++i) ++count[exhaust_shard(list->item + i)];
+	first[0] = 0;
+	for (s = 0; s < EXHAUST_SHARDS; ++s) {
+		next[s] = first[s];
+		first[s + 1] = first[s] + count[s];
+	}
+	for (i = 0; i < list->n; ++i) part[next[exhaust_shard(list->item + i)]++] = list->item[i];
+#undef exhaust_shard
+	for (s = 0; s < m; ++s) {
+		w[s].item = part; w[s].first = first; w[s].kept = kept;
+		w[s].id = s; w[s].n_workers = m;
+	}
+	book_run_workers(shard_worker_run, w, sizeof *w, m);
+	for (s = 0; s < EXHAUST_SHARDS; ++s) {
+		memcpy(list->item + n, part + first[s], (size_t) kept[s] * sizeof *part);
+		n += kept[s];
+	}
+	free(part);
+	list->n = list->n_unique = n;
+	return true;
+}
+
+/** a thread of the walk of book exhaust */
+typedef struct ExhaustWorker {
+	const Book *book;
+	const Board *board;        /**< boards to walk */
+	long long first, last;
+	BoardList child[2];        /**< children without a move [0], with moves [1] */
+	BoardList fresh;           /**< boards that are not in the book */
+	KeyList link;              /**< positions of the book that do not have all their links */
+	bool oom;
+} ExhaustWorker;
+
+static void* exhaust_worker_run(void *v)
+{
+	ExhaustWorker *w = (ExhaustWorker*) v;
+	const Book *book = w->book;
+	long long i;
+	int x;
+
+	for (i = w->first; i < w->last && !w->oom; ++i) {
+		const Board *board = w->board + i;
+		const Position *p = book_probe(book, board);
+		unsigned long long moves;
+		Board next, unique;
+		int n_moves;
+
+		if (p == NULL && !board_list_push(&w->fresh, board)) w->oom = true;
+		if (board_count_empties(board) < book->options.n_empties) continue; // the bottom
+		moves = board_get_moves(board);
+		n_moves = bit_count(moves);
+		if (moves) {
+			foreach_bit(x, moves) {
+				board_next(board, x, &next);
+				board_unique(&next, &unique);
+				if (!board_list_push(&w->child[can_move(unique.player, unique.opponent) ? 1 : 0], &unique)) w->oom = true;
+			}
+		} else if (can_move(board->opponent, board->player)) { // pass
+			next.player = board->opponent;
+			next.opponent = board->player;
+			board_unique(&next, &unique);
+			if (!board_list_push(&w->child[1], &unique)) w->oom = true;
+			n_moves = 1;
+		} else {
+			continue; // the end of a game
+		}
+		if (p && p->n_link < n_moves && !key_list_push(&w->link, position_key(book, p))) w->oom = true;
+	}
+	return NULL;
+}
+
+/** the lists of book exhaust: by number of empty squares, without [0] and with [1] a move */
+typedef struct Exhaust {
+	BoardList found[61][2];
+	BoardList fresh[61][2];
+	KeyList link;
+} Exhaust;
+
+/**
+ * @brief Walk the boards of a level: their children, those that are not in the book, the links to add.
+ *
+ * @param book Opening book (not changed).
+ * @param ex Lists.
+ * @param e Number of empty squares.
+ * @param movers 1: the boards with a move; 0: without.
+ * @return false if the memory is exhausted.
+ */
+static bool exhaust_walk(const Book *book, Exhaust *ex, const int e, const int movers)
+{
+	ExhaustWorker w[MAX_THREADS];
+	BoardList *level = &ex->found[e][movers];
+	BoardList *target[2];
+	const int n_threads = book_walk_threads();
+	long long from, to, j;
+	int i, c;
+	bool ok;
+
+	if (level->n == 0) return true;
+	if (!board_list_unique(level)) return false;
+#ifdef BOOK_TEST_COUNTS
+	if (level->n >= 4096) {
+		++book_test_wide_walks;
+		if (n_threads > 1) ++book_test_wide_threaded;
+	}
+#endif
+	// the children of a pass have as many empty squares (and a move); the others one less
+	target[0] = (movers && e > 0) ? &ex->found[e - 1][0] : NULL;
+	target[1] = movers ? (e > 0 ? &ex->found[e - 1][1] : NULL) : &ex->found[e][1];
+	memset(w, 0, n_threads * sizeof *w);
+	ok = true;
+	for (from = 0; ok && from < level->n; from = to) {
+		const long long n = MIN(level->n - from, EXHAUST_CHUNK);
+		const int m = (n < 4096) ? 1 : n_threads;
+
+		to = from + n;
+		for (i = 0; i < m; ++i) {
+			w[i].book = book;
+			w[i].board = level->item;
+			w[i].first = from + n * i / m;
+			w[i].last = from + n * (i + 1) / m;
+		}
+		book_run_workers(exhaust_worker_run, w, sizeof *w, m);
+		for (i = 0; i < m; ++i) {
+			if (w[i].oom) ok = false;
+			for (c = 0; c < 2 && ok; ++c) {
+				if (w[i].child[c].n && target[c] && !board_list_append(target[c], &w[i].child[c])) ok = false;
+				w[i].child[c].n = 0;
+			}
+			if (ok && !board_list_append(&ex->fresh[e][movers], &w[i].fresh)) ok = false;
+			w[i].fresh.n = 0;
+			for (j = 0; ok && j < w[i].link.n; ++j) ok = key_list_push(&ex->link, w[i].link.item[j]);
+			w[i].link.n = 0;
+		}
+		// (a board has as many parents as moves lead to it: the duplicates are dropped along the way)
+		for (c = 0; c < 2 && ok; ++c) {
+			if (target[c] && target[c]->n > 2 * target[c]->n_unique + EXHAUST_CHUNK) ok = board_list_unique(target[c]);
+		}
+	}
+	for (i = 0; i < n_threads; ++i) {
+		free(w[i].child[0].item); free(w[i].child[1].item);
+		free(w[i].fresh.item); free(w[i].link.item);
+	}
+	free(level->item); // (walked)
+	level->item = NULL;
+	level->n = level->size = 0;
+	return ok;
+}
+
+/**
+ * @brief Add new boards whose children are in the book (or in the lists that were added before), in this order.
+ *
+ * @param run Command.
+ * @param list Unique boards.
+ * @param done Boards added by the command (progress).
+ * @param total Boards to add.
+ */
+static void exhaust_add(LearnRun *run, const BoardList *list, long long *done, const long long total)
+{
+	Book *book = run->book;
+	const int max_jobs = BOOK_FILL_PLAN_SEARCHES * book_store_thread_count();
+	const long long max_positions = 16LL * max_jobs;
+	long long i = 0, j, end;
+
+	while (i < list->n && !book->failed) {
+		if (!learn_plan_begin(book)) break;
+		for (j = i; j < list->n; ) {
+			book_plan_board(book, list->item + j);
+			++j;
+			if (book_plan->failed || book_plan->n_job >= max_jobs || j - i >= max_positions) break;
+		}
+		end = j;
+		book_plan_search(book);
+		for (j = i; j < end && !book->failed; ++j) book_add_board(book, list->item + j);
+		book_plan_end(book);
+		book->need_saving = true;
+		*done += end - i;
+		i = end;
+		bprint("%s...%lld/%lld done: %lld positions, %lld links\r", run->name, *done, total, book->stats.n_nodes, book->stats.n_links);
+		learn_save_timed(run);
+	}
+}
+
+/**
+ * @brief Exhaust.
+ *
+ * Add every move from a position to the depth of the book (book exhaust of Edax 4.7, with the passes and the
+ * positions without a leaf).
+ *
+ * @param book opening book.
+ * @param board Position to start from.
+ */
+void book_exhaust(Book *book, const Board *board)
+{
+	const Board start = *board;
+	Board root;
+	LearnRun run;
+	Exhaust *ex;
+	long long n_fresh = 0, done = 0;
+	int e, c;
+	bool ok;
+	char file[FILENAME_MAX + 1];
+	const int top = board_count_empties(board);
+
+	if (book_probe(book, &start) == NULL) {
+		warn("book exhaust: the current position is not in the book\n");
+		return;
+	}
+	if (top < book->options.n_empties || top > 60 || board_is_game_over(&start)) {
+		bprint("Book exhaust... nothing to add within the depth of the book\n");
+		return;
+	}
+	ex = (Exhaust*) calloc(1, sizeof *ex);
+	if (ex == NULL) {
+		learn_no_memory(book);
+		return;
+	}
+	file_add_ext(options.book_file, ".exh", file);
+	learn_begin(&run, book, "Book exhaust", file);
+
+	// down: the boards, level by level (the book is not changed)
+	board_unique(&start, &root);
+	ok = board_list_push(&ex->found[top][can_move(root.player, root.opponent) ? 1 : 0], &root);
+	for (e = top; ok && e >= 0; --e) {
+		for (c = 0; ok && c < 2; ++c) ok = exhaust_walk(book, ex, e, c);
+		if (ok) {
+			n_fresh += ex->fresh[e][0].n + ex->fresh[e][1].n;
+			if (ex->fresh[e][0].n + ex->fresh[e][1].n) bprint("Book exhaust...%lld positions to add\r", n_fresh);
+		}
+	}
+
+	if (!ok) {
+		learn_no_memory(book); // (nothing was changed)
+	} else {
+		bprint("Book exhaust...%lld positions to add, %lld positions to link\n", n_fresh, ex->link.n);
+		book_clean(book);
+		// up: the children before their parents
+		for (e = 0; e <= top && !book->failed; ++e) {
+			for (c = 1; c >= 0 && !book->failed; --c) {
+				exhaust_add(&run, &ex->fresh[e][c], &done, n_fresh);
+				free(ex->fresh[e][c].item);
+				ex->fresh[e][c].item = NULL;
+			}
+		}
+		if (ex->link.n && !book->failed) {
+			learn_keys_sort(ex->link.item, ex->link.n);
+			learn_link(&run, ex->link.item, ex->link.n);
+		}
+		run.n_total = book->stats.n_nodes + book->stats.n_links;
+		book_negamax_from(book, &start);
+		if (run.n_total) book_save_progress(book, file);
+	}
+	for (e = 0; e <= 60; ++e) {
+		for (c = 0; c < 2; ++c) {
+			free(ex->found[e][c].item);
+			free(ex->fresh[e][c].item);
+		}
+	}
+	free(ex->link.item);
+	free(ex);
+	bprint("Book exhaust... finished\n");
+	learn_end(&run);
+}
+
 /**
  * @brief Play.
  *

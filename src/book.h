@@ -124,6 +124,7 @@ bool book_reduce(Book*, const Board*, const int, const int);
 void book_play(Book*);
 void book_extend(Book*, const Board*);
 void book_play_to(Book*, const Board*, const int);
+void book_exhaust(Book*, const Board*);
 
 void book_info(Book*);
 void book_show(Book*, Board*);
