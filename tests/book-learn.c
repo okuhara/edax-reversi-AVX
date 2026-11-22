@@ -222,11 +222,69 @@ static void ref_play(Book *b, long long *n_shared)
 	book_negamax(b);
 }
 
+/* mark (done) what the links reach from a board, by recursion */
+static void ref_reach(Book *b, const Board *board, const int limit)
+{
+	Position *p = book_probe(b, board);
+	const Link *l;
+
+	if (p == NULL || position_is_done(p, b) || board_count_empties(board) < limit || board_is_game_over(board)) return;
+	position_set_done(p, b);
+	foreach_link(l, p) {
+		Board next;
+
+		if (l->move == PASS) { next.player = p->board.opponent; next.opponent = p->board.player; }
+		else board_next(&p->board, l->move, &next);
+		ref_reach(b, &next, limit);
+	}
+}
+
+static bool ref_extendable(const Position *p)
+{
+	const Link *l;
+
+	if (p->leaf.move == NOMOVE) return false;
+	foreach_link(l, p) if (l->score > p->leaf.score) return false;
+	return true;
+}
+
+static void ref_extend(Book *b, const Board *start)
+{
+	for (;;) {
+		unsigned long long *keys;
+		PositionArray *a;
+		Position *p;
+		long long n = 0, diffs;
+
+		book_negamax_from(b, start);
+		book_clean(b);
+		ref_reach(b, start, b->options.n_empties);
+		keys = (unsigned long long*) malloc((b->n_nodes + 1) * sizeof *keys);
+		foreach_position(p, a, b) if (position_is_done(p, b) && ref_extendable(p)) keys[n++] = position_key(b, p);
+		diffs = ref_round(b, keys, n, NULL);
+		free(keys);
+		if (!diffs) break;
+	}
+	book_negamax_from(b, start);
+}
+
 /* ---- the cases ---- */
 
 typedef void (*Command)(Book*, const void*);
 
 static void run_play(Book *b, const void *arg) { (void) arg; book_play(b); }
+static void run_extend(Book *b, const void *arg) { book_extend(b, (const Board*) arg); }
+
+/* the board after the first moves */
+static Board start_board(const int plies)
+{
+	Board b;
+	int i;
+
+	board_init(&b);
+	for (i = 0; i < plies; ++i) board_next(&b, first_bit(board_get_moves(&b)), &b);
+	return b;
+}
 
 /*
  * The same command with 4, 2 and 1 threads against the reference: the same book, as many searches.
@@ -244,10 +302,15 @@ static void against_reference(const Book *seed, Book *ref, const long long ref_s
 		set_threads(n_tasks[k]);
 		book_test_searches = 0;
 		book_test_serial = book_test_parallel = 0;
+		book_test_expand_redo = 0;
 		run(&b, arg);
 		if (n_tasks[k] > 1) CHECK(book_test_serial == 0, "%s, %d threads: %lld rounds expanded one after the other", what, n_tasks[k], book_test_serial);
 		if (n_tasks[k] > 1) CHECK(book_test_parallel > 0, "%s, %d threads: nothing was expanded at the same time", what, n_tasks[k]);
-		CHECK(book_test_searches == ref_searches, "%s, %d threads: %lld searches, the reference %lld", what, n_tasks[k], book_test_searches, ref_searches);
+		/* (book-reproducible searches an expansion again, 2 searches, when an earlier one of the list changed its links) */
+		CHECK(book_test_searches >= ref_searches && book_test_searches <= ref_searches + 2 * book_test_expand_redo, "%s, %d threads: %lld searches, the reference %lld, %lld searched again", what, n_tasks[k], book_test_searches, ref_searches, book_test_expand_redo);
+		if (n_tasks[k] == 1) CHECK(book_test_expand_redo == 0, "%s, 1 thread: searched again", what);
+		if (book_test_expand_redo) printf("%s, %d threads: %lld searches more than the reference, %lld expansions searched again", what, n_tasks[k], book_test_searches - ref_searches, book_test_expand_redo);
+		if (book_test_expand_redo) putchar(10);
 		CHECK(book_differences(&b, ref, what) == 0, "%s, %d threads: not the book of the reference", what, n_tasks[k]);
 		CHECK(book_unsound(&b) == 0, "%s, %d threads: the book is not sound", what, n_tasks[k]);
 		CHECK(!b.failed, "%s, %d threads: failed", what, n_tasks[k]);
@@ -408,6 +471,70 @@ static void test_shared(void)
 	}
 }
 
+static void test_extend(void)
+{
+	static const int shapes[][4] = {{2, 55, 53, 0}, {3, 56, 52, 0}, {2, 55, 51, 1}};
+	int k;
+
+	for (k = 0; k < 3; ++k) {
+		const Board start = start_board(shapes[k][3]);
+		Book seed, ref;
+		const Book *rp = &ref;
+		PositionArray *a;
+		Position *p;
+		long long searches;
+		int left = 0;
+
+		seed_book(&seed, shapes[k][0], shapes[k][1], shapes[k][2]);
+		book_copy(&ref, &seed);
+		book_test_searches = 0;
+		ref_extend(&ref, &start);
+		searches = book_test_searches;
+		CHECK(ref.n_nodes > seed.n_nodes, "book extend %d: nothing was added", k);
+		book_clean(&ref);
+		ref_reach(&ref, &start, ref.options.n_empties);
+		foreach_position(p, a, rp) if (position_is_done(p, rp) && ref_extendable(p)) ++left;
+		CHECK(left == 0, "book extend %d: %d leaves left", k, left);
+		printf("book extend %d: %u -> %u positions, %lld searches\n", k, seed.n_nodes, ref.n_nodes, searches);
+		against_reference(&seed, &ref, searches, run_extend, &start, "book extend");
+		book_free(&ref);
+		book_free(&seed);
+	}
+}
+
+/* T4: a link that leads out of the book is skipped */
+static void test_dangling(void)
+{
+	Board start;
+	Book b;
+	Position *root;
+
+	board_init(&start);
+	seed_book(&b, 2, 56, 54);
+	root = book_probe(&b, &start);
+	if (root && root->n_link) {
+		PositionArray *a;
+		Board next, unique;
+		int i;
+
+		board_next(&root->board, position_links(root)[0].move, &next);
+		board_unique(&next, &unique);
+		a = book_array(&b, &unique);
+		for (i = 0; i < a->n; ++i) {
+			if (board_equal(&a->positions[i].board, &unique)) {
+				book_remove_at(&b, a, i);
+				break;
+			}
+		}
+		book_extend(&b, &start);
+		CHECK(!b.failed, "dangling link: failed");
+		CHECK(book_probe(&b, &start) != NULL, "dangling link: the root is gone");
+	} else {
+		CHECK(false, "dangling link: no root");
+	}
+	book_free(&b);
+}
+
 int main(int argc, char **argv)
 {
 	const char *t = argc > 1 ? argv[1] : "all";
@@ -419,6 +546,8 @@ int main(int argc, char **argv)
 	learn_engine_init();
 	if (all || !strcmp(t, "play")) test_play();
 	if (all || !strcmp(t, "shared")) test_shared();
+	if (all || !strcmp(t, "extend")) test_extend();
+	if (all || !strcmp(t, "dangling")) test_dangling();
 	printf("book-learn: %d checks, %d failures\n", n_check, n_fail);
 	return (n_check && !n_fail) ? 0 : 1;
 }

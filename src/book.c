@@ -194,6 +194,7 @@ static long long book_test_scans = 0, book_test_negamaxes = 0, book_test_saves =
 static long long book_test_serial = 0;    /* rounds of 2 positions or more expanded one after the other */
 static long long book_test_parallel = 0;  /* rounds expanded by several searches at the same time */
 static long long book_test_save_ms = -1;  /* time between two timed saves, in milliseconds (-1: book-save-interval) */
+static long long book_test_wide_walks = 0, book_test_wide_threaded = 0; /* levels of 4096 boards or more walked, and by several threads */
 #define book_test_add(counter) (++(counter))
 #else
 #define book_test_add(counter) ((void) 0)
@@ -9047,6 +9048,184 @@ static unsigned long long* learn_next(LearnRun *run, const int limit, long long 
 	learn_keys_sort(keys, m);
 	*n = m;
 	return keys;
+}
+
+/** what learn_walk() looks for */
+enum {
+	LEARN_NO_LINK, /**< book play <n>: a position without link */
+	LEARN_EXTEND   /**< book extend: a leaf that no link is better than */
+};
+
+/**
+ * @brief The position that a link leads to.
+ *
+ * Only the links that make the game progress are followed, as by the parallel negamax: the links of a damaged
+ * book may go round.
+ *
+ * @param position Position.
+ * @param link Link of the position.
+ * @param book Opening book.
+ * @return the position, or NULL if it is not in the book, or if the link is not followed.
+ */
+static Position* learn_link_child(const Position *position, const Link *link, const Book *book)
+{
+#ifdef BOOK_TEST_NEGAMAX_NO_PREFETCH
+	return negamax_link_target(position, link, book);
+#else
+	Board unique;
+	PositionArray *a = negamax_link_array(position, link, book, &unique);
+
+	return a ? position_array_probe(a, &unique) : NULL;
+#endif
+}
+
+/** @return true if a walk looks for this position. */
+static bool learn_selected(const Position *p, const int kind)
+{
+	const Link *l;
+
+	if (p->leaf.move == NOMOVE) return false;
+	if (kind == LEARN_NO_LINK) return p->n_link == 0;
+	foreach_link(l, p) if (l->score > p->leaf.score) return false;
+	return true;
+}
+
+/** A thread of learn_walk(): the positions of a level (w.a: what is looked for; w.b: the fewest empty squares). */
+static void* learn_walk_run(void *v)
+{
+	LossWorker *lw = (LossWorker*) v;
+	DeviateWorker *w = &lw->w;
+	Book *book = w->book;
+	long long k;
+
+	for (k = lw->first; k < lw->last; ++k) {
+		Position *position = lw->cur[k];
+		const Link *l;
+
+		foreach_link(l, position) {
+			Position *child = learn_link_child(position, l, book);
+
+			if (child && board_count_empties(&child->board) >= w->b && !board_is_game_over(&child->board)) {
+				unsigned char *visit = book_visit(book, child);
+
+				if (atomic_load_uchar(visit) == 0 && atomic_cas_uchar(visit, 0, 1) && !position_list_push(&lw->same, child)) w->oom = true;
+			}
+		}
+		if (learn_selected(position, w->a)) deviate_worker_todo(w, position);
+	}
+	return NULL;
+}
+
+/**
+ * @brief The positions that a command looks for, among those that links reach from a position (several threads).
+ *
+ * @param book Opening book.
+ * @param board Position to start from.
+ * @param kind LEARN_NO_LINK or LEARN_EXTEND.
+ * @param limit The positions with fewer empty squares are left out.
+ * @param n Number of positions (out).
+ * @return their places, in the order of the book (to free), or NULL if the memory is exhausted.
+ */
+static unsigned long long* learn_walk(Book *book, const Board *board, const int kind, const int limit, long long *n)
+{
+	LossWorker lw[MAX_THREADS];
+	PositionList cur = {0}, next = {0};
+	const int n_threads = book_walk_threads();
+	Position *root;
+	unsigned long long *keys;
+	long long j, m = 0;
+	int i, level;
+	bool ok = true;
+
+	*n = 0;
+	book_clean(book);
+	root = book_probe(book, board);
+	if (root == NULL || board_count_empties(board) < limit || board_is_game_over(board)) {
+		return (unsigned long long*) malloc(sizeof *keys);
+	}
+	if (!book_visit_init(book)) return NULL;
+	for (i = 0; i < n_threads; ++i) {
+		memset(lw + i, 0, sizeof lw[i]);
+		lw[i].w.book = book;
+		lw[i].w.a = kind;
+		lw[i].w.b = limit;
+	}
+	*book_visit(book, root) = 1;
+	ok = position_list_push(&cur, root);
+	for (level = 0; ok && cur.n > 0; ++level) {
+#ifdef BOOK_TEST_COUNTS
+		if (cur.n >= 4096) {
+			++book_test_wide_walks;
+			if (n_threads > 1) ++book_test_wide_threaded;
+		}
+#endif
+		ok = deviate_walk_level(lw, n_threads, learn_walk_run, &cur, level, &next);
+		{ PositionList t = cur; cur = next; next = t; }
+	}
+	for (i = 0; i < n_threads; ++i) {
+		if (lw[i].w.oom) ok = false;
+		m += lw[i].w.n;
+	}
+	keys = ok ? (unsigned long long*) malloc((size_t) (m + 1) * sizeof *keys) : NULL;
+	if (keys) {
+		for (i = 0, m = 0; i < n_threads; ++i) {
+			for (j = 0; j < lw[i].w.n; ++j) keys[m++] = lw[i].w.item[j];
+		}
+		learn_keys_sort(keys, m);
+		*n = m;
+	}
+	for (i = 0; i < n_threads; ++i) { free(lw[i].same.item); free(lw[i].w.item); }
+	free(cur.item); free(next.item);
+	book_visit_free(book);
+	return keys;
+}
+
+/**
+ * @brief Extend.
+ *
+ * Expand, from a position, the leaves that no link is better than (as good as the best link, or the leaf of a
+ * position without link), until there is none left within the depth of the book (book extend of Edax 4.7).
+ * The choice depends on the scores: each round negamaxes and walks the positions under this one, with several
+ * threads, as book deviate.
+ *
+ * @param book opening book.
+ * @param board Position to start from.
+ */
+void book_extend(Book *book, const Board *board)
+{
+	const Board start = *board;
+	LearnRun run;
+	unsigned long long *keys;
+	long long n;
+	char file[FILENAME_MAX + 1];
+
+	if (book_probe(book, &start) == NULL) {
+		warn("book extend: the current position is not in the book\n");
+		return;
+	}
+	file_add_ext(options.book_file, ".ext", file);
+	learn_begin(&run, book, "Book extend", file);
+	book_negamax_from(book, &start);
+	for (;;) {
+		keys = learn_walk(book, &start, LEARN_EXTEND, book->options.n_empties, &n);
+		if (keys == NULL) {
+			learn_no_memory(book);
+			break;
+		}
+		bprint("Book extend...%lld todo\n", n);
+		if (n == 0) {
+			free(keys);
+			break;
+		}
+		learn_round(&run, keys, n);
+		free(keys);
+		book_negamax_from(book, &start);
+		if (!run.n_diffs || book->failed) break; // stop if a position cannot be added
+		learn_save_timed(&run);
+	}
+	if (run.n_total) book_save_progress(book, file);
+	bprint("Book extend... finished\n");
+	learn_end(&run);
 }
 
 /**
