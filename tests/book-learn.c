@@ -1264,6 +1264,143 @@ static void test_extract(void)
 	}
 }
 
+/* ---- the base commands ---- */
+
+static void write_text(const char *name, const char *text)
+{
+	FILE *f = fopen(name, "wb");
+
+	fputs(text, f);
+	fclose(f);
+}
+
+static int games_of(const char *name)
+{
+	Base b;
+	int n;
+
+	base_init(&b);
+	base_load(&b, name);
+	n = b.n_games;
+	base_free(&b);
+	return n;
+}
+
+/* T7 and T8 */
+static void test_base(void)
+{
+	Base b;
+	Game g;
+	unsigned char *bytes;
+	long n;
+	FILE *f;
+
+	write_text("in.txt", "f5d6c3d3c4\nf5f6e6f4\nf5d6c3d3c4\n");
+	remove("out.txt");
+	CHECK(base_add_file("in.txt", "out.txt", false) && games_of("out.txt") == 3, "base convert: not 3 games");
+	CHECK(base_add_file("in.txt", "out.txt", false) && games_of("out.txt") == 6, "base append: not 6 games");
+	remove("uniq.txt");
+	CHECK(base_add_file("in.txt", "uniq.txt", true) && games_of("uniq.txt") == 2, "base unique: not 2 games");
+
+	// the same file, whatever its name
+	copy_file("in.txt", "in.copy");
+	CHECK(!base_add_file("in.txt", "in.txt", false), "base convert to the input: accepted");
+	CHECK(!base_add_file("in.txt", "./in.txt", false), "base convert to ./ the input: accepted");
+#ifdef _WIN32
+	CHECK(!base_add_file("in.txt", "IN.TXT", true), "base unique to the input in capitals: accepted");
+	CHECK(!base_add_file("in.txt", ".\\in.txt", false), "base convert to .\\ the input: accepted");
+#endif
+	CHECK(same_bytes("in.txt", "in.copy"), "the input was changed");
+	CHECK(!base_add_file("in.txt", "", false), "base convert without an output: accepted");
+
+	// an input that cannot be read, to its end or at all
+	base_init(&b);
+	game_init(&g);
+	text_to_game("f5d6c3", &g);
+	strcpy(g.name[BLACK], "A");
+	strcpy(g.name[WHITE], "Bb");
+	base_append(&b, &g);
+	base_append(&b, &g);
+	remove("two.edx");
+	CHECK(base_save(&b, "two.edx"), "base_save edx");
+	n = file_bytes("two.edx", &bytes);
+	f = fopen("cut.edx", "wb");
+	fwrite(bytes, 1, n - 3, f);
+	fclose(f);
+	free(bytes);
+	copy_file("out.txt", "out.copy");
+	CHECK(!base_add_file("cut.edx", "out.txt", false), "base convert of a cut file: accepted");
+	CHECK(!base_add_file("none.txt", "out.txt", false), "base convert of no file: accepted");
+	CHECK(same_bytes("out.txt", "out.copy"), "the output was changed by an input that cannot be read");
+
+	// an output that cannot be read to its end
+	copy_file("cut.edx", "cut.keep");
+	CHECK(!base_add_file("in.txt", "cut.edx", false), "base convert to a cut file: accepted");
+	CHECK(same_bytes("cut.edx", "cut.keep"), "a cut output was changed");
+
+	// T8: the same input gives the same WTHOR.JOU (memory is not written to it)
+	{
+		static const char *names[] = {"A", "Bb", "Ogawa", "x"};
+		unsigned char *one, *two;
+		int k;
+		long n1, n2;
+
+		for (k = 0; k < 2; ++k) {
+			void *dirt[64];
+			int i;
+
+			for (i = 0; i < 64; ++i) {
+				dirt[i] = malloc(20 + i % 5 * 20);
+				memset(dirt[i], k ? 0xAA : 0x55, 20 + i % 5 * 20);
+			}
+			for (i = 0; i < 64; ++i) free(dirt[i]);
+			for (i = 0; i < b.n_games; ++i) {
+				strcpy(b.game[i].name[BLACK], names[2 * i]);
+				strcpy(b.game[i].name[WHITE], names[2 * i + 1]);
+			}
+			remove("WTHOR.JOU");
+			remove("names.wtb");
+			CHECK(base_save(&b, "names.wtb"), "base_save wtb");
+			copy_file("WTHOR.JOU", k ? "jou.2" : "jou.1");
+		}
+		n1 = file_bytes("jou.1", &one);
+		n2 = file_bytes("jou.2", &two);
+		CHECK(n1 == 16 + 5 * 20 && n1 == n2 && !memcmp(one + 16, two + 16, n1 - 16), "WTHOR.JOU differs for the same input");
+		if (n1 == 16 + 5 * 20) {
+			int i, j, n_dirty = 0;
+
+			for (i = 0; i < 5; ++i) {
+				const unsigned char *field = one + 16 + 20 * i;
+
+				for (j = (int) strlen((const char*) field); j < 20; ++j) n_dirty += field[j] != 0;
+			}
+			CHECK(n_dirty == 0, "WTHOR.JOU: %d bytes of memory after the names", n_dirty);
+		}
+		free(one); free(two);
+	}
+
+	// wthor: the games of the file are kept as they are (players, score)
+	{
+		WthorBase before, after;
+
+		wthor_load(&before, "names.wtb");
+		if (before.n_games == 2) {
+			before.game[0].score = 41;
+			before.game[0].theoric_score = 39;
+			before.game[0].tournament = 7;
+			wthor_save(&before, "names.wtb");
+			CHECK(base_add_file("in.txt", "names.wtb", false), "base append to wtb");
+			wthor_load(&after, "names.wtb");
+			CHECK(after.n_games == 5 && !memcmp(after.game, before.game, 2 * sizeof *after.game), "the games of the wtb file were changed");
+			wthor_free(&after);
+		} else {
+			CHECK(false, "names.wtb: %d games", before.n_games);
+		}
+		wthor_free(&before);
+	}
+	base_free(&b);
+}
+
 int main(int argc, char **argv)
 {
 	const char *t = argc > 1 ? argv[1] : "all";
@@ -1280,6 +1417,7 @@ int main(int argc, char **argv)
 	if (all || !strcmp(t, "reached")) test_reached();
 	if (all || !strcmp(t, "exhaust")) test_exhaust();
 	if (all || !strcmp(t, "extract")) test_extract();
+	if (all || !strcmp(t, "base")) test_base();
 	if (all || !strcmp(t, "pgn")) test_pgn();
 	if (all || !strcmp(t, "dangling")) test_dangling();
 	printf("book-learn: %d checks, %d failures\n", n_check, n_fail);

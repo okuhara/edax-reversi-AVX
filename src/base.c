@@ -231,7 +231,9 @@ int wthor_player_get(WthorBase *base, const char *name)
 	if (player) {
 		base->player = player;
 		base->n_players = n;
-		sprintf(base->player[i], "%-.19s", name); // force null terminated string
+		// (the whole field: up to v4.5.5-nikque.32 the bytes after the name went to WTHOR.JOU as they were in memory)
+		strncpy(base->player[i], name, 20); // used on purpose, as strncpy fills with '\0' the field name
+		base->player[i][19] = '\0'; // force null terminated string
 	} else {
 		warn("Cannot allocate Wthor players' array\n");
 		i = 0;
@@ -925,74 +927,55 @@ bool base_load(Base *base, const char *file)
  */
 bool base_save(const Base *base, const char *file)
 {
-	void (*save)(const Game*, FILE*)= game_export_text;
-	FILE *f;
-	char ext[8];
-	int i, l;
-	bool ok, complete;
-	WthorBase wbase;
-	Base old;
+	// the games of the file, then the new ones, to another file that replaces it once they are all written
+	// (up to v4.5.5-nikque.32 the file was written in place: a write that failed lost the games that it held)
+	BaseWriter *w = base_writer_open(file);
+	int i;
 
-	l = strlen(file);
-	if (l < 4) { warn("Unknown game format extension: %s\n", file); return false; }
-	strcpy(ext, file + l - 4); string_to_lowercase(ext);
-	if (strcmp(ext, ".txt") == 0) save = game_export_text;
-	else if (strcmp(ext, ".ggf") == 0) save = game_export_ggf;
-	else if (strcmp(ext, ".sgf") == 0) save = game_export_sgf;
-	else if (strcmp(ext, ".pgn") == 0) save = game_export_pgn;
-	else if (strcmp(ext, ".wtb") == 0) {
-		// the games of the file are kept: it must be read completely (up to v4.5.5-nikque.15 a file that could
-		// not be read was replaced, with the games that were not read)
-		if ((f = fopen(file, "rb")) != NULL) {
-			fclose(f);
-			if (!wthor_load(&wbase, file)) {
-				warn("Cannot read all the games of %s: it was not replaced\n", file);
-				wthor_free(&wbase);
-				return false;
-			}
-		} else {
-			wthor_load(&wbase, file); // (no file: the names of the players and tournaments, and no game)
-		}
-		ok = base_to_wthor(base, &wbase) && wthor_save(&wbase, file);
-		wthor_free(&wbase);
-		return ok;
-	} else if (strcmp(ext, ".edx") == 0) save = game_write;
-	else {
-		warn("Unknown game format extension: %s\n", ext);
-		return false;
-	}
-
-	base_init(&old);
-	if ((f = fopen(file, "r")) != NULL) { // the games of the file are kept: it must be read completely
-		fclose(f);
-		base_load_checked(&old, file, &complete);
-		if (!complete) {
-			warn("Cannot read all the games of %s: it was not replaced\n", file);
-			base_free(&old);
+	if (w == NULL) return false;
+	for (i = 0; i < base->n_games; ++i) {
+		if (!base_writer_add(w, base->game + i)) {
+			warn("Cannot save the games to %s: it was not replaced\n", file);
+			base_writer_abort(w);
 			return false;
 		}
 	}
+	return base_writer_close(w);
+}
 
-	f = fopen(file, save == game_write ? "wb" : "w");
-	if (f == NULL) {
-		warn("Cannot open file %s\n", file);
-		base_free(&old);
+/**
+ * @brief Add the games of a file to another file (base convert, base append, base unique).
+ *
+ * Nothing is written if the input cannot be read to its end, or if the two names are of the same file (its
+ * games would be there twice).
+ *
+ * @param from Input game file.
+ * @param to Output game file (its games are kept).
+ * @param unique Only once each game of the input (base unique).
+ * @return true if the games were written.
+ */
+bool base_add_file(const char *from, const char *to, const bool unique)
+{
+	Base base;
+	bool complete, ok = false;
+
+	if (*to == '\0') {
+		warn("The name of the output file is missing\n");
 		return false;
 	}
-	// the games of the file, then the new ones (up to v4.5.5-nikque.15 the new games were copied after the games
-	// of the file first: all of them were held twice)
-	for (i = 0; i < old.n_games && !ferror(f); ++i) {
-		save(old.game + i, f);
+	if (file_same(from, to)) {
+		warn("%s and %s are the same file: its games would be there twice; nothing is written\n", from, to);
+		return false;
 	}
-	for (i = 0; i < base->n_games && !ferror(f); ++i) {
-		save(base->game + i, f);
+	base_init(&base);
+	base_load_checked(&base, from, &complete);
+	if (!complete) {
+		warn("Cannot read all the games of %s: nothing is written to %s\n", from, to);
+	} else {
+		if (unique) base_unique(&base);
+		ok = base_save(&base, to);
 	}
-
-	ok = !ferror(f);
-	if (fclose(f) != 0) ok = false;
-	if (!ok) warn("Error while writing %s\n", file);
-	base_free(&old);
-
+	base_free(&base);
 	return ok;
 }
 

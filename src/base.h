@@ -67,6 +67,7 @@ void base_free(Base*);
 bool base_load(Base*, const char*);
 bool base_save(const Base*, const char*);
 bool base_replace(const Base*, const char*);
+bool base_add_file(const char*, const char*, const bool);
 bool base_append(Base*, const Game*);
 
 /** a game file being written game by game (base_writer_open) */

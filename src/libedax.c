@@ -2496,15 +2496,10 @@ LIBEDAX_API void edax_base_complete(const char *base_file)
  */
 LIBEDAX_API void edax_base_convert(const char *base_file_from, const char *base_file_to)
 {
-	Base base;
 	if (base_file_from == NULL || base_file_to == NULL) return;
-	base_init(&base);
 
 	// convert a base to another format
-	base_load(&base, base_file_from);
-	base_save(&base, base_file_to);
-
-	base_free(&base);
+	base_add_file(base_file_from, base_file_to, false);
 }
 
 /**
@@ -2514,16 +2509,10 @@ LIBEDAX_API void edax_base_convert(const char *base_file_from, const char *base_
  */
 LIBEDAX_API void edax_base_unique(const char *base_file_from, const char *base_file_to)
 {
-	Base base;
 	if (base_file_from == NULL || base_file_to == NULL) return;
-	base_init(&base);
 
 	// make a base unique by removing identical games
-	base_load(&base, base_file_from);
-	base_unique(&base);
-	base_save(&base, base_file_to);
-
-	base_free(&base);
+	base_add_file(base_file_from, base_file_to, true);
 }
 
 /*

@@ -579,7 +579,7 @@ void ui_loop_edax(UI *ui)
 				}
 
 			// direct symetry...
-			} else if (strcmp(cmd, "symetry") == 0) {
+			} else if (strcmp(cmd, "symetry") == 0 || strcmp(cmd, "symmetry") == 0) { // (symmetry: the word of Edax 4.5.6 and 4.7)
 				int sym = string_to_int(param, 1);
 				if (sym < 0 || sym >= 16) warn("symetry parameter should be a number between 0 and 15\n");
 				else {
@@ -1165,16 +1165,21 @@ void ui_loop_edax(UI *ui)
 
 				// convert a base to another format
 				} else if (strcmp(base_cmd, "convert") == 0) {
-					base_load(&base, base_file);
-					base_param = parse_word(base_param, base_file, FILENAME_MAX);
-					base_save(&base, base_file);
+					char to_file[FILENAME_MAX + 1];
+					base_param = parse_word(base_param, to_file, FILENAME_MAX);
+					base_add_file(base_file, to_file, false); // (after the games that the output holds)
+
+				// add the games of a base to another one (base append of Edax 4.7)
+				} else if (strcmp(base_cmd, "append") == 0) {
+					char to_file[FILENAME_MAX + 1];
+					base_param = parse_word(base_param, to_file, FILENAME_MAX);
+					base_add_file(base_file, to_file, false);
 
 				// make a base unique by removing identical games
 				} else if (strcmp(base_cmd, "unique") == 0) {
-					base_load(&base, base_file);
-					base_param = parse_word(base_param, base_file, FILENAME_MAX);
-					base_unique(&base);
-					base_save(&base, base_file);
+					char to_file[FILENAME_MAX + 1];
+					base_param = parse_word(base_param, to_file, FILENAME_MAX);
+					base_add_file(base_file, to_file, true);
 
 				// compare two game bases
 				} else if (strcmp(base_cmd, "compare") == 0) {
