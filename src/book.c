@@ -16,6 +16,7 @@
  */
 
 #include "book.h"
+#include "sort.h"
 #include "base.h"
 #include "search.h"
 #include "const.h"
@@ -2640,12 +2641,16 @@ static int todo_item_cmp(const void *a, const void *b)
 	return (x > y) - (x < y);
 }
 
+#define KEY_LESS(a, b) ((a) < (b))
+// (places of positions are numbers: any sort gives the same order)
+DEFINE_SORT(keys_sort, unsigned long long, KEY_LESS, todo_item_cmp)
+
 /** @brief Sort places (see position_key) in the order of the book, unless they already are (book_pick_todo sorts them). */
 static void todo_sort(unsigned long long *item, const long long n)
 {
 	long long i;
 	for (i = 1; i < n; ++i) if (item[i - 1] > item[i]) {
-		qsort(item, (size_t) n, sizeof *item, todo_item_cmp);
+		keys_sort(item, n);
 		return;
 	}
 }
@@ -6697,7 +6702,7 @@ void book_leaf_recalculate(Book *book, Board *board, const int kind, const int x
 			book_clean(book);
 			book_select_deviate(book, root, 0, x, score - y, score + y);
 			if (book->todo_list.valid) {
-				qsort(book->todo_list.item, book->todo_list.n, sizeof *book->todo_list.item, todo_item_cmp);
+				keys_sort(book->todo_list.item, (long long) book->todo_list.n);
 				if (first) {
 					for (i = n = 0; i < book->todo_list.n; ++i) {
 						if (!bsearch(book->todo_list.item + i, first, n_first, sizeof *first, todo_item_cmp)) book->todo_list.item[n++] = book->todo_list.item[i];
@@ -8950,7 +8955,7 @@ static unsigned long long* book_pick_todo(Book *book, const BookPick *pick, long
 			*n += f[k].n_kept;
 		}
 		// in the order of the book (sorted after the filter: only the positions kept)
-		qsort(keys, (size_t) *n, sizeof *keys, todo_item_cmp);
+		keys_sort(keys, (long long) *n);
 		book->todo_list.n = *n;
 		if (*n < book->todo_list.size / 4) { // most positions were left out: the memory of the list is given back while the positions are searched
 			unsigned long long *item = (unsigned long long*) realloc(keys, (size_t) (*n + 1) * sizeof *keys);
@@ -9079,22 +9084,27 @@ static int learn_child_cmp(const void *a, const void *b)
 	return r ? r : (x->key > y->key) - (x->key < y->key);
 }
 
+#define BOARD_LESS(a, b) ((a).player != (b).player ? (a).player < (b).player : (a).opponent < (b).opponent)
+#define CHILD_LESS(a, b) (!board_equal(&(a).board, &(b).board) ? BOARD_LESS((a).board, (b).board) : (a).key < (b).key)
+DEFINE_SORT(boards_sort, Board, BOARD_LESS, learn_board_cmp)
+DEFINE_SORT(children_sort, LearnChild, CHILD_LESS, learn_child_cmp)
+
 /** @brief Sort boards (player, then opponent). */
 static void learn_boards_sort(Board *board, const long long n)
 {
-	qsort(board, (size_t) n, sizeof *board, learn_board_cmp);
+	boards_sort(board, n);
 }
 
 /** @brief Sort children (see learn_child_cmp). */
 static void learn_children_sort(LearnChild *child, const long long n)
 {
-	qsort(child, (size_t) n, sizeof *child, learn_child_cmp);
+	children_sort(child, n);
 }
 
 /** @brief Sort places of positions in the order of the book. */
 static void learn_keys_sort(unsigned long long *key, const long long n)
 {
-	qsort(key, (size_t) n, sizeof *key, todo_item_cmp);
+	keys_sort(key, n);
 }
 
 /*

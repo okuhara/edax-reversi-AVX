@@ -9,6 +9,7 @@
  */
 
 #include "base.h"
+#include "sort.h"
 #include "options.h"
 #include "search.h"
 #include "perft.h"
@@ -773,6 +774,10 @@ static int base_game_compare(const void *a, const void *b)
 	return ra->i - rb->i;
 }
 
+#define GAME_LESS(a, b) (base_game_compare(&(a), &(b)) < 0)
+// (the same games keep the order of the base: the order is total)
+DEFINE_SORT(games_sort, BaseGameRef, GAME_LESS, base_game_compare)
+
 /**
  * @brief Make games unique in the game database.
  *
@@ -795,7 +800,7 @@ void base_unique(Base *base)
 			ref[i].game = base->game + i;
 			ref[i].i = i;
 		}
-		qsort(ref, base->n_games, sizeof (BaseGameRef), base_game_compare);
+		games_sort(ref, base->n_games);
 		for (i = 0; i < base->n_games; ++i) {
 			keep[ref[i].i] = (i == 0 || !game_equals(ref[i - 1].game, ref[i].game));
 		}
