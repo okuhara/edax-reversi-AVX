@@ -286,6 +286,9 @@ book を育てる・保守するコマンドは、途中経過や結果を、`bo
 | `.enh` | `book enhance` |
 | `.fill`・`.fill2` | `book fill`・`book fill2` |
 | `.play` | `book play` |
+| `.play-to` | `book play n`（手順の先端を記録する、小さなテキストファイル。最後まで終わると消える） |
+| `.ext` | `book extend` |
+| `.exh` | `book exhaust` |
 | `.leaf`・`.leaf2`・`.leaf3`・`.leaf4` | `book leaf recalculate`・`2`・`3`・`4` |
 | `.lexp` | `book leaf expand` |
 | `.mrg` | `book merge`（設定 `book-merge-auto-save = off` で作らない） |

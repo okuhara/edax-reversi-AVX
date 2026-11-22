@@ -122,6 +122,9 @@ void book_enhance(Book*, Board*, const int, const int);
 void book_subtree(Book*, const Board*);
 bool book_reduce(Book*, const Board*, const int, const int);
 void book_play(Book*);
+void book_extend(Book*, const Board*);
+void book_play_to(Book*, const Board*, const int);
+void book_exhaust(Book*, const Board*);
 
 void book_info(Book*);
 void book_show(Book*, Board*);
@@ -138,6 +141,7 @@ int book_store_task_count(void);
 int book_store_thread_count(void);
 Search** book_store_searches(const Book*, const int, const int);
 void book_store_release(void);
+Search** book_game_searches(const int, const int);
 bool book_plan_begin(Book*);
 void book_plan_board(Book*, const Board*);
 void book_plan_search(Book*);
@@ -147,6 +151,7 @@ void book_print(const char*, ...);
 void book_check_base(Book*, const Base*);
 
 void book_extract_skeleton(Book*, Base*);
+bool book_extract_all(Book*, const char*);
 void book_extract_positions(Book*, const int, const int);
 
 void book_feed_hash(const Book*, Board*, Search*);

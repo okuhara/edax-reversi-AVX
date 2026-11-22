@@ -288,6 +288,11 @@ LIBEDAX_API void edax_book_fill_limited(int, int, int);         /* book fill <de
 LIBEDAX_API void edax_book_fill2_limited(int, int, int);        /* book fill2 <depth> <move loss> <total loss> */
 LIBEDAX_API void edax_book_leaf_expand(void);                   /* book leaf expand */
 LIBEDAX_API void edax_book_leaf_expand_limited(int, int);       /* book leaf expand <move loss> <total loss> */
+LIBEDAX_API void edax_book_play_to(int);                        /* book play <n> */
+LIBEDAX_API void edax_book_extend(void);                        /* book extend */
+LIBEDAX_API void edax_book_exhaust(void);                       /* book exhaust */
+LIBEDAX_API void edax_book_extract_all(const char*);            /* book extract all <file> */
+LIBEDAX_API void edax_base_append(const char*, const char*);    /* base append <input> <output> */
 LIBEDAX_API int libedax_cpu_level(void);
 
 /*

@@ -420,7 +420,13 @@ This loads the book's scores from the current board position onwards into the se
 Starting from the initial position, this follows the best-scoring move in each position (all of them when several are equal) and writes the resulting lines to a game file. The format is determined by the extension ([chapter 10](10-files.md)).
 
 - **If the output file already exists, the games are appended to it.**
-- With a new file, `WARNING: Cannot open file data/lines.txt` is printed, but the file is created. The message means that Edax tried to read an existing file and found none.
+- It can also be written `book extract draw file` (since v4.5.5-nikque.33).
+- `book extract all file` writes **all the lines** of the book (since v4.5.5-nikque.33).
+  - The lines start with f5. The other first moves are symmetries of it.
+  - A line ends with a move that leaves the book, at the end of a game, or where it joins another line.
+  - It corresponds to `book extract file` of Edax 4.7.
+  - If the book has no position after f5, the file is not touched.
+- When writing fails, the output file is left as it was.
 
 ### book problem: positions as problems
 
@@ -451,7 +457,8 @@ This prints up to 3 book positions with 52 empty squares in which the best move 
 | `book leaf recalculate` (`2`, `3`, `4`) `X Y` | Compute the scores of the leaves again |
 | `book correct` | Verify the exactly solved positions |
 | `book deepen` | Search again the positions of a lower level with the level of the book |
-| `book extract file` | Write the best lines to a game file |
+| `book extract file`, `book extract draw file` | Write the best lines to a game file |
+| `book extract all file` | Write all the lines to a game file |
 | `book problem empties count` | Show positions as problems |
 | `book feed-hash` | Put the values of the book into the hash table |
 | `book verbose n` | How much is printed |

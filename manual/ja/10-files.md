@@ -96,6 +96,7 @@ GGF：
 ### 長さの上限
 
 - PGN の読み込みは、60 手までです。
+- v4.5.5-nikque.32 までの版では、パス（`pass`）のある `.pgn` を読むと、その対局の残りと、次の対局が失われることがありました。
 - 棋譜として保存されるのは、着手 60 個までです。
 
 ## 10.2 複数の棋譜をまとめて扱う：base のコマンド
@@ -105,6 +106,7 @@ GGF：
 | コマンド | 意味 |
 |---|---|
 | `base convert 入力 出力` | 形式を変える（拡張子で形式が決まる） |
+| `base append 入力 出力` | 入力の棋譜を、出力の後ろに追加する（v4.5.5-nikque.33 から） |
 | `base unique 入力 出力` | 同じ対局を 1 つにまとめる |
 | `base compare ファイル1 ファイル2` | 2 つのファイルに共通する局面の数を表示する |
 | `base check ファイル n` | 各対局の終盤（空きが n 以下の局面から。省くと 24）を完全読みで調べ、悪手のある対局を表示する |
@@ -119,10 +121,8 @@ GGF：
 
 ```
 >base convert games.txt games.sgf
-WARNING: Cannot open file games.sgf
 
 >base unique games.txt uniq.txt
-WARNING: Cannot open file uniq.txt
 
 >base compare games.txt uniq.txt
 games.txt : 24 positions - 0 original positions
@@ -140,13 +140,21 @@ Game #0 contains 3 errors
 - **出力先のファイルがすでにあると、棋譜はその後ろに追加されます。** 上書きではありません。
   - 同じ名前で 2 回実行すると、棋譜が 2 倍になります。
   - 新しく作り直したいときは、先に古いファイルを消すか、別の名前にしてください。
-- 出力先が新しいファイルのときは、上の例のように `WARNING: Cannot open file …` と表示されます。
-  - これは「追加する前に既存のファイルを読もうとしたが、なかった」という意味です。**ファイルは作られています。**
-  - `base correct`・`base complete` の後にも、同じ表示が出ます。
+- Edax 4.7 の `base convert`・`base unique` は上書きします。この版では追加です。
+- `base convert`・`base append`・`base unique` は、次のときは何も書きません（v4.5.5-nikque.33 から）。
+  - 入力を最後まで読めなかったとき。
+  - 入力と出力が同じファイルのとき。書き方の違う名前でも同じです。
+  - 出力先の前からの棋譜を最後まで読めなかったとき。
+- 書き込みは別のファイルに行い、書き終えてから入れ替えます。途中で止まっても、元のファイルは残ります。
+- `.wtb` に書くとき、同じフォルダーに `WTHOR.JOU` がなければ、`WARNING: Cannot open Wthor players' file …` と表示されます。ファイルは作られます。
 - `base check`・`base correct` は、1 局ごとに完全読みを行います。n が大きいと、とても時間がかかります。
 - `base complete` は、設定の `level` で続きを打ちます（v4.5.5-nikque.13 から）。
   - それより前の版では、直前の探索の深さのままでした。そのため、読み切ろうとして終わらなかったり、ランダムな手になったりしていました。
   - 探索の表が、1 手ごとに表示されます。
+  - v4.5.5-nikque.33 からは、複数の対局を同時に進めます。数は `book-store-tasks` に従います。表示とファイルの中の順は、元のファイルの順です。
+  - 同時に進めると、1 つの探索のスレッドが少なくなるので、補う手が前の版と違うことがあります。
+  - `book-save-interval` の時間ごとに、途中経過を `ファイル名.completing.拡張子` に保存します。例：`games.txt.completing.txt`。
+  - 途中で止まったときは、途中経過のファイルに `base complete` を実行すると続きから進みます。最後まで終わると、このファイルは消えます。
 - `base correct`・`base complete` は、ファイルを読み込めたときだけ書き換えます。読めないファイルは、そのまま残ります。
 - book や `base` のコマンドの実行中は、`stop` で止まりません（[7.5](07-book-learning.md)）。
 

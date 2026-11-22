@@ -1105,6 +1105,64 @@ int main(int argc, char **argv)
 		CHECK(file_size("libtest-games.dat") > 0);
 	}
 
+	if (!original) {
+		section("book play <n>, extend, exhaust, extract all, base append");
+		void (*play_to)(int) = (void (*)(int)) optional(dll, "edax_book_play_to");
+		void (*extend)(void) = (void (*)(void)) optional(dll, "edax_book_extend");
+		void (*exhaust)(void) = (void (*)(void)) optional(dll, "edax_book_exhaust");
+		void (*extract_all)(const char*) = (void (*)(const char*)) optional(dll, "edax_book_extract_all");
+		void (*append)(const char*, const char*) = (void (*)(const char*, const char*)) optional(dll, "edax_base_append");
+
+		CHECK(play_to && extend && exhaust && extract_all && append);
+		if (play_to && extend && exhaust && extract_all && append) {
+			int before;
+
+			edax_init();
+			edax_book_new(2, 4);
+			exhaust();
+			edax_book_info(&info);
+			printf("after book exhaust: %d positions\n", info.n_nodes);
+			CHECK(info.n_nodes > 10);
+			before = info.n_nodes;
+			extend();
+			edax_book_info(&info);
+			CHECK(info.n_nodes >= before);
+			edax_book_new(2, 4);
+			play_to(53);
+			edax_book_info(&info);
+			printf("after book play 53: %d positions\n", info.n_nodes);
+			CHECK_INT(info.n_nodes, 9); // (a line from 60 empty squares to 52)
+			play_to(99);
+			edax_book_info(&info);
+			CHECK_INT(info.n_nodes, 9);
+
+			remove("libtest-lines.txt");
+			extract_all("libtest-lines.txt");
+			CHECK(file_size("libtest-lines.txt") > 0);
+			remove("libtest-append.txt");
+			write_file("libtest-append-in.txt", "F5D6C3D3C4F4F6F3E6E7\n");
+			append("libtest-append-in.txt", "libtest-append.txt");
+			before = (int) file_size("libtest-append.txt");
+			CHECK(before > 0);
+			append("libtest-append-in.txt", "libtest-append.txt");
+			CHECK_INT(file_size("libtest-append.txt"), 2 * before);
+			append("libtest-append.txt", "./libtest-append.txt");
+			CHECK_INT(file_size("libtest-append.txt"), 2 * before);
+#ifdef _WIN32
+			{ // names of UTF-8 (the Japanese words for "game records" and "append")
+				const wchar_t *lines = L"棋譜.ggf", *added = L"追記.txt";
+
+				DeleteFileW(lines);
+				DeleteFileW(added);
+				extract_all("\xe6\xa3\x8b\xe8\xad\x9c.ggf");
+				CHECK(GetFileAttributesW(lines) != INVALID_FILE_ATTRIBUTES);
+				append("libtest-append-in.txt", "\xe8\xbf\xbd\xe8\xa8\x98.txt");
+				CHECK(GetFileAttributesW(added) != INVALID_FILE_ATTRIBUTES);
+			}
+#endif
+		}
+	}
+
 	section("game database");
 	write_file("libtest-base.txt", "F5D6C3D3C4F4F6F3E6E7\nF5F6E6F4E3C5C4E7C6E2\nF5D6C3D3C4F4F6F3E6E7\n");
 	edax_book_new(2, 8);

@@ -249,7 +249,11 @@ void help_book(void)
 		"  enhance <n1> <n2>   add positions by improving score accuracy with a midgame\n  error <n1> and an endcut error <n2>.\n"
 		"  fill [n] [n1 n2]    add positions between existing positions exactly <n> moves\n  apart (default 1); with <n1> <n2>, only from the positions that deviate3\n  <n1> <n2> walks.\n"
 		"  fill2 [n] [n1 n2]   same as fill (default 2), only through the leaf (best move\n  not in the book yet) of a position; with <n1> <n2>, only from the leaves\n  that deviate3 <n1> <n2> would expand.\n"
-		"  leaf recalculate <n1> <n2>  search again the leaves that deviate <n1> <n2> would\n  expand (leaf recalculate2: deviate2; 3, 4: the leaves of all the positions\n  of the walk of deviate, deviate2).\n"
+		"  play [n]            expand the positions without link to the depth of the book;\n  with <n>, only those from the current position, then play on from them while\n  a position has <n> empty squares or more.\n"
+		"  exhaust             add every move from the current position to the depth of\n  the book (the number of positions grows very fast with the depth).\n"
+		"  extract [draw] <file> write the lines of the best moves (the draws) to a game\n  file; extract all <file>: all the lines of the book. The games of the file\n  are kept.\n"
+		"  extend              from the current position, expand the leaves that no link\n  is better than (as good as the best link, or no link), until none is left.\n");
+	printf(	"  leaf recalculate <n1> <n2>  search again the leaves that deviate <n1> <n2> would\n  expand (leaf recalculate2: deviate2; 3, 4: the leaves of all the positions\n  of the walk of deviate, deviate2).\n"
 		"  leaf expand [n1 n2] expand the leaves better than every link of their\n  position; with <n1> <n2>, only in the walk of deviate3 <n1> <n2>.\n"
 		"  prune               remove unreachable positions.\n"
 		"  subtree             only keep positions from the current position.\n"
@@ -270,8 +274,9 @@ void help_book(void)
 void help_base(void) 
 {
 	printf(	"\nGame DataBase :\n"
-		"  convert [file_in] [file_out]     convert between different format.\n"
-		"  unique [file_in] [file_out]      remove doublons in the base.\n"
+		"  convert [file_in] [file_out]     convert between different format; the games\n  are added to those of <file_out>.\n"
+		"  append [file_in] [file_out]      add the games of <file_in> to <file_out>.\n"
+		"  unique [file_in] [file_out]      remove doublons in the base; the games are\n  added to those of <file_out>.\n"
 		"  check [file_in] [n]              check error in the last <n> moves.\n"
 		"  correct [file_in] [n]            correct error in the last <n> moves.\n"
 		"  complete [file_in]               complete a database by playing the last\n  missing moves.\n"
@@ -308,7 +313,7 @@ static char* book_command_hint(const char *cmd, const char *param)
 	static const char *const names[] = {
 		"store", "on", "off", "randomness", "import", "export", "merge", "fix", "negamax", "prune", "subtree", "reduce",
 		"show", "stats", "add", "learn", "extract", "deviate", "deviate2", "deviate3", "leaf", "pick-count", "enhance",
-		"fill", "fill2", "deepen", "feed-hash", "moveinfo", "missing", "levels", "bestlines", "findline", "reducecount"
+		"fill", "fill2", "extend", "exhaust", "deepen", "feed-hash", "moveinfo", "missing", "levels", "bestlines", "findline", "reducecount"
 	};
 	const char *space = (param && *param) ? " " : "";
 	char *s;
@@ -575,7 +580,7 @@ void ui_loop_edax(UI *ui)
 				}
 
 			// direct symetry...
-			} else if (strcmp(cmd, "symetry") == 0) {
+			} else if (strcmp(cmd, "symetry") == 0 || strcmp(cmd, "symmetry") == 0) { // (symmetry: the word of Edax 4.5.6 and 4.7)
 				int sym = string_to_int(param, 1);
 				if (sym < 0 || sym >= 16) warn("symetry parameter should be a number between 0 and 15\n");
 				else {
@@ -966,12 +971,29 @@ void ui_loop_edax(UI *ui)
 					
 				// extract pv to a game database
 				} else if (strcmp(book_cmd, "extract") == 0) {
-					Base base;
-					parse_word(book_param, book_file, FILENAME_MAX);
-					base_init(&base);
-					book_extract_skeleton(book, &base);
-					base_save(&base, book_file);
-					base_free(&base);
+					char word[FILENAME_MAX + 1];
+					bool all = false;
+
+					// "book extract <file>" and "book extract draw <file>": the skeleton; "book extract all <file>": every line
+					book_param = parse_word(book_param, book_file, FILENAME_MAX);
+					parse_word(book_param, word, FILENAME_MAX);
+					if (*word && (strcmp(book_file, "all") == 0 || strcmp(book_file, "draw") == 0)) {
+						all = (strcmp(book_file, "all") == 0);
+						strcpy(book_file, word);
+					}
+					if (*book_file == '\0') {
+						warn("book extract: the name of the file is missing\n");
+					} else if (all) {
+						book_extract_all(book, book_file);
+					} else {
+						Base base;
+
+						base_init(&base);
+						book_extract_skeleton(book, &base);
+						if (book->failed) warn("book extract: the lines could not all be held in memory: %s is left as it is\n", book_file);
+						else if (!base_save(&base, book_file)) warn("book extract: the games were not saved to %s\n", book_file);
+						base_free(&base);
+					}
 
 				// add position using the "deviate algorithm"
 				} else if (strcmp(book_cmd, "deviate") == 0) {
@@ -1041,9 +1063,29 @@ void ui_loop_edax(UI *ui)
 						book_fill(book, val_1);
 					}
 
+				// add positions by expanding the leaves that no link is better than, from the current position
+				} else if (strcmp(book_cmd, "extend") == 0) {
+					book_extend(book, &play->board);
+
+				// add every move from the current position to the depth of the book
+				} else if (strcmp(book_cmd, "exhaust") == 0) {
+					char word[32];
+					parse_word(book_param, word, sizeof word - 1);
+					if (*word) warn("book exhaust takes no parameter; nothing is done\n");
+					else book_exhaust(book, &play->board);
+
 				// add positions by expanding positions with no-link
 				} else if (strcmp(book_cmd, "play") == 0) {
-					book_play(book);
+					char word[32];
+					parse_word(book_param, word, sizeof word - 1);
+					if (*word == '\0') { // the whole book, to its depth
+						book_play(book);
+					} else if (starts_with_number(word)) { // from the current position, to n empty squares
+						val_1 = string_to_int(word, 20); BOUND(val_1, 0, 60, "number of empties");
+						book_play_to(book, &play->board, val_1);
+					} else {
+						warn("book play: %s is not a number of empty squares; nothing is done\n", word);
+					}
 
 				// add positions by expanding positions with no-link
 				} else if (strcmp(book_cmd, "deepen") == 0) {
@@ -1117,23 +1159,25 @@ void ui_loop_edax(UI *ui)
 
 				// terminate unfinished base
 				} else if (strcmp(base_cmd, "complete") == 0) {
-					if (base_load(&base, base_file)) { // a file which was not loaded (or not completely) is kept as it is
-						base_complete(&base, &play->search);
-						base_replace(&base, base_file); // (the file is replaced once the games are saved to another file)
-					}
+					base_complete_file(base_file, &play->search);
 
 				// convert a base to another format
 				} else if (strcmp(base_cmd, "convert") == 0) {
-					base_load(&base, base_file);
-					base_param = parse_word(base_param, base_file, FILENAME_MAX);
-					base_save(&base, base_file);
+					char to_file[FILENAME_MAX + 1];
+					base_param = parse_word(base_param, to_file, FILENAME_MAX);
+					base_add_file(base_file, to_file, false); // (after the games that the output holds)
+
+				// add the games of a base to another one (base append of Edax 4.7)
+				} else if (strcmp(base_cmd, "append") == 0) {
+					char to_file[FILENAME_MAX + 1];
+					base_param = parse_word(base_param, to_file, FILENAME_MAX);
+					base_add_file(base_file, to_file, false);
 
 				// make a base unique by removing identical games
 				} else if (strcmp(base_cmd, "unique") == 0) {
-					base_load(&base, base_file);
-					base_param = parse_word(base_param, base_file, FILENAME_MAX);
-					base_unique(&base);
-					base_save(&base, base_file);
+					char to_file[FILENAME_MAX + 1];
+					base_param = parse_word(base_param, to_file, FILENAME_MAX);
+					base_add_file(base_file, to_file, true);
 
 				// compare two game bases
 				} else if (strcmp(base_cmd, "compare") == 0) {

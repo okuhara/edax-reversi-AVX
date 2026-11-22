@@ -12,8 +12,11 @@
 #include "options.h"
 #include "search.h"
 #include "perft.h"
+#include "book.h"
 
 #include <assert.h>
+#include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <time.h>
 
@@ -172,8 +175,9 @@ static void wthor_players_load(WthorBase *base, const char *file)
  * @param base Wthor base.
  * @param file File name.
  */
-static void wthor_players_save(WthorBase *base, const char *file)
+static bool wthor_players_save(WthorBase *base, const char *file)
 {
+	bool ok = false;
 	FILE *f;
 	WthorHeader header;
 	int i, r;
@@ -184,7 +188,7 @@ static void wthor_players_save(WthorBase *base, const char *file)
 
 	if ((f = fopen(file, "wb")) == NULL) {
 		warn("Cannot open Wthor players' file %s\n", file);
-		return;
+		return false;
 	}
 
 	if (wthor_header_write(&header, f)) {
@@ -196,10 +200,13 @@ static void wthor_players_save(WthorBase *base, const char *file)
 		if (r != base->n_players) {
 	        warn("Error while reading Wthor players' file %s %d/%d\n", file, r, base->n_players);
 			base->n_players = 0;
+		} else {
+			ok = true;
 		}
 	}
 
-	fclose(f);
+	if (fclose(f) != 0) ok = false;
+	return ok;
 }
 
 /**
@@ -225,7 +232,9 @@ int wthor_player_get(WthorBase *base, const char *name)
 	if (player) {
 		base->player = player;
 		base->n_players = n;
-		sprintf(base->player[i], "%-.19s", name); // force null terminated string
+		// (the whole field: up to v4.5.5-nikque.32 the bytes after the name went to WTHOR.JOU as they were in memory)
+		strncpy(base->player[i], name, 20); // used on purpose, as strncpy fills with '\0' the field name
+		base->player[i][19] = '\0'; // force null terminated string
 	} else {
 		warn("Cannot allocate Wthor players' array\n");
 		i = 0;
@@ -812,26 +821,27 @@ static bool base_import_sgf(Game *game, FILE *f) { game_import_sgf(game, f); ret
 static bool base_import_wthor(Game *game, FILE *f) { game_import_wthor(game, f); return !feof(f); }
 
 /**
- * @brief Load a game database, telling whether the whole file was read.
+ * @brief Read the games of a file, one after the other.
  *
- * @param base Game base (the games are added to it).
  * @param file Game filename.
+ * @param take Given each game; false stops the reading.
+ * @param to Given to take.
  * @param complete Set to true if the file was opened and read to its end, without any error.
- * @return true if the base holds games.
+ * @return the number of games taken.
  */
-static bool base_load_checked(Base *base, const char *file, bool *complete)
+static int base_read_games(const char *file, bool (*take)(void*, const Game*), void *to, bool *complete)
 {
 	bool (*load)(Game*, FILE*) = game_import_text_checked;
 	Game game;
 	FILE *f;
 	char ext[8];
-	int l, n_games;
+	int l, n_games = 0;
 	bool ok = true;
 	WthorHeader header;
 
 	*complete = false;
 	l = strlen(file);
-	if (l < 4) { warn("Unknown game format extension: %s\n", file); return false; }
+	if (l < 4) { warn("Unknown game format extension: %s\n", file); return 0; }
 	strcpy(ext, file + l - 4); string_to_lowercase(ext);
 	if (strcmp(ext, ".txt") == 0) load = game_import_text_checked;
 	else if (strcmp(ext, ".ggf") == 0) load = base_import_ggf;
@@ -841,36 +851,56 @@ static bool base_load_checked(Base *base, const char *file, bool *complete)
 	else if (strcmp(ext, ".edx") == 0) load = game_read_checked;
 	else {
 		warn("Unknown game format extension: %s\n", ext);
-		return false;
+		return 0;
 	}
 
 	if (load == base_import_wthor || load == game_read_checked) f = fopen(file, "rb");
 	else f = fopen(file, "r");
 	if (f == NULL) {
 		warn("Cannot open file %s\n", file);
-		return false;
+		return 0;
 	}
 
 	info("loading games...");
-	n_games = base->n_games;
 	if (load == base_import_wthor && !wthor_header_read(&header, f)) ok = false;
 	// the last game of a file is read when the end of the file is reached (a text file without an end of line
 	// after its last game, a pgn file): up to v4.5.5-nikque.15 it was not added
 	while (load(&game, f)) {
-		if (ferror(f) || !base_append(base, &game)) { ok = false; break; }
+		if (ferror(f) || n_games == INT_MAX || !take(to, &game)) { ok = false; break; }
+		++n_games;
 	}
 	if (ferror(f)) ok = false;
 	// a binary file ends after its last game: a truncated or damaged game stops before (up to v4.5.5-nikque.15
 	// the games read until then were taken for the whole file)
 	if (load == game_read_checked && (!feof(f) || ftell(f) % (long) sizeof (Game) != 0)) ok = false;
 	// a wthor file holds the count of its games in its header: fewer games is a truncated file
-	if (ok && load == base_import_wthor && base->n_games - n_games < header.n_games) ok = false;
-	info("done (%d games loaded)\n", base->n_games);
-	if (!ok) warn("%s could not be read completely (%d games loaded)\n", file, base->n_games);
+	if (ok && load == base_import_wthor && n_games < header.n_games) ok = false;
+	info("done (%d games loaded)\n", n_games);
+	if (!ok) warn("%s could not be read completely (%d games loaded)\n", file, n_games);
 
 	fclose(f);
 	*complete = ok;
 
+	return n_games;
+}
+
+/** @brief Take a game into a base (see base_read_games). */
+static bool base_take_game(void *to, const Game *game)
+{
+	return base_append((Base*) to, game);
+}
+
+/**
+ * @brief Load a game database, telling whether the whole file was read.
+ *
+ * @param base Game base (the games are added to it).
+ * @param file Game filename.
+ * @param complete Set to true if the file was opened and read to its end, without any error.
+ * @return true if the base holds games.
+ */
+static bool base_load_checked(Base *base, const char *file, bool *complete)
+{
+	base_read_games(file, base_take_game, base, complete);
 	return base->n_games > 0;
 }
 
@@ -898,74 +928,262 @@ bool base_load(Base *base, const char *file)
  */
 bool base_save(const Base *base, const char *file)
 {
-	void (*save)(const Game*, FILE*)= game_export_text;
-	FILE *f;
-	char ext[8];
-	int i, l;
-	bool ok, complete;
-	WthorBase wbase;
-	Base old;
+	// the games of the file, then the new ones, to another file that replaces it once they are all written
+	// (up to v4.5.5-nikque.32 the file was written in place: a write that failed lost the games that it held)
+	BaseWriter *w = base_writer_open(file);
+	int i;
 
-	l = strlen(file);
-	if (l < 4) { warn("Unknown game format extension: %s\n", file); return false; }
-	strcpy(ext, file + l - 4); string_to_lowercase(ext);
-	if (strcmp(ext, ".txt") == 0) save = game_export_text;
-	else if (strcmp(ext, ".ggf") == 0) save = game_export_ggf;
-	else if (strcmp(ext, ".sgf") == 0) save = game_export_sgf;
-	else if (strcmp(ext, ".pgn") == 0) save = game_export_pgn;
-	else if (strcmp(ext, ".wtb") == 0) {
-		// the games of the file are kept: it must be read completely (up to v4.5.5-nikque.15 a file that could
-		// not be read was replaced, with the games that were not read)
-		if ((f = fopen(file, "rb")) != NULL) {
-			fclose(f);
-			if (!wthor_load(&wbase, file)) {
-				warn("Cannot read all the games of %s: it was not replaced\n", file);
-				wthor_free(&wbase);
-				return false;
-			}
-		} else {
-			wthor_load(&wbase, file); // (no file: the names of the players and tournaments, and no game)
-		}
-		ok = base_to_wthor(base, &wbase) && wthor_save(&wbase, file);
-		wthor_free(&wbase);
-		return ok;
-	} else if (strcmp(ext, ".edx") == 0) save = game_write;
-	else {
-		warn("Unknown game format extension: %s\n", ext);
-		return false;
-	}
-
-	base_init(&old);
-	if ((f = fopen(file, "r")) != NULL) { // the games of the file are kept: it must be read completely
-		fclose(f);
-		base_load_checked(&old, file, &complete);
-		if (!complete) {
-			warn("Cannot read all the games of %s: it was not replaced\n", file);
-			base_free(&old);
+	if (w == NULL) return false;
+	for (i = 0; i < base->n_games; ++i) {
+		if (!base_writer_add(w, base->game + i)) {
+			warn("Cannot save the games to %s: it was not replaced\n", file);
+			base_writer_abort(w);
 			return false;
 		}
 	}
+	return base_writer_close(w);
+}
 
-	f = fopen(file, save == game_write ? "wb" : "w");
-	if (f == NULL) {
-		warn("Cannot open file %s\n", file);
-		base_free(&old);
+/**
+ * @brief Add the games of a file to another file (base convert, base append, base unique).
+ *
+ * Nothing is written if the input cannot be read to its end, or if the two names are of the same file (its
+ * games would be there twice).
+ *
+ * @param from Input game file.
+ * @param to Output game file (its games are kept).
+ * @param unique Only once each game of the input (base unique).
+ * @return true if the games were written.
+ */
+bool base_add_file(const char *from, const char *to, const bool unique)
+{
+	Base base;
+	bool complete, ok = false;
+
+	if (*to == '\0') {
+		warn("The name of the output file is missing\n");
 		return false;
 	}
-	// the games of the file, then the new ones (up to v4.5.5-nikque.15 the new games were copied after the games
-	// of the file first: all of them were held twice)
-	for (i = 0; i < old.n_games && !ferror(f); ++i) {
-		save(old.game + i, f);
+	if (file_same(from, to)) {
+		warn("%s and %s are the same file: its games would be there twice; nothing is written\n", from, to);
+		return false;
 	}
-	for (i = 0; i < base->n_games && !ferror(f); ++i) {
-		save(base->game + i, f);
+	base_init(&base);
+	base_load_checked(&base, from, &complete);
+	if (!complete) {
+		warn("Cannot read all the games of %s: nothing is written to %s\n", from, to);
+	} else {
+		if (unique) base_unique(&base);
+		ok = base_save(&base, to);
+	}
+	base_free(&base);
+	return ok;
+}
+
+/*
+ * A game file written game by game.
+ *
+ * The games of the file are kept: they are copied to another file, read to their end, and the new games are
+ * written after them; the file is only replaced when everything is written (a file that cannot be read to its
+ * end, or a write that fails, leaves it as it was). The games are not held in memory.
+ */
+struct BaseWriter {
+	FILE *f;
+	void (*save)(const Game*, FILE*); /**< NULL: wthor */
+	WthorBase wthor;                  /**< players, and the header */
+	long long n_games;                /**< games of the file */
+	bool ok;
+	char file[FILENAME_MAX + 1];
+	char tmp_file[FILENAME_MAX + 1];
+};
+
+/**
+ * @brief Write a game to a file being written.
+ *
+ * @param w File being written.
+ * @param game Game.
+ * @return false if it cannot be written (the file will be left as it was).
+ */
+bool base_writer_add(BaseWriter *w, const Game *game)
+{
+	if (!w->ok) return false;
+	if (w->n_games >= INT_MAX) {
+		warn("%s cannot hold more than %d games\n", w->file, INT_MAX);
+		return w->ok = false;
+	}
+	if (w->save) {
+		w->save(game, w->f);
+	} else {
+		WthorGame thor;
+		const int black = wthor_player_get(&w->wthor, game->name[BLACK]);
+		const int white = wthor_player_get(&w->wthor, game->name[WHITE]);
+
+		if (w->wthor.n_players > USHRT_MAX) { // (a game holds the index of a player in 16 bits)
+			warn("%s cannot hold more than %d players\n", w->file, USHRT_MAX);
+			return w->ok = false;
+		}
+		game_to_wthor(game, &thor);
+		thor.black = black;
+		thor.white = white;
+		if (fwrite(&thor, sizeof thor, 1, w->f) != 1) w->ok = false;
+	}
+	if (ferror(w->f)) w->ok = false;
+	if (w->ok) ++w->n_games;
+	else warn("Error while writing %s\n", w->tmp_file);
+	return w->ok;
+}
+
+/** @brief Take a game of the file into the file being written (see base_read_games). */
+static bool base_writer_take(void *to, const Game *game)
+{
+	return base_writer_add((BaseWriter*) to, game);
+}
+
+/**
+ * @brief Copy the games of a wthor file as they are (with their players, tournament and scores).
+ *
+ * @param w File being written.
+ * @param f The file.
+ * @return false if it cannot be read to the end of its games.
+ */
+static bool base_writer_copy_wthor(BaseWriter *w, FILE *f)
+{
+	WthorHeader header;
+	WthorGame thor;
+	int i;
+
+	if (!wthor_header_read(&header, f) || header.board_size != 8 || header.n_games < 0) return false;
+	for (i = 0; i < header.n_games; ++i) {
+		if (fread(&thor, sizeof thor, 1, f) != 1) return false;
+		if (fwrite(&thor, sizeof thor, 1, w->f) != 1) return false;
+	}
+	w->n_games = header.n_games;
+	return true;
+}
+
+/**
+ * @brief Release a file being written, without replacing the file.
+ *
+ * @param w File being written (released).
+ */
+void base_writer_abort(BaseWriter *w)
+{
+	if (w == NULL) return;
+	if (w->f) {
+		fclose(w->f);
+		remove(w->tmp_file);
+	}
+	wthor_free(&w->wthor);
+	free(w);
+}
+
+/**
+ * @brief Start to write games to a file, after the games it holds.
+ *
+ * @param file Game filename (txt, ggf, sgf, pgn, wtb, edx).
+ * @return the file being written, or NULL (said; the file is left as it is).
+ */
+BaseWriter* base_writer_open(const char *file)
+{
+	const size_t l = strlen(file);
+	BaseWriter *w;
+	FILE *old;
+	char ext[8];
+	bool is_wthor = false, complete = true;
+
+	if (l < 4) { warn("Unknown game format extension: %s\n", file); return NULL; }
+	if (l + 16 > FILENAME_MAX) { warn("The file name is too long: %s\n", file); return NULL; }
+	w = (BaseWriter*) calloc(1, sizeof *w);
+	if (w == NULL) { warn("Cannot allocate the memory to write %s\n", file); return NULL; }
+	wthor_init(&w->wthor);
+	strcpy(w->file, file);
+	sprintf(w->tmp_file, "%s.writing%s", file, file + l - 4); // (the same extension: the same format)
+	strcpy(ext, file + l - 4); string_to_lowercase(ext);
+	if (strcmp(ext, ".txt") == 0) w->save = game_export_text;
+	else if (strcmp(ext, ".ggf") == 0) w->save = game_export_ggf;
+	else if (strcmp(ext, ".sgf") == 0) w->save = game_export_sgf;
+	else if (strcmp(ext, ".pgn") == 0) w->save = game_export_pgn;
+	else if (strcmp(ext, ".edx") == 0) w->save = game_write;
+	else if (strcmp(ext, ".wtb") == 0) is_wthor = true;
+	else {
+		warn("Unknown game format extension: %s\n", ext);
+		base_writer_abort(w);
+		return NULL;
+	}
+	if (is_wthor) {
+		char path[FILENAME_MAX + 16];
+
+		path_get_dir(file, path); strcat(path, "WTHOR.JOU");
+		wthor_players_load(&w->wthor, path);
+		if (w->wthor.n_players <= 0 || w->wthor.player == NULL) {
+			warn("Cannot read the players of %s: it was not replaced\n", file);
+			base_writer_abort(w);
+			return NULL;
+		}
+	}
+	w->f = fopen(w->tmp_file, (is_wthor || w->save == game_write) ? "wb" : "w");
+	if (w->f == NULL) {
+		warn("Cannot open file %s\n", w->tmp_file);
+		base_writer_abort(w);
+		return NULL;
+	}
+	w->ok = true;
+	if (is_wthor) { // (written again at the end, with the count of the games)
+		wthor_header_set(&w->wthor.header, 0, 0, 0);
+		w->ok = wthor_header_write(&w->wthor.header, w->f);
 	}
 
-	ok = !ferror(f);
-	if (fclose(f) != 0) ok = false;
-	if (!ok) warn("Error while writing %s\n", file);
-	base_free(&old);
+	// the games of the file are kept: it must be read completely
+	if ((old = fopen(file, "rb")) != NULL) {
+		if (is_wthor) complete = base_writer_copy_wthor(w, old);
+		fclose(old);
+		if (!is_wthor) base_read_games(file, base_writer_take, w, &complete);
+		if (!complete) {
+			warn("Cannot read all the games of %s: it was not replaced\n", file);
+			base_writer_abort(w);
+			return NULL;
+		}
+	} else if (errno != ENOENT) { // (a file that is there, and cannot be read: it is not replaced)
+		warn("Cannot open file %s: it was not replaced\n", file);
+		base_writer_abort(w);
+		return NULL;
+	}
+	return w;
+}
 
+/**
+ * @brief End a file being written: it replaces the file.
+ *
+ * @param w File being written (released).
+ * @return true if the file was replaced; else it is left as it was.
+ */
+bool base_writer_close(BaseWriter *w)
+{
+	char path[FILENAME_MAX + 16];
+	bool ok = w->ok;
+
+	if (ok && w->save == NULL) {
+		wthor_header_set(&w->wthor.header, (unsigned int) w->n_games, 0, 0);
+		if (fseek(w->f, 0, SEEK_SET) != 0 || !wthor_header_write(&w->wthor.header, w->f)) ok = false;
+	}
+	if (ferror(w->f)) ok = false;
+	if (fclose(w->f) != 0) ok = false;
+	w->f = NULL;
+	if (ok && w->save == NULL) { // the players first: their list only grows, so it also suits the games that are there
+		char tmp_path[FILENAME_MAX + 32];
+
+		path_get_dir(w->file, path); strcat(path, "WTHOR.JOU");
+		strcpy(tmp_path, path); strcat(tmp_path, ".writing");
+		ok = wthor_players_save(&w->wthor, tmp_path) && file_replace(tmp_path, path);
+		if (!ok) remove(tmp_path);
+	}
+	if (ok && !file_replace(w->tmp_file, w->file)) ok = false;
+	if (!ok) {
+		warn("Cannot save the games to %s: it was not replaced\n", w->file);
+		remove(w->tmp_file);
+	}
+	wthor_free(&w->wthor);
+	free(w);
 	return ok;
 }
 
@@ -1101,26 +1319,333 @@ void base_analyze(Base *base, Search *search, const int n_empties, const bool ap
 	}
 }
 
+/*
+ * base complete: several games completed at the same time.
+ *
+ * A thread completes a copy of a game. The games are put back, and their searches reported to the observer of
+ * the main search, in the order of the file, whatever the order they end in. A timed save (book-save-interval,
+ * to <file>.completing.<ext>) is done between two games put back: it holds no game being completed. When no
+ * game is left to start, the threads that end are given to the searches that still run, as for the planned
+ * searches of the book (not with book-reproducible).
+ */
+
+#define COMPLETE_SLOTS 4   /**< games completed ahead of the next one to put back, for each thread */
+
+/** a game completed ahead of its turn */
+typedef struct CompleteSlot {
+	Game game;
+	Result *report;            /**< results to report */
+	int n_report, report_size;
+	int n;                     /**< searches done */
+	int index;                 /**< game; -1: free */
+	bool ready;
+} CompleteSlot;
+
+struct CompleteWorker;
+
+/** state shared by the threads of base complete */
+typedef struct CompleteShared {
+	Base *base;
+	Search *main_search;       /**< its observer gets the results */
+	const char *save_file;     /**< file of the timed saves (NULL: none) */
+	unsigned long long t;      /**< time of the last save */
+	Lock lock;
+	Condition cond;            /**< a slot is free */
+	CompleteSlot *slot;
+	int n_slot;
+	int next, applied, n_completed;
+	struct CompleteWorker *worker;
+	int n_worker, n_threads;
+} CompleteShared;
+
+/** a thread of base complete */
+typedef struct CompleteWorker {
+	CompleteShared *shared;
+	Search *search;
+	CompleteSlot *current;
+	int n_tasks;               /**< threads of its search */
+	int want;                  /**< threads that its search should have */
+	int run_tasks;             /**< threads of the search that runs (0: none) */
+	bool busy;
+} CompleteWorker;
+
+/** @brief Give the threads of the workers without a game to the searches that still run (lock held). */
+static void complete_share_threads(CompleteShared *s)
+{
+	int i, n_busy = 0, n;
+
+	if (options.book_reproducible) return; // (one-thread searches)
+	for (i = 0; i < s->n_worker; ++i) if (s->worker[i].busy) ++n_busy;
+	if (n_busy == 0) return;
+	n = MIN(s->n_threads / n_busy, MAX_THREADS - 1);
+	for (i = 0; i < s->n_worker; ++i) {
+		CompleteWorker *w = s->worker + i;
+
+		if (w->busy && n >= 2 * w->want) w->want = n;
+		if (w->busy && w->run_tasks > 0 && w->run_tasks < w->want) search_stop_all(w->search, STOP_ON_DEMAND);
+	}
+}
+
+/** @brief A search of a game being completed (see game_complete_with). */
+static void complete_run(void *v, Search *search, const Board *board, const int player)
+{
+	CompleteWorker *w = (CompleteWorker*) v;
+	CompleteShared *s = w->shared;
+	int n;
+
+	for (;;) {
+		for (;;) {
+			lock(s);
+			n = w->want;
+			if (n == w->n_tasks) w->run_tasks = n; // (a stop is only asked while run_tasks is set)
+			unlock(s);
+			if (n == w->n_tasks) break;
+			search_set_task_number(search, n);
+			w->n_tasks = n;
+		}
+		search_set_board(search, board, player);
+		search_set_level(search, options.level, search->eval.n_empties);
+		search_run(search);
+		lock(s);
+		w->run_tasks = 0;
+		n = w->want;
+		unlock(s);
+		if (search->stop != STOP_ON_DEMAND || n <= w->n_tasks) break; // the search ended by itself
+		search->options.keep_date = true; // searched again with more threads, and what the hash tables kept
+	}
+	search->options.keep_date = false;
+}
+
+/** @brief Keep a result to report (see game_complete_with). */
+static void complete_report(void *v, const Result *result)
+{
+	CompleteSlot *e = ((CompleteWorker*) v)->current;
+
+	if (e->n_report == e->report_size) {
+		const int size = e->report_size * 2 + 8;
+		Result *report = (Result*) realloc((void*) e->report, size * sizeof *report);
+
+		if (report == NULL) return; // (no memory: this result is not shown)
+		e->report = report;
+		e->report_size = size;
+	}
+	memcpy((void*) (e->report + e->n_report++), (const void*) result, sizeof *result);
+}
+
+/** @brief Save the games completed so far, when the interval of the timed saves is over. */
+static void complete_save_timed(const Base *base, const char *save_file, unsigned long long *t)
+{
+	bool due;
+
+	if (save_file == NULL) return;
+	due = options.book_save_interval > 0 && real_clock() - (long long) *t >= (long long) options.book_save_interval * 60000LL;
+#ifdef BOOK_TEST_COUNTS
+	if (book_test_save_ms >= 0) due = real_clock() - (long long) *t >= book_test_save_ms;
+#endif
+	if (!due) return;
+	base_replace(base, save_file);
+#ifdef BOOK_TEST_COUNTS
+	if (book_test_saved) book_test_saved(save_file);
+#endif
+	*t = real_clock();
+}
+
+/** @brief Put back the games that are ready, in their order (lock held). */
+static void complete_apply_ready(CompleteShared *s)
+{
+	bool moved = false;
+	int i;
+
+	for (;;) {
+		CompleteSlot *e = s->slot + s->applied % s->n_slot;
+
+		if (e->index != s->applied || !e->ready) break;
+		s->base->game[s->applied] = e->game;
+		for (i = 0; i < e->n_report; ++i) {
+			putchar('\n');
+			s->main_search->observer(e->report + i);
+		}
+		if (e->n > 0) ++s->n_completed;
+		if (e->n > 0 || (s->applied % 1000) == 0) {
+			printf("%d/%d games completed (%.1f %% done).\r", s->n_completed, s->applied + 1, 100.0 * (s->applied + 1) / s->base->n_games);
+			fflush(stdout);
+		}
+		e->index = -1;
+		e->n_report = 0;
+		++s->applied;
+		moved = true;
+		complete_save_timed(s->base, s->save_file, &s->t);
+	}
+	if (moved) condition_broadcast(s);
+}
+
+/** @brief A thread of base complete. */
+static void* complete_worker_run(void *v)
+{
+	CompleteWorker *w = (CompleteWorker*) v;
+	CompleteShared *s = w->shared;
+
+	lock(s);
+	for (;;) {
+		CompleteSlot *e;
+
+		while (s->next < s->base->n_games && s->next - s->applied >= s->n_slot) condition_wait(s);
+		if (s->next >= s->base->n_games) {
+			w->busy = false;
+			complete_share_threads(s);
+			break;
+		}
+		e = s->slot + s->next % s->n_slot;
+		e->index = s->next++;
+		e->ready = false;
+		e->game = s->base->game[e->index];
+		w->current = e;
+		w->busy = true;
+		if (s->next >= s->base->n_games) {
+			complete_share_threads(s);
+			condition_broadcast(s); // (the threads that wait for a slot have nothing left to start)
+		}
+		unlock(s);
+
+		e->n = game_complete_with(&e->game, w->search, complete_run, complete_report, w);
+
+		lock(s);
+		w->busy = false;
+		e->ready = true;
+		complete_apply_ready(s);
+	}
+	unlock(s);
+	return NULL;
+}
+
 /**
- * @brief Base analysis.
+ * @brief Complete the games of a base at the same time.
+ *
+ * @return false if it was not done (one game at a time, or no memory): nothing was changed.
+ */
+static bool base_complete_parallel(Base *base, Search *search, const char *save_file)
+{
+	CompleteShared shared;
+	CompleteWorker w[MAX_THREADS];
+	Search **pool;
+	const int n = MIN(MIN(book_store_task_count(), base->n_games), MAX_THREADS - 1);
+	int i, n_tasks;
+
+	if (n < 1 || (n == 1 && !options.book_reproducible)) return false; // (one game after the other, with the main search)
+	n_tasks = options.book_reproducible ? 1 : MAX(1, MIN(book_store_thread_count() / n, MAX_THREADS - 1));
+	pool = book_game_searches(n, n_tasks);
+	if (pool == NULL) return false;
+	shared.n_slot = COMPLETE_SLOTS * n;
+	shared.slot = (CompleteSlot*) calloc(shared.n_slot, sizeof *shared.slot);
+	if (shared.slot == NULL) return false;
+	for (i = 0; i < shared.n_slot; ++i) shared.slot[i].index = -1;
+	shared.base = base;
+	shared.main_search = search;
+	shared.save_file = save_file;
+	shared.t = real_clock();
+	shared.next = shared.applied = shared.n_completed = 0;
+	shared.worker = w;
+	shared.n_worker = n;
+	shared.n_threads = book_store_thread_count();
+	lock_init(&shared);
+	condition_init(&shared);
+	for (i = 0; i < n; ++i) {
+		w[i].shared = &shared;
+		w[i].search = pool[i];
+		w[i].current = NULL;
+		w[i].n_tasks = search_count_tasks(pool[i]);
+		w[i].want = n_tasks;
+		w[i].run_tasks = 0;
+		w[i].busy = false;
+		pool[i]->options.verbosity = 0;
+		pool[i]->options.time = search->options.time;
+		pool[i]->options.time_per_move = search->options.time_per_move;
+	}
+	thread_run_workers(complete_worker_run, w, sizeof *w, n, false, false);
+	for (i = 0; i < n; ++i) { // back to the state of the pool
+		if (w[i].n_tasks != 1) search_set_task_number(pool[i], 1);
+		pool[i]->options.keep_date = false;
+		pool[i]->options.time = TIME_MAX;
+		pool[i]->options.time_per_move = true;
+	}
+	for (i = 0; i < shared.n_slot; ++i) free((void*) shared.slot[i].report);
+	free(shared.slot);
+	condition_free(&shared);
+	lock_free(&shared);
+	printf("%d/%d games completed (all done).          \n", shared.n_completed, base->n_games);
+	return true;
+}
+
+/**
+ * @brief Complete the games of a base.
+ *
+ * @param base Game base.
+ * @param search Search engine (its observer gets the results).
+ * @param save_file File of the timed saves (NULL: none).
+ */
+static void base_complete_saving(Base *base, Search *search, const char *save_file)
+{
+	unsigned long long t = real_clock();
+	int i, n;
+	int completed;
+
+	if (!base_complete_parallel(base, search, save_file)) { // one game after the other
+		for (i = n = 0; i < base->n_games; ++i) {
+			completed = 0;
+			if (game_complete(base->game + i, search) > 0) completed = 1;
+			n += completed;
+			if (completed || (i % 1000) == 0) {
+				printf("%d/%d games completed (%.1f %% done).\r", n, i + 1, 100.0 * (i + 1) / base->n_games); fflush(stdout);
+			}
+			complete_save_timed(base, save_file, &t);
+		}
+		printf("%d/%d games completed (all done).          \n", n, base->n_games);
+	}
+	book_store_release(); // (the searches of the games: up to 57 MB each)
+}
+
+/**
+ * @brief Base completion.
  *
  * @param base Game base.
  * @param search Search engine.
  */
 void base_complete(Base *base, Search *search)
 {
-	int i, n;
-	int completed;
+	base_complete_saving(base, search, NULL);
+}
 
-	for (i = n = 0; i < base->n_games; ++i) {
-		completed = 0;
-		if (game_complete(base->game + i, search) > 0) completed = 1;
-		n += completed;
-		if (completed || (i % 1000) == 0) {
-			printf("%d/%d games completed (%.1f %% done).\r", n, i + 1, 100.0 * (i + 1) / base->n_games); fflush(stdout);
+/**
+ * @brief Complete the games of a file (base complete).
+ *
+ * The file is replaced once all its games are completed. While they are, they are saved by book-save-interval
+ * to <file>.completing.<ext> (removed at the end): base complete on a copy of that file goes on from there.
+ *
+ * @param file Game filename.
+ * @param search Search engine.
+ * @return true if the file was replaced.
+ */
+bool base_complete_file(const char *file, Search *search)
+{
+	const size_t l = strlen(file);
+	char save_file[FILENAME_MAX + 1];
+	bool ok = false, can_save;
+	Base base;
+	FILE *f;
+
+	base_init(&base);
+	if (base_load(&base, file)) { // a file which was not loaded (or not completely) is kept as it is
+		can_save = (l >= 4 && l + 32 <= FILENAME_MAX); // (room for the names of the files being written)
+		if (can_save) sprintf(save_file, "%s.completing%s", file, file + l - 4);
+		base_complete_saving(&base, search, can_save ? save_file : NULL);
+		ok = base_replace(&base, file); // (the file is replaced once the games are saved to another file)
+		if (ok && can_save && (f = fopen(save_file, "rb")) != NULL) {
+			fclose(f);
+			remove(save_file);
 		}
 	}
-	printf("%d/%d games completed (all done).          \n", n, base->n_games);
+	base_free(&base);
+	return ok;
 }
 
 /**

@@ -67,11 +67,20 @@ void base_free(Base*);
 bool base_load(Base*, const char*);
 bool base_save(const Base*, const char*);
 bool base_replace(const Base*, const char*);
+bool base_add_file(const char*, const char*, const bool);
 bool base_append(Base*, const Game*);
+
+/** a game file being written game by game (base_writer_open) */
+typedef struct BaseWriter BaseWriter;
+BaseWriter* base_writer_open(const char*);
+bool base_writer_add(BaseWriter*, const Game*);
+bool base_writer_close(BaseWriter*);
+void base_writer_abort(BaseWriter*);
 void base_to_problem(Base*, const int, const char*);
 void base_to_FEN(Base*, const int, const char*);
 void base_analyze(Base*, struct Search*, const int, const bool);
 void base_complete(Base*, struct Search*);
+bool base_complete_file(const char*, struct Search*);
 void base_unique(Base*);
 void base_compare(const char*, const char*);
 

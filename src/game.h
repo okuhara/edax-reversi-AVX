@@ -81,6 +81,8 @@ void game_import_gam(Game*, FILE *);
 void game_rand(Game*, int, struct Random*);
 int game_analyze(Game*, struct Search*, const int, const bool);
 int game_complete(Game*, struct Search*);
+struct Result;
+int game_complete_with(Game*, struct Search*, void (*)(void*, struct Search*, const struct Board*, const int), void (*)(void*, const struct Result*), void*);
 void line_to_game(const Board*, const Line*, Game*);
 int game_score(const Game*);
 int move_from_wthor(int);
