@@ -36,6 +36,8 @@ void event_init(Event *event)
 
 	event->loop = true;
 	event->reading = event->closing = false;
+	event->busy = false;
+	event->stop_left = 0;
 }
 
 /**
@@ -59,6 +61,22 @@ void event_clear_messages(Event *event)
 	spin_unlock(event);
 }
 
+
+/**
+ * @brief Count the messages that wait.
+ *
+ * @param event Event.
+ * @return their number.
+ */
+int event_count_messages(Event *event)
+{
+	int n;
+
+	spin_lock(event);
+	n = (event->end - event->first + event->size) % event->size;
+	spin_unlock(event);
+	return n;
+}
 
 /**
  * @brief Free a message event.
@@ -140,6 +158,7 @@ void event_wait(Event *event, char **cmd, char **param)
 	while ((message = event_peek_message(event)) == NULL) {
 		condition_wait(event);
 	}
+	event->busy = true; // (with the message taken: a stop read from now on is for it)
 	unlock(event);
 
 	free(*cmd);

@@ -33,7 +33,7 @@
 void play_init(Play *play, Book *book)
 {
 	search_init(&play->search);
-	play->search.stop_pending = &play->stop_pending; // (NBoard: a ping before the search began)
+	play->search.stop_pending = &play->stop_pending; // (a stop before the search began: see search_run)
 	play->book = book;
 	board_init(&play->initial_board);
 	play->search.options.header = " depth|score|       time   |  nodes (N)  |   N/s    | principal variation";
@@ -429,9 +429,6 @@ void play_go(Play *play, const bool update)
 		search_set_level(search, play_level(), search->eval.n_empties);
 		play_set_search_time(play, search);
 
-		// NBoard: a ping read before the search of this "go" began: search_run() would forget its stop. The interface
-		// wants the move now: the search gets the least time (its first iterations).
-		if (play->stop_pending) search_set_move_time(search, 0);
 		search_time_init(search); // redondant, 
 		if (log_is_open(xboard_log)) {
 			 fprintf(xboard_log->f, "edax search> cpu: %d\n", options.n_task);
@@ -623,6 +620,7 @@ void play_ponder(Play *play)
 	if (play_is_game_over(play)) return;
 	if (options.can_ponder && play->state == IS_WAITING) {
 		play->ponder.board.player = play->ponder.board.opponent = 0;
+		play->stop_pending = false; // (a stop was for the command that ends)
 		play->state = IS_PONDERING;
 		info("\n[start ponderation]\n");
 		if (thread_create(&play->ponder.thread, play_ponder_run, play)) play->ponder.launched = true;
@@ -687,6 +685,7 @@ void play_no_stop(Play *play, const bool on)
 {
 	lock(&play->no_stop);
 	play->no_stop.n += (on ? 1 : -1);
+	if (on) play->stop_pending = false; // (its searches give their results to the book: they are not cut short)
 	unlock(&play->no_stop);
 }
 

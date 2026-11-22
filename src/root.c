@@ -972,7 +972,10 @@ void* search_run(void *v)
 	search->stop = RUNNING;
 	search->pv_dev[0] = 0;
 	// a stop that came before the line above is forgotten by it: the one who asked has set *stop_pending before
-	if (search->stop_pending && *search->stop_pending) search_set_move_time(search, 0);
+	const bool hurry = (search->stop_pending && *search->stop_pending);
+	const bool per_move = search->options.time_per_move;
+	const long long time_set = search->options.time, time_max = search->options.time_max, time_left = search->options.time_left;
+	if (hurry) search_set_move_time(search, 0);
 
 	//initialisations
 	search->n_nodes = 0;
@@ -1048,6 +1051,12 @@ void* search_run(void *v)
 
 	assert(search->height == 0);
 
+	if (hurry) { // (the time is the one of the caller again: the next search of the book may not set it)
+		search->options.time_per_move = per_move;
+		search->options.time = time_set;
+		search->options.time_max = time_max;
+		search->options.time_left = time_left;
+	}
 	return search->result;
 }
 

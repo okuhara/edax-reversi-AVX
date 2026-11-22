@@ -79,6 +79,28 @@ bool ui_switch(UI *ui, const char *ui_type)
 	return false;
 }
 
+/**
+ * @brief A stop is for the command being executed, and for those that wait: remember it until they are done.
+ *
+ * search_run() forgets a stop that came before it began: it looks at play->stop_pending. A book or base command
+ * is not stopped (see play_stop).
+ *
+ * @param ui User interface (its event is locked).
+ */
+static void ui_stop_waiting(UI *ui)
+{
+	Play *const play = ui->play;
+	Event *const event = &ui->event;
+	const int n = (event->busy ? 1 : 0) + event_count_messages(event);
+
+	lock(&play->no_stop);
+	if (play->no_stop.n == 0 && n > 0) {
+		event->stop_left = n;
+		play->stop_pending = true;
+	}
+	unlock(&play->no_stop);
+}
+
 
 /**
  * @brief Get an event
@@ -132,6 +154,8 @@ static void ui_read_input(UI *ui)
 			info("<stop>\n");
 			play->nboard_go = 0; // (the "go" that waited are cleared: none of them is left to answer)
 			play->stop_pending = false;
+			event->stop_left = 0;
+			if (ui->type != UI_GGS) ui_stop_waiting(ui);
 			play_stop(play);
 			if (ui->type == UI_GGS) play_stop(play + 1);
 		} else if (ui->type == UI_NBOARD && strcmp(cmd, "ping") == 0) {
@@ -141,6 +165,7 @@ static void ui_read_input(UI *ui)
 		} else if (ui->type == UI_NBOARD && strcmp(cmd, "go") == 0) {
 			++play->nboard_go;
 		} else if (ui->type == UI_XBOARD && strcmp(cmd, "?") == 0) {
+			ui_stop_waiting(ui);
 			play_stop(play);
 		} else {
 			if (strcmp(cmd, "quit") == 0 || (strcmp(cmd, "q") == 0 &&
@@ -195,6 +220,14 @@ static void* ui_read_input_loop(void *v)
  */
 void ui_event_wait(UI *ui, char **cmd, char **param)
 {
+	Event *const event = &ui->event;
+
+	lock(event);
+	if (event->busy) { // the command taken before is done
+		event->busy = false;
+		if (event->stop_left > 0 && --event->stop_left == 0) ui->play->stop_pending = false;
+	}
+	unlock(event);
 	event_wait(&ui->event, cmd, param);
 	if (options.echo && *cmd) printf(" %s %s\n", *cmd, *param ? *param : "");
 }
