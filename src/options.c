@@ -144,8 +144,8 @@ void options_usage(void)
 		"                                (with a time, -l caps the level; without -l, no cap)\n"
 		"  -speed <n|auto>               search speed (nodes/s) used to share the time; auto: measured.\n"
 		"  -ponder <on/off>              search during opponent time.\n"
-		"  -probcut-model <standard|refit> probcut error model (refit: experimental, see README).\n"
-		"  -time-ext <0|1>               game time: time of each move from the clock, stretched for a hard move.\n"
+		"  -probcut-model <standard|refit> probcut error model (refit: experimental, see README).\n");
+	fprintf(stderr, "  -time-ext <0|1>               game time: time of each move from the clock, stretched for a hard move.\n"
 		"  -time-ext-max <x>             longest stretch of the time of a move (2.0).\n"
 		"  -time-ext-h <x>               part of the next iteration that must fit in the time left to start it (0.5).\n"
 		"  -time-ext-hard <0|1>          stretch for an unstable best move or a falling score (1).\n"
@@ -169,8 +169,8 @@ void options_usage(void)
 		"  -lmr <0|1|2>                  late move reductions (0: off).\n"
 		"  -lazy <n>                     helper threads at the root (0: off).\n"
 		"  -lazy-min <n>                 lowest depth of an iteration with helpers (16).\n"
-		"  -eval-file                    read eval weight from this file.\n"
-		"  -book-file                    load opening book from this file.\n"
+		"  -eval-file                    read eval weight from this file.\n");
+	fprintf(stderr, "  -book-file                    load opening book from this file.\n"
 		"  -book-usage <on/off>          play from the opening book.\n"
 		"  -book-depth <n|auto>          depth of the opening book at startup (auto: the depth of the loaded book).\n"
 		"  -book-randomness <n>          play various but worse moves from the opening book.\n"
