@@ -7265,6 +7265,29 @@ Search** book_store_searches(const Book *book, const int n, const int n_tasks)
 }
 
 /**
+ * @brief Get searches to complete games at the same time (base complete).
+ *
+ * They are searches of book_store_searches, with tables of the size of the searches of the planned positions
+ * (book_plan_hash_bits) at the level setting. They are released by book_store_release.
+ *
+ * @param n Number of searches.
+ * @param n_tasks Threads of each search at first.
+ * @return the searches, NULL if they cannot be allocated.
+ */
+Search** book_game_searches(const int n, const int n_tasks)
+{
+	Book settings; // (only its level is read: the searches are those of the level setting)
+	SearchPool *pool = store_pool;
+
+	settings.options.level = options.level;
+	if (search_pool_get(pool, n, 1, book_plan_hash_bits(&settings, n_tasks)) < n) {
+		search_pool_release(pool);
+		return NULL;
+	}
+	return pool->search;
+}
+
+/**
  * @brief Number of games learned at the same time.
  *
  * book-store-tasks = n, or auto (0): each game gets 1 thread.

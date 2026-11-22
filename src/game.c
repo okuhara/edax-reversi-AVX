@@ -1766,7 +1766,23 @@ int game_analyze(Game *game, Search *search, const int n_empties, const bool app
  * @param search Search analyzer.
  * @return number of iterations to terminate the game.
  */
-int game_complete(Game *game, Search *search) 
+int game_complete(Game *game, Search *search)
+{
+	return game_complete_with(game, search, NULL, NULL, NULL);
+}
+
+/**
+ * @brief Terminate a game, with what does its searches and what reports them given (base complete, where
+ * several games are completed at the same time).
+ *
+ * @param game Game.
+ * @param search Search.
+ * @param run Does a search of a position, at the level setting (NULL: search_run).
+ * @param report Given the result of a search that was reported to the observer (NULL: the observer).
+ * @param to Given to run and report.
+ * @return number of iterations to terminate the game.
+ */
+int game_complete_with(Game *game, Search *search, void (*run)(void*, Search*, const Board*, const int), void (*report)(void*, const Result*), void *to)
 {
 	Board board;
 	const int verbosity = search->options.verbosity;
@@ -1792,18 +1808,26 @@ int game_complete(Game *game, Search *search)
 			board_pass(&board);
 		}
 
-		search_set_board(search, &board, player);
-		// the level of the "level" setting, as a move of a game (up to v4.5.5-nikque.12 the level was not set:
-		// the search kept the depth of whatever was searched before, which is 0, random moves, after base correct)
-		search_set_level(search, options.level, search->eval.n_empties);
-		search_run(search);
+		if (run) {
+			run(to, search, &board, player);
+		} else {
+			search_set_board(search, &board, player);
+			// the level of the "level" setting, as a move of a game (up to v4.5.5-nikque.12 the level was not set:
+			// the search kept the depth of whatever was searched before, which is 0, random moves, after base correct)
+			search_set_level(search, options.level, search->eval.n_empties);
+			search_run(search);
+		}
 		if (search->result->depth == search->eval.n_empties && search->result->selectivity == NO_SELECTIVITY) {
 			game_append_line(game, &search->result->pv, i);
 		} else {
 			game->move[i] = search->result->move;
 		}
 		if (search->result->score != 0) {
-			putchar('\n'); search->observer(search->result);
+			if (report) {
+				report(to, search->result);
+			} else {
+				putchar('\n'); search->observer(search->result);
+			}
 		}
 	}
 

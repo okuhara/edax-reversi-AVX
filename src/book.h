@@ -141,6 +141,7 @@ int book_store_task_count(void);
 int book_store_thread_count(void);
 Search** book_store_searches(const Book*, const int, const int);
 void book_store_release(void);
+Search** book_game_searches(const int, const int);
 bool book_plan_begin(Book*);
 void book_plan_board(Book*, const Board*);
 void book_plan_search(Book*);

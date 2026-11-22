@@ -2473,20 +2473,15 @@ LIBEDAX_API void edax_base_correct(const char *base_file, const int n_empties)
  */
 LIBEDAX_API void edax_base_complete(const char *base_file)
 {
-	Base base;
+	bool running;
+
 	if (g_ui == NULL || base_file == NULL) return;
 	play_stop_pondering(g_ui->play);
-	base_init(&base);
 
-	// terminate unfinished base
-	if (base_load(&base, base_file)) { // a file which was not loaded (or not completely) is kept as it is
-		const bool running = lib_book_change_set(true); // (see edax_base_correct)
-		base_complete(&base, &g_ui->play->search);
-		lib_book_change_set(running);
-		base_replace(&base, base_file); // (the file is replaced once the games are saved to another file)
-	}
-
-	base_free(&base);
+	// terminate unfinished base (a file which cannot be read completely is kept as it is)
+	running = lib_book_change_set(true); // (see edax_base_correct)
+	base_complete_file(base_file, &g_ui->play->search);
+	lib_book_change_set(running);
 }
 
 /**

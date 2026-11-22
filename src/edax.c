@@ -1158,10 +1158,7 @@ void ui_loop_edax(UI *ui)
 
 				// terminate unfinished base
 				} else if (strcmp(base_cmd, "complete") == 0) {
-					if (base_load(&base, base_file)) { // a file which was not loaded (or not completely) is kept as it is
-						base_complete(&base, &play->search);
-						base_replace(&base, base_file); // (the file is replaced once the games are saved to another file)
-					}
+					base_complete_file(base_file, &play->search);
 
 				// convert a base to another format
 				} else if (strcmp(base_cmd, "convert") == 0) {

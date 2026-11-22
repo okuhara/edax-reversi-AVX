@@ -12,6 +12,7 @@
 #include "options.h"
 #include "search.h"
 #include "perft.h"
+#include "book.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -1318,26 +1319,333 @@ void base_analyze(Base *base, Search *search, const int n_empties, const bool ap
 	}
 }
 
+/*
+ * base complete: several games completed at the same time.
+ *
+ * A thread completes a copy of a game. The games are put back, and their searches reported to the observer of
+ * the main search, in the order of the file, whatever the order they end in. A timed save (book-save-interval,
+ * to <file>.completing.<ext>) is done between two games put back: it holds no game being completed. When no
+ * game is left to start, the threads that end are given to the searches that still run, as for the planned
+ * searches of the book (not with book-reproducible).
+ */
+
+#define COMPLETE_SLOTS 4   /**< games completed ahead of the next one to put back, for each thread */
+
+/** a game completed ahead of its turn */
+typedef struct CompleteSlot {
+	Game game;
+	Result *report;            /**< results to report */
+	int n_report, report_size;
+	int n;                     /**< searches done */
+	int index;                 /**< game; -1: free */
+	bool ready;
+} CompleteSlot;
+
+struct CompleteWorker;
+
+/** state shared by the threads of base complete */
+typedef struct CompleteShared {
+	Base *base;
+	Search *main_search;       /**< its observer gets the results */
+	const char *save_file;     /**< file of the timed saves (NULL: none) */
+	unsigned long long t;      /**< time of the last save */
+	Lock lock;
+	Condition cond;            /**< a slot is free */
+	CompleteSlot *slot;
+	int n_slot;
+	int next, applied, n_completed;
+	struct CompleteWorker *worker;
+	int n_worker, n_threads;
+} CompleteShared;
+
+/** a thread of base complete */
+typedef struct CompleteWorker {
+	CompleteShared *shared;
+	Search *search;
+	CompleteSlot *current;
+	int n_tasks;               /**< threads of its search */
+	int want;                  /**< threads that its search should have */
+	int run_tasks;             /**< threads of the search that runs (0: none) */
+	bool busy;
+} CompleteWorker;
+
+/** @brief Give the threads of the workers without a game to the searches that still run (lock held). */
+static void complete_share_threads(CompleteShared *s)
+{
+	int i, n_busy = 0, n;
+
+	if (options.book_reproducible) return; // (one-thread searches)
+	for (i = 0; i < s->n_worker; ++i) if (s->worker[i].busy) ++n_busy;
+	if (n_busy == 0) return;
+	n = MIN(s->n_threads / n_busy, MAX_THREADS - 1);
+	for (i = 0; i < s->n_worker; ++i) {
+		CompleteWorker *w = s->worker + i;
+
+		if (w->busy && n >= 2 * w->want) w->want = n;
+		if (w->busy && w->run_tasks > 0 && w->run_tasks < w->want) search_stop_all(w->search, STOP_ON_DEMAND);
+	}
+}
+
+/** @brief A search of a game being completed (see game_complete_with). */
+static void complete_run(void *v, Search *search, const Board *board, const int player)
+{
+	CompleteWorker *w = (CompleteWorker*) v;
+	CompleteShared *s = w->shared;
+	int n;
+
+	for (;;) {
+		for (;;) {
+			lock(s);
+			n = w->want;
+			if (n == w->n_tasks) w->run_tasks = n; // (a stop is only asked while run_tasks is set)
+			unlock(s);
+			if (n == w->n_tasks) break;
+			search_set_task_number(search, n);
+			w->n_tasks = n;
+		}
+		search_set_board(search, board, player);
+		search_set_level(search, options.level, search->eval.n_empties);
+		search_run(search);
+		lock(s);
+		w->run_tasks = 0;
+		n = w->want;
+		unlock(s);
+		if (search->stop != STOP_ON_DEMAND || n <= w->n_tasks) break; // the search ended by itself
+		search->options.keep_date = true; // searched again with more threads, and what the hash tables kept
+	}
+	search->options.keep_date = false;
+}
+
+/** @brief Keep a result to report (see game_complete_with). */
+static void complete_report(void *v, const Result *result)
+{
+	CompleteSlot *e = ((CompleteWorker*) v)->current;
+
+	if (e->n_report == e->report_size) {
+		const int size = e->report_size * 2 + 8;
+		Result *report = (Result*) realloc((void*) e->report, size * sizeof *report);
+
+		if (report == NULL) return; // (no memory: this result is not shown)
+		e->report = report;
+		e->report_size = size;
+	}
+	memcpy((void*) (e->report + e->n_report++), (const void*) result, sizeof *result);
+}
+
+/** @brief Save the games completed so far, when the interval of the timed saves is over. */
+static void complete_save_timed(const Base *base, const char *save_file, unsigned long long *t)
+{
+	bool due;
+
+	if (save_file == NULL) return;
+	due = options.book_save_interval > 0 && real_clock() - (long long) *t >= (long long) options.book_save_interval * 60000LL;
+#ifdef BOOK_TEST_COUNTS
+	if (book_test_save_ms >= 0) due = real_clock() - (long long) *t >= book_test_save_ms;
+#endif
+	if (!due) return;
+	base_replace(base, save_file);
+#ifdef BOOK_TEST_COUNTS
+	if (book_test_saved) book_test_saved(save_file);
+#endif
+	*t = real_clock();
+}
+
+/** @brief Put back the games that are ready, in their order (lock held). */
+static void complete_apply_ready(CompleteShared *s)
+{
+	bool moved = false;
+	int i;
+
+	for (;;) {
+		CompleteSlot *e = s->slot + s->applied % s->n_slot;
+
+		if (e->index != s->applied || !e->ready) break;
+		s->base->game[s->applied] = e->game;
+		for (i = 0; i < e->n_report; ++i) {
+			putchar('\n');
+			s->main_search->observer(e->report + i);
+		}
+		if (e->n > 0) ++s->n_completed;
+		if (e->n > 0 || (s->applied % 1000) == 0) {
+			printf("%d/%d games completed (%.1f %% done).\r", s->n_completed, s->applied + 1, 100.0 * (s->applied + 1) / s->base->n_games);
+			fflush(stdout);
+		}
+		e->index = -1;
+		e->n_report = 0;
+		++s->applied;
+		moved = true;
+		complete_save_timed(s->base, s->save_file, &s->t);
+	}
+	if (moved) condition_broadcast(s);
+}
+
+/** @brief A thread of base complete. */
+static void* complete_worker_run(void *v)
+{
+	CompleteWorker *w = (CompleteWorker*) v;
+	CompleteShared *s = w->shared;
+
+	lock(s);
+	for (;;) {
+		CompleteSlot *e;
+
+		while (s->next < s->base->n_games && s->next - s->applied >= s->n_slot) condition_wait(s);
+		if (s->next >= s->base->n_games) {
+			w->busy = false;
+			complete_share_threads(s);
+			break;
+		}
+		e = s->slot + s->next % s->n_slot;
+		e->index = s->next++;
+		e->ready = false;
+		e->game = s->base->game[e->index];
+		w->current = e;
+		w->busy = true;
+		if (s->next >= s->base->n_games) {
+			complete_share_threads(s);
+			condition_broadcast(s); // (the threads that wait for a slot have nothing left to start)
+		}
+		unlock(s);
+
+		e->n = game_complete_with(&e->game, w->search, complete_run, complete_report, w);
+
+		lock(s);
+		w->busy = false;
+		e->ready = true;
+		complete_apply_ready(s);
+	}
+	unlock(s);
+	return NULL;
+}
+
 /**
- * @brief Base analysis.
+ * @brief Complete the games of a base at the same time.
+ *
+ * @return false if it was not done (one game at a time, or no memory): nothing was changed.
+ */
+static bool base_complete_parallel(Base *base, Search *search, const char *save_file)
+{
+	CompleteShared shared;
+	CompleteWorker w[MAX_THREADS];
+	Search **pool;
+	const int n = MIN(MIN(book_store_task_count(), base->n_games), MAX_THREADS - 1);
+	int i, n_tasks;
+
+	if (n < 1 || (n == 1 && !options.book_reproducible)) return false; // (one game after the other, with the main search)
+	n_tasks = options.book_reproducible ? 1 : MAX(1, MIN(book_store_thread_count() / n, MAX_THREADS - 1));
+	pool = book_game_searches(n, n_tasks);
+	if (pool == NULL) return false;
+	shared.n_slot = COMPLETE_SLOTS * n;
+	shared.slot = (CompleteSlot*) calloc(shared.n_slot, sizeof *shared.slot);
+	if (shared.slot == NULL) return false;
+	for (i = 0; i < shared.n_slot; ++i) shared.slot[i].index = -1;
+	shared.base = base;
+	shared.main_search = search;
+	shared.save_file = save_file;
+	shared.t = real_clock();
+	shared.next = shared.applied = shared.n_completed = 0;
+	shared.worker = w;
+	shared.n_worker = n;
+	shared.n_threads = book_store_thread_count();
+	lock_init(&shared);
+	condition_init(&shared);
+	for (i = 0; i < n; ++i) {
+		w[i].shared = &shared;
+		w[i].search = pool[i];
+		w[i].current = NULL;
+		w[i].n_tasks = search_count_tasks(pool[i]);
+		w[i].want = n_tasks;
+		w[i].run_tasks = 0;
+		w[i].busy = false;
+		pool[i]->options.verbosity = 0;
+		pool[i]->options.time = search->options.time;
+		pool[i]->options.time_per_move = search->options.time_per_move;
+	}
+	thread_run_workers(complete_worker_run, w, sizeof *w, n, false, false);
+	for (i = 0; i < n; ++i) { // back to the state of the pool
+		if (w[i].n_tasks != 1) search_set_task_number(pool[i], 1);
+		pool[i]->options.keep_date = false;
+		pool[i]->options.time = TIME_MAX;
+		pool[i]->options.time_per_move = true;
+	}
+	for (i = 0; i < shared.n_slot; ++i) free((void*) shared.slot[i].report);
+	free(shared.slot);
+	condition_free(&shared);
+	lock_free(&shared);
+	printf("%d/%d games completed (all done).          \n", shared.n_completed, base->n_games);
+	return true;
+}
+
+/**
+ * @brief Complete the games of a base.
+ *
+ * @param base Game base.
+ * @param search Search engine (its observer gets the results).
+ * @param save_file File of the timed saves (NULL: none).
+ */
+static void base_complete_saving(Base *base, Search *search, const char *save_file)
+{
+	unsigned long long t = real_clock();
+	int i, n;
+	int completed;
+
+	if (!base_complete_parallel(base, search, save_file)) { // one game after the other
+		for (i = n = 0; i < base->n_games; ++i) {
+			completed = 0;
+			if (game_complete(base->game + i, search) > 0) completed = 1;
+			n += completed;
+			if (completed || (i % 1000) == 0) {
+				printf("%d/%d games completed (%.1f %% done).\r", n, i + 1, 100.0 * (i + 1) / base->n_games); fflush(stdout);
+			}
+			complete_save_timed(base, save_file, &t);
+		}
+		printf("%d/%d games completed (all done).          \n", n, base->n_games);
+	}
+	book_store_release(); // (the searches of the games: up to 57 MB each)
+}
+
+/**
+ * @brief Base completion.
  *
  * @param base Game base.
  * @param search Search engine.
  */
 void base_complete(Base *base, Search *search)
 {
-	int i, n;
-	int completed;
+	base_complete_saving(base, search, NULL);
+}
 
-	for (i = n = 0; i < base->n_games; ++i) {
-		completed = 0;
-		if (game_complete(base->game + i, search) > 0) completed = 1;
-		n += completed;
-		if (completed || (i % 1000) == 0) {
-			printf("%d/%d games completed (%.1f %% done).\r", n, i + 1, 100.0 * (i + 1) / base->n_games); fflush(stdout);
+/**
+ * @brief Complete the games of a file (base complete).
+ *
+ * The file is replaced once all its games are completed. While they are, they are saved by book-save-interval
+ * to <file>.completing.<ext> (removed at the end): base complete on a copy of that file goes on from there.
+ *
+ * @param file Game filename.
+ * @param search Search engine.
+ * @return true if the file was replaced.
+ */
+bool base_complete_file(const char *file, Search *search)
+{
+	const size_t l = strlen(file);
+	char save_file[FILENAME_MAX + 1];
+	bool ok = false, can_save;
+	Base base;
+	FILE *f;
+
+	base_init(&base);
+	if (base_load(&base, file)) { // a file which was not loaded (or not completely) is kept as it is
+		can_save = (l >= 4 && l + 32 <= FILENAME_MAX); // (room for the names of the files being written)
+		if (can_save) sprintf(save_file, "%s.completing%s", file, file + l - 4);
+		base_complete_saving(&base, search, can_save ? save_file : NULL);
+		ok = base_replace(&base, file); // (the file is replaced once the games are saved to another file)
+		if (ok && can_save && (f = fopen(save_file, "rb")) != NULL) {
+			fclose(f);
+			remove(save_file);
 		}
 	}
-	printf("%d/%d games completed (all done).          \n", n, base->n_games);
+	base_free(&base);
+	return ok;
 }
 
 /**

@@ -80,6 +80,7 @@ void base_to_problem(Base*, const int, const char*);
 void base_to_FEN(Base*, const int, const char*);
 void base_analyze(Base*, struct Search*, const int, const bool);
 void base_complete(Base*, struct Search*);
+bool base_complete_file(const char*, struct Search*);
 void base_unique(Base*);
 void base_compare(const char*, const char*);
 

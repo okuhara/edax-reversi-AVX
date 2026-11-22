@@ -1401,6 +1401,167 @@ static void test_base(void)
 	base_free(&b);
 }
 
+/* ---- base complete ---- */
+
+#define REPORT_MAX 100000
+static int report_move[REPORT_MAX], report_score[REPORT_MAX], n_report;
+static void report_observer(Result *r)
+{
+	if (n_report < REPORT_MAX) {
+		report_move[n_report] = r->move;
+		report_score[n_report] = r->score;
+		++n_report;
+	}
+}
+
+static int n_complete_saves;
+static void take_complete_save(const char *file)
+{
+	if (++n_complete_saves == 20) copy_file(file, "stopped.txt");
+}
+
+/* the games in the order of the file, whatever the threads, and their reports too */
+static void test_complete(void)
+{
+	static int ref_move[REPORT_MAX], ref_score[REPORT_MAX];
+	static const int n_tasks[] = {4, 2, 1};
+	void (*observer)(Result*) = main_search.observer;
+	Base expected, got;
+	int i, k, n_ref;
+	FILE *f = fopen("games.txt", "w");
+
+	for (i = 0; i < 60; ++i) { // games of 46 to 60 moves, some complete
+		Game g;
+		Board b;
+		const int plies = 46 + i % 15;
+		int ply;
+		char text[128];
+
+		game_init(&g);
+		board_init(&g.initial_board);
+		b = g.initial_board;
+		for (ply = 0; ply < plies; ++ply) {
+			unsigned long long m = board_get_moves(&b);
+			int j, x;
+
+			if (!m) {
+				board_pass(&b);
+				if ((m = board_get_moves(&b)) == 0) break;
+			}
+			for (j = rr() % bit_count(m); j--; ) m &= m - 1;
+			x = first_bit(m);
+			g.move[ply] = (char) x;
+			board_next(&b, x, &b);
+		}
+		game_to_text(&g, text);
+		fprintf(f, "%s\n", text);
+	}
+	fclose(f);
+
+	search_set_observer(&main_search, report_observer);
+	options.level = 4;
+	options.book_store_tasks = 0;
+	base_init(&expected);
+	base_load(&expected, "games.txt");
+	n_report = 0;
+	set_threads(1);
+	{
+		Search one; // (one thread, as the searches of base complete with book-reproducible)
+
+		search_init_with(&one, 1, 10);
+		one.options.verbosity = 0;
+		search_set_observer(&one, report_observer);
+		for (i = 0; i < expected.n_games; ++i) game_complete(expected.game + i, &one);
+		search_free(&one);
+	}
+	n_ref = n_report;
+	memcpy(ref_move, report_move, n_ref * sizeof *ref_move);
+	memcpy(ref_score, report_score, n_ref * sizeof *ref_score);
+
+	for (k = 0; k < 3; ++k) {
+		copy_file("games.txt", "work.txt");
+		set_threads(n_tasks[k]);
+		n_report = 0;
+		n_complete_saves = 0;
+		book_test_save_ms = 0;
+		book_test_saved = take_complete_save;
+		CHECK(base_complete_file("work.txt", &main_search), "base complete, %d threads: failed", n_tasks[k]);
+		book_test_save_ms = -1;
+		book_test_saved = NULL;
+		base_init(&got);
+		base_load(&got, "work.txt");
+		CHECK(got.n_games == expected.n_games, "base complete, %d threads: %d games", n_tasks[k], got.n_games);
+		for (i = 0; i < got.n_games && i < expected.n_games; ++i) {
+			if (memcmp(got.game[i].move, expected.game[i].move, sizeof got.game[i].move)) {
+				CHECK(false, "base complete, %d threads: the game %d differs", n_tasks[k], i);
+				break;
+			}
+		}
+		base_free(&got);
+		CHECK(n_report == n_ref && !memcmp(report_move, ref_move, n_ref * sizeof *ref_move) && !memcmp(report_score, ref_score, n_ref * sizeof *ref_score), "base complete, %d threads: the results are not reported in the order of the file (%d, %d)", n_tasks[k], n_report, n_ref);
+		CHECK(n_complete_saves > 20, "base complete, %d threads: %d timed saves", n_tasks[k], n_complete_saves);
+		CHECK(store_pool[0].n == 0, "base complete: the searches were not released");
+		f = fopen("work.txt.completing.txt", "rb");
+		CHECK(f == NULL, "base complete: the file of the timed saves is left");
+		if (f) fclose(f);
+
+		// stopped at a save: from that file, the same games
+		CHECK(base_complete_file("stopped.txt", &main_search), "base complete of a timed save: failed");
+		base_init(&got);
+		base_load(&got, "stopped.txt");
+		CHECK(got.n_games == expected.n_games, "base complete of a timed save: %d games", got.n_games);
+		for (i = 0; i < got.n_games && i < expected.n_games; ++i) {
+			if (memcmp(got.game[i].move, expected.game[i].move, sizeof got.game[i].move)) {
+				CHECK(false, "base complete of a timed save: the game %d differs", i);
+				break;
+			}
+		}
+		base_free(&got);
+	}
+
+	// not reproducible: the threads given to the last games
+	options.book_reproducible = false;
+	copy_file("games.txt", "work.txt");
+	set_threads(4);
+	CHECK(base_complete_file("work.txt", &main_search), "base complete, shared threads: failed");
+	base_init(&got);
+	base_load(&got, "work.txt");
+	for (i = 0; i < got.n_games; ++i) {
+		Board b;
+		int j = 0;
+
+		b = got.game[i].initial_board;
+		while (j < 60 && got.game[i].move[j] != NOMOVE && game_update_board(&b, got.game[i].move[j])) ++j;
+		if (!board_is_game_over(&b)) {
+			CHECK(false, "base complete, shared threads: the game %d is not complete", i);
+			break;
+		}
+	}
+	base_free(&got);
+	options.book_reproducible = true;
+
+	{
+		unsigned char *bytes;
+		long n;
+
+		remove("whole.edx");
+		CHECK(base_save(&expected, "whole.edx"), "base_save edx");
+		n = file_bytes("whole.edx", &bytes);
+		f = fopen("cut2.edx", "wb");
+		fwrite(bytes, 1, n - 3, f);
+		fclose(f);
+		free(bytes);
+		copy_file("cut2.edx", "cut2.keep");
+	}
+	CHECK(!base_complete_file("cut2.edx", &main_search), "base complete of a cut file: accepted");
+	CHECK(same_bytes("cut2.edx", "cut2.keep"), "base complete: a cut file was changed");
+
+	base_free(&expected);
+	options.level = 2;
+	search_set_observer(&main_search, observer);
+	printf("base complete: %d results reported in the order of the file\n", n_ref);
+}
+
 int main(int argc, char **argv)
 {
 	const char *t = argc > 1 ? argv[1] : "all";
@@ -1418,6 +1579,7 @@ int main(int argc, char **argv)
 	if (all || !strcmp(t, "exhaust")) test_exhaust();
 	if (all || !strcmp(t, "extract")) test_extract();
 	if (all || !strcmp(t, "base")) test_base();
+	if (all || !strcmp(t, "complete")) test_complete();
 	if (all || !strcmp(t, "pgn")) test_pgn();
 	if (all || !strcmp(t, "dangling")) test_dangling();
 	printf("book-learn: %d checks, %d failures\n", n_check, n_fail);
