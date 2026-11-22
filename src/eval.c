@@ -732,7 +732,12 @@ void eval_open(const char* file)
 		}
 		*(pe->S0) = w[EVAL_PACKED_OFS[12]];
 	}
-
+	// the weights of eval2 (the mobility after the 61 plies: see MOBW in its eval.c) are read without it
+	if (fseek(f, 5 * sizeof (int) + sizeof (double) + 61L * n_w * sizeof (short), SEEK_SET) == 0) {
+		unsigned int tag;
+		if (fread(&tag, sizeof tag, 1, f) == 1 && (tag == 0x4d4f4257 || tag == 0x57424f4d))
+			warn("%s has mobility weights (the eval.dat of eval2), that this version does not use: the evaluation is wrong; use the eval.dat of the release of this version\n", file);
+	}
 	fclose(f);
 	free(w);
 	free(P);
