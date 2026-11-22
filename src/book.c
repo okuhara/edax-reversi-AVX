@@ -8876,7 +8876,7 @@ static unsigned long long* book_pick_todo(Book *book, const BookPick *pick, long
  */
 static long long book_link_moves(Book *book, const char *name, const char *file, Position *root, const bool limited, const int move_loss, const int total_loss, const bool all_moves)
 {
-	const BookPick link_pick = {0, false, false, all_moves};
+	const BookPick link_pick = {0, false, false, all_moves, false};
 	unsigned long long *keys;
 	long long n = 0;
 	bool owned = true;
@@ -9389,7 +9389,7 @@ static void* learn_walk_run(void *v)
 static unsigned long long* learn_walk(Book *book, const Board *board, const int kind, const int limit, long long *n)
 {
 	LossWorker lw[MAX_THREADS];
-	PositionList cur = {0}, next = {0};
+	PositionList cur = {NULL, 0, 0}, next = {NULL, 0, 0};
 	const int n_threads = book_walk_threads();
 	Position *root;
 	unsigned long long *keys;
@@ -10021,7 +10021,7 @@ void book_play(Book *book)
 static void book_fill_all(Book *book, const int depth, const bool leaf_only)
 {
 	const char *name = leaf_only ? "Book fill2" : "Book fill";
-	const BookPick pick = {depth, leaf_only, false, false};
+	const BookPick pick = {depth, leaf_only, false, false, false};
 	unsigned long long *keys;
 	long long n_diffs = 0, n, n_linked;
 	int rounds_since_save = 0;
@@ -10092,7 +10092,7 @@ void book_fill2(Book *book, const int depth)
 void book_fill_walk(Book *book, Board *board, const int depth, const bool leaf_only, const int move_loss, const int total_loss)
 {
 	const char *name = leaf_only ? "Book fill2" : "Book fill";
-	const BookPick pick = {depth, leaf_only, false, false};
+	const BookPick pick = {depth, leaf_only, false, false, false};
 	Position *root = book_probe(book, board);
 	unsigned long long *keys;
 	long long n_diffs, n, n_selected, n_linked;
@@ -10149,7 +10149,7 @@ void book_fill_walk(Book *book, Board *board, const int depth, const bool leaf_o
  */
 void book_leaf_expand(Book *book, Board *board, const bool limited, const int move_loss, const int total_loss)
 {
-	static const BookPick leaf_pick = {0, false, true, false};
+	static const BookPick leaf_pick = {0, false, true, false, false};
 	const char *name = "Book leaf expand";
 	Position *root = NULL;
 	unsigned long long *keys;
