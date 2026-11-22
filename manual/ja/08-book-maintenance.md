@@ -480,7 +480,13 @@ Correcting solved positions: 50000 already done by a run that did not end, 15000
 初期局面から、各局面で「評価値がいちばん良い手」（同点なら全部）をたどった手順を、棋譜のファイルに書き出します。形式は拡張子で決まります（[10 章](10-files.md)）。
 
 - **出力先のファイルがすでにあると、その後ろに追記されます。**
-- 新しいファイルのときは、`WARNING: Cannot open file data/lines.txt` と表示されますが、ファイルは作られます。「前からあるファイルを読もうとして、なかった」という意味の表示です。
+- `book extract draw ファイル` とも書けます（v4.5.5-nikque.33 から）。
+- `book extract all ファイル` は、book の**すべての手順**を書き出します（v4.5.5-nikque.33 から）。
+  - 手順は f5 から始まります。ほかの初手は、その対称形です。
+  - 手順は、book の外に出た手、終局、ほかの手順との合流のどれかで終わります。
+  - Edax 4.7 の `book extract ファイル` に当たります。
+  - book に f5 の先の局面がなければ、ファイルには触れません。
+- 書き出しに失敗したときは、出力先のファイルは元のまま残ります。
 
 ### book problem：局面を問題として取り出す
 
@@ -511,7 +517,8 @@ book の中から、空きが 52 で、最善の手が 1 つに決まってい�
 | `book leaf recalculate`（`2`・`3`・`4`）`X Y` | Leaf の評価値を計算し直す |
 | `book correct` | 完全読みの局面を確かめ直す |
 | `book deepen` | level の低い局面を book の level で探索し直す |
-| `book extract ファイル` | 最善の手順を棋譜のファイルに書き出す |
+| `book extract ファイル`・`book extract draw ファイル` | 最善の手順を棋譜のファイルに書き出す |
+| `book extract all ファイル` | すべての手順を棋譜のファイルに書き出す |
 | `book problem 空き 個数` | 局面を問題の形で表示する |
 | `book feed-hash` | book の値をハッシュ表に入れる |
 | `book verbose n` | 表示の量 |

@@ -27,7 +27,7 @@ All the commands and settings of this version, compiled from the lists in the so
 | `setboard` | | board side | Set up a position | [3.5](03-playing.md) |
 | `vmirror`, `hmirror` | | | Swap top and bottom, left and right | [3.5](03-playing.md) |
 | `rotate` | | [90, 180, 270] (90 if left out) | Rotate | [3.5](03-playing.md) |
-| `symetry` | | 0 to 15 | Choose a symmetry by its number | [3.5](03-playing.md) |
+| `symetry` | `symmetry` | 0 to 15 | Choose a symmetry by its number | [3.5](03-playing.md) |
 | `opening`, `ouverture` | | | Name of the opening (English, French) | [3.1](03-playing.md) |
 | `options` | | | Show the current settings | [4.1](04-settings.md) |
 | `version` | `v` | | Show the version | |
@@ -74,6 +74,9 @@ These are entered after `book` (or `b`). The word that follows may be in upper c
 | `book fill` | [n] (1) [X Y]. n: 1 to 61, X: 0 to 129, Y: 0 to 7740 | Fill in between positions. With X Y: in the range of `book deviate3 X Y` only | `.fill` | [7.4](07-book-learning.md) |
 | `book fill2` | [n] (2) [X Y]; the ranges of the numbers as for `book fill` | Fill the gaps after the leaves | `.fill2` | [7.4](07-book-learning.md) |
 | `book play` | | Extend the tips of the lines down to the depth | `.play` | [7.4](07-book-learning.md) |
+| `book play` | n. 0 to 60 | From the current position, extend the tips of the lines down to n empty squares (since v4.5.5-nikque.33) | `.play`, `.play-to` | [7.4](07-book-learning.md) |
+| `book extend` | | From the current position, expand the leaves that no link is better than (since v4.5.5-nikque.33) | `.ext` | [7.4](07-book-learning.md) |
+| `book exhaust` | | Add every move from the current position down to the depth of the book (since v4.5.5-nikque.33) | `.exh` | [7.4](07-book-learning.md) |
 | `book negamax` | | Compute the scores again | | [8.2](08-book-maintenance.md) |
 | `book fix` | | Check, linking, negamax | | [8.2](08-book-maintenance.md) |
 | `book merge` | file | Take in another book | `.mrg` | [8.3](08-book-maintenance.md) |
@@ -86,7 +89,8 @@ These are entered after `book` (or `b`). The word that follows may be in upper c
 | `book leaf expand` | [X Y]. X: 0 to 129, Y: 0 to 7740 | Expand the leaves better than every link. With X Y: in the range of `book deviate3 X Y` only | `.lexp` | [7.4](07-book-learning.md) |
 | `book correct` | | Verify the exactly solved positions | `.err` | [8.7](08-book-maintenance.md) |
 | `book deepen` | | Search again the positions of a lower level with the level of the book | `.dep` | [8.7](08-book-maintenance.md) |
-| `book extract` | file | Write the best lines as games | | [8.8](08-book-maintenance.md) |
+| `book extract` | [`draw`] file | Write the best lines as games | | [8.8](08-book-maintenance.md) |
+| `book extract all` | file | Write all the lines as games (since v4.5.5-nikque.33) | | [8.8](08-book-maintenance.md) |
 | `book problem` | [empties] (24) [count] (10) | Show positions as problems | | [8.8](08-book-maintenance.md) |
 | `book feed-hash` | | Put the values of the book into the hash table | | [8.7](08-book-maintenance.md) |
 | `book moveinfo` | `id=N` [`base=`, `stages=`, `umi=`, `parts=`, …] | Book value, precision stage, missing leaves, umigame numbers and positions of every legal move (in the background; answers: `@` lines) | | [12.4](12-integration.md) |
@@ -103,6 +107,7 @@ These are entered after `base` ([10.2](10-files.md)).
 | Command | Arguments | Meaning |
 |---|---|---|
 | `convert` | input output | Change the format |
+| `append` | input output | Add the games of the input to the output (since v4.5.5-nikque.33) |
 | `unique` | input output | Keep one copy of each game |
 | `compare` | file1 file2 | Count the positions in common |
 | `check` | file [empties] (24) | Look for bad moves in the endgame |

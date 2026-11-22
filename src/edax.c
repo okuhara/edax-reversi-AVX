@@ -274,8 +274,9 @@ void help_book(void)
 void help_base(void) 
 {
 	printf(	"\nGame DataBase :\n"
-		"  convert [file_in] [file_out]     convert between different format.\n"
-		"  unique [file_in] [file_out]      remove doublons in the base.\n"
+		"  convert [file_in] [file_out]     convert between different format; the games\n  are added to those of <file_out>.\n"
+		"  append [file_in] [file_out]      add the games of <file_in> to <file_out>.\n"
+		"  unique [file_in] [file_out]      remove doublons in the base; the games are\n  added to those of <file_out>.\n"
 		"  check [file_in] [n]              check error in the last <n> moves.\n"
 		"  correct [file_in] [n]            correct error in the last <n> moves.\n"
 		"  complete [file_in]               complete a database by playing the last\n  missing moves.\n"

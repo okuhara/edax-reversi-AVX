@@ -2320,6 +2320,80 @@ LIBEDAX_API void edax_book_play(void)
 }
 
 /**
+ * @brief book play <n> command: from the current position, play the positions without link on to n empty squares.
+ * @param n_empties the positions with as many empty squares or more are expanded (0 to 60; another value: nothing is done).
+ */
+LIBEDAX_API void edax_book_play_to(int n_empties)
+{
+	Book *book;
+	if (g_ui == NULL) return;
+	if (n_empties < 0 || n_empties > 60) {
+		warn("book play: %d is not a number of empty squares; nothing is done\n", n_empties);
+		return;
+	}
+	book = lib_book_begin_change();
+
+	book_play_to(book, &g_ui->play->board, n_empties);
+
+	lib_book_end(book);
+}
+
+/**
+ * @brief book extend command: from the current position, expand the leaves that no link is better than.
+ */
+LIBEDAX_API void edax_book_extend(void)
+{
+	Book *book;
+	if (g_ui == NULL) return;
+	book = lib_book_begin_change();
+
+	book_extend(book, &g_ui->play->board);
+
+	lib_book_end(book);
+}
+
+/**
+ * @brief book exhaust command: add every move from the current position to the depth of the book.
+ */
+LIBEDAX_API void edax_book_exhaust(void)
+{
+	Book *book;
+	if (g_ui == NULL) return;
+	book = lib_book_begin_change();
+
+	book_exhaust(book, &g_ui->play->board);
+
+	lib_book_end(book);
+}
+
+/**
+ * @brief book extract all command: add all the lines of the book to a game file.
+ * @param base_file game file (its games are kept).
+ */
+LIBEDAX_API void edax_book_extract_all(const char *base_file)
+{
+	Book *book;
+	if (g_ui == NULL || base_file == NULL) return;
+	book = lib_book_begin_change(); // (the marks of the positions change)
+
+	book_extract_all(book, base_file);
+
+	lib_book_end(book);
+}
+
+/**
+ * @brief base append command: add the games of a file to another one.
+ * @param base_file_from input game database file.
+ * @param base_file_to output game database file (its games are kept).
+ */
+LIBEDAX_API void edax_base_append(const char *base_file_from, const char *base_file_to)
+{
+	if (base_file_from == NULL || base_file_to == NULL) return;
+
+	base_add_file(base_file_from, base_file_to, false);
+}
+
+/**
  * @brief book deepen command.
  * caution: Currently, this function does not work correctly.
  */

@@ -251,6 +251,9 @@ The commands that grow or maintain the book save their progress and their result
 | `.enh` | `book enhance` |
 | `.fill`, `.fill2` | `book fill`, `book fill2` |
 | `.play` | `book play` |
+| `.play-to` | `book play n` (a small text file that records the ends of the lines; removed when the command ends) |
+| `.ext` | `book extend` |
+| `.exh` | `book exhaust` |
 | `.leaf`, `.leaf2`, `.leaf3`, `.leaf4` | `book leaf recalculate`, `2`, `3`, `4` |
 | `.lexp` | `book leaf expand` |
 | `.mrg` | `book merge` (not written with the setting `book-merge-auto-save = off`) |

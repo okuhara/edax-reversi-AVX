@@ -146,7 +146,7 @@ These commands transform the current game (including its moves) into a symmetric
 | `vmirror` | Swap top and bottom |
 | `hmirror` | Swap left and right |
 | `rotate 90` (`180`, `270`) | Rotate |
-| `symetry n` (`n` from 0 to 15) | Choose one of the 8 symmetries by its number. From 8 up, the side to move is swapped as well |
+| `symetry n` (`n` from 0 to 15) | Choose one of the 8 symmetries by its number. From 8 up, the side to move is swapped as well. `symmetry` is accepted too (since v4.5.5-nikque.33) |
 
 ## 3.6 Saving and loading a game
 

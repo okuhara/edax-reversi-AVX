@@ -86,6 +86,7 @@ GGF:
   - Up to v4.5.5-nikque.12, a move that flips no discs was placed on the board without flipping anything, and the game was loaded. The result is a board that cannot occur in a real game. With an old version, if a warning is printed during a load, do not use that board: start again with `init`. Old versions also give no warning when a `.txt` line is only partly read.
 - Up to v4.5.5-nikque.12, loading a `.pgn` of an unfinished game prints `WARNING: uncomplete game.` (the game is still loaded).
 - A PGN file is read up to 60 moves.
+- Up to v4.5.5-nikque.32, reading a `.pgn` with a pass (`pass`) could lose the rest of that game and the game after it.
 - A saved game holds at most 60 moves.
 
 ## 10.2 Files of many games: the base commands
@@ -95,6 +96,7 @@ The commands that start with `base` process game files (containing many games) a
 | Command | Meaning |
 |---|---|
 | `base convert input output` | Change the format (the extensions give the formats) |
+| `base append input output` | Add the games of the input to the end of the output (since v4.5.5-nikque.33) |
 | `base unique input output` | Keep one copy of each game |
 | `base compare file1 file2` | Show the number of positions that the two files have in common |
 | `base check file n` | Examine the endgame of each game by exact solving (from the positions with n or fewer empty squares; 24 if left out) and show the games that hold bad moves |
@@ -109,10 +111,8 @@ Examples:
 
 ```
 >base convert games.txt games.sgf
-WARNING: Cannot open file games.sgf
 
 >base unique games.txt uniq.txt
-WARNING: Cannot open file uniq.txt
 
 >base compare games.txt uniq.txt
 games.txt : 24 positions - 0 original positions
@@ -128,12 +128,19 @@ Game #0 contains 3 errors
 **Notes**
 
 - **If the output file already exists, the games are appended to it** (it is not overwritten). Running the same command twice with the same name doubles the games. To create the file from scratch, delete the old one first or use another name.
-- When the output is a new file, `WARNING: Cannot open file …` is printed, as in the examples above.
-  - It means that Edax tried to read the existing file before appending to it, and there was none.
-  - **The file is created.**
-  - The same message appears after `base correct` and `base complete`.
+- `base convert` and `base unique` of Edax 4.7 overwrite the output. This version appends to it.
+- `base convert`, `base append` and `base unique` write nothing in these cases (since v4.5.5-nikque.33).
+  - The input could not be read to its end.
+  - The input and the output are the same file, even under differently written names.
+  - The games already in the output could not be read to their end.
+- The games are written to another file, which replaces the output when everything is written. If that is interrupted, the original file remains.
+- When writing `.wtb` with no `WTHOR.JOU` in the same folder, `WARNING: Cannot open Wthor players' file …` is printed. The file is created.
 - `base check` and `base correct` solve every game exactly. With a large n they take a very long time.
 - `base complete` plays on at the `level` setting (since v4.5.5-nikque.13). Earlier versions kept the depth of the last search, so they either tried to solve to the end and never finished, or played nonsense moves. The search table is printed for every move.
+  - Since v4.5.5-nikque.33, several games are completed in parallel, as many as `book-store-tasks` sets. The output and the file keep the order of the original file.
+  - In parallel, each search has fewer threads, so the moves added may differ from earlier versions.
+  - Each time `book-save-interval` has passed, the progress is saved to `file.completing.extension`, for example `games.txt.completing.txt`.
+  - After an interruption, run `base complete` on that file to continue. It is removed when the command ends.
 - `base correct` and `base complete` rewrite the file only when it could be read. A file that cannot be read is left unchanged.
 - While a book or `base` command is running, `stop` does not stop it ([7.5](07-book-learning.md)).
 

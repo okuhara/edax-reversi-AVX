@@ -27,7 +27,7 @@
 | `setboard` | | 盤 手番 | 局面を作る | [3.5](03-playing.md) |
 | `vmirror`・`hmirror` | | | 上下・左右を入れ替える | [3.5](03-playing.md) |
 | `rotate` | | ［90・180・270］（省くと 90） | 回す | [3.5](03-playing.md) |
-| `symetry` | | 0〜15 | 対称を番号で指定 | [3.5](03-playing.md) |
+| `symetry` | `symmetry` | 0〜15 | 対称を番号で指定 | [3.5](03-playing.md) |
 | `opening`・`ouverture` | | | 定石の名前（英語・フランス語） | [3.1](03-playing.md) |
 | `options` | | | 今の設定を表示 | [4.1](04-settings.md) |
 | `version` | `v` | | 版を表示 | |
@@ -74,6 +74,9 @@
 | `book fill` | ［n］（1） ［X Y］。n は 1〜61、X は 0〜129、Y は 0〜7740 | 局面の間を埋める。X Y を付けると `book deviate3 X Y` の範囲だけ | `.fill` | [7.4](07-book-learning.md) |
 | `book fill2` | ［n］（2） ［X Y］。数の範囲は `book fill` と同じ | Leaf の先の欠けを埋める | `.fill2` | [7.4](07-book-learning.md) |
 | `book play` | | 手順の先端を、深さまで伸ばす | `.play` | [7.4](07-book-learning.md) |
+| `book play` | n。0〜60 | 今の局面から、手順の先端を空き n まで伸ばす（v4.5.5-nikque.33 から） | `.play`・`.play-to` | [7.4](07-book-learning.md) |
+| `book extend` | | 今の局面から、どの Link にも劣らない Leaf を広げる（v4.5.5-nikque.33 から） | `.ext` | [7.4](07-book-learning.md) |
+| `book exhaust` | | 今の局面から book の深さまで、すべての手を足す（v4.5.5-nikque.33 から） | `.exh` | [7.4](07-book-learning.md) |
 | `book negamax` | | 評価値を計算し直す | | [8.2](08-book-maintenance.md) |
 | `book fix` | | 点検・Link の張り直し・negamax | | [8.2](08-book-maintenance.md) |
 | `book merge` | ファイル | 別の book を取り込む | `.mrg` | [8.3](08-book-maintenance.md) |
@@ -86,7 +89,8 @@
 | `book leaf expand` | ［X Y］。X は 0〜129、Y は 0〜7740 | どの Link よりも良い Leaf を広げる。X Y を付けると `book deviate3 X Y` の範囲だけ | `.lexp` | [7.4](07-book-learning.md) |
 | `book correct` | | 完全読みの局面を確かめ直す | `.err` | [8.7](08-book-maintenance.md) |
 | `book deepen` | | level の低い局面を book の level で探索し直す | `.dep` | [8.7](08-book-maintenance.md) |
-| `book extract` | ファイル | 最善の手順を棋譜に書き出す | | [8.8](08-book-maintenance.md) |
+| `book extract` | ［`draw`］ ファイル | 最善の手順を棋譜に書き出す | | [8.8](08-book-maintenance.md) |
+| `book extract all` | ファイル | すべての手順を棋譜に書き出す（v4.5.5-nikque.33 から） | | [8.8](08-book-maintenance.md) |
 | `book problem` | ［空き］（24） ［個数］（10） | 局面を問題の形で表示 | | [8.8](08-book-maintenance.md) |
 | `book feed-hash` | | book の値をハッシュ表に入れる | | [8.7](08-book-maintenance.md) |
 | `book moveinfo` | `id=N` ［`base=`・`stages=`・`umi=`・`parts=` など］ | 全部の合法手の book の評価値・精度の段階・足りない Leaf の数・うみがめ数・局面の数（バックグラウンドで動く。答えは `@` の行） | | [12.4](12-integration.md) |
@@ -103,6 +107,7 @@
 | コマンド | 引数 | 意味 |
 |---|---|---|
 | `convert` | 入力 出力 | 形式を変える |
+| `append` | 入力 出力 | 入力の棋譜を出力に追加する（v4.5.5-nikque.33 から） |
 | `unique` | 入力 出力 | 同じ対局をまとめる |
 | `compare` | ファイル1 ファイル2 | 共通する局面を数える |
 | `check` | ファイル ［空き］（24） | 終盤の悪手を探す |

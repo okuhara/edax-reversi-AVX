@@ -337,8 +337,21 @@ Up to v4.5.5-nikque.26, a file name that was too long was silently cut short.
 | `book fill2 n` | As `book fill n`, but the first move from the position filled from is **its leaf move only**. It fills "the position after the leaf is not in the book, and the next one is" (with n = 2). Without a number, n is 2 | `.fill2` |
 | `book leaf expand` | Expands the leaf of **the positions whose leaf scores better than every link** (their best move is still out of the book). After an expansion the next leaf may be better than the links again, so this is repeated until no such position remains. Positions without a link do not count | `.lexp` |
 | `book play` | Expands the leaf of positions that have no link at all (the tips of the lines), and repeats until no such position remains within the depth of the book. That is, **every line is extended with best moves down to the depth of the book** | `.play` |
+| `book play n` | Starts from the positions without a link that links reach from the current position, within the depth of the book, and extends their leaves one move at a time. Positions with n or more empty squares are expanded, so the last position added has n − 1. A line that reaches a position with a link ends there | `.play` |
+| `book extend` | Within what links reach from the current position, expands the leaves of the positions whose **leaf is no worse than any link**. Equal scores and positions without a link are included. Repeats until no such position remains | `.ext` |
+| `book exhaust` | Adds **every legal move** (passes included) from the current position down to the depth of the book. The number of positions grows very fast with the depth | `.exh` |
 
 - `book enhance`, `book fill` and `book play` come from the original Edax.
+- `book extend`, `book exhaust` and `book play n` are taken from Edax 4.7 (since v4.5.5-nikque.33).
+  - In Edax 4.7, `book play` without a number extends from the current position down to 20 empty squares. In this version that is `book play 20`. `book play` without a number still applies to the whole book.
+  - When n of `book play n` lies beyond the depth of the book, `book prune` removes the positions beyond the depth.
+  - Before `book exhaust`, make the depth small with `book depth`.
+    - From the initial position, depth 7 gives about 13,000 positions. Each further ply multiplies this several times.
+    - All the positions to add are collected before the searches. Nothing is saved while they are collected. If memory runs out, the command ends without changing the book.
+- Since v4.5.5-nikque.33, `book play` expands several positions in parallel as set by `book-expand-tasks`.
+  - Earlier versions expanded one at a time whatever the setting.
+  - With 2 or more, the book differs slightly from run to run, as with `book deviate` (7.6).
+  - The scores of positions that cannot be reached from the initial position may also differ from earlier versions.
 - `book fill2` and `book leaf expand` were added in this fixed version (since v4.5.5-nikque.14). The same version changed `book fill` (except `book fill 1`).
 - All of these commands have been used less on large books than the `book deviate` family. Try them on a small book first.
 
@@ -430,6 +443,10 @@ The automatic expansion commands run for a long time. **If they stop (power fail
 - With a large book, each save takes time and free disk space ([chapter 9](09-large-books.md)).
   - If the rounds are short, saving every round means spending most of the time saving. In that case, increase `book-deviate-save-rounds` (to 10, for example).
   - If one round takes hours, shorten `book-save-interval` instead.
+- `book play`, `book play n`, `book extend` and `book exhaust` save each time `book-save-interval` has passed, and when they end.
+  - They do not use `book-deviate-save-rounds`.
+  - With `book-save-interval = 0`, they save only when they end.
+  - Up to v4.5.5-nikque.32, `book play` saved after every round.
 - **With `0` and `0` (neither kind of save), nothing is saved until the command ends.** If it stops partway, everything is lost.
 
 **Stopping**: the book commands cannot be cancelled by input.
@@ -449,7 +466,10 @@ Then type the same command again (`book deviate2 5 5`, for example).
 
 When the same command is typed again, whether it searches again the work already done depends on the command:
 
-- `book deviate` and its family, `book enhance`, `book leaf expand`, `book fill`, `book fill2`, `book play`, `book add`: the work already done is not searched again.
+- `book play n`: the ends of the lines are recorded in `<book file name>.play-to`.
+  - Load the saved book (`.play`), then run the same n from the same position to continue.
+  - Do not delete or move this file before continuing. Without it, the lines beyond the depth of the book cannot be continued.
+- `book deviate` and its family, `book enhance`, `book leaf expand`, `book fill`, `book fill2`, `book play`, `book extend`, `book exhaust`, `book add`: the work already done is not searched again.
   - The moves expanded and the positions added are in the book.
   - Only the time to walk the book again is spent.
 - `book correct` and the `book leaf recalculate` family (since v4.5.5-nikque.29; [8.6](08-book-maintenance.md), [8.7](08-book-maintenance.md)):
@@ -463,7 +483,7 @@ When the same command is typed again, whether it searches again the work already
 
 ## 7.6 Expanding several leaves in parallel: book-expand-tasks
 
-Low-level searches are short, so giving many threads to one search does not make it much faster ([5.5](05-search.md)). With the setting `book-expand-tasks`, **several leaves are expanded in parallel**, which makes full use of the CPU. It applies to `book deviate`, `book deviate2`, `book deviate3`, `book enhance` and `book play`.
+Low-level searches are short, so giving many threads to one search does not make it much faster ([5.5](05-search.md)). With the setting `book-expand-tasks`, **several leaves are expanded in parallel**, which makes full use of the CPU. It applies to `book deviate`, `book deviate2`, `book deviate3`, `book enhance`, `book play` and `book extend`. `book exhaust` also searches as many positions in parallel (one thread each with `auto`).
 
 | `book-expand-tasks` | Behaviour |
 |---|---|
@@ -549,5 +569,8 @@ The cautions for books of hundreds of millions of positions are collected in [ch
 | `book fill2 n` [X Y] | Fill the gaps after the leaves |
 | `book leaf expand` [X Y] | Expand the leaves better than every link |
 | `book play` | Expand the positions without a link, one move at a time |
+| `book play n` | From the current position, extend the lines without a link down to n empty squares |
+| `book extend` | From the current position, expand the leaves that no link is better than |
+| `book exhaust` | Add every move from the current position down to the depth of the book |
 
 Next: [8. Maintaining a book](08-book-maintenance.md)
