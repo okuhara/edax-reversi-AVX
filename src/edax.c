@@ -252,8 +252,8 @@ void help_book(void)
 		"  play [n]            expand the positions without link to the depth of the book;\n  with <n>, only those from the current position, then play on from them while\n  a position has <n> empty squares or more.\n"
 		"  exhaust             add every move from the current position to the depth of\n  the book (the number of positions grows very fast with the depth).\n"
 		"  extract [draw] <file> write the lines of the best moves (the draws) to a game\n  file; extract all <file>: all the lines of the book. The games of the file\n  are kept.\n"
-		"  extend              from the current position, expand the leaves that no link\n  is better than (as good as the best link, or no link), until none is left.\n"
-		"  leaf recalculate <n1> <n2>  search again the leaves that deviate <n1> <n2> would\n  expand (leaf recalculate2: deviate2; 3, 4: the leaves of all the positions\n  of the walk of deviate, deviate2).\n"
+		"  extend              from the current position, expand the leaves that no link\n  is better than (as good as the best link, or no link), until none is left.\n");
+	printf(	"  leaf recalculate <n1> <n2>  search again the leaves that deviate <n1> <n2> would\n  expand (leaf recalculate2: deviate2; 3, 4: the leaves of all the positions\n  of the walk of deviate, deviate2).\n"
 		"  leaf expand [n1 n2] expand the leaves better than every link of their\n  position; with <n1> <n2>, only in the walk of deviate3 <n1> <n2>.\n"
 		"  prune               remove unreachable positions.\n"
 		"  subtree             only keep positions from the current position.\n"
