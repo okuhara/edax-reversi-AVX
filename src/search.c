@@ -943,7 +943,12 @@ void search_check_timeout(Search *search)
 				}
 				spin_unlock(result);
 			}
-			if (t > search->time.extra) {
+			// A split search keeps the times copied when it was cloned: having just given the master more time (a fail low),
+			// it stopped the whole search at the old time. The master's are the current ones, read under the lock of their change.
+			spin_lock(master->result);
+			const long long extra = master->time.extra;
+			spin_unlock(master->result);
+			if (t > extra) {
 				search_stop_all(master, STOP_TIMEOUT);
 			}
 		}
