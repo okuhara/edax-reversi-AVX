@@ -33,6 +33,7 @@
 void play_init(Play *play, Book *book)
 {
 	search_init(&play->search);
+	play->search.stop_pending = &play->stop_pending; // (NBoard: a ping before the search began)
 	play->book = book;
 	board_init(&play->initial_board);
 	play->search.options.header = " depth|score|       time   |  nodes (N)  |   N/s    | principal variation";
@@ -42,13 +43,14 @@ void play_init(Play *play, Book *book)
 	play->time[0].extra = 0;
 	play->time[1].left = options.time;
 	play->time[1].extra = 0;
+	play->state = IS_WAITING; // (play_new() stops the pondering: there is none yet)
+	play->ponder.launched = false;
 	play_new(play);
 	lock_init(&play->ponder);
 	lock_init(&play->no_stop);
 	play->nboard_go = 0;
 	play->stop_pending = false;
 	play->no_stop.n = 0;
-	play->ponder.launched = false;
 	spin_init(&play->result);
 	play->ponder.verbose = false;
 	memset(play->error_message, 0, PLAY_MESSAGE_MAX_LENGTH);
@@ -71,6 +73,8 @@ void play_free(Play *play)
  */
 void play_new(Play *play)
 {
+	// a pondering uses the search that is cleaned here, and only the state IS_PONDERING lets it be stopped
+	play_stop_pondering(play);
 	play->clock = real_clock();
 	play->time[0].spent = play->time[1].spent = 0;
 	play->board = play->initial_board;

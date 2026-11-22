@@ -971,6 +971,8 @@ void* search_run(void *v)
 
 	search->stop = RUNNING;
 	search->pv_dev[0] = 0;
+	// a stop that came before the line above is forgotten by it: the one who asked has set *stop_pending before
+	if (search->stop_pending && *search->stop_pending) search_set_move_time(search, 0);
 
 	//initialisations
 	search->n_nodes = 0;
