@@ -121,7 +121,7 @@ The package's `bin/config.ini` contains these settings. The "built-in value" is 
 | `book-leaf-recalculate-rounds` | `1` | 1 | Largest number of rounds of `book leaf recalculate` and its family. [Chapter 8](08-book-maintenance.md) |
 | `book-store-tasks` | `auto` | `auto` | Number of games learned at the same time by the commands that grow a book from games. Chapters [7](07-book-learning.md) and [9](09-large-books.md) |
 | `probcut-model` | `standard` | `standard` | Pruning model of the search. `refit` is experimental (it changes the search results; read [v4.5.5-nikque.5 in the release notes](../../RELEASE-NOTES.md#v455-nikque5) before using it) |
-| `lazy` | `0` | `0` | Number of helper searches (`auto` since v4.5.5-nikque.33). The default `0`: none. `auto`: one helper for a midgame search of at least 4 threads, none when the game is solved or with 3 threads or fewer. Helpers can change the scores and the books made |
+| `lazy` | `0` | `0` | Number of helper searches (`auto` since v4.5.5-nikque.33). The default `0`: none. `auto`: one helper for a midgame search of at least 4 threads, none for an exact or selective search to the end of the game, or with 3 threads or fewer. Helpers can change the scores and the books made |
 
 **Note on `level` in `config.ini`**: a `level` in `config.ini` (or `edax.ini`) only sets the starting level. In a timed game (`-t`, `-move-time`), it does not limit the search depth. To limit it, use `-l` on the command line or the `level` command ([3.8](03-playing.md)).
 
