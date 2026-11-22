@@ -10,6 +10,7 @@
  */
 #define BOOK_TEST_ISOLATE
 #define BOOK_TEST_NODES
+#define BOOK_TEST_COUNTS
 #define main edax_original_main
 #ifdef __cplusplus
 #include "../src/all.cpp"
@@ -242,7 +243,10 @@ static void against_reference(const Book *seed, Book *ref, const long long ref_s
 		book_copy(&b, seed);
 		set_threads(n_tasks[k]);
 		book_test_searches = 0;
+		book_test_serial = book_test_parallel = 0;
 		run(&b, arg);
+		if (n_tasks[k] > 1) CHECK(book_test_serial == 0, "%s, %d threads: %lld rounds expanded one after the other", what, n_tasks[k], book_test_serial);
+		if (n_tasks[k] > 1) CHECK(book_test_parallel > 0, "%s, %d threads: nothing was expanded at the same time", what, n_tasks[k]);
 		CHECK(book_test_searches == ref_searches, "%s, %d threads: %lld searches, the reference %lld", what, n_tasks[k], book_test_searches, ref_searches);
 		CHECK(book_differences(&b, ref, what) == 0, "%s, %d threads: not the book of the reference", what, n_tasks[k]);
 		CHECK(book_unsound(&b) == 0, "%s, %d threads: the book is not sound", what, n_tasks[k]);
@@ -287,6 +291,29 @@ static void test_play(void)
 		CHECK(left == 0, "book play %d: %d positions left without a link", k, left);
 		printf("book play %d: %u -> %u positions, %lld searches, %lld shared children\n", k, seed.n_nodes, ref.n_nodes, searches, n_shared);
 		against_reference(&seed, &ref, searches, run_play, NULL, "book play");
+		{
+			Book b;
+
+			/* one look at the whole book, one negamax, one save */
+			book_copy(&b, &seed);
+			set_threads(4);
+			book_test_scans = book_test_negamaxes = book_test_saves = 0;
+			book_play(&b);
+			CHECK(book_test_scans == 1, "book play: %lld scans of the book", book_test_scans);
+			CHECK(book_test_negamaxes == 1, "book play: %lld negamax", book_test_negamaxes);
+			CHECK(book_test_saves == 1, "book play: %lld saves", book_test_saves);
+			book_free(&b);
+
+			/* a save at every chance, inside the rounds and between them: the same book */
+			book_copy(&b, &seed);
+			book_test_saves = 0;
+			book_test_save_ms = 0;
+			book_play(&b);
+			book_test_save_ms = -1;
+			CHECK(book_test_saves > 1, "book play: no timed save");
+			CHECK(book_differences(&b, &ref, "book play with timed saves") == 0, "book play: the timed saves changed the book");
+			book_free(&b);
+		}
 		book_free(&ref);
 		book_free(&seed);
 	}
