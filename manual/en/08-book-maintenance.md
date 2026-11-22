@@ -419,6 +419,7 @@ This loads the book's scores from the current board position onwards into the se
 
 Starting from the initial position, this follows the best-scoring move in each position (all of them when several are equal) and writes the resulting lines to a game file. The format is determined by the extension ([chapter 10](10-files.md)).
 
+- A line ends with a move out of the book, with the end of the game, or where it joins a line already written (since v4.5.5-nikque.33). Earlier versions wrote the rest again for each join, so the number of lines could become very large.
 - **If the output file already exists, the games are appended to it.**
 - It can also be written `book extract draw file` (since v4.5.5-nikque.33).
 - `book extract all file` writes **all the lines** of the book (since v4.5.5-nikque.33).

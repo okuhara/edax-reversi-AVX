@@ -891,7 +891,11 @@ void path_get_dir(const char *path, char *dir)
 	const char *c;
 
 	for (c = path; *c; ++c) ;
+#ifdef _WIN32 // (also a backslash, or the colon of a drive)
+	for (;c >= path && *c != '/' && *c != '\\' && *c != ':'; --c) ;
+#else
 	for (;c >= path && *c != '/'; --c) ;
+#endif
 
 	while (path <= c) *dir++ = *path++;
 	*dir = '\0';
