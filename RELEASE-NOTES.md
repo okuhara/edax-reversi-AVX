@@ -80,7 +80,7 @@ The following search settings are new. All of them are off by default. Their pla
 
 - In a timed search with several threads, the whole search could stop just after its time had been extended. Split searches now use the extended time.
 - Reading a `.pgn` with a pass (`pass`) could lose the rest of that game and the next game. Passes are now read.
-- `stop`, and `?` of XBoard, could be lost when they arrived just before a search began. They now stop it.
+- `stop` of the standard input, and `?` of XBoard, could be lost when they arrived just before a search began. They now stop it. This fix does not cover GGS or `edax_stop` of the DLL.
 - Starting a new game while pondering waited for the pondering to end. The pondering is now stopped first.
 - `book learn` could fail to continue after a stop around a save to `.store` (since v4.5.5-nikque.29, eval2.17 and heath.16). It can now continue wherever it stops. A `.learn` written by the previous versions can still be used.
 - In NBoard, a `ping` just after `go` did not stop the search. It now stops it and the move is sent.
@@ -116,11 +116,12 @@ The following search settings are new. All of them are off by default. Their pla
 
 **Notes**
 
+- The Linux builds need glibc 2.38 or later.
 - This is a pre-release for testing. Setting names and defaults may change before the final version.
 - Keep a copy of important books before use.
 - To continue `book learn`, load `.store` with `book load` first. Without this, `.learn` is overwritten and it may no longer be possible to continue from that `.store`.
 
-**Not checked**: playing strength, 32 threads, large production books, Android devices, running the Linux and macOS builds, and use from a GUI.
+**Not checked**: the time settings, `-pc-end` and `-split-probe` alone, playing strength, 32 threads, large production books, Android devices, running the Linux and macOS builds, and use from a GUI.
 
 [Tests and measurements](docs/validation/nikque.en.md#v455-nikque33-pre1)
 
