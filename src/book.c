@@ -8082,7 +8082,7 @@ static void extract_skeleton(Book *book, Board *board, Line *pv, Base *base)
 	} else if (pv->n_moves) {
 		board_init(&init);
 		line_to_game(&init, pv, &game);
-		base_append(base, &game);
+		if (!base_append(base, &game)) book->failed = true; // (the games are not saved then: see the callers)
 		if (base->n_games % 1000 == 0) {
 			bprint("extracting %d games\r", base->n_games);
 		}
@@ -8118,6 +8118,103 @@ void book_extract_skeleton(Book *book, Base *base)
 	bprint("%d games extracted   \n", base->n_games);
 }
 
+
+/** the walk of book extract all */
+typedef struct ExtractAll {
+	Book *book;
+	BaseWriter *writer;
+	Board init;
+	Line pv;
+	long long n_lines;
+	bool ok;
+} ExtractAll;
+
+/**
+ * @brief Follow the moves of the book from a board, and write a game where a line ends.
+ *
+ * A line ends where it leaves the book (after the leaf of a position, which is written), at a position without
+ * any move (the end of a game: Edax 4.7 wrote nothing there), or at a position that another line went through.
+ *
+ * @param x Walk.
+ * @param board Board.
+ */
+static void extract_all(ExtractAll *x, const Board *board)
+{
+	Position *position;
+
+	if (!x->ok) return;
+	position = book_probe(x->book, board);
+	if (position && !position_is_done(position, x->book)) {
+		MoveList movelist;
+		Move *move;
+
+		position_set_done(position, x->book);
+		position_get_moves(position, board, &movelist);
+		if (movelist.n_moves > 0) {
+			bool full = false;
+
+			foreach_move(move, movelist) {
+				Board next = *board;
+
+				if (!line_push(&x->pv, move->x)) { // a full line (the links of a damaged book may go round)
+					full = true;
+					break;
+				}
+				board_update(&next, move);
+				extract_all(x, &next);
+				line_pop(&x->pv);
+			}
+			if (!full) return;
+		}
+	}
+	{
+		Game game;
+
+		line_to_game(&x->init, &x->pv, &game);
+		if (!base_writer_add(x->writer, &game)) x->ok = false;
+		else if (++x->n_lines % 1000 == 0) bprint("extracting %lld games\r", x->n_lines);
+	}
+}
+
+/**
+ * @brief Extract all the lines of a book to a game file (book extract all; book extract of Edax 4.7).
+ *
+ * The lines start by f5 (the others are their symmetries). They are written one by one, after the games that
+ * the file holds, to another file that replaces it at the end.
+ *
+ * @param book Opening book.
+ * @param file Game filename.
+ * @return true if the lines were written.
+ */
+bool book_extract_all(Book *book, const char *file)
+{
+	ExtractAll x;
+	Board board;
+
+	x.book = book;
+	x.n_lines = 0;
+	x.ok = true;
+	board_init(&x.init);
+	board_next(&x.init, F5, &board);
+	if (book_probe(book, &board) == NULL) {
+		warn("book extract all: the book has no position after f5: 0 games, %s is left as it is\n", file);
+		return false;
+	}
+	x.writer = base_writer_open(file);
+	if (x.writer == NULL) return false;
+	line_init(&x.pv, BLACK);
+	line_push(&x.pv, F5);
+	book_clean(book);
+	extract_all(&x, &board);
+	if (!x.ok) {
+		warn("book extract all: %s is left as it was\n", file);
+		base_writer_abort(x.writer);
+		return false;
+	}
+	if (!base_writer_close(x.writer)) return false;
+	bprint("%lld games extracted   \n", x.n_lines);
+	return true;
+}
 
 /**
  * @brief print a set of position.

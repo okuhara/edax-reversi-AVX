@@ -251,6 +251,7 @@ void help_book(void)
 		"  fill2 [n] [n1 n2]   same as fill (default 2), only through the leaf (best move\n  not in the book yet) of a position; with <n1> <n2>, only from the leaves\n  that deviate3 <n1> <n2> would expand.\n"
 		"  play [n]            expand the positions without link to the depth of the book;\n  with <n>, only those from the current position, then play on from them while\n  a position has <n> empty squares or more.\n"
 		"  exhaust             add every move from the current position to the depth of\n  the book (the number of positions grows very fast with the depth).\n"
+		"  extract [draw] <file> write the lines of the best moves (the draws) to a game\n  file; extract all <file>: all the lines of the book. The games of the file\n  are kept.\n"
 		"  extend              from the current position, expand the leaves that no link\n  is better than (as good as the best link, or no link), until none is left.\n"
 		"  leaf recalculate <n1> <n2>  search again the leaves that deviate <n1> <n2> would\n  expand (leaf recalculate2: deviate2; 3, 4: the leaves of all the positions\n  of the walk of deviate, deviate2).\n"
 		"  leaf expand [n1 n2] expand the leaves better than every link of their\n  position; with <n1> <n2>, only in the walk of deviate3 <n1> <n2>.\n"
@@ -969,12 +970,29 @@ void ui_loop_edax(UI *ui)
 					
 				// extract pv to a game database
 				} else if (strcmp(book_cmd, "extract") == 0) {
-					Base base;
-					parse_word(book_param, book_file, FILENAME_MAX);
-					base_init(&base);
-					book_extract_skeleton(book, &base);
-					base_save(&base, book_file);
-					base_free(&base);
+					char word[FILENAME_MAX + 1];
+					bool all = false;
+
+					// "book extract <file>" and "book extract draw <file>": the skeleton; "book extract all <file>": every line
+					book_param = parse_word(book_param, book_file, FILENAME_MAX);
+					parse_word(book_param, word, FILENAME_MAX);
+					if (*word && (strcmp(book_file, "all") == 0 || strcmp(book_file, "draw") == 0)) {
+						all = (strcmp(book_file, "all") == 0);
+						strcpy(book_file, word);
+					}
+					if (*book_file == '\0') {
+						warn("book extract: the name of the file is missing\n");
+					} else if (all) {
+						book_extract_all(book, book_file);
+					} else {
+						Base base;
+
+						base_init(&base);
+						book_extract_skeleton(book, &base);
+						if (book->failed) warn("book extract: the lines could not all be held in memory: %s is left as it is\n", book_file);
+						else if (!base_save(&base, book_file)) warn("book extract: the games were not saved to %s\n", book_file);
+						base_free(&base);
+					}
 
 				// add position using the "deviate algorithm"
 				} else if (strcmp(book_cmd, "deviate") == 0) {

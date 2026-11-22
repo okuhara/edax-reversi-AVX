@@ -1060,6 +1060,210 @@ static void test_pgn(void)
 	base_free(&want);
 }
 
+/* ---- book extract all ---- */
+
+static long file_bytes(const char *name, unsigned char **bytes)
+{
+	FILE *f = fopen(name, "rb");
+	long n;
+
+	*bytes = NULL;
+	if (f == NULL) return -1;
+	fseek(f, 0, SEEK_END);
+	n = ftell(f);
+	rewind(f);
+	*bytes = (unsigned char*) malloc(n + 1);
+	if (fread(*bytes, 1, n, f) != (size_t) n) n = -1;
+	fclose(f);
+	return n;
+}
+
+static bool same_bytes(const char *x, const char *y)
+{
+	unsigned char *a, *b;
+	const long n = file_bytes(x, &a), m = file_bytes(y, &b);
+	const bool same = n >= 0 && n == m && memcmp(a, b, n) == 0;
+
+	free(a); free(b);
+	return same;
+}
+
+/* the lines, the plain way */
+static void ref_lines(Book *b, const Board *board, Line *pv, Base *lines)
+{
+	Position *p = book_probe(b, board);
+	MoveList list;
+	Move *m;
+
+	list.n_moves = 0;
+	if (p && !position_is_done(p, b)) {
+		position_set_done(p, b);
+		position_get_moves(p, board, &list);
+		if (list.n_moves) {
+			foreach_move(m, list) {
+				Board next = *board;
+
+				board_update(&next, m);
+				line_push(pv, m->x);
+				ref_lines(b, &next, pv, lines);
+				line_pop(pv);
+			}
+			return;
+		}
+	}
+	{
+		Board init;
+		Game game;
+
+		board_init(&init);
+		line_to_game(&init, pv, &game);
+		base_append(lines, &game);
+	}
+}
+
+static void extract_case(Book *b, const Board *end, const char *what)
+{
+	static const char *files[] = {"lines.txt", "lines.ggf", "lines.sgf", "lines.pgn", "lines.edx", "lines.wtb"};
+	Base expected, got;
+	Board after_f5, init;
+	Line pv;
+	int i, k;
+	bool has_end = (end == NULL);
+
+	board_init(&init);
+	board_next(&init, F5, &after_f5);
+	base_init(&expected);
+	line_init(&pv, BLACK);
+	line_push(&pv, F5);
+	book_clean(b);
+	ref_lines(b, &after_f5, &pv, &expected);
+	CHECK(expected.n_games > 0, "%s: no line", what);
+	remove("WTHOR.JOU");
+	for (k = 0; k < 6; ++k) {
+		remove(files[k]);
+		CHECK(book_extract_all(b, files[k]), "%s: %s not written", what, files[k]);
+		base_init(&got);
+		CHECK(base_load(&got, files[k]), "%s: %s not read", what, files[k]);
+		CHECK(got.n_games == expected.n_games, "%s: %s has %d games, %d expected", what, files[k], got.n_games, expected.n_games);
+		for (i = 0; i < got.n_games && i < expected.n_games; ++i) {
+			if (memcmp(got.game[i].move, expected.game[i].move, sizeof got.game[i].move)) {
+				CHECK(false, "%s: the game %d of %s differs", what, i, files[k]);
+				break;
+			}
+		}
+		if (k == 0 && end) {
+			for (i = 0; i < got.n_games; ++i) {
+				Board board = init, u;
+				int j;
+
+				for (j = 0; j < 60 && got.game[i].move[j] != NOMOVE && game_update_board(&board, got.game[i].move[j]); ++j) ;
+				board_unique(&board, &u);
+				if (board_equal(&u, end)) has_end = true;
+				board_pass(&board);
+				board_unique(&board, &u);
+				if (board_equal(&u, end)) has_end = true;
+			}
+			CHECK(has_end, "%s: the line to the end of the game is missing", what);
+		}
+		base_free(&got);
+		// the games of the file are kept
+		CHECK(book_extract_all(b, files[k]), "%s: %s not added to", what, files[k]);
+		base_init(&got);
+		base_load(&got, files[k]);
+		CHECK(got.n_games == 2 * expected.n_games, "%s: %s has %d games after a second extract", what, files[k], got.n_games);
+		base_free(&got);
+	}
+	printf("%s: %d lines\n", what, expected.n_games);
+	base_free(&expected);
+}
+
+static void test_extract(void)
+{
+	Book b;
+	int tries, n_played;
+	bool found = false;
+
+	// T6: a whole game in the book, with a pass: the line to its end
+	for (tries = 0; tries < 100000 && !found; ++tries) {
+		Board board, end;
+		Game game;
+		int n_pass = 0;
+
+		game_init(&game);
+		board_init(&game.initial_board);
+		board = game.initial_board;
+		for (n_played = 0; n_played < 60; ++n_played) {
+			unsigned long long m = board_get_moves(&board);
+			int x, k;
+
+			if (!m) {
+				if (!can_move(board.opponent, board.player)) break;
+				board_pass(&board);
+				++n_pass;
+				m = board_get_moves(&board);
+			}
+			if (n_played == 0) {
+				x = F5;
+			} else {
+				for (k = rr() % bit_count(m); k--; ) m &= m - 1;
+				x = first_bit(m);
+			}
+			game.move[n_played] = (char) x;
+			board_next(&board, x, &board);
+		}
+		if (n_pass == 0 || !board_is_game_over(&board)) continue;
+		found = true;
+		book_bare(&b, 1, 0);
+		book_add_game(&b, &game);
+		book_negamax(&b);
+		board_unique(&board, &end);
+		if (book_probe(&b, &end) == NULL) {
+			board_pass(&board);
+			board_unique(&board, &end);
+		}
+		CHECK(book_probe(&b, &end) != NULL, "extract: the end of the game is not in the book");
+		extract_case(&b, &end, "book extract all of a whole game with a pass");
+		book_free(&b);
+	}
+	CHECK(found, "extract: no game with a pass");
+
+	seed_book(&b, 2, 55, 55);
+	extract_case(&b, NULL, "book extract all of a book with transpositions");
+
+	// a file that cannot be read to its end is left as it was
+	{
+		unsigned char *bytes;
+		const long n = file_bytes("lines.wtb", &bytes);
+		FILE *f = fopen("cut.wtb", "wb");
+
+		fwrite(bytes, 1, n - 5, f);
+		fclose(f);
+		free(bytes);
+		copy_file("cut.wtb", "cut.copy");
+		CHECK(!book_extract_all(&b, "cut.wtb"), "extract: added to a cut file");
+		CHECK(same_bytes("cut.wtb", "cut.copy"), "extract: a cut file was changed");
+		f = fopen("cut.wtb.writing.wtb", "rb");
+		CHECK(f == NULL, "extract: the file being written is left");
+		if (f) fclose(f);
+	}
+	CHECK(!book_extract_all(&b, "no-such-folder/lines.txt"), "extract: wrote to a folder that is not there");
+	CHECK(!book_extract_all(&b, ""), "extract: wrote to no name");
+	CHECK(!book_extract_all(&b, "lines.xyz"), "extract: wrote an unknown format");
+	book_free(&b);
+
+	// no position after f5: no game, the file is left
+	{
+		Board start;
+
+		board_init(&start);
+		book_of_board(&b, &start, 2, 55);
+		copy_file("lines.txt", "lines.copy");
+		CHECK(!book_extract_all(&b, "lines.txt"), "extract: lines of a book without f5");
+		CHECK(same_bytes("lines.txt", "lines.copy"), "extract: the file was changed for a book without f5");
+		book_free(&b);
+	}
+}
+
 int main(int argc, char **argv)
 {
 	const char *t = argc > 1 ? argv[1] : "all";
@@ -1075,6 +1279,7 @@ int main(int argc, char **argv)
 	if (all || !strcmp(t, "playto")) test_play_to();
 	if (all || !strcmp(t, "reached")) test_reached();
 	if (all || !strcmp(t, "exhaust")) test_exhaust();
+	if (all || !strcmp(t, "extract")) test_extract();
 	if (all || !strcmp(t, "pgn")) test_pgn();
 	if (all || !strcmp(t, "dangling")) test_dangling();
 	printf("book-learn: %d checks, %d failures\n", n_check, n_fail);

@@ -2045,8 +2045,10 @@ LIBEDAX_API void edax_book_extract(const char *base_file)
 
 	// extract pv to a game database
 	base_init(&base);
+	book->failed = false;
 	book_extract_skeleton(book, &base);
-	base_save(&base, base_file);
+	if (book->failed) warn("book extract: the lines could not all be held in memory: %s is left as it is\n", base_file);
+	else if (!base_save(&base, base_file)) warn("book extract: the games were not saved to %s\n", base_file);
 	base_free(&base);
 
 	lib_book_end(book);

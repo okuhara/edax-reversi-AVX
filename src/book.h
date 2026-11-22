@@ -150,6 +150,7 @@ void book_print(const char*, ...);
 void book_check_base(Book*, const Base*);
 
 void book_extract_skeleton(Book*, Base*);
+bool book_extract_all(Book*, const char*);
 void book_extract_positions(Book*, const int, const int);
 
 void book_feed_hash(const Book*, Board*, Search*);
