@@ -33,6 +33,8 @@ typedef struct Task {
 	struct Search *search;       /**< search data */
 	struct Node *node;           /**< node splitted */
 	struct Move *move;           /**< move to search */
+	volatile int lazy_depth;     /**< lazy helper (search-b): depth searched at the root (0: a split) */
+	volatile int lazy_sel;       /**< lazy helper: first selectivity of a helper of the iterative selectivity (-1: deepening) */
 	Thread thread;               /**< thread */
 	unsigned long long n_calls;  /**< call counter */
 	unsigned long long n_nodes;  /**< nodes counter */
@@ -66,6 +68,7 @@ typedef struct Node {
 	Task help;                   /**< helper task */
 	Lock lock;                   /**< mutex */
 	Condition cond;              /**< condition variable */
+	struct Move *first;          /**< first move of the list (search-b: node_move_rank) */
 } Node;
 
 /* node function declaration */
@@ -75,6 +78,7 @@ bool node_split(Node*, struct Move*);
 void node_stop_slaves(Node*);
 void node_wait_slaves(Node*);
 void node_update(Node*, struct Move*);
+int node_move_rank(const Node*, const struct Move*);
 struct Move * node_first_move(Node*, struct MoveList*);
 struct Move * node_next_move(Node*);
 

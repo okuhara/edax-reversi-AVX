@@ -519,4 +519,15 @@ typedef struct Log {
 	fflush((l)->f); \
 } else (void) 0
 
+/** hint to the CPU inside a loop that waits */
+#if defined(_WIN32)
+	#define cpu_pause() YieldProcessor()
+#elif defined(__x86_64__) || defined(__i386__)
+	#define cpu_pause() __builtin_ia32_pause()
+#elif defined(__aarch64__)
+	#define cpu_pause() __asm__ __volatile__("yield")
+#else
+	#define cpu_pause() ((void) 0)
+#endif
+
 #endif // EDAX_UTIL_H

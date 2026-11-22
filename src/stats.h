@@ -29,8 +29,12 @@
 #define SQUARE_STATS(x)
 /** Cutoff statistics on/off */
 #define CUTOFF_STATS(x)
-/** ProbCut statistics on/off */
+/** ProbCut statistics on/off (on: build with -D PROBCUT_COUNT; exact with one thread only) */
+#ifdef PROBCUT_COUNT
+#define PROBCUT_STATS(x) x
+#else
 #define PROBCUT_STATS(x)
+#endif
 
 /** how to count nodes... */
 #define COUNT_NODES 7
@@ -108,6 +112,7 @@ typedef struct Statistics {
 	unsigned long long n_probcut_try;
 	unsigned long long n_probcut_low_try, n_probcut_low_cutoff;
 	unsigned long long n_probcut_high_try, n_probcut_high_cutoff;
+	unsigned long long n_probcut_dev_try[16], n_probcut_dev_changed[16];	/* by the moves off the principal variation */
 	unsigned long long n_etc_try, n_etc_high_cutoff, n_esc_high_cutoff;
 
 	unsigned long long n_played_square[BOARD_SIZE][10];

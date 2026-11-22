@@ -282,6 +282,31 @@ static int play_level(void)
 }
 
 /**
+ * @brief Give the search the time of the move to play.
+ *
+ * As before: a time per move, or the game time (shared by the search). With a game time and time-model 1 or time-ext 1
+ * (search-b, 2026-11-22), the time of each move is taken from the clock by search_share_clock(); with time-ext, a
+ * hard move may stretch.
+ * @param play Play.
+ * @param search Search.
+ */
+static void play_set_search_time(Play *play, Search *search)
+{
+	if (options.play_type == EDAX_TIME_PER_MOVE) {
+		search_set_move_time(search, options.time);
+	} else if ((options.time_model == 1 || options.time_ext) && options.play_type == EDAX_TIME_PER_GAME) {
+		const long long left = play->time[play->player].left;
+		long long t, tmax;
+		search_share_clock(options.time, left, board_count_empties(&play->board), search_count_tasks(search), &t, &tmax);
+		// (tmax = t: no room to stretch, but still no iteration that cannot end in time)
+		search_set_move_time_limit(search, t, options.time_ext ? tmax : 0);
+		search->options.time_left = left;
+	} else {
+		search_set_game_time(search, play->time[play->player].left);
+	}
+}
+
+/**
  * @brief Start thinking.
  * @param play Play.
  * @param update Flag to tell if edax should update or no its game.
@@ -356,8 +381,7 @@ void play_go(Play *play, const bool update)
 			if (search->options.separator) puts(search->options.separator);
 		}
 
-		if (options.play_type == EDAX_TIME_PER_MOVE) search_set_move_time(search, options.time);
-		else search_set_game_time(search, play->time[play->player].left);
+		play_set_search_time(play, search);
 
 		search_time_reset(search, &play->board);
 		if (log_is_open(xboard_log)) {
@@ -397,8 +421,7 @@ void play_go(Play *play, const bool update)
 		}
 		search_set_board(search, &play->board, play->player);
 		search_set_level(search, play_level(), search->eval.n_empties);
-		if (options.play_type == EDAX_TIME_PER_MOVE) search_set_move_time(search, options.time);
-		else search_set_game_time(search, play->time[play->player].left);
+		play_set_search_time(play, search);
 
 		search_time_init(search); // redondant, 
 		if (log_is_open(xboard_log)) {

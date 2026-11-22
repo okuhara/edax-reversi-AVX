@@ -16,6 +16,7 @@
 #include "search.h"
 #include "settings.h"
 #include "stats.h"
+#include "options.h"
 
 #include <limits.h>
 #include <assert.h>
@@ -351,6 +352,13 @@ void movelist_evaluate_fast(MoveList *movelist, Search *search, const unsigned c
 	} while ((move = move->next));
 }
 
+/** weight of the evaluation in the move sorting (search-b: sort-eval-shift a,b,c; 2,1,0 as before) */
+static inline int sort_eval_weight(const int i)
+{
+	const int s = options.sort_eval_shift[i];
+	return s >= 0 ? (w_eval >> s) : (w_eval << -s);
+}
+
 /**
  * @brief Evaluate a list of move in order to sort it.
  *
@@ -394,6 +402,7 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 	// min_depth = 9;
 	// if (empties <= 27) min_depth += (30 - empties) / 3;
 	min_depth = min_depth_table[empties];
+	if (options.sort_min_depth > 0 && min_depth == 9) min_depth = options.sort_min_depth; // (search-b: the sorting with an evaluation from a lower depth)
 
 	if (depth >= min_depth) {
 		if (empties < 21)
@@ -428,19 +437,19 @@ void movelist_evaluate(MoveList *movelist, Search *search, const HashData *hash_
 				score += get_edge_stability(search->board.opponent, search->board.player) * w_edge_stability; // edge stability
 				switch (sort_depth) {
 				case 0:
-					score += (SCORE_MAX - search_eval_0(search)) * (w_eval >> 2);	// 1 level score bonus
+					score += (SCORE_MAX - search_eval_0(search)) * sort_eval_weight(0);	// 1 level score bonus
 					break;
 				case 1:
-					score += (SCORE_MAX + search_eval_1(search, sort_alpha, SCORE_MAX, moves)) * (w_eval >> 1);	// 2 level score bonus
+					score += (SCORE_MAX + search_eval_1(search, sort_alpha, SCORE_MAX, moves)) * sort_eval_weight(1);	// 2 level score bonus
 					break;
 				case 2:
-					score += (SCORE_MAX - search_eval_2(search, SCORE_MIN, -sort_alpha, moves)) * (w_eval >> 1);	// 3 level score bonus
+					score += (SCORE_MAX - search_eval_2(search, SCORE_MIN, -sort_alpha, moves)) * sort_eval_weight(1);	// 3 level score bonus
 					break;
 				default:	// 3 to 6
 					if (hash_get_from_board(&search->hash_table, &search->board, &dummy)) score += w_hash;	// bonus if the position leads to a position stored in the hash-table
 					// org_selectivity = search->selectivity;
 					// search->selectivity = NO_SELECTIVITY;	// No probcut in PVS_shallow
-					score += ((SCORE_MAX - PVS_shallow(search, SCORE_MIN, -sort_alpha, sort_depth))) * w_eval;	// > 3 level bonus
+					score += ((SCORE_MAX - PVS_shallow(search, SCORE_MIN, -sort_alpha, sort_depth))) * sort_eval_weight(2);	// > 3 level bonus
 					// search->selectivity = org_selectivity;
 					break;
 				}

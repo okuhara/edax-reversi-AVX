@@ -102,6 +102,16 @@ Options options = {
 	true, // book reduce: the count of book reducecount used
 	1, // book reducecount: a table of the buckets (twice as fast as the binary search with a book of 700 million positions)
 	0, // book reducecount: walk by accumulated loss
+	// search-b (2026-11-22): all off, the search of v4.5.5-nikque.32
+	.time_ext = 0, .time_ext_max = 2.0, .time_ext_h = 0.5, .time_ext_hard = 1,
+	.time_sep = 0, .time_sep_depth = 20, .time_close = 0, .time_close_empties = 38,
+	.time_model = 0, .time_stop_master = true, // (a fault of nikque.32 and before: see search_check_timeout)
+	.sort_eval_shift = {2, 1, 0}, .sort_min_depth = 0,
+	.split_probe = true,
+	.pc_r = 1.0, .pc_end = {0.0}, .pc_dev_d0 = 0, .pc_dev_k = 0.0, .pc_dev_fmin = 1.0, .pc_dev_root = true, .pc_mob = {{0.0}}, .pc_gate = true,
+	.corr = false, .corr_end = true,
+	.lmr = 0,
+	.lazy = 0, .lazy_min = 16,
 };
 
 /**
@@ -135,6 +145,30 @@ void options_usage(void)
 		"  -speed <n|auto>               search speed (nodes/s) used to share the time; auto: measured.\n"
 		"  -ponder <on/off>              search during opponent time.\n"
 		"  -probcut-model <standard|refit> probcut error model (refit: experimental, see README).\n"
+		"  -time-ext <0|1>               game time: time of each move from the clock, stretched for a hard move.\n"
+		"  -time-ext-max <x>             longest stretch of the time of a move (2.0).\n"
+		"  -time-ext-h <x>               part of the next iteration that must fit in the time left to start it (0.5).\n"
+		"  -time-ext-hard <0|1>          stretch for an unstable best move or a falling score (1).\n"
+		"  -time-sep <n>                 time-ext: play at once when the other moves are n discs worse (0: off).\n"
+		"  -time-sep-depth <n>           lowest depth of the searches of time-sep and time-close (20).\n"
+		"  -time-close <n>               time-ext: more time when another move is within n discs (0: off).\n"
+		"  -time-close-empties <n>       fewest empties for time-close (38).\n"
+		"  -time-model <0|1>             game time: 1 = time of each move from the clock (implied by time-ext).\n"
+		"  -time-stop-master <on/off>    split searches obey the extended time of the master (on).\n"
+		"  -sort-eval-shift <a,b,c>      move sorting: weight shifts of the evaluation (2,1,0).\n"
+		"  -sort-min-depth <n>           move sorting: lowest depth with an evaluation (0: the table).\n"
+		"  -split-probe <on/off>         split the searches of probcut between threads (on).\n"
+		"  -pc-r <x>                     probcut: factor of the margins (1).\n"
+		"  -pc-end <x|e:x,...>           probcut: factor of the searches to the end, by empties.\n"
+		"  -pc-dev <d0,k,fmin>           probcut: narrower off the principal variation.\n"
+		"  -pc-dev-root <on/off>         probcut: the later moves of the root are off the principal variation (on).\n"
+		"  -pc-mob <a,b,c[,...]>         probcut: factor of the mobility, one set or three (by empties).\n"
+		"  -pc-gate <on/off>             probcut: shallow searches chosen by the evaluation (on).\n"
+		"  -corr <on/off>                probcut: correction history of the evaluation (off).\n"
+		"  -corr-end <on/off>            correction history: learn from the searches to the end (on).\n"
+		"  -lmr <0|1|2>                  late move reductions (0: off).\n"
+		"  -lazy <n>                     helper threads at the root (0: off).\n"
+		"  -lazy-min <n>                 lowest depth of an iteration with helpers (16).\n"
 		"  -eval-file                    read eval weight from this file.\n"
 		"  -book-file                    load opening book from this file.\n"
 		"  -book-usage <on/off>          play from the opening book.\n"
@@ -273,6 +307,44 @@ static void option_choice(const char *option, const char *value, const char *wor
  * @param value Option value.
  * @return The number of arguments read (0, 1 or 2).
  */
+/**
+ * @brief Read the factors of pc-end: one factor for all the empties, or empties:factor,... (increasing empties;
+ * straight lines between them, the first and the last factor beyond them).
+ */
+static void option_pc_end(const char *option, const char *value, double table[61])
+{
+	int e[61], n = 0, used = 0;
+	double f[61], x;
+	char end;
+	const char *p = value;
+
+	if (p && sscanf(p, "%lf%c", &x, &end) == 1) {
+		e[n] = 0; f[n++] = x;
+	} else {
+		while (p && n < 61 && sscanf(p, "%d:%lf%n", e + n, f + n, &used) == 2) {
+			if (e[n] < 0 || e[n] > 60 || (n && e[n] <= e[n - 1])) { n = 0; break; }
+			++n;
+			p += used;
+			if (*p != ',') break;
+			++p;
+			if (*p == 0) { n = 0; break; } // (a comma with nothing after it)
+		}
+		if (n && *p) n = 0;
+	}
+	bool ok = (n > 0);
+	for (int i = 0; i < n; ++i) if (!(f[i] >= 0.1 && f[i] <= 10.0)) ok = false;
+	if (!ok) {
+		warn("option %s needs a factor, or empties:factor,... (factors 0.1 to 10, increasing empties); ignored\n", option);
+		return;
+	}
+	for (int i = 0, k = 0; i <= 60; ++i) {
+		while (k + 1 < n && e[k + 1] <= i) ++k;
+		if (i <= e[0]) table[i] = f[0];
+		else if (k + 1 >= n) table[i] = f[n - 1];
+		else table[i] = f[k] + (f[k + 1] - f[k]) * (i - e[k]) / (e[k + 1] - e[k]);
+	}
+}
+
 int options_read(const char *option, const char *value)
 {
 	int read = 0;
@@ -345,6 +417,46 @@ int options_read(const char *option, const char *value)
 
 		else if (strcmp(option, "probcut-d") == 0) parse_real(value, &options.probcut_d);
 		else if (strcmp(option, "probcut-model") == 0) option_choice(option, value, "standard", "refit", &options.probcut_model);
+
+		// search-b (2026-11-22)
+		else if (strcmp(option, "time-ext") == 0) options.time_ext = option_int(option, value, options.time_ext);
+		else if (strcmp(option, "time-ext-max") == 0) parse_real(value, &options.time_ext_max);
+		else if (strcmp(option, "time-ext-h") == 0) parse_real(value, &options.time_ext_h);
+		else if (strcmp(option, "time-ext-hard") == 0) options.time_ext_hard = option_int(option, value, options.time_ext_hard);
+		else if (strcmp(option, "time-model") == 0) options.time_model = option_int(option, value, options.time_model);
+		else if (strcmp(option, "time-stop-master") == 0) option_boolean(option, value, &options.time_stop_master);
+		else if (strcmp(option, "time-sep") == 0) options.time_sep = option_int(option, value, options.time_sep);
+		else if (strcmp(option, "time-sep-depth") == 0) options.time_sep_depth = option_int(option, value, options.time_sep_depth);
+		else if (strcmp(option, "time-close") == 0) options.time_close = option_int(option, value, options.time_close);
+		else if (strcmp(option, "time-close-empties") == 0) options.time_close_empties = option_int(option, value, options.time_close_empties);
+		else if (strcmp(option, "sort-eval-shift") == 0) {
+			int s[3];
+			if (value && sscanf(value, "%d,%d,%d", s, s + 1, s + 2) == 3) for (int i = 0; i < 3; ++i) options.sort_eval_shift[i] = s[i];
+			else warn("option %s needs three numbers a,b,c\n", option);
+		}
+		else if (strcmp(option, "sort-min-depth") == 0) options.sort_min_depth = option_int(option, value, options.sort_min_depth);
+		else if (strcmp(option, "split-probe") == 0) option_boolean(option, value, &options.split_probe);
+		else if (strcmp(option, "pc-r") == 0) parse_real(value, &options.pc_r);
+		else if (strcmp(option, "pc-end") == 0) option_pc_end(option, value, options.pc_end);
+		else if (strcmp(option, "pc-gate") == 0) option_boolean(option, value, &options.pc_gate);
+		else if (strcmp(option, "pc-dev") == 0) {
+			int d0; double k, fmin;
+			if (value && sscanf(value, "%d,%lf,%lf", &d0, &k, &fmin) == 3) { options.pc_dev_d0 = d0; options.pc_dev_k = k; options.pc_dev_fmin = fmin; }
+			else warn("option %s needs d0,k,fmin\n", option);
+		}
+		else if (strcmp(option, "pc-dev-root") == 0) option_boolean(option, value, &options.pc_dev_root);
+		else if (strcmp(option, "pc-mob") == 0) {
+			double m[9];
+			char end;
+			const int n = value ? sscanf(value, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf%c", m, m + 1, m + 2, m + 3, m + 4, m + 5, m + 6, m + 7, m + 8, &end) : 0;
+			if (n == 3 || n == 9) for (int i = 0; i < 9; ++i) options.pc_mob[i / 3][i % 3] = m[n == 3 ? i % 3 : i];
+			else warn("option %s needs a,b,c or three times a,b,c\n", option);
+		}
+		else if (strcmp(option, "corr") == 0) option_boolean(option, value, &options.corr);
+		else if (strcmp(option, "corr-end") == 0) option_boolean(option, value, &options.corr_end);
+		else if (strcmp(option, "lmr") == 0) options.lmr = option_int(option, value, options.lmr);
+		else if (strcmp(option, "lazy") == 0) options.lazy = option_int(option, value, options.lazy);
+		else if (strcmp(option, "lazy-min") == 0) options.lazy_min = option_int(option, value, options.lazy_min);
 
 		else if (strcmp(option, "pv-debug") == 0) option_boolean(option, value, &options.pv_debug);
 		else if (strcmp(option, "pv-check") == 0) option_boolean(option, value, &options.pv_check);
@@ -590,6 +702,24 @@ void options_bound(void)
 	BOUND(options.book_save_interval, 0, 525600, "book-save-interval");
 	BOUND(options.book_deviate_save_rounds, 0, 1000000, "book-deviate-save-rounds");
 	BOUND(options.book_leaf_recalculate_rounds, 1, 1000000, "book-leaf-recalculate-rounds");
+
+	// search-b (2026-11-22)
+	BOUND(options.time_ext, 0, 1, "time-ext");
+	BOUND(options.time_ext_hard, 0, 1, "time-ext-hard");
+	BOUND(options.time_model, 0, 1, "time-model");
+	BOUND(options.time_sep, 0, 64, "time-sep");
+	BOUND(options.time_sep_depth, 10, 60, "time-sep-depth");
+	BOUND(options.time_close, 0, 64, "time-close");
+	BOUND(options.time_close_empties, 0, 60, "time-close-empties");
+	for (int i = 0; i < 3; ++i) BOUND(options.sort_eval_shift[i], -4, 30, "sort-eval-shift");
+	BOUND(options.sort_min_depth, 0, 60, "sort-min-depth");
+	BOUND(options.lmr, 0, 2, "lmr");
+	BOUND(options.lazy, 0, MAX_THREADS - 1, "lazy");
+	BOUND(options.lazy_min, 8, 60, "lazy-min");
+	options.time_ext_max = MIN(4.0, MAX(1.0, options.time_ext_max));
+	options.time_ext_h = MIN(2.0, MAX(0.0, options.time_ext_h));
+	options.pc_r = MIN(10.0, MAX(0.1, options.pc_r));
+	options.pc_dev_fmin = MIN(1.0, MAX(0.1, options.pc_dev_fmin));
 
 	BOUND(options.alpha, SCORE_MIN, SCORE_MAX, "alpha");
 	BOUND(options.beta, SCORE_MIN, SCORE_MAX, "beta");

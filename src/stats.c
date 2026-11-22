@@ -76,6 +76,7 @@ void statistics_init(void)
 	statistics.n_probcut_high_try = 0;
 	statistics.n_probcut_low_cutoff = 0;
 	statistics.n_probcut_high_cutoff = 0;
+	for (int d = 0; d < 16; ++d) statistics.n_probcut_dev_try[d] = statistics.n_probcut_dev_changed[d] = 0;
 	statistics.n_etc_try = 0;
 	statistics.n_etc_high_cutoff = 0;
 	statistics.n_esc_high_cutoff = 0;
@@ -205,6 +206,10 @@ void statistics_print(FILE *f)
 			statistics.n_probcut_low_cutoff, 100.0 * statistics.n_probcut_low_cutoff / statistics.n_probcut_try, 100.0 * statistics.n_probcut_low_cutoff / statistics.n_probcut_low_try,
 			statistics.n_probcut_high_try, 100.0 * statistics.n_probcut_high_try / statistics.n_probcut_try,
 			statistics.n_probcut_high_cutoff, 100.0 * statistics.n_probcut_high_cutoff / statistics.n_probcut_try, 100.0 * statistics.n_probcut_high_cutoff / statistics.n_probcut_high_try);
+		for (int d = 0; d < 16; ++d) if (statistics.n_probcut_dev_try[d]) {
+			fprintf(f, "\toff the PV by %2d: %llu try, margin changed %llu (%6.2f%%)\n", d, statistics.n_probcut_dev_try[d],
+				statistics.n_probcut_dev_changed[d], 100.0 * statistics.n_probcut_dev_changed[d] / statistics.n_probcut_dev_try[d]);
+		}
 	}
 
 	if (statistics.n_NWS_candidate) {

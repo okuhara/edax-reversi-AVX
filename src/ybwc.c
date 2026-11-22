@@ -173,7 +173,8 @@ bool node_split(Node *node, Move *move)
 	 && node->depth >= SPLIT_MIN_DEPTH // split if we are deep enough
 	 && node->n_moves_done // do not split first move (ybwc main principle).
 	 && node->n_slave < SPLIT_MAX_SLAVES // do not split too much at the same point.
-	 && node->n_moves_todo >=  SPLIT_MIN_MOVES_TODO) {  // do not split the last move(s), to diminish waiting time
+	 && node->n_moves_todo >=  SPLIT_MIN_MOVES_TODO  // do not split the last move(s), to diminish waiting time
+	 && (options.split_probe || search->probcut_level == 0)) {  // (search-b: split-probe off, no split inside probcut searches)
 		YBWC_STATS(atomic_add(&statistics.n_split_try, 1);)
 
 		if (get_helper(node->parent, node, move)) {
@@ -277,7 +278,7 @@ void node_update(Node* node, Move *move)
 	if (!search->stop && score > node->bestscore) {
 		node->bestscore = score;
 		node->bestmove = move->x;
-		if (node->height == 0) {
+		if (node->height == 0 && !search->lazy_helper) { // (a helper searches the root too, but only for the hash table)
 			record_best_move(search, move, node->alpha, node->beta, node->depth);
 			search->result->n_moves_left--;
 		}
@@ -290,6 +291,19 @@ void node_update(Node* node, Move *move)
 		}
 	}
 	unlock(node);	
+}
+
+/**
+ * @brief Rank of a move in its node (1 = first), for the late move reductions.
+ *
+ * Counted on the list, whose order is fixed while the node is searched: n_moves_done may have been raised by
+ * another thread since the move was handed out.
+ */
+int node_move_rank(const Node *node, const Move *move)
+{
+	int rank = 1;
+	for (const Move *m = node->first; m && m != move; m = m->next) ++rank;
+	return rank;
 }
 
 /**
@@ -310,6 +324,7 @@ Move* node_first_move(Node *node, MoveList *movelist)
 		node->n_moves_todo = movelist->n_moves;
 		node->n_moves_done = 0;
 		node->move = movelist_first(movelist);
+		node->first = node->move;
 		if (node->move && !node->search->stop) {
 			assert(node->alpha < node->beta);
 			move = node->move;
@@ -379,6 +394,34 @@ void task_search(Task *task)
 	Stop stop;
 	int i;
 
+	if (task->lazy_depth) { // a lazy helper (search-b): deeper or more selective searches of the root, for the hash table only
+		if (task->lazy_sel >= 0) {
+			for (int s = task->lazy_sel; !search->stop && s <= search->options.selectivity; ++s) {
+				search->selectivity = s;
+				PVS_midgame(search, SCORE_MIN, SCORE_MAX, task->lazy_depth, NULL);
+			}
+		} else {
+			for (int d = task->lazy_depth; !search->stop && d < search->eval.n_empties; d += 2) {
+				PVS_midgame(search, SCORE_MIN, SCORE_MAX, d, NULL);
+			}
+		}
+		task->lazy_depth = 0;
+		task->lazy_sel = -1;
+		search_set_state(search, STOP_END);
+		spin_lock(search->parent);
+			for (i = 0; i < search->parent->n_child; ++i) {
+				if (search->parent->child[i] == search) {
+					search->parent->n_child = search->parent->n_child - 1;
+					search->parent->child[i] = search->parent->child[search->parent->n_child];
+					break;
+				}
+			}
+			search->parent->child_nodes += search_count_nodes(search);
+		spin_unlock(search->parent);
+		task->run = false;
+		return;
+	}
+
 	// The task takes the stop state of the search of its node, with two exceptions:
 	// - STOP_PARALLEL_CUT: that search only goes back to one of its nodes, where a cut was found, and runs
 	//   again from there. If the node of the task is above the node of the cut, it goes on: the move of the
@@ -412,8 +455,13 @@ void task_search(Task *task)
 		board0 = search->board;
 		eval0 = search->eval;
 		search_update_midgame(search, move);
-			move->score = -NWS_midgame(search, -alpha - 1, node->depth - 1, node);
+		if (node->height || options.pc_dev_root) ++search->pv_dev[search->height]; // (a split move is never the first one)
+		{	const int r = (options.lmr && !node->pv_node) ? lmr_reduction(search, node->depth, node_move_rank(node, move), false) : 0; // (search-b)
+			move->score = -NWS_midgame(search, -alpha - 1, node->depth - 1 - r, node);
+			if (r && move->score > alpha && !search->stop) move->score = -NWS_midgame(search, -alpha - 1, node->depth - 1, node);
+		}
 			if (alpha < move->score && move->score < node->beta) {
+				if (node->height || options.pc_dev_root) --search->pv_dev[search->height]; // (searched again as the principal variation)
 				move->score = -PVS_midgame(search, -node->beta, -alpha, node->depth - 1, node);
 				assert(node->pv_node == true);
 			}
@@ -577,6 +625,8 @@ void task_init(Task *task)
 	task->run = false;
 	task->node = NULL;
 	task->move = NULL;
+	task->lazy_depth = 0;
+	task->lazy_sel = -1;
 	task->n_calls = 0;
 	task->n_nodes = 0;
 	task->search = task_search_create(task);
