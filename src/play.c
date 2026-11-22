@@ -564,6 +564,7 @@ void* play_ponder_run(void *v)
 		player = play->player;
 		search_set_game_time(search, TIME_MAX);
 		search->options.keep_date = (play->state == IS_PONDERING && search->pv_table.date > 0);
+		search->options.ponder_timed = (play->state == IS_PONDERING && options.play_type != EDAX_FIXED_LEVEL);
 		if (play->ponder.verbose) search->options.verbosity = options.verbosity;
 		else search->options.verbosity = 0;
 
@@ -601,6 +602,7 @@ void* play_ponder_run(void *v)
 		info("[ponderation finished]\n");
 		play->state = IS_WAITING;
 		search->options.keep_date = false;
+		search->options.ponder_timed = false;
 	}
 	unlock(&play->ponder);
 

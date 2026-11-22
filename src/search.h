@@ -132,6 +132,7 @@ typedef struct Search {
 		long long time_max;                       /**< longest time of a move when it may stretch (0: fixed, as before) */
 		int verbosity;                            /**< verbosity level */
 		bool keep_date;                           /**< keep date */
+		bool ponder_timed;                        /**< pondering in a timed game (lazy auto: midgame, though endless) */
 		const char *header;                       /**< header for search output */
 		const char *separator;                    /**< separator for search output */
 		bool guess_pv;                            /**< guess PV (in cassio mode only) */

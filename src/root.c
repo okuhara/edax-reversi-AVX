@@ -641,7 +641,8 @@ static void lazy_stop(Search *search)
  * time of the same searches): one helper is the fastest in the midgame, a search to the end and one of 2 threads are
  * slower with it. A search that goes to the end is one whose depth reaches it and which has no time limit, or the
  * time to solve in this move; a timed search also gets no helper for its iterations of the selectivity at the
- * depth of the end (lazy_selective_helpers). A search of some of the moves only (hint, analyze) has no helper: a helper searches
+ * depth of the end (lazy_selective_helpers). Pondering in a timed game has no limit, but is judged by the time
+ * of a move: in the midgame it has a helper. A search of some of the moves only (hint, analyze) has no helper: a helper searches
  * all the moves of the root.
  *
  * @param search Search, with the time of the move set.
@@ -655,8 +656,13 @@ static int lazy_helpers(const Search *search)
 	if (n_tasks < LAZY_AUTO_TASKS || !search->allow_node_splitting) return 0;
 	if (search->movelist.n_moves < 2 || search->movelist.n_moves != bit_count(board_get_moves(&search->board))) return 0;
 	if (search->options.depth >= search->eval.n_empties) {
-		if (search->options.time >= TIME_MAX) return 0;
-		if (solvable_depth(search->time.extra, n_tasks) >= search->eval.n_empties) return 0;
+		long long t = search->time.extra;
+		if (search->options.time >= TIME_MAX) {
+			if (!search->options.ponder_timed) return 0;
+			// (pondering: about the time that the next move will have)
+			t = options.play_type == EDAX_TIME_PER_MOVE ? options.time : options.time / 15;
+		}
+		if (solvable_depth(t, n_tasks) >= search->eval.n_empties) return 0;
 	}
 	return 1;
 }

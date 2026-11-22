@@ -518,6 +518,7 @@ void search_init_with(Search *search, const int n_task, const int hash_bits)
 	search->lazy_helper = false;
 	search->options.verbosity = options.verbosity;
 	search->options.keep_date = false;
+	search->options.ponder_timed = false;
 	search->options.header = NULL;
 	search->options.separator = NULL;
 	search->options.guess_pv = options.pv_guess;
