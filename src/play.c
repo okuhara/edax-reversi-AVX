@@ -45,6 +45,8 @@ void play_init(Play *play, Book *book)
 	play_new(play);
 	lock_init(&play->ponder);
 	lock_init(&play->no_stop);
+	play->nboard_go = 0;
+	play->stop_pending = false;
 	play->no_stop.n = 0;
 	play->ponder.launched = false;
 	spin_init(&play->result);
@@ -423,6 +425,9 @@ void play_go(Play *play, const bool update)
 		search_set_level(search, play_level(), search->eval.n_empties);
 		play_set_search_time(play, search);
 
+		// NBoard: a ping read before the search of this "go" began: search_run() would forget its stop. The interface
+		// wants the move now: the search gets the least time (its first iterations).
+		if (play->stop_pending) search_set_move_time(search, 0);
 		search_time_init(search); // redondant, 
 		if (log_is_open(xboard_log)) {
 			 fprintf(xboard_log->f, "edax search> cpu: %d\n", options.n_task);

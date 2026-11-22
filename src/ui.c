@@ -130,10 +130,16 @@ static void ui_read_input(UI *ui)
 		} else if (strcmp(cmd, "stop") == 0) {
 			event_clear_messages(event);
 			info("<stop>\n");
+			play->nboard_go = 0; // (the "go" that waited are cleared: none of them is left to answer)
+			play->stop_pending = false;
 			play_stop(play);
 			if (ui->type == UI_GGS) play_stop(play + 1);
 		} else if (ui->type == UI_NBOARD && strcmp(cmd, "ping") == 0) {
+			// ping stops the thinking: also the one of a "go" that still waits, or whose search has not begun
+			if (play->nboard_go > 0) play->stop_pending = true;
 			play_stop(play);
+		} else if (ui->type == UI_NBOARD && strcmp(cmd, "go") == 0) {
+			++play->nboard_go;
 		} else if (ui->type == UI_XBOARD && strcmp(cmd, "?") == 0) {
 			play_stop(play);
 		} else {

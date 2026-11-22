@@ -644,6 +644,7 @@ void eval_open(const char* file)
 
 	// data reading
 	w = (short*) malloc(n_w * sizeof (*w)); // a temporary to read packed weights
+	if (w == NULL) fatal_error("Cannot allocate temporary table variable.\n");
 	f = fopen(file, "rb");
 	if (f == NULL) {
 		fprintf(stderr, "Cannot open %s", file);

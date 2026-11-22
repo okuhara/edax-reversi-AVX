@@ -163,6 +163,13 @@ void ui_loop_nboard(UI *ui)
 			nboard_send("status Edax is thinking");
 			play_go(play, false);
 			nboard_send_move(&play->result);
+			// this "go" is answered: a ping does not stop anything more
+			lock(&ui->event);
+			if (--play->nboard_go <= 0) {
+				play->nboard_go = 0;
+				play->stop_pending = false;
+			}
+			unlock(&ui->event);
 			nboard_send("status Edax is waiting");
 
 		} else if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "eof") == 0) {
