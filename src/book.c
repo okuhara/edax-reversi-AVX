@@ -4984,7 +4984,18 @@ typedef struct ExpandShared {
 	int n_slot;                 /**< number of slots: at most n_slot items are taken ahead of the next one to apply */
 	long long applied;          /**< book-reproducible: next item to apply (the ones before are applied) */
 	ExpandSlot *redo;           /**< book-reproducible: the next item to apply, to search again (its links changed) */
+#ifdef BOOK_TEST_COUNTS
+	int n_running, max_running; /**< test builds: searches running, and the most at the same time */
+#endif
 } ExpandShared;
+
+#ifdef BOOK_TEST_COUNTS /* test builds: the searches at the same time */
+#define expand_test_begin(s) (++(s)->n_running, (s)->max_running = MAX((s)->max_running, (s)->n_running))
+#define expand_test_end(s) (--(s)->n_running)
+#else
+#define expand_test_begin(s) ((void) 0)
+#define expand_test_end(s) ((void) 0)
+#endif
 
 /** one thread of a concurrent book_expand, with its own search (and hash tables) */
 typedef struct ExpandWorker {
@@ -5128,11 +5139,13 @@ static void* book_expand_worker(void *v)
 		}
 		if (q == NULL) { unlock(s); break; }
 		if (!book_expand_take(s, q, &parent, &child)) { unlock(s); break; }
+		expand_test_begin(s);
 		unlock(s);
 
 		r = book_expand_search(w->search, &parent, &child, &leaf);
 
 		lock(s);
+		expand_test_end(s);
 		book_expand_apply(s, &parent, &child, &leaf, r);
 		unlock(s);
 	}
@@ -5255,6 +5268,7 @@ static void* book_expand_worker_ordered(void *v)
 			break;
 		}
 		if (e == NULL) break;
+		expand_test_begin(s);
 		unlock(s);
 
 #ifdef BOOK_TEST_EXPAND_DELAY
@@ -5263,6 +5277,7 @@ static void* book_expand_worker_ordered(void *v)
 		e->r = book_expand_search(w->search, &e->parent, &e->child, &e->leaf);
 
 		lock(s);
+		expand_test_end(s);
 		e->ready = true;
 		book_expand_apply_ready(s);
 	}
@@ -5598,6 +5613,9 @@ static bool book_expand_concurrent(Book *book, const char *action, const char *t
 	}
 	lock_init(&shared);
 	condition_init(&shared);
+#ifdef BOOK_TEST_COUNTS
+	shared.n_running = shared.max_running = 0;
+#endif
 
 	for (i = 0; i < n_workers; ++i) {
 		w[i].shared = &shared;
@@ -5614,6 +5632,9 @@ static bool book_expand_concurrent(Book *book, const char *action, const char *t
 	condition_free(&shared);
 	lock_free(&shared);
 	free(w);
+#ifdef BOOK_TEST_COUNTS
+	fprintf(stderr, "<book expand: %lld todo, %d workers, %d at the same time>\n", book->todo_list.n, n_workers, shared.max_running);
+#endif
 	bprint("%s...%d/%lld done: %lld positions, %lld links\n", action, shared.n_done, book->stats.n_todo, book->stats.n_nodes, book->stats.n_links);
 	return true;
 }
@@ -5766,6 +5787,9 @@ static void book_expand(Book *book, const char *action, const char *tmp_file)
 		if (book_expand_concurrent(book, action, tmp_file)) return;
 		// (not enough memory for the searches: one position after the other, below)
 	}
+#ifdef BOOK_TEST_COUNTS
+	fprintf(stderr, "<book expand: %lld todo, one after the other>\n", book->stats.n_todo);
+#endif
 
 	a = book->array; k = 0;
 	for (j = 0; ; ++j) {
@@ -5811,48 +5835,6 @@ void book_sort(Book *book)
 		position_sort(p);
 	}
 	bprint("done>\n");
-}
-
-/**
- * @brief Play.
- *
- * Add positions to the opening book by adding links
- * to position with no links.
- *
- * @param book opening book.
- */
-void book_play(Book *book)
-{
-	PositionArray *a;
-	Position *p;
-	long long n_diffs;
-	char file[FILENAME_MAX + 1];
-
-	file_add_ext(options.book_file, ".play", file);
-	do {
-		n_diffs = 0;
-		book->stats.n_nodes = book->stats.n_links = book->stats.n_todo = 0;
-		foreach_position(p, a, book) {
-			if (p->n_link == 0 && board_count_empties(&p->board) >= book->options.n_empties && !board_is_game_over(&p->board)) {
-				position_set_todo(p, book); ++book->stats.n_todo;
-			} else {
-				position_clear_todo(p);
-			}
-			if (book->stats.n_todo && book->stats.n_todo % BOOK_INFO_RESOLUTION == 0) bprint("Book play...%lld todo\r", book->stats.n_todo);
-		}
-		bprint("Book play...%lld todo\n", book->stats.n_todo);
-		book->todo_list.valid = false; // todo flags were set by a full scan
-
-		book_expand(book, "Book play", file);
-
-		n_diffs = book->stats.n_nodes + book->stats.n_links;
-		if (n_diffs) {
-			book_negamax(book);
-			book_save_progress(book, file);
-		}
-	} while (n_diffs && !book->failed); // stop if a position cannot be added
-	bprint("Book play... finished\n");
-	search_pool_release(&expand_pool);
 }
 
 /**
@@ -8377,6 +8359,7 @@ typedef struct BookPick {
 	bool leaf_only;     /**< book fill2: only through the leaf */
 	bool leaf_better;   /**< book leaf expand: a leaf better than every link */
 	bool all_moves;     /**< with a depth of 0: every move that leads to a position of the book but is not a link (book fill, fill2); else the leaf only (book leaf expand) */
+	bool no_link;       /**< book play: no link, within the depth of the book */
 } BookPick;
 
 /**
@@ -8386,8 +8369,8 @@ typedef struct BookPick {
  * @param book Opening book.
  * @param pick What is looked for: a position from which a fill (depth 2 at least) would add a position;
  * with a depth of 0, a position with a move that leads to a position of the book but is not a link (any move,
- * or the leaf only: to link it, and search its leaf again if the leaf becomes a link); or a position whose
- * leaf is better than every link (book leaf expand).
+ * or the leaf only: to link it, and search its leaf again if the leaf becomes a link); a position whose
+ * leaf is better than every link (book leaf expand); or a position without any link (book play).
  * @return true if it is.
  */
 static bool position_picked(const Position *p, const Book *book, const BookPick *pick)
@@ -8395,6 +8378,7 @@ static bool position_picked(const Position *p, const Book *book, const BookPick 
 	Board next;
 
 	if (pick->leaf_better) return position_leaf_better(p, book);
+	if (pick->no_link) return p->n_link == 0 && board_count_empties(&p->board) >= book->options.n_empties && !board_is_game_over(&p->board);
 	if (pick->depth == 0) {
 		if (pick->all_moves) return position_has_unlinked_child(p, book);
 		if (p->leaf.move == NOMOVE) return false;
@@ -8759,6 +8743,51 @@ static long long book_link_moves(Book *book, const char *name, const char *file,
 	}
 	if (owned) free(keys);
 	return book->stats.n_links; // (the links added: 0 if none could be, a link that cannot be allocated is not added)
+}
+
+/**
+ * @brief Play.
+ *
+ * Add positions to the opening book by adding links
+ * to position with no links.
+ *
+ * The positions are found by several threads and listed, so that book_expand() searches several of them at
+ * the same time (book-expand-tasks). (Up to v4.5.5-nikque.32 the list was set invalid here, and the positions
+ * were always expanded one after the other.)
+ *
+ * @param book opening book.
+ */
+void book_play(Book *book)
+{
+	static const BookPick play_pick = {0, false, false, false, true};
+	unsigned long long *keys;
+	long long n_diffs, n, i;
+	char file[FILENAME_MAX + 1];
+
+	file_add_ext(options.book_file, ".play", file);
+	do {
+		book_clean(book);
+		keys = book_pick_scan(book, "Book play", &play_pick, &n);
+		if (keys == NULL) {
+			error("cannot allocate the list of the positions to expand\n");
+			book->failed = true;
+			break;
+		}
+		for (i = 0; i < n; ++i) book_mark_todo(book, book_position(book, keys[i]));
+		free(keys);
+		book->stats.n_todo = n;
+		bprint("Book play...%lld todo\n", book->stats.n_todo);
+
+		book_expand(book, "Book play", file);
+
+		n_diffs = book->stats.n_nodes + book->stats.n_links;
+		if (n_diffs) {
+			book_negamax(book);
+			book_save_progress(book, file);
+		}
+	} while (n_diffs && !book->failed); // stop if a position cannot be added
+	bprint("Book play... finished\n");
+	search_pool_release(&expand_pool);
 }
 
 /**
