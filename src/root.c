@@ -635,6 +635,32 @@ static void lazy_stop(Search *search)
 }
 
 /**
+ * @brief Number of lazy helpers of a search (option lazy).
+ *
+ * With auto: one helper for a midgame search of at least 4 threads, none else. The measures of 2026-11-22 (4 threads,
+ * time of the same searches): one helper is the fastest in the midgame, a search to the end and one of 2 threads are
+ * slower with it. A search that goes to the end is one whose depth reaches it and which has no time limit, or the
+ * time to solve in this move. A search of some of the moves only (hint, analyze) has no helper: a helper searches
+ * all the moves of the root.
+ *
+ * @param search Search, with the time of the move set.
+ * @return number of helpers.
+ */
+static int lazy_helpers(const Search *search)
+{
+	if (options.lazy != LAZY_AUTO) return options.lazy;
+
+	const int n_tasks = search_count_tasks(search);
+	if (n_tasks < LAZY_AUTO_TASKS || !search->allow_node_splitting) return 0;
+	if (search->movelist.n_moves < 2 || search->movelist.n_moves != bit_count(board_get_moves(&search->board))) return 0;
+	if (search->options.depth >= search->eval.n_empties) {
+		if (search->options.time >= TIME_MAX) return 0;
+		if (solvable_depth(search->time.extra, n_tasks) >= search->eval.n_empties) return 0;
+	}
+	return 1;
+}
+
+/**
  * @brief Start the lazy helpers of the root for an iteration (search-b, lazy k; after run/mklz.py of 2026-11-03).
  *
  * Idle tasks search the root, with no split, and only fill the shared hash table: during the iterative deepening
@@ -644,13 +670,14 @@ static void lazy_stop(Search *search)
  * @param search Search.
  * @param depth Depth of the iteration.
  * @param selective The iteration is one of the iterative selectivity.
+ * @param n_helpers Number of helpers (lazy_helpers()).
  */
-static void lazy_start(Search *search, const int depth, const bool selective)
+static void lazy_start(Search *search, const int depth, const bool selective, const int n_helpers)
 {
 	lazy_stop(search);
-	if (options.lazy <= 0 || depth < options.lazy_min || !search->allow_node_splitting) return;
+	if (n_helpers <= 0 || depth < options.lazy_min || !search->allow_node_splitting) return;
 	if (selective && search->selectivity >= search->options.selectivity) return;
-	for (int i = 0; i < options.lazy && search->n_lazy < MAX_THREADS; ++i) {
+	for (int i = 0; i < n_helpers && search->n_lazy < MAX_THREADS; ++i) {
 		const int step = 1 + (i & 1);
 		const int d = selective ? depth : depth + 2 * step;
 		if (!selective && d >= search->eval.n_empties) break;
@@ -910,10 +937,12 @@ void iterative_deepening(Search *search, int alpha, int beta)
 		return;
 	}
 
+	const int n_helpers = lazy_helpers(search); // (the time of the move is set: one choice for all the iterations)
+
 	// midgame : iterative depth
 	for (search->depth = start; search->depth < end; search->depth += 2) {
 		search->depth_pv_extension = get_pv_extension(search->depth, search->eval.n_empties);
-		lazy_start(search, search->depth, false);
+		lazy_start(search, search->depth, false, n_helpers);
 		score = aspiration_search(search, SCORE_MIN, SCORE_MAX/*alpha, beta*/, search->depth, score);	// https://github.com/eukaryo/edax-reversi-AVX-v446mod2
 		if (!root_continue(search)) {
 			lazy_stop(search);
@@ -940,7 +969,7 @@ void iterative_deepening(Search *search, int alpha, int beta)
 			search->selectivity = search->options.selectivity;
 		}
 		if (search->selectivity == search->options.selectivity) search_adjust_time(search, true);
-		lazy_start(search, search->depth, true);
+		lazy_start(search, search->depth, true, n_helpers);
 		score = aspiration_search(search, alpha, beta, search->depth, score);
 		if (!root_continue(search)) {
 			lazy_stop(search);

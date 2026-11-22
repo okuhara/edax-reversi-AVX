@@ -20,6 +20,9 @@ typedef enum {
 	EDAX_TIME_PER_MOVE
 } PlayType;
 
+#define LAZY_AUTO (-1)        /**< option lazy: auto */
+#define LAZY_AUTO_TASKS 4     /**< lazy auto: fewest threads of a search with a helper */
+
 /** options to control various heuristics */
 typedef struct {
 	int hash_table_size;                  /**< size (in number of bits) of the hash table */
@@ -131,7 +134,7 @@ typedef struct {
 	bool corr;                            /**< correction history of the evaluation of the probcut gate */
 	bool corr_end;                        /**< correction history: learn from the searches to the end too */
 	int lmr;                              /**< late move reductions: 0 off, 1 outside probcut searches, 2 everywhere */
-	int lazy;                             /**< helper tasks searching the root deeper (filling the hash table): 0 off */
+	int lazy;                             /**< helper tasks searching the root deeper (filling the hash table): 0 off, LAZY_AUTO auto */
 	int lazy_min;                         /**< lazy helpers: lowest depth of an iteration with helpers */
 
 	// TODO: add more options?

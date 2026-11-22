@@ -132,6 +132,7 @@ wEdax-x86-64.exe -l 12 -n 4 -book-file data/my.dat
 | `book-leaf-recalculate-rounds` | `1` | 1 | `book leaf recalculate` 系を繰り返す回数の上限。[8 章](08-book-maintenance.md) |
 | `book-store-tasks` | `auto` | `auto` | 棋譜から book を育てるコマンドが、同時に学習する棋譜の数。[7 章](07-book-learning.md)・[9 章](09-large-books.md) |
 | `probcut-model` | `standard` | `standard` | 探索の枝刈りの方式。`refit` は実験用（探索の結果が変わります。[修正一覧の v4.5.5-nikque.5](../../RELEASE-NOTES.ja.md#v455-nikque5) を読んでから使ってください） |
+| `lazy` | `0` | `0` | 補助の探索の数（v4.5.5-nikque.33 から `auto`）。既定の `0` は使いません。`auto` は、4 スレッド以上の中盤の探索に補助 1 つ。終盤の読み切りと 3 スレッド以下では使いません。補助を使うと、評価値と、できる book が変わることがあります |
 
 **`config.ini` の `level` についての注意**：`config.ini`（と `edax.ini`）に書いた `level` は、起動したときの level を決めるだけです。
 

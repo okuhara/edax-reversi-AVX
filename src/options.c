@@ -167,7 +167,8 @@ void options_usage(void)
 		"  -corr <on/off>                probcut: correction history of the evaluation (off).\n"
 		"  -corr-end <on/off>            correction history: learn from the searches to the end (on).\n"
 		"  -lmr <0|1|2>                  late move reductions (0: off).\n"
-		"  -lazy <n>                     helper threads at the root (0: off).\n"
+		"  -lazy <n|auto>                helper threads at the root (0: off, default); auto: 1 in the\n"
+		"                                midgame with 4 threads or more.\n"
 		"  -lazy-min <n>                 lowest depth of an iteration with helpers (16).\n"
 		"  -eval-file                    read eval weight from this file.\n");
 	fprintf(stderr, "  -book-file                    load opening book from this file.\n"
@@ -455,7 +456,7 @@ int options_read(const char *option, const char *value)
 		else if (strcmp(option, "corr") == 0) option_boolean(option, value, &options.corr);
 		else if (strcmp(option, "corr-end") == 0) option_boolean(option, value, &options.corr_end);
 		else if (strcmp(option, "lmr") == 0) options.lmr = option_int(option, value, options.lmr);
-		else if (strcmp(option, "lazy") == 0) options.lazy = option_int(option, value, options.lazy);
+		else if (strcmp(option, "lazy") == 0) options.lazy = option_int_or_auto(option, value, options.lazy, LAZY_AUTO);
 		else if (strcmp(option, "lazy-min") == 0) options.lazy_min = option_int(option, value, options.lazy_min);
 
 		else if (strcmp(option, "pv-debug") == 0) option_boolean(option, value, &options.pv_debug);
@@ -714,7 +715,7 @@ void options_bound(void)
 	for (int i = 0; i < 3; ++i) BOUND(options.sort_eval_shift[i], -4, 30, "sort-eval-shift");
 	BOUND(options.sort_min_depth, 0, 60, "sort-min-depth");
 	BOUND(options.lmr, 0, 2, "lmr");
-	BOUND(options.lazy, 0, MAX_THREADS - 1, "lazy");
+	BOUND(options.lazy, LAZY_AUTO, MAX_THREADS - 1, "lazy");
 	BOUND(options.lazy_min, 8, 60, "lazy-min");
 	options.time_ext_max = MIN(4.0, MAX(1.0, options.time_ext_max));
 	options.time_ext_h = MIN(2.0, MAX(0.0, options.time_ext_h));
