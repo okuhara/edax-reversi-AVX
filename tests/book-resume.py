@@ -405,6 +405,8 @@ def test_learn_stops(args, work):
         ("only links are added", "unlinked.dat", ["f5d6", "f5f6"], 1, one, 0),
         ("form 2", "g0.dat", STOP_LINES[:5], 1, one + ("-book-format", "2"), 0),
     ]
+    if not args.form2:  # the C version has one form of book, and no -book-format
+        cases.pop()
     for name, start, lines, threads, opts, fail in cases:
         print(f"-- book learn <file> stopped at each write: {name}")
         for resumed in (False, True):  # the run stopped: the first one, or one that goes on after a stop
@@ -414,7 +416,7 @@ def test_learn_stops(args, work):
 def stop_at_each_write(args, work, start, lines, threads, opts, fail, resumed):
     b = lambda name: os.path.join(work, name)
     store, progress = b("book.dat.store"), b("book.dat.learn")
-    form1 = tuple(opts) + ("-book-format", "1")
+    form1 = tuple(opts) + (("-book-format", "1") if args.form2 else ())
 
     def clear():
         for name in os.listdir(work):
