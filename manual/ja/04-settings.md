@@ -133,6 +133,7 @@ wEdax-x86-64.exe -l 12 -n 4 -book-file data/my.dat
 | `book-store-tasks` | `auto` | `auto` | 棋譜から book を育てるコマンドが、同時に学習する棋譜の数。[7 章](07-book-learning.md)・[9 章](09-large-books.md) |
 | `probcut-model` | `standard` | `standard` | 探索の枝刈りの方式。`refit` は実験用（探索の結果が変わります。[修正一覧の v4.5.5-nikque.5](../../RELEASE-NOTES.ja.md#v455-nikque5) を読んでから使ってください） |
 | `lazy` | `0` | `0` | 補助の探索の数（v4.5.5-nikque.33 から `auto`）。既定の `0` は使いません。`auto` は、4 スレッド以上の中盤の探索に補助 1 つ。終盤の読み切り、最後まで読む選択的な読み、3 スレッド以下の探索では使いません。補助を使うと、評価値と、できる book が変わることがあります |
+| `pc-slope` | `1` | `1` | 最後まで読む読みの probcut の傾き。`傾き[,上限[,最小の空き]]`（v4.5.5-nikque.33-pre1 の次の版で追加）。浅い読みの値は、最後まで読んだ値より 0 に寄ります。傾きがあると、浅い読みの値 s を s + (傾き − 1) × s と読み（`上限` の石数まで）、最後まで読む読みの probcut の幅も 0.85 倍になります（`pc-end` を書いたときを除く）。既定の `1` は補正なし。`1.3,12` は Heath の既定です。探索の結果と、それで学習した book が変わります |
 
 **`config.ini` の `level` についての注意**：`config.ini`（と `edax.ini`）に書いた `level` は、起動したときの level を決めるだけです。
 

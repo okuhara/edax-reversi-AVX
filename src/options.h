@@ -124,6 +124,9 @@ typedef struct {
 	int sort_min_depth;                   /**< move sorting: lowest depth of the sorting with an evaluation (0 = the table) */
 	bool split_probe;                     /**< split the nodes of probcut searches between threads (true as before) */
 	double pc_r;                          /**< probcut: factor of all the margins */
+	double pc_slope;                      /**< probcut: slope of the score of a search to the end against its probe (1: none) */
+	int pc_slope_limit;                   /**< probcut: probe beyond which the correction of pc_slope stays constant */
+	int pc_slope_min;                     /**< probcut: fewest empties with pc_slope */
 	double pc_end[61];                    /**< probcut: factor of the margins of the searches to the end (depth == empties), by empties (0: none) */
 	int pc_dev_d0;                        /**< probcut: moves off the PV without narrowing */
 	double pc_dev_k;                      /**< probcut: narrowing per move off the PV beyond pc_dev_d0 */

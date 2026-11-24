@@ -440,6 +440,19 @@ static void corr_learn(Search *search, const int alpha, const int score, const i
 	*c = (short) MAX(-CORR_LIMIT, MIN(CORR_LIMIT, v));
 }
 
+/*
+ * pc-slope: a search to the end scores further from 0 than its probe. A probe s stands for
+ * s + (slope - 1) * max(-limit, min(limit, s)); this is the s that stands for a score (the idea of the linear
+ * regression of Logistello, written anew).
+ */
+static double probcut_probe_of(const double score)
+{
+	const double a = options.pc_slope, l = options.pc_slope_limit;
+	if (score > a * l) return score - (a - 1.0) * l;
+	if (score < -a * l) return score + (a - 1.0) * l;
+	return score / a;
+}
+
 /* search-b: factor of the probcut margins (1.0 with the default options: the margins of v4.5.5-nikque.32) */
 static double probcut_factor(const Search *search, const int depth, const int n_moves, const bool with_dev)
 {
@@ -509,6 +522,7 @@ static bool search_probcut(Search *search, const int alpha, const int depth, con
 		probcut_depth = 2 * floor(options.probcut_d * depth) + (depth & 1);
 		if (probcut_depth == 0) probcut_depth = depth - 2; 
 		assert(probcut_depth > 1 && probcut_depth <= depth - 2 && (probcut_depth & 1) == (depth & 1));
+		const bool sloped = options.pc_slope > 1.0 && depth >= search->eval.n_empties && search->eval.n_empties >= options.pc_slope_min;
 		const double ft = probcut_factor(search, depth, n_moves, true) * t; // (search-b: t with the default options)
 		if (options.probcut_model) probcut_error = ft * probcut_sigma(search->eval.n_empties, depth, probcut_depth) + RCD;	// refit (experimental)
 		else probcut_error = ft * eval_sigma(search->eval.n_empties, depth, probcut_depth) + RCD;
@@ -522,6 +536,10 @@ static bool search_probcut(Search *search, const int alpha, const int depth, con
 		// try a probable upper cut first
 		eval_beta = beta - eval_error;
 		probcut_beta = beta + probcut_error;
+		if (sloped) {	// (rounded to the side that cuts less; a cut beyond the board stays none)
+			eval_beta = (int) ceil(probcut_probe_of(beta)) - eval_error;
+			if (probcut_beta < SCORE_MAX) probcut_beta = (int) ceil(probcut_probe_of(probcut_beta) - 1e-6);
+		}
 		probcut_alpha = probcut_beta - 1;
 		if ((eval_score >= eval_beta || !options.pc_gate) && probcut_beta < SCORE_MAX) { 	// check if trying a beta probcut is worth
 			PROBCUT_STATS(++statistics.n_probcut_high_try);
@@ -538,6 +556,10 @@ static bool search_probcut(Search *search, const int alpha, const int depth, con
 		// try a probable lower cut if upper cut failed
 		eval_alpha = alpha + eval_error;
 		probcut_alpha = alpha - probcut_error;
+		if (sloped) {
+			eval_alpha = (int) floor(probcut_probe_of(alpha)) + eval_error;
+			if (probcut_alpha > SCORE_MIN) probcut_alpha = (int) floor(probcut_probe_of(probcut_alpha) + 1e-6);
+		}
 		if ((eval_score < eval_alpha || !options.pc_gate) && probcut_alpha > SCORE_MIN) { // check if trying an alpha probcut is worth
 			PROBCUT_STATS(++statistics.n_probcut_low_try);
 			search_update_probcut(search, ALL_NODE);
