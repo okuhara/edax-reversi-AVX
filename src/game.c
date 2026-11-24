@@ -1790,9 +1790,7 @@ int game_complete(Game *game, Search *search, const int level)
 		}
 
 		search_set_board(search, &board, player);
-		// the level of the "level" setting, as a move of a game (up to v4.5.5-nikque.12 the level was not set:
-		// the search kept the depth of whatever was searched before, which is 0, random moves, after base correct)
-		search_set_level(search, options.level, search->eval.n_empties);
+		search_set_level(search, level, search->eval.n_empties);
 		search_run(search);
 		if (search->result->depth == search->eval.n_empties && search->result->selectivity == NO_SELECTIVITY) {
 			game_append_line(game, &search->result->pv, i);

@@ -603,37 +603,7 @@ static bool ggs_match(GGSMatch *match, Text *text, char * on_off)
  */
 static bool ggs_match_on(GGSMatch *match, Text *text)
 {
-	const char *line = text->line[0];
-	char word[WORD_SIZE];
-
-	line = parse_word(line, word, WORD_SIZE);
-	if (strcmp("/os:", word) != 0) return false;
-
-	line = parse_word(line, word, WORD_SIZE);
-	if (strcmp("+", word) != 0) return false;
-
-	line = parse_word(line, word, WORD_SIZE);
-	if (strcmp("match", word) != 0) return false;
-
-	line = parse_word(line, word, WORD_SIZE);
-	ggs_set_string(&match->id, word);
-
-	line = parse_word(line, word, WORD_SIZE);
-	if (!ggs_player_set(&(match->player[0]), line, word))return false;
-
-	line = parse_skip_word(line);
-
-	line = parse_word(line, word, WORD_SIZE);
-	if (!ggs_player_set(&(match->player[1]), line, word)) return false;
-	line = parse_skip_word(line);
-
-	line = parse_word(line, word, WORD_SIZE);
-	ggs_match_type_set(&match->match_type, word);
-
-	line = parse_word(line, word, WORD_SIZE);
-	match->match_type.is_rated = (strcmp(word, "R") == 0) ? 1 : 0;
-
-	return true;
+	return ggs_match(match, text, "+");
 }
 
 /**
@@ -647,30 +617,9 @@ static bool ggs_match_on(GGSMatch *match, Text *text)
  */
 static bool ggs_match_off(GGSMatch *match, Text *text)
 {
-	const char *line = text->line[0];
-	char word[WORD_SIZE];
-
-	line = parse_word(line, word, WORD_SIZE);
-	if (strcmp("/os:", word) != 0) return false;
-
-	line = parse_word(line, word, WORD_SIZE);
-	if (strcmp("-", word) != 0) return false;
-
-	line = parse_word(line, word, WORD_SIZE);
-	if (strcmp("match", word) != 0) return false;
-
-	line = parse_word(line, word, WORD_SIZE);
-	ggs_set_string(&match->id, word);
-
-	line = parse_word(line, word, WORD_SIZE);
-	if (!ggs_player_set(&(match->player[0]), line, word)) return false;
-	line = parse_skip_word(line);
-
-	line = parse_word(line, word, WORD_SIZE);
-	if (!ggs_player_set(&(match->player[1]), line, word)) return false;
-
-	return true;
+	return ggs_match(match, text, "-");
 }
+
 
 /**
  * @brief ggs_board

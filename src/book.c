@@ -1863,7 +1863,7 @@ static void position_mark_to_play(Position *position, Book *book)
 		// expand the leaf is it has no link
 		if (position->n_link == 0) {
 			position_set_todo(position, book); book->stats.n_todo++;
-			if (book->stats.n_todo % 10 == 0) bprint("Book play %d todo\r", book->stats.n_todo);
+			if (book->stats.n_todo % 10 == 0) bprint("Book play %lld todo\r", book->stats.n_todo);
 		}
 	}
 }
@@ -2161,7 +2161,7 @@ static void position_extend(Position *position, Book *book)
 		// expand the leaf is it has the best score
 		if (position->leaf.score >= position->score.value) {
 			position_set_todo(position, book); book->stats.n_todo++;
-			if (book->stats.n_todo % 10 == 0) bprint("Book extend %d todo\r", book->stats.n_todo);
+			if (book->stats.n_todo % 10 == 0) bprint("Book extend %lld todo\r", book->stats.n_todo);
 		}
 	}
 }
@@ -5974,7 +5974,7 @@ void book_extend(Book *book, const Board *board)
 			bprint("Book extend...:\n");
 			book_clean(book);
 			position_extend(root, book);
-			bprint("Book extend %d todo\n", book->stats.n_todo);
+			bprint("Book extend %lld todo\n", book->stats.n_todo);
 
 			book_expand(book, "Book extend", file);
 			n_diffs = book->stats.n_nodes + book->stats.n_links;
