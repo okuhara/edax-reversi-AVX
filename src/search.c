@@ -393,7 +393,6 @@ void search_alloc_thread_hash(Search *search)
 	search->thread_hash.hash_mask = (1 << THREAD_LOCAL_HASH_SIZE) - 1;
 	search->thread_hash.n_hash = 1 << THREAD_LOCAL_HASH_SIZE;
 	hash_wipe(&search->thread_hash);	// read directly by NWS_endgame_local(), so really cleared
-	search->corr = NULL; // (search-b: one table for a search and its threads, made by iterative_deepening() with -corr)
 	search->pv_dev[0] = 0;
 #if ENDGAME_HASH56
 	search->thread_hash56.hash = (Hash*) mm_malloc((1 << THREAD_LOCAL_HASH56_SIZE) * sizeof (Hash));
@@ -545,7 +544,6 @@ void search_free(Search *search)
 #if ENDGAME_HASH56
 	mm_free(search->thread_hash56.hash);
 #endif
-	free(search->corr); search->corr = NULL;
 #if ENDGAME_HASH4
 	mm_free(search->thread_hash4.hash);
 #endif
@@ -644,7 +642,6 @@ void search_clone(Search *search, Search *master)
 	search->height = master->height;
 	search->lazy_helper = false; // (set again by lazy_start() for a helper)
 	search->pv_dev[search->height] = master->pv_dev[master->height];
-	search->corr = master->corr; // (shared as the hash tables: a helper search lives for one split only)
 	search->allow_node_splitting = master->allow_node_splitting;
 	search->node_type[search->height] = master->node_type[search->height];
 	search->options = master->options;
@@ -667,7 +664,6 @@ void search_clone(Search *search, Search *master)
  */
 void search_cleanup(Search *search)
 {
-	if (search->corr) memset(search->corr, 0, (1 << CORR_BITS) * sizeof (short)); // (search-b)
 	hash_cleanup(&search->hash_table);
 	hash_cleanup(&search->pv_table);
 	hash_cleanup(&search->shallow_table);
@@ -794,51 +790,26 @@ int solvable_depth(const long long limit, int n_tasks)
 }
 
 /**
- * @brief The time of a move from the clock (time-model 1, time-ext).
+ * @brief The time of a move for time-ext: the time of Edax.
  *
- * The endgame begins at the empties that the measured speed (threads included, as in solvable_depth) solves twice
- * within a tenth of the clock of the game; that time is kept for it, and is not recomputed from the clock left: the
- * midgame would eat it move after move. The time before it is shared over the moves down to there, 1.5 times an
- * even share (the earlier moves get more); from there on a move has half the clock left (a solved position takes
- * only what it needs). Kept aside: 110 ms for each next move from 15 empties up (a search takes 100 ms at least,
- * see search_time_init), 5 ms for each remaining move, and a twentieth of the clock left, at most 0.25 s.
- *
- * @param clock clock of the game in ms.
+ * T as search_time_init() with a game time (Edax starts no iteration after T/4 and stops at T, but extends it once,
+ * search_adjust_time). The time of the move is T: in games of 30 s with one thread the share of the time over the
+ * empties is then the one of Edax within 6% (runs/t6/calib.py, 11/23). It may stretch to time_ext_max times it, not
+ * over a third of the clock left.
  * @param left clock left in ms.
  * @param empties empties of the position.
  * @param n_tasks threads of the search.
  * @param time time of the move.
- * @param time_max longest time of the move (time_ext_max times it, at most a third of what is shared).
+ * @param time_max longest time of the move.
  */
-void search_share_clock(const long long clock, const long long left, const int empties, const int n_tasks, long long *time, long long *time_max)
+void search_edax_clock(const long long left, const int empties, const int n_tasks, long long *time, long long *time_max)
 {
-	const double nodes_per_ms = 0.001 * (search_speed() * (SMP_W + SMP_C) / (SMP_W / n_tasks + SMP_C));
-	const double tenth = 0.1 * MAX(clock, left); // (a clock with an increment may grow)
-	int endgame = 15;
-	double reserve = tenth;
+	const int sd = solvable_depth(left / 10, n_tasks);
+	const int d = MAX((empties - sd) / 2, 2);
+	const long long t = MAX(left / d - 10, 100);
 
-	for (int d = 60; d >= 15; --d) {
-		const double twice = 2.2 * pow(BRANCHING_FACTOR, d) / nodes_per_ms; // (twice, and a little for the margins)
-		if (twice <= tenth) {
-			endgame = d;
-			reserve = twice;
-			break;
-		}
-	}
-
-	const int moves_left = MAX(1, (empties + 1) / 2);
-	const int searched = MAX(0, (empties - 15) / 2); // next moves with a search of 100 ms at least
-	const double safety = MAX(0.0, MIN(250.0, left / 20.0));
-	const double spendable = MAX(0.0, left - safety - 5.0 * moves_left - 110.0 * searched);
-	double room = spendable, t = 0.5 * spendable;
-
-	if (empties > endgame) {
-		room = MAX(spendable - reserve, 0.05 * spendable);
-		t = MIN(room, 1.5 * room / MAX(1, (empties - endgame + 1) / 2));
-	}
-	t = MAX(50.0, t);
-	*time = (long long) t;
-	*time_max = (long long) MAX(t, MIN(options.time_ext_max * t, room / 3.0));
+	*time = t;
+	*time_max = MAX(*time, MIN(left / 3, (long long) (options.time_ext_max * *time)));
 }
 
 /**
@@ -878,9 +849,9 @@ void search_set_move_time(Search *search, const long long t)
 /**
  * @brief set the time of a move that may stretch (search-b, 2026-11-22).
  *
- * The move has the time t; the search may take up to tmax when the move looks hard (a fail low, an unstable best
- * move, a falling score), and does not start an iteration that is not expected to end in its time (it then plays
- * at once: the time left goes to the next moves). tmax = t: no stretch; tmax < t: as search_set_move_time().
+ * The move has the time t; the search may take up to tmax after a fail low, and does not start an iteration that is
+ * not expected to end in its time (it then plays at once: the time left goes to the next moves). tmax = t: no
+ * stretch; tmax < t: as search_set_move_time().
  *
  * @param search Search.
  * @param t time of the move in ms.
@@ -902,8 +873,7 @@ bool search_time_ext_on(const Search *search)
 
 /**
  * time_ext: the two times of a move.
- * - target: no new iteration that does not fit in it: the time of the move, grown for a hard move or a close
- *   second move (it shrinks again when the best move settles);
+ * - target: no new iteration that does not fit in it: the time of the move;
  * - extra: the search stops there: the target, or the longest time after a fail low (that time is for the end of
  *   the iteration under way, not for one more).
  */
@@ -911,7 +881,7 @@ static void search_time_ext_apply(Search *search)
 {
 	const long long base = search->time.base;
 	const long long tmax = MAX(base, MAX(search->options.time_max - 10, 100));
-	const long long target = MIN(tmax, (long long) (search->time.grow * base) + search->time.bonus);
+	const long long target = MIN(tmax, base);
 	long long e = target;
 
 	if (search->time.extended) e = MAX(e, MIN(tmax, (long long) (options.time_ext_max * base)));
@@ -925,22 +895,7 @@ static void search_time_ext_init(Search *search, const long long spent)
 {
 	search->time.base = MAX(search->options.time - 10, 100);
 	search->time.start = spent; // (the iterations are timed apart: after a hit of the pondering, those before count)
-	search->time.instability = 0.0;
-	search->time.grow = 1.0;
-	search->time.bonus = 0;
-	search->time.last_move = NOMOVE;
-	search->time.last_score = SCORE_INF;
-	search->time.stable = 0;
-	search->time.close_done = false;
-	search->time.settled = false;
 	search->time.target = search->time.base; // (last: it turns time_ext on)
-}
-
-/** time_close: another move is nearly as good: the time of one more move. */
-void search_time_ext_bonus(Search *search)
-{
-	search->time.bonus = search->time.base;
-	search_time_ext_apply(search);
 }
 
 /** An iteration ended: its time (measured while pondering too: the estimate of the next one needs it after a hit) */
@@ -953,28 +908,13 @@ void search_iteration_timed(Search *search)
 }
 
 /**
- * @brief An iteration ended (time_ext): set the time of the move from how hard it looks.
+ * @brief An iteration ended (time_ext): the time of a fail low was for it.
  *
  * @param search Search (the master).
- * @param move best move.
- * @param score best score.
  */
-void search_iteration_done(Search *search, const int move, const int score)
+void search_iteration_done(Search *search)
 {
-	search->time.extended = false; // (the time of a fail low was for the iteration that has just ended)
-	search->time.stable = (move == search->time.last_move) ? search->time.stable + 1 : 0;
-	if (search->depth >= 10) { // (shallow iterations: unstable by nature)
-		if (search->time.last_move != NOMOVE) {
-			search->time.instability = 0.5 * search->time.instability + (move != search->time.last_move ? 1.0 : 0.0);
-		}
-		if (options.time_ext_hard && search->time.last_score != SCORE_INF) {
-			const int d = MAX(0, search->time.last_score - score);
-			const double g = (1.0 + 0.25 * search->time.instability) * (1.0 + MIN(d, 4) / 8.0);
-			search->time.grow = MIN(g, options.time_ext_max);
-		}
-	}
-	search->time.last_move = move;
-	search->time.last_score = score;
+	search->time.extended = false;
 	search_time_ext_apply(search);
 }
 
@@ -1087,7 +1027,7 @@ bool search_continue(Search *search)
 		// time_ext (search-b): start the next iteration only when enough of it is expected to end in the target of
 		// the move: an iteration cut early is mostly lost; the time left goes to the next moves
 		// (root_continue() in root.cpp has measured the iteration)
-		if (search->stop != RUNNING || search->time.settled) return false;
+		if (search->stop != RUNNING) return false;
 		const long long e = search_time(search) - search->time.start;
 		const long long last = search->time.last_iter, prev = search->time.prev_iter;
 		const double r = (prev > 0) ? MIN(MAX((double) last / prev, 2.0), 6.0) : 4.0;

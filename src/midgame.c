@@ -411,35 +411,6 @@ int lmr_reduction(const Search *search, const int depth, const int order, const 
 	return r;
 }
 
-/* search-b (2026-11-22): correction history of the evaluation of the probcut gate (one table for a search
- * and its threads, 1/16 disc, keyed by the edges and the X squares; the idea from natsu's neural-reversi, GPL-3.0, written anew) */
-#define CORR_LIMIT (8 * 16)
-static inline int corr_index(const Board *board)
-{
-	const unsigned long long m = 0xFFC381818181C3FFULL; // edges and X squares (the mask is the same under the 8 symmetries)
-	const unsigned long long h = ((board->player & m) * 0x9E3779B97F4A7C15ULL) ^ ((board->opponent & m) * 0xC2B2AE3D27D4EB4FULL);
-	return (int) (h >> (64 - CORR_BITS));
-}
-static inline int corr_get(const Search *search)
-{
-	if (!search->corr) return 0;
-	const int v = search->corr[corr_index(&search->board)];
-	return (v >= 0 ? v + 8 : v - 8) / 16;
-}
-static void corr_learn(Search *search, const int alpha, const int score, const int depth)
-{
-	if (!search->corr) return;
-	const int e = search_eval_0(search) + corr_get(search);
-	int diff = 0;
-	if (score > alpha && score > e) diff = score - e;		// lower bound above the evaluation
-	else if (score <= alpha && score < e) diff = score - e;	// upper bound below it
-	if (diff == 0) return;
-	diff = MAX(-8, MIN(8, diff));
-	short *c = search->corr + corr_index(&search->board);
-	const int v = *c + diff * 16 * MIN(depth, 16) / 64;
-	*c = (short) MAX(-CORR_LIMIT, MIN(CORR_LIMIT, v));
-}
-
 /*
  * pc-slope: a search to the end scores further from 0 than its probe. A probe s stands for
  * s + (slope - 1) * max(-limit, min(limit, s)); this is the s that stands for a score (the idea of the linear
@@ -530,7 +501,6 @@ static bool search_probcut(Search *search, const int alpha, const int depth, con
 
 		// compute evaluation error (i.e. error at depth 0) averaged for both depths
 		eval_score = search_eval_0(search);
-		if (options.corr) eval_score += corr_get(search);
 		eval_error = ft * 0.5 * (eval_sigma(search->eval.n_empties, depth, 0) + eval_sigma(search->eval.n_empties, depth, probcut_depth)) + RCD;
 	
 		// try a probable upper cut first
@@ -901,9 +871,6 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 
 	// save the best result in hash tables
 	if (!search->stop) {
-		// search-b: learn the correction of the evaluation of the probcut gate
-		if (options.corr && search->selectivity < NO_SELECTIVITY && depth >= 8 && !movelist_is_empty(&movelist)
-		 && (options.corr_end || depth < search->eval.n_empties)) corr_learn(search, alpha, node.bestscore, depth);
 		// hack: an endgame node of DEPTH_MIDGAME_TO_ENDGAME is exact, its moves being searched by NWS_endgame; not after
 		// a pass, whose search stays here at the same depth and may be cut by probcut: stored as exact, that score was
 		// taken by the exact search after a selective one (a wrong score at level 60 from 17 empties on)

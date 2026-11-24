@@ -725,49 +725,9 @@ static void lazy_start(Search *search, const int depth, const bool selective, co
 }
 
 /**
- * @brief Is a move of the root other than the best one above a score ? (search-b: time_sep, time_close)
- *
- * A null window search of the other moves, for the decision on the time only: the result, the bounds of the moves
- * and their order stay (the hash tables learn from it).
- *
- * @param search Search (the master, between two iterations).
- * @param best best move.
- * @param a score.
- * @param depth depth.
- * @return 1: one of them is above a; 0: none; -1: stopped first.
- */
-static int root_others_above(Search *search, const int best, const int a, const int depth)
-{
-	Node node;
-	Move *move;
-	const Eval eval0 = search->eval;
-	const Board board0 = search->board;
-	int above = 0;
-
-	search->probcut_level = 0;
-	search->node_type[search->height] = PV_NODE;
-	node_init(&node, search, a, a + 1, depth, search->movelist.n_moves, NULL);
-	foreach_move(move, search->movelist) {
-		if (move->x == best) continue;
-		search_update_midgame(search, move);
-		if (options.pc_dev_root) ++search->pv_dev[search->height];
-		const int score = -NWS_midgame(search, -a - 1, depth - 1, &node);
-		search_restore_midgame(search, move->x, &eval0);
-		search->board = board0;
-		if (search->stop) { above = -1; break; }
-		if (score > a) { above = 1; break; }
-	}
-	node_free(&node);
-	return above;
-}
-
-/**
  * @brief An iteration ended: one more ?
  *
- * As search_continue(). With time_ext (search-b) the iteration is measured first, and two searches of the other
- * moves may follow (the idea from Kuroobi, MIT, written anew):
- * - time_sep: the best move was kept twice and all the others are proved time_sep discs worse: play it at once;
- * - time_close: once a move, another move is within time_close discs: the time of one more move.
+ * As search_continue(). With time_ext (search-b) the iteration is measured first.
  *
  * @param search Search.
  * @return true to go on.
@@ -777,24 +737,7 @@ static bool root_continue(Search *search)
 	if (search->stop == RUNNING) search_iteration_timed(search);
 	if (search->stop != RUNNING || !search_time_ext_on(search)) return search_continue(search);
 
-	const int move = search->result->move, score = search->result->score;
-	const int empties = search->eval.n_empties, depth = search->depth;
-
-	search_iteration_done(search, move, score);
-	const bool last = (depth >= MIN(search->options.depth, empties) && search->selectivity >= search->options.selectivity);
-	if (last || move == NOMOVE || move == PASS || search->movelist.n_moves < 2 || depth < options.time_sep_depth) return search_continue(search);
-
-	const bool sep = (options.time_sep > 0 && search->time.stable >= 2 && score - options.time_sep >= SCORE_MIN && search_continue(search));
-	const bool close = (options.time_close > 0 && !search->time.close_done && empties >= options.time_close_empties && score - options.time_close - 1 >= SCORE_MIN);
-	if (sep || close) {
-		lazy_stop(search);
-		if (sep && root_others_above(search, move, score - options.time_sep, depth) == 0) search->time.settled = true;
-		if (close && !search->time.settled && !search->stop) {
-			search->time.close_done = true;
-			if (root_others_above(search, move, score - options.time_close - 1, depth) == 1) search_time_ext_bonus(search);
-		}
-		search->time.iter_start = search_time(search); // (these searches are not part of the next iteration)
-	}
+	search_iteration_done(search);
 	return search_continue(search);
 }
 
@@ -826,10 +769,6 @@ void iterative_deepening(Search *search, int alpha, int beta)
 
 	// search-b (here, not only in search_run(): cassio calls this function itself)
 	search->pv_dev[0] = 0;
-	if (options.corr && search->corr == NULL) {
-		search->corr = (short*) calloc(1 << CORR_BITS, sizeof (short)); // (128 KB)
-		if (search->corr == NULL) fatal_error("Cannot allocate a correction table\n");
-	}
 
 	// initialize result
 	result->move = NOMOVE;

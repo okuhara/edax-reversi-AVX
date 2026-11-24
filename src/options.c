@@ -103,13 +103,13 @@ Options options = {
 	1, // book reducecount: a table of the buckets (twice as fast as the binary search with a book of 700 million positions)
 	0, // book reducecount: walk by accumulated loss
 	// search-b (2026-11-22): all off, the search of v4.5.5-nikque.32
-	.time_ext = 0, .time_ext_max = 2.0, .time_ext_h = 0.5, .time_ext_hard = 1,
-	.time_sep = 0, .time_sep_depth = 20, .time_close = 0, .time_close_empties = 38,
-	.time_model = 0, .time_stop_master = true, // (a fault of nikque.32 and before: see search_check_timeout)
-	.sort_eval_shift = {2, 1, 0}, .sort_min_depth = 0,
+	// v4.5.5-nikque.33: the time of Edax a move, stretched after a fail low (time_ext), and the sort with the evaluation from
+	// the depth 7: fixed, with no option (as in Heath; they change the time and the order of the moves only)
+	.time_ext = 1, .time_ext_max = 2.0, .time_ext_h = 0.5,
+	.time_stop_master = true, // (a fault of nikque.32 and before: see search_check_timeout)
+	.sort_eval_shift = {1, 0, 0}, .sort_min_depth = 7,
 	.split_probe = true,
 	.pc_r = 1.0, .pc_slope = 1.0, .pc_slope_limit = 12, .pc_slope_min = 0, .pc_end = {0.0}, .pc_dev_d0 = 0, .pc_dev_k = 0.0, .pc_dev_fmin = 1.0, .pc_dev_root = true, .pc_mob = {{0.0}}, .pc_gate = true,
-	.corr = false, .corr_end = true,
 	.lmr = 0,
 	.lazy = 0, .lazy_min = 16,
 };
@@ -145,29 +145,21 @@ void options_usage(void)
 		"  -speed <n|auto>               search speed (nodes/s) used to share the time; auto: measured.\n"
 		"  -ponder <on/off>              search during opponent time.\n"
 		"  -probcut-model <standard|refit> probcut error model (refit: experimental, see README).\n");
-	fprintf(stderr, "  -time-ext <0|1>               game time: time of each move from the clock, stretched for a hard move.\n"
-		"  -time-ext-max <x>             longest stretch of the time of a move (2.0).\n"
+	fprintf(stderr, "  -time-ext-max <x>             longest stretch of the time of a move (2.0).\n"
 		"  -time-ext-h <x>               part of the next iteration that must fit in the time left to start it (0.5).\n"
-		"  -time-ext-hard <0|1>          stretch for an unstable best move or a falling score (1).\n"
-		"  -time-sep <n>                 time-ext: play at once when the other moves are n discs worse (0: off).\n"
-		"  -time-sep-depth <n>           lowest depth of the searches of time-sep and time-close (20).\n"
-		"  -time-close <n>               time-ext: more time when another move is within n discs (0: off).\n"
-		"  -time-close-empties <n>       fewest empties for time-close (38).\n"
-		"  -time-model <0|1>             game time: 1 = time of each move from the clock (implied by time-ext).\n"
 		"  -time-stop-master <on/off>    split searches obey the extended time of the master (on).\n"
-		"  -sort-eval-shift <a,b,c>      move sorting: weight shifts of the evaluation (2,1,0).\n"
-		"  -sort-min-depth <n>           move sorting: lowest depth with an evaluation (0: the table).\n"
 		"  -split-probe <on/off>         split the searches of probcut between threads (on).\n"
 		"  -pc-r <x>                     probcut: factor of the margins (1).\n"
 		"  -pc-end <x|e:x,...>           probcut: factor of the searches to the end, by empties.\n"
-		"  -pc-slope <a[,limit[,min]]>   probcut: slope of the searches to the end against their probes (1: none;\n"
-		"                                1.3,12 is the default of Heath; with a slope, an unset pc-end is 0.85).\n"
-		"  -pc-dev <d0,k,fmin>           probcut: narrower off the principal variation.\n"
+		"  -pc-slope <on|off|a[,limit[,min]]> probcut: slope of the searches to the end against their probes\n"
+		"                                (off: 1, the default; on: 1.3,12, the search of Heath; with a slope, an\n"
+		"                                unset pc-end is 0.85).\n"
+		"  -pc-dev <on|off|d0,k,fmin>    probcut: narrower off the principal variation (off, the default;\n"
+		"                                on: 2,0.04,0.75, the search of Heath).\n"
 		"  -pc-dev-root <on/off>         probcut: the later moves of the root are off the principal variation (on).\n"
-		"  -pc-mob <a,b,c[,...]>         probcut: factor of the mobility, one set or three (by empties).\n"
+		"  -pc-mob <on|off|a,b,c[,...]>  probcut: factor of the mobility, one set or three by empties (off, the\n"
+		"                                default; on: 2.219,-0.184,-0.350,0,0,0,0,0,0, the search of Heath).\n"
 		"  -pc-gate <on/off>             probcut: shallow searches chosen by the evaluation (on).\n"
-		"  -corr <on/off>                probcut: correction history of the evaluation (off).\n"
-		"  -corr-end <on/off>            correction history: learn from the searches to the end (on).\n"
 		"  -lmr <0|1|2>                  late move reductions (0: off).\n"
 		"  -lazy <n|auto>                helper threads at the root (0: off, default); auto: 1 in the\n"
 		"                                midgame with 4 threads or more.\n"
@@ -317,6 +309,8 @@ static void option_pc_slope(const char *option, const char *value)
 {
 	double a = 1.0;
 	int limit = 12, low = 0, used = 0;
+	if (value && strcmp(value, "on") == 0) value = "1.3,12"; // (the search of Heath)
+	if (value && strcmp(value, "off") == 0) value = "1";
 	bool ok = value && sscanf(value, "%lf%n", &a, &used) == 1;
 	const char *p = ok ? value + used : "";
 	if (ok && *p == ',') {
@@ -448,22 +442,9 @@ int options_read(const char *option, const char *value)
 		else if (strcmp(option, "probcut-model") == 0) option_choice(option, value, "standard", "refit", &options.probcut_model);
 
 		// search-b (2026-11-22)
-		else if (strcmp(option, "time-ext") == 0) options.time_ext = option_int(option, value, options.time_ext);
 		else if (strcmp(option, "time-ext-max") == 0) parse_real(value, &options.time_ext_max);
 		else if (strcmp(option, "time-ext-h") == 0) parse_real(value, &options.time_ext_h);
-		else if (strcmp(option, "time-ext-hard") == 0) options.time_ext_hard = option_int(option, value, options.time_ext_hard);
-		else if (strcmp(option, "time-model") == 0) options.time_model = option_int(option, value, options.time_model);
 		else if (strcmp(option, "time-stop-master") == 0) option_boolean(option, value, &options.time_stop_master);
-		else if (strcmp(option, "time-sep") == 0) options.time_sep = option_int(option, value, options.time_sep);
-		else if (strcmp(option, "time-sep-depth") == 0) options.time_sep_depth = option_int(option, value, options.time_sep_depth);
-		else if (strcmp(option, "time-close") == 0) options.time_close = option_int(option, value, options.time_close);
-		else if (strcmp(option, "time-close-empties") == 0) options.time_close_empties = option_int(option, value, options.time_close_empties);
-		else if (strcmp(option, "sort-eval-shift") == 0) {
-			int s[3];
-			if (value && sscanf(value, "%d,%d,%d", s, s + 1, s + 2) == 3) for (int i = 0; i < 3; ++i) options.sort_eval_shift[i] = s[i];
-			else warn("option %s needs three numbers a,b,c\n", option);
-		}
-		else if (strcmp(option, "sort-min-depth") == 0) options.sort_min_depth = option_int(option, value, options.sort_min_depth);
 		else if (strcmp(option, "split-probe") == 0) option_boolean(option, value, &options.split_probe);
 		else if (strcmp(option, "pc-r") == 0) parse_real(value, &options.pc_r);
 		else if (strcmp(option, "pc-end") == 0) option_pc_end(option, value, options.pc_end);
@@ -471,6 +452,8 @@ int options_read(const char *option, const char *value)
 		else if (strcmp(option, "pc-gate") == 0) option_boolean(option, value, &options.pc_gate);
 		else if (strcmp(option, "pc-dev") == 0) {
 			int d0; double k, fmin;
+			if (value && strcmp(value, "on") == 0) value = "2,0.04,0.75"; // (the search of Heath)
+			if (value && strcmp(value, "off") == 0) value = "0,0,1";
 			if (value && sscanf(value, "%d,%lf,%lf", &d0, &k, &fmin) == 3) { options.pc_dev_d0 = d0; options.pc_dev_k = k; options.pc_dev_fmin = fmin; }
 			else warn("option %s needs d0,k,fmin\n", option);
 		}
@@ -478,12 +461,12 @@ int options_read(const char *option, const char *value)
 		else if (strcmp(option, "pc-mob") == 0) {
 			double m[9];
 			char end;
+			if (value && strcmp(value, "on") == 0) value = "2.219,-0.184,-0.350,0,0,0,0,0,0"; // (the search of Heath)
+			if (value && strcmp(value, "off") == 0) value = "0,0,0";
 			const int n = value ? sscanf(value, "%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf%c", m, m + 1, m + 2, m + 3, m + 4, m + 5, m + 6, m + 7, m + 8, &end) : 0;
 			if (n == 3 || n == 9) for (int i = 0; i < 9; ++i) options.pc_mob[i / 3][i % 3] = m[n == 3 ? i % 3 : i];
 			else warn("option %s needs a,b,c or three times a,b,c\n", option);
 		}
-		else if (strcmp(option, "corr") == 0) option_boolean(option, value, &options.corr);
-		else if (strcmp(option, "corr-end") == 0) option_boolean(option, value, &options.corr_end);
 		else if (strcmp(option, "lmr") == 0) options.lmr = option_int(option, value, options.lmr);
 		else if (strcmp(option, "lazy") == 0) options.lazy = option_int_or_auto(option, value, options.lazy, LAZY_AUTO);
 		else if (strcmp(option, "lazy-min") == 0) options.lazy_min = option_int(option, value, options.lazy_min);
@@ -741,15 +724,6 @@ void options_bound(void)
 	BOUND(options.book_leaf_recalculate_rounds, 1, 1000000, "book-leaf-recalculate-rounds");
 
 	// search-b (2026-11-22)
-	BOUND(options.time_ext, 0, 1, "time-ext");
-	BOUND(options.time_ext_hard, 0, 1, "time-ext-hard");
-	BOUND(options.time_model, 0, 1, "time-model");
-	BOUND(options.time_sep, 0, 64, "time-sep");
-	BOUND(options.time_sep_depth, 10, 60, "time-sep-depth");
-	BOUND(options.time_close, 0, 64, "time-close");
-	BOUND(options.time_close_empties, 0, 60, "time-close-empties");
-	for (int i = 0; i < 3; ++i) BOUND(options.sort_eval_shift[i], -4, 30, "sort-eval-shift");
-	BOUND(options.sort_min_depth, 0, 60, "sort-min-depth");
 	BOUND(options.lmr, 0, 2, "lmr");
 	BOUND(options.lazy, LAZY_AUTO, MAX_THREADS - 1, "lazy");
 	BOUND(options.lazy_min, 8, 60, "lazy-min");

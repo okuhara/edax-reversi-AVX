@@ -113,12 +113,6 @@ typedef struct {
 	int time_ext;                         /**< game time: 1 = the time of each move from the clock, may stretch up to time_ext_max x, decides before a new iteration */
 	double time_ext_max;                  /**< longest stretch of the time of a move (x its time) */
 	double time_ext_h;                    /**< part of the estimated next iteration that must fit to start it */
-	int time_ext_hard;                    /**< 1 = the time of a move grows with an unstable best move or a falling score */
-	int time_sep;                         /**< time_ext: play at once when every other move is proved this many discs worse (0: off) */
-	int time_sep_depth;                   /**< time_ext: lowest depth of the iterations followed by the extra searches of time_sep and time_close */
-	int time_close;                       /**< time_ext: more time when another move is within this many discs (0: off) */
-	int time_close_empties;               /**< time_close: fewest empties */
-	int time_model;                       /**< with a game time: 0 = the time of Edax; 1 = the time of each move from the clock (implied by time_ext) */
 	bool time_stop_master;                /**< a split search compares the time with the times of the master, not with its own copy (the default; false: as up to nikque.32) */
 	int sort_eval_shift[3];               /**< move sorting: right shift of the eval weight for sort depths 0, 1-2, 3+ (default 2,1,0) */
 	int sort_min_depth;                   /**< move sorting: lowest depth of the sorting with an evaluation (0 = the table) */
@@ -134,8 +128,6 @@ typedef struct {
 	bool pc_dev_root;                     /**< probcut: count the moves of the root after the first one as off the PV */
 	double pc_mob[3][3];                  /**< probcut: factor a + b log(own moves) + c log(opponent moves) for up to 34, 46 and 60 empties, off with 0,0,0 */
 	bool pc_gate;                         /**< probcut: the evaluation decides whether a shallow search is tried (false: always tried, to count) */
-	bool corr;                            /**< correction history of the evaluation of the probcut gate */
-	bool corr_end;                        /**< correction history: learn from the searches to the end too */
 	int lmr;                              /**< late move reductions: 0 off, 1 outside probcut searches, 2 everywhere */
 	int lazy;                             /**< helper tasks searching the root deeper (filling the hash table): 0 off, LAZY_AUTO auto */
 	int lazy_min;                         /**< lazy helpers: lowest depth of an iteration with helpers */

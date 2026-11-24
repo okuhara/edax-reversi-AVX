@@ -61,7 +61,6 @@ extern struct Level {
 } LEVEL[61][61];
 
 
-#define CORR_BITS 16 /* size of the correction history (search-b) */
 
 /** search stare */
 typedef struct Search {
@@ -108,15 +107,8 @@ typedef struct Search {
 		long long  base;                          /**< time of the move (time_ext: per-move time) */
 		long long  start;                         /**< time when the thinking on this move began (time_ext) */
 		long long  target;                        /**< no new iteration that does not fit in it (time_ext; 0: not set) */
-		long long  bonus;                         /**< more time, for a close second move (time_close) */
 		long long  last_iter, prev_iter;          /**< times of the last two iterations (time_ext) */
 		long long  iter_start;                    /**< time when the current iteration began (time_ext) */
-		double     instability;                   /**< changes of the best move, decaying (time_ext) */
-		double     grow;                          /**< factor of the time of the move (time_ext_hard) */
-		int        last_move, last_score;         /**< best move and score after the last iteration (time_ext) */
-		int        stable;                        /**< iterations in a row that kept the best move (time_sep) */
-		bool       close_done;                    /**< the search of time_close was done for this move */
-		bool       settled;                       /**< play now (time_sep) */
 	} time;                                       /**< time */
 	MoveList movelist;                            /**< list of moves */
 	int height;                                   /**< search height from root */
@@ -146,7 +138,6 @@ typedef struct Search {
 	const volatile bool *stop_pending;            /**< set: search_run() takes the least time (a stop that came before it began), or NULL */
 
 	/* search-b: after the fields of v4.5.5-nikque.32 */
-	short *corr;                                  /**< correction history of the probcut gate (search-b, the table of the master: shared by its threads) */
 	unsigned char pv_dev[GAME_SIZE];              /**< moves off the principal variation from the root (search-b, probcut) */
 	struct Task *lazy[MAX_THREADS];               /**< lazy helpers at the root (search-b) */
 	int n_lazy;                                   /**< number of lazy helpers */
@@ -182,10 +173,9 @@ void search_alloc_thread_hash(Search*);
 void search_set_game_time(Search*, const long long);
 void search_set_move_time(Search*, const long long);
 void search_set_move_time_limit(Search*, const long long, const long long);
-void search_iteration_done(Search*, const int, const int);
+void search_iteration_done(Search*);
 void search_iteration_timed(Search*);
 bool search_time_ext_on(const Search*);
-void search_time_ext_bonus(Search*);
 void search_time_init(Search*);
 void search_time_reset(Search*, const Board*);
 void search_adjust_time(Search*, const bool);
@@ -254,7 +244,7 @@ int search_count_tasks(const Search *);
 
 bool is_depth_solving(const int, const int);
 int solvable_depth(const long long, int);
-void search_share_clock(const long long, const long long, const int, const int, long long*, long long*);
+void search_edax_clock(const long long, const int, const int, long long*, long long*);
 void search_update_speed(Search*);
 void pv_debug(Search*, const Move*, FILE*);
 int search_get_pv_cost(Search*);
