@@ -377,14 +377,22 @@ static int search_solve_4_cached(Search *search, int alpha)
 
 #if ENDGAME_LONE_FIRST
 /** the empties that are alone in their quadrant */
-static inline unsigned long long lone_empties(const unsigned long long E)
+static inline unsigned long long lone_empties(vBoard b)
 {
-	unsigned long long lone = 0, e;
-	e = E & 0x000000000F0F0F0FULL; if (e && !(e & (e - 1))) lone |= e;
-	e = E & 0x00000000F0F0F0F0ULL; if (e && !(e & (e - 1))) lone |= e;
-	e = E & 0x0F0F0F0F00000000ULL; if (e && !(e & (e - 1))) lone |= e;
-	e = E & 0xF0F0F0F000000000ULL; if (e && !(e & (e - 1))) lone |= e;
+  #ifdef __AVX2__
+	__m256i e = _mm256_andnot_si256(_mm256_broadcastq_epi64(_mm_or_si128(b.v2, _mm_shuffle_epi32(b.v2, 0x4e))),
+		_mm256_set_epi64x(0xF0F0F0F000000000, 0x0F0F0F0F00000000, 0x00000000F0F0F0F0, 0x000000000F0F0F0F));
+	__m256i lone_v4 = _mm256_and_si256(_mm256_cmpeq_epi64(_mm256_and_si256(e, _mm256_sub_epi64(_mm256_setzero_si256(), e)), e), e);	// LS1B(e) == e ? e : 0
+	__m128i lone_v2 = _mm_or_si128(_mm256_castsi256_si128(lone_v4), _mm256_extracti128_si256(lone_v4, 1));
+	return _mm_cvtsi128_si64(_mm_or_si128(lone_v2, _mm_shuffle_epi32(lone_v2, 0x4e)));
+  #else
+	unsigned long long lone = 0, E = ~(b.bb.player | b.bb.opponent), e;
+	e = E & 0x000000000F0F0F0FULL; if (!(e & (e - 1))) lone  = e;
+	e = E & 0x00000000F0F0F0F0ULL; if (!(e & (e - 1))) lone |= e;
+	e = E & 0x0F0F0F0F00000000ULL; if (!(e & (e - 1))) lone |= e;
+	e = E & 0xF0F0F0F000000000ULL; if (!(e & (e - 1))) lone |= e;
 	return lone;
+  #endif
 }
 /** the next class of moves: the odd moves left, else all the moves left */
 #define NEXT_MOVE_CLASS(moves, oddmoves) (((moves) & (oddmoves)) ? ((moves) & (oddmoves)) : (moves))
@@ -436,7 +444,7 @@ static int NWS_SHALLOW_ENDGAME_BODY(Search *search, const int alpha, bool pass1)
 #if ENDGAME_LONE_FIRST
 	// a quadrant's only empty first, then the other odd quadrants, then the even ones (idea from KUROOBI (MIT))
 	oddmoves = moves & quadrant_mask[parity0];
-	prioritymoves = oddmoves & lone_empties(~(board0.bb.player | board0.bb.opponent));
+	prioritymoves = oddmoves & lone_empties(board0);
 	if (prioritymoves == 0) prioritymoves = oddmoves;
 #else
 	prioritymoves = moves & quadrant_mask[parity0];
