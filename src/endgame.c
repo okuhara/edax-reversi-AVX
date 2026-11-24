@@ -379,12 +379,10 @@ static int search_solve_4_cached(Search *search, int alpha)
 /** the empties that are alone in their quadrant */
 static inline unsigned long long lone_empties(vBoard b)
 {
-  #ifdef __AVX2__
-	__m256i e = _mm256_andnot_si256(_mm256_broadcastq_epi64(_mm_or_si128(b.v2, _mm_shuffle_epi32(b.v2, 0x4e))),
-		_mm256_set_epi64x(0xF0F0F0F000000000, 0x0F0F0F0F00000000, 0x00000000F0F0F0F0, 0x000000000F0F0F0F));
-	__m256i lone_v4 = _mm256_and_si256(_mm256_cmpeq_epi64(_mm256_and_si256(e, _mm256_sub_epi64(_mm256_setzero_si256(), e)), e), e);	// LS1B(e) == e ? e : 0
-	__m128i lone_v2 = _mm_or_si128(_mm256_castsi256_si128(lone_v4), _mm256_extracti128_si256(lone_v4, 1));
-	return _mm_cvtsi128_si64(_mm_or_si128(lone_v2, _mm_shuffle_epi32(lone_v2, 0x4e)));
+  #ifdef hasSSE2
+	__m128i e = _mm_andnot_si128(_mm_or_si128(b.v2, _mm_shuffle_epi32(b.v2, 0x4e)), _mm_set_epi64x(0xF0F0F0F0F0F0F0F0, 0x0F0F0F0F0F0F0F0F));
+	__m128i lone = _mm_and_si128(_mm_cmpeq_epi32(_mm_and_si128(e, _mm_sub_epi32(_mm_setzero_si128(), e)), e), e);	// LS1B(e) == e ? e : 0
+	return _mm_cvtsi128_si64(_mm_or_si128(lone, _mm_shuffle_epi32(lone, 0x4e)));
   #else
 	unsigned long long lone = 0, E = ~(b.bb.player | b.bb.opponent), e;
 	e = E & 0x000000000F0F0F0FULL; if (!(e & (e - 1))) lone  = e;
