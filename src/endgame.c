@@ -383,6 +383,11 @@ static inline unsigned long long lone_empties(vBoard b)
 	__m128i e = _mm_andnot_si128(_mm_or_si128(b.v2, _mm_shuffle_epi32(b.v2, 0x4e)), _mm_set_epi64x(0xF0F0F0F0F0F0F0F0, 0x0F0F0F0F0F0F0F0F));
 	__m128i lone = _mm_and_si128(_mm_cmpeq_epi32(_mm_and_si128(e, _mm_sub_epi32(_mm_setzero_si128(), e)), e), e);	// LS1B(e) == e ? e : 0
 	return _mm_cvtsi128_si64(_mm_or_si128(lone, _mm_shuffle_epi32(lone, 0x4e)));
+  #elif defined(__ARM_NEON)
+	const uint64x2_t kZone  = { 0x0F0F0F0F0F0F0F0F, 0xF0F0F0F0F0F0F0F0 };
+	uint32x4_t e = vreinterpretq_u32_u64(vbicq_u64(kZone, vorrq_u64(b.v2, vextq_u64(b.v2, b.v2, 1))));
+	uint32x4_t lone = vandq_u32(vceqq_u32(vandq_u32(e, vreinterpretq_u32_s32(vnegq_s32(vreinterpretq_s32_u32(e)))), e), e);	// LS1B(e) == e ? e : 0
+	return vgetq_lane_u64(vreinterpretq_u64_u32(lone), 0) | vgetq_lane_u64(vreinterpretq_u64_u32(lone), 1);
   #else
 	unsigned long long lone = 0, E = ~(b.bb.player | b.bb.opponent), e;
 	e = E & 0x000000000F0F0F0FULL; if (!(e & (e - 1))) lone  = e;
@@ -398,10 +403,10 @@ static inline unsigned long long lone_empties(vBoard b)
 #define NEXT_MOVE_CLASS(moves, oddmoves) (moves)
 #endif
 #if ENDGAME_HASH56
-static int nws_shallow_endgame(Search *search, const int alpha, bool pass1);
-#define NWS_SHALLOW_ENDGAME_BODY NWS_SHALLOW_ENDGAME_body
+static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1);
+#define NWS_SHALLOW_ENDGAME_BODY NWS_shallow_endgame_body
 #else
-#define NWS_SHALLOW_ENDGAME_BODY nws_shallow_endgame
+#define NWS_SHALLOW_ENDGAME_BODY NWS_shallow_endgame
 #endif
 static int NWS_SHALLOW_ENDGAME_BODY(Search *search, const int alpha, bool pass1)
 {
@@ -531,7 +536,7 @@ static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1)
 		if (alpha < hash_entry->data.lower) return hash_entry->data.lower;
 		if (alpha >= hash_entry->data.upper) return hash_entry->data.upper;
 	}
-	score = NWS_SHALLOW_ENDGAME_body(search, alpha, pass1);
+	score = NWS_shallow_endgame_body(search, alpha, pass1);
 	vhash_store_local(hash_entry, hashboard, alpha, alpha + 1, score, NOMOVE);
 	return score;
 }
