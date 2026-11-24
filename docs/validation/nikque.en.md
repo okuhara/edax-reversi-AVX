@@ -4,6 +4,23 @@ Tests and measurements done for each version, moved without changes from the for
 
 For what changed, see the [release notes](../../RELEASE-NOTES.md). "Above" and "below" in the text refer to positions in the former document.
 
+## v4.5.5-nikque.33
+
+- This version and the version before (v4.5.5-nikque.33-pre1 with lazy auto and `pc-slope`) were compared with one thread.
+  - The default of this version and the version before with `-sort-eval-shift 1,0,0 -sort-min-depth 7` had the same scores, nodes and principal variations, position by position: 12,358,367 nodes for 20 positions of the midgame (level 16), 2,665,719,776 for 25 positions of 26 empties (level 21).
+  - `-pc-slope on -pc-dev on -pc-mob on` and the version before with the options of the order of the moves and the three numbers were the same, position by position (11,847,494 and 1,958,837,980 nodes).
+  - The three set to `off` were the same as the default.
+  - From the default of the version before to the default of this version, the nodes went from 13,125,795 to 12,358,367 (midgame) and from 2,658,607,320 to 2,665,719,776 (26 empties). The score differed in 1 position (midgame), the best move in none.
+- `pc-slope`, `pc-dev` and `pc-mob` set to `on` in `config.ini` gave the same search as `on` on the command line (20 positions of the midgame).
+
+- The Windows programs of the distribution solved fforum-20-39 with no wrong move or score. They searched 93,534,529 positions, the same for the three x64 programs (local PGO builds) and the two x86 programs of the CI.
+- The libedax test (290 checks) of the three DLLs of the CI passed with no failure.
+- The 7 jobs of the GitHub CI (release binaries) passed.
+
+Not checked: the effect of the three settings and the strength in this version, the strength in games, 32 threads, a large real book, an Android device, the Linux and macOS versions, the use from a GUI.
+
+---
+
 ## v4.5.5-nikque.33-pre1
 
 - The tests of regressions (51/51), libedax (290 checks), book analysis (11/11), resuming, and book and base (557 checks) passed with no failure.

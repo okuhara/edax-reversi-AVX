@@ -14,6 +14,7 @@ Each eval2 and Heath (formerly newedax) version contains all changes of the nikq
 
 | nikque | eval2 | Heath (newedax) |
 |---|---|---|
+| nikque.33 | eval2.20 | heath.20 |
 | nikque.33-pre1 | eval2.20-pre1 | heath.20-pre1 |
 | nikque.32 | — | heath.19 |
 | nikque.31 | eval2.19 | heath.18 |
@@ -40,6 +41,45 @@ Each eval2 and Heath (formerly newedax) version contains all changes of the nikq
 ---
 
 # nikque line
+
+## v4.5.5-nikque.33
+
+The release of v4.5.5-nikque.33-pre1 with the better search of Heath. The time of a move and the order of the moves change. The three changes of the probcut are off by default and can be turned on in `config.ini`.
+
+**Changes**
+
+- All the changes of v4.5.5-nikque.33-pre1.
+- Two changes have no setting and are always on. They change the time and the order of the moves only.
+  - Time of a move in a game: the time of Edax a move. Only after a fail low, it may stretch up to 2 times.
+  - Order of the moves: sorted with the evaluation from the depth 7; the weight shifts of the evaluation are 1,0,0.
+- Three new settings. Their default is `off`. `on` is the value of Heath; the numbers can be given too.
+
+| Setting | What it does | Value of `on` |
+|---|---|---|
+| `pc-slope` | Probcut of the searches to the end: a shallow score is read wider by the slope, and the margin is 0.85 times | `1.3,12` |
+| `pc-dev` | A narrower probcut off the principal variation | `2,0.04,0.75` |
+| `pc-mob` | The margin of the probcut depends on the mobility | `2.219,-0.184,-0.350,0,0,0,0,0,0` |
+
+- `lazy` takes `auto`: one helper thread searches the root position deeper in a midgame search of 4 threads or more. The default is `0`.
+- The test options are deleted: `-corr`, `-corr-end`, `-time-model`, `-time-ext-hard`, `-time-sep`, `-time-sep-depth`, `-time-close` and `-time-close-empties`.
+- As the two changes are fixed, their options are deleted: `-time-ext`, `-sort-eval-shift` and `-sort-min-depth`.
+
+**Compatibility**
+
+- With the default settings too, the nodes change, as the order of the moves changes. The scores and the moves are nearly the same, but a score may change now and then in a search with probcut. A book learned with it may then have another score now and then.
+- In a game with a time, the depth reached changes.
+- With `pc-slope`, `pc-dev` or `pc-mob` on, the scores and the moves change, and so does a book learned with them.
+- The `eval.dat` and the book file format are the same as in the version before.
+
+**Notes**
+
+- With a deleted option on the command line, the program shows its usage and ends. Fix the scripts that pass one.
+
+**Not checked**: the values of the three settings come from the games of Heath; their effect and the strength in this version are not measured.
+
+[Tests and measurements](docs/validation/nikque.en.md#v455-nikque33)
+
+---
 
 ## v4.5.5-nikque.33-pre1
 
