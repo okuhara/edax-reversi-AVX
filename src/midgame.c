@@ -76,8 +76,7 @@ static int accumlate_eval(int ply, Eval *eval)
 	DD = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), 0x3fff, FF, (const int *) w, 4);
 	SS = _mm512_add_epi32(SS, _mm512_srai_epi32(_mm512_sll_epi32(DD, SW), 16));
 	sum = _mm512_reduce_add_epi32(SS);
-	w = (Eval_weight *)(w->S0 + b0);
-	return sum + *(w->S0);
+	return sum + w->S0[b0];
 
   #else
 	__m256i FF = _mm256_add_epi32(_mm256_cvtepu16_epi32(eval->feature.v8[0]),
