@@ -11,19 +11,19 @@ A maintained fork of [Edax 4.5.5 (okuhara/edax-reversi-AVX)](https://github.com/
 
 | System | Executable in `bin/` |
 |---|---|
-| Windows x64 | `wEdax-x86-64.exe` (any CPU), `-v3` (AVX2), `-v4` (AVX-512) |
+| Windows x64 | `wEdax-x86-64.exe` (any CPU), `-v3` (x86-64-v3), `-v4` (x86-64-v4) |
 | Windows x86 / ARM64 | `wEdax-x86.exe`, `wEdax-x86-sse.exe` / `wEdax-arm64.exe` |
-| Linux x64 / x86 | `lEdax-x86-64` (any CPU), `-v3`, `-v4` / `lEdax-x86` |
+| Linux x64 / x86 | `lEdax-x86-64` (any CPU), `-v3` (x86-64-v3), `-v4` (x86-64-v4) / `lEdax-x86` |
 | macOS | `mEdax-arm64` (Apple silicon), `mEdax-x64-modern` (Intel) |
 | Android | `aEdax-arm64-v8a`, `aEdax-armeabi-v7a` |
 
-If you are not sure which CPU features you have, use the version without `-v3`/`-v4`. The ZIP also contains the libedax libraries (`.dll`, `.so`, `.dylib`) for GUIs and tools such as [nikque GUI](https://github.com/Nikque/nikque-gui) and [edax_runner](https://github.com/Nikque/edax_runner).
+`-v3` needs a CPU of the x86-64-v3 level (AVX2, BMI1, BMI2, FMA, LZCNT, MOVBE: Intel Haswell or AMD Zen and later), `-v4` one of the x86-64-v4 level (AVX-512 F, BW, CD, DQ and VL as well: Intel Skylake-SP or Ice Lake, AMD Zen 4 and later). If you are not sure which CPU features you have, use the version without `-v3`/`-v4`. The ZIP also contains the libedax libraries (`.dll`, `.so`, `.dylib`) for GUIs and tools such as [nikque GUI](https://github.com/Nikque/nikque-gui) and [edax_runner](https://github.com/Nikque/edax_runner).
 
 Getting started: [Manual, chapter 2](manual/en/02-quick-start.md).
 
 ## Versions
 
-There are three lines. They share the same commands, settings and book format.
+There are three lines. The nikque and eval2 lines share the same commands, settings and book format. Heath shares most of them; the differences follow the table.
 
 | Line | What it is | Where |
 |---|---|---|
@@ -32,6 +32,14 @@ There are three lines. They share the same commands, settings and book format.
 | **Heath** (formerly newedax) | The eval2 line ported to C++23; a new 64-slot evaluation since v4.5.5-newedax.13 | [Nikque/Heath](https://github.com/Nikque/Heath) |
 
 Each eval2 and Heath release includes all changes of the nikque release it names (for example, eval2.10 = nikque.22 + eval2).
+
+What differs in Heath:
+
+- Settings only in Heath: `book-format` (the form of the saved books: `1`, `2` or `auto`) and `keep-hash`.
+- Settings only in the C lines: `probcut-model`, `pc-slope`, `pc-dev` and `pc-mob`. Heath has the probcut model `refit` and the values of `pc-slope 1.3,12`, `pc-dev 2,0.04,0.75` and `pc-mob 2.219,-0.184,-0.350` built in (since v4.5.5-heath.20).
+- The default of `lazy`: `0` in the C lines, `auto` in Heath.
+- Book files: Heath reads and writes form 1 (the books of the C lines) and form 2 (`NEDXBOOK`); the C lines read and write form 1 only.
+- `eval.dat`: each line has its own. Heath needs an `eval.dat` of Heath (the one of its release ZIP): it reads that of the C lines with a warning, and its evaluation is then wrong.
 
 ## Main changes from upstream
 
@@ -72,13 +80,13 @@ This fork was developed with ChatGPT-6 Astra / Sol and Claude Opus 5.5.
 1. [最新の Release](https://github.com/Nikque/edax-reversi-AVX/releases/latest) の ZIP をダウンロードして展開します。
 2. `bin` フォルダーを開き、**そのフォルダーの中から**実行ファイルを起動します（Edax は今いるフォルダーの `data/eval.dat` を読みます）。
 
-Windows なら、まず `wEdax-x86-64.exe` を使ってください。AVX2 対応の CPU なら `-v3`、AVX-512 対応なら `-v4` が速くなります。ほかの OS の実行ファイルは上の英語の表のとおりです。
+Windows なら、まず `wEdax-x86-64.exe` を使ってください。CPU が対応していれば `-v3`・`-v4` が速くなります。`-v3` は x86-64-v3 の水準の CPU（AVX2・BMI1・BMI2・FMA・LZCNT・MOVBE。Intel は Haswell、AMD は Zen 以降）、`-v4` は x86-64-v4 の水準の CPU（さらに AVX-512 の F・BW・CD・DQ・VL。Intel は Skylake-SP・Ice Lake、AMD は Zen 4 以降）が要ります。ほかの OS の実行ファイルは上の英語の表のとおりです。
 
 詳しくは [マニュアル 2 章「起動と最初の対局」](manual/ja/02-quick-start.md) を見てください。
 
 ### 3 つの系列
 
-コマンド・設定・book の形式は 3 つとも同じです。
+nikque と eval2 は、コマンド・設定・book の形式が同じです。Heath もほとんど同じですが、違いを表の後に書きます。
 
 | 系列 | 内容 | 置き場所 |
 |---|---|---|
@@ -87,6 +95,14 @@ Windows なら、まず `wEdax-x86-64.exe` を使ってください。AVX2 対�
 | **Heath**（旧名 newedax） | eval2 を C++23 に移したもの。v4.5.5-newedax.13 から 64 枠の新しい評価関数 | [Nikque/Heath](https://github.com/Nikque/Heath) |
 
 eval2・Heath の各版は、対応する nikque の版の変更をすべて含みます（例：eval2.10 = nikque.22 + eval2）。
+
+Heath で違うこと：
+
+- Heath だけにある設定：`book-format`（保存する book の形式。`1`・`2`・`auto`）と `keep-hash`。
+- C 版の系列だけにある設定：`probcut-model`・`pc-slope`・`pc-dev`・`pc-mob`。Heath は v4.5.5-heath.20 から、probcut の型 `refit` と、`pc-slope 1.3,12`・`pc-dev 2,0.04,0.75`・`pc-mob 2.219,-0.184,-0.350` の値を作り付けで使います。
+- `lazy` の既定：C 版の系列は `0`、Heath は `auto`。
+- book のファイル：Heath は形式 1（C 版の系列の book）と形式 2（`NEDXBOOK`）を読み書きします。C 版の系列は形式 1 だけです。
+- `eval.dat`：系列ごとに別のものです。Heath には Heath の `eval.dat`（その Release の ZIP のもの）が要ります。C 版の系列の `eval.dat` は警告を出して読みますが、評価が正しくなりません。
 
 ### 元の Edax からの主な変更
 

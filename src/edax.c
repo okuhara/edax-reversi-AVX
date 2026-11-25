@@ -115,6 +115,8 @@
 
 static Log edax_log[1];
 extern bool book_verbose;
+bool event_is_secret(const char *line);
+bool ui_book_save_at_end(UI *ui, const bool to_book_file);
 
 void version(void);
 void bench(void);
@@ -162,7 +164,7 @@ void ui_init_edax(UI *ui)
 void ui_free_edax(UI *ui)
 {
 	book_analysis_end();
-	if (ui->book.need_saving) book_save_to_book_file(&ui->book); // (a book file replaced by "book new" is kept under another name)
+	ui_book_save_at_end(ui, true); // (a book file replaced by "book new" is kept under another name)
 	book_free(&ui->book);
 	play_free(ui->play);
 	log_close(edax_log);
@@ -436,6 +438,7 @@ void ui_loop_edax(UI *ui)
 	char game_line[2 * PLAY_GAME_SIZE + 1]; // (moves of the game, for book bestlines)
 	unsigned long long histogram[129][65];
 	int repeat = options.repeat;
+	bool input_ended = false;
 
 	histogram_init(histogram);
 
@@ -480,9 +483,14 @@ void ui_loop_edax(UI *ui)
 				}
 			}
 
+			if (input_ended && !ui_event_exist(ui)) { // the input ended: no command will come
+				free(cmd); free(param);
+				return;
+			}
+
 			ui_output_lock(); putchar('>'); fflush(stdout); ui_output_unlock(true);
 			ui_event_wait(ui, &cmd, &param);
-			log_print(edax_log, "cmd=\"%s\" ; param=\"%s\"\n", cmd, param);
+			log_print(edax_log, "cmd=\"%s\" ; param=\"%s\"\n", cmd, event_is_secret(cmd) ? "(password)" : param);
 			ui_output_lock(); putchar('\n'); ui_output_unlock(false);
 
 			if (cmd == NULL) {
@@ -528,6 +536,10 @@ void ui_loop_edax(UI *ui)
 			} else if (!options.auto_quit && (strcmp(cmd, "eof") == 0 && (ui->mode != 2 || play_is_game_over(play)))){
 				free(cmd); free(param);
 				return;
+
+			// end of the input while Edax plays both sides (or auto-quit): the game goes on, then Edax quits
+			} else if (strcmp(cmd, "eof") == 0) {
+				input_ended = true;
 
 			// undo last move
 			} else if (strcmp(cmd, "u") == 0 || strcmp(cmd, "undo") == 0) {
@@ -832,7 +844,11 @@ void ui_loop_edax(UI *ui)
 				// load an opening book (binary format) from the disc
 				} else if (strcmp(book_cmd, "load") == 0 || strcmp(book_cmd, "open") == 0) {
 					parse_word(book_param, book_file, FILENAME_MAX);
-					play_book_load(play, book_file); // (the current book is kept when the file cannot be loaded)
+					// (the current book is kept when the file cannot be loaded). The result is always written, also
+					// with -q: a user interface waits for this line
+					const bool loaded = play_book_load(play, book_file);
+					printf("@load ok=%d file=%s\n", loaded ? 1 : 0, book_file);
+					fflush(stdout);
 
 				// save an opening book (binary format) to the disc
 				} else if (strcmp(book_cmd, "save") == 0) {
@@ -1227,9 +1243,12 @@ void ui_loop_edax(UI *ui)
 				return;
 
 			} else if (strcmp(cmd, "engine-protocol") == 0 && strcmp(param, "init") == 0) {
+				// the input thread stopped reading after this line (see ui_read_input): the Cassio engine reads the
+				// standard input from now on
 				free(cmd); free(param);
 				play_stop_pondering(play);
 				ui->free(ui);
+				ui->free = NULL; // (freed here: not again when the user interface ends)
 				ui_switch(ui, "cassio");
 				engine_loop();
 				return;

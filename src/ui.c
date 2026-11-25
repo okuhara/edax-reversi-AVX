@@ -20,6 +20,60 @@
 #endif
 
 void gtp_preprocess(char *line);
+bool event_is_secret(const char *line);
+
+/**
+ * @brief Check if a line switches the Edax protocol to Cassio ("engine-protocol init", read as ui_loop_edax reads it).
+ * @param line Line read.
+ * @return true if the Cassio engine reads the standard input after this line.
+ */
+static bool ui_is_cassio_switch(const char *line)
+{
+	const size_t n = strlen(line) + 1;
+	char *cmd = (char*) malloc(n), *param = (char*) malloc(n);
+	bool ok = false;
+
+	if (cmd && param) {
+		parse_command(line, cmd, param, (unsigned int) n);
+		ok = (strcmp(cmd, "engine-protocol") == 0 && strcmp(param, "init") == 0);
+	} else {
+		fatal_error("cannot allocate a command of %d characters\n", (int) n);
+	}
+	free(cmd);
+	free(param);
+	return ok;
+}
+
+/** a save of the book when a user interface ended failed: the process ends with the exit code 1 */
+static bool ui_save_failed = false;
+
+/**
+ * @brief Save the book when a user interface ends, if it changed.
+ *
+ * The result is always written to the standard output, also with -q: "@save ok=<0|1> file=<book file>".
+ *
+ * @param ui User interface.
+ * @param to_book_file true: book_save_to_book_file() (a book file replaced by "book new" is kept under another
+ * name); false: book_save() to the book file of the settings.
+ * @return false if the book could not be saved.
+ */
+bool ui_book_save_at_end(UI *ui, const bool to_book_file)
+{
+	bool ok;
+
+	if (!ui->book.need_saving) return true;
+	ok = to_book_file ? book_save_to_book_file(&ui->book) : book_save(&ui->book, options.book_file);
+	printf("@save ok=%d file=%s\n", ok ? 1 : 0, options.book_file ? options.book_file : "");
+	fflush(stdout);
+	if (!ok) ui_save_failed = true;
+	return ok;
+}
+
+/** @return true if a save of the book at the end of a user interface failed. */
+bool ui_book_save_failed(void)
+{
+	return ui_save_failed;
+}
 
 /** @return true if the standard input is a file (commands given with "edax < commands.txt"). */
 static bool stdin_is_file(void)
@@ -167,6 +221,9 @@ static void ui_read_input(UI *ui)
 		} else if (ui->type == UI_XBOARD && strcmp(cmd, "?") == 0) {
 			ui_stop_waiting(ui);
 			play_stop(play);
+		} else if (ui->type == UI_EDAX && ui_is_cassio_switch(buffer)) {
+			// the Cassio engine reads the standard input from now on (engine_loop): this thread reads no more
+			event->loop = false;
 		} else {
 			if (strcmp(cmd, "quit") == 0 || (strcmp(cmd, "q") == 0 &&
 			    (ui->type == UI_EDAX || ui->type == UI_XBOARD || ui->type == UI_GGS))) {
@@ -198,7 +255,9 @@ static void* ui_read_input_loop(void *v)
 {
 	UI *const ui = (UI*) v;
 
-	while (ui->event.loop && !feof(stdin) && !ferror(stdin)) {
+	// a last line without '\n' sets the end of the file while it is read: it is read again, and gives "eof"
+	// (ui_read_input ends the loop at the end of the input, or when the input is broken)
+	while (ui->event.loop) {
 		ui_read_input(ui);
 	}
 
@@ -229,7 +288,7 @@ void ui_event_wait(UI *ui, char **cmd, char **param)
 	}
 	unlock(event);
 	event_wait(&ui->event, cmd, param);
-	if (options.echo && *cmd) printf(" %s %s\n", *cmd, *param ? *param : "");
+	if (options.echo && *cmd) printf(" %s %s\n", *cmd, event_is_secret(*cmd) ? "(password)" : (*param ? *param : ""));
 }
 
 /**
@@ -252,6 +311,7 @@ bool ui_event_peek(UI *ui, char **cmd, char **param)
 		n = strlen(message);
 		*cmd = (char*) malloc(n + 1);
 		*param = (char*) malloc(n + 1);
+		if (*cmd == NULL || *param == NULL) fatal_error("cannot allocate a command of %d characters\n", n);
 		parse_command(message, *cmd, *param, n + 1);
 		free(message);
 		return true;
@@ -290,7 +350,10 @@ void ui_event_init(UI *ui)
 	event_init(&ui->event);
 	ui->event.reading = true;
 	
-	thread_create(&ui->event.thread, ui_read_input_loop, ui);
+	if (!thread_create(&ui->event.thread, ui_read_input_loop, ui)) { // no command could be read
+		ui->event.reading = false;
+		fatal_error("cannot create the thread that reads the input\n");
+	}
 	thread_detach(ui->event.thread);
 }
 

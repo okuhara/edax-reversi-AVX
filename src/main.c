@@ -17,6 +17,8 @@
 #include "search.h"
 #include "stats.h"
 #include "ui.h"
+
+bool ui_book_save_failed(void);
 #include "util.h"
 
 #include <locale.h>
@@ -204,6 +206,6 @@ int main(int argc, char **argv)
 	options_free();
 	if (ui_freed) mm_free(ui); // (else the input thread still uses it: it ends with the process)
 
-	return 0;
+	return ui_book_save_failed() ? 1 : 0; // (the book could not be saved at the end: "@save ok=0" was written)
 }
 

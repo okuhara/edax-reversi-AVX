@@ -31,6 +31,60 @@ enum {
 };
 
 /**
+ * @brief Hash of the moves of a game: the moves up to the first NOMOVE, from the first one.
+ *
+ * @param game Game.
+ * @return The hash.
+ */
+static unsigned long long game_moves_hash(const Game *game)
+{
+	unsigned long long hash = 0ULL;
+	int i;
+
+	for (i = 0; i < 60 && game->move[i] != NOMOVE; ++i) hash = crc32c_u8(hash, game->move[i]);
+	return hash;
+}
+
+/**
+ * @brief Read numbers written with given characters between them (a date, a time).
+ *
+ * Each number is made of 1 to 5 digits, after optional spaces. The text after the last number is not read.
+ *
+ * @param s Text.
+ * @param sep The character after each number but the last.
+ * @param n Count of numbers.
+ * @param v The numbers read.
+ * @return true if the n numbers were read.
+ */
+static bool parse_numbers(const char *s, const char *sep, const int n, int *v)
+{
+	int k, d;
+
+	for (k = 0; k < n; ++k) {
+		while (isspace((unsigned char) *s)) ++s;
+		if (!isdigit((unsigned char) *s)) return false;
+		for (v[k] = d = 0; isdigit((unsigned char) *s); ++s, ++d) {
+			if (d == 5) return false;
+			v[k] = v[k] * 10 + (*s - '0');
+		}
+		if (k + 1 < n && *s++ != sep[k]) return false;
+	}
+	return true;
+}
+
+/** @brief Tell whether a year, month and day can be the date of a game (0: unknown month or day). */
+static bool date_is_valid(const int *v)
+{
+	return v[0] <= 9999 && v[1] <= 12 && v[2] <= 31;
+}
+
+/** @brief Tell whether an hour, minute and second can be the time of a game. */
+static bool time_is_valid(const int *v)
+{
+	return v[0] <= 23 && v[1] <= 59 && v[2] <= 60;
+}
+
+/**
  * @brief Coordinates conversion from wthor to edax.
  *
  * @param x wthor coordinate.
@@ -433,7 +487,6 @@ void game_append_line(Game *game, const Line *line, const int from)
 		for (i = 0, j = from; i < line->n_moves && j < 60; ++i) {
 			if (line->move[i] != PASS) {
 				if (game_update_board(&board, line->move[i])) {
-					game->hash = crc32c_u8(game->hash, line->move[i]);
 					game->move[j++] = line->move[i];
 				} else {
 					break;
@@ -441,6 +494,7 @@ void game_append_line(Game *game, const Line *line, const int from)
 			}
 		}
 		for (; j < 60; ++j) game->move[j] = NOMOVE;
+		game->hash = game_moves_hash(game); // (the moves after 'from' are replaced: the hash of the new moves)
 	}
 }
 
@@ -504,7 +558,10 @@ static bool game_is_sound(Game *game)
  */
 bool game_read_checked(Game *game, FILE *f)
 {
-	if (fread(game, sizeof (Game), 1, f) == 1 && game_is_sound(game)) return true;
+	if (fread(game, sizeof (Game), 1, f) == 1 && game_is_sound(game)) {
+		game->hash = game_moves_hash(game); // (the hash of its moves, as for the other formats)
+		return true;
+	}
 	game_init(game);
 	return false;
 }
@@ -676,44 +733,65 @@ static int game_parse_ggf(FILE *f, char *tag, char *value)
  */
 void game_import_ggf(Game* game, FILE* f)
 {
+	game_import_ggf_checked(game, f);
+}
+
+/**
+ * @brief Read a game from the Generic Game Format (ggf) file, telling whether a game was read.
+ *
+ * A game that the end of the file cuts (no ";)") is not a game: GAME_IMPORT_INCOMPLETE.
+ *
+ * @param game The output game.
+ * @param f The file stream.
+ * @return GAME_IMPORT_READ, GAME_IMPORT_NONE (no game left) or GAME_IMPORT_INCOMPLETE.
+ */
+int game_import_ggf_checked(Game* game, FILE* f)
+{
 	char tag[4], value[1000];
-	int i = 0;
+	int i = 0, r;
 
 	game_init(game);
-	while (game_parse_ggf(f, tag, value) != PARSE_END_OF_FILE && strcmp(tag, "(;") != 0) ;
-	if (strcmp(tag, "(;") == 0) {
-		while (game_parse_ggf(f, tag, value) == PARSE_OK) {
-			if (strcmp(tag,";)")==0) {
-				if (!game_check(game)) {
-					warn("error while importing a GGF game\n");
-				}
-				return;
+	while ((r = game_parse_ggf(f, tag, value)) != PARSE_END_OF_FILE && strcmp(tag, "(;") != 0) ;
+	if (r == PARSE_END_OF_FILE) return GAME_IMPORT_NONE;
+
+	while ((r = game_parse_ggf(f, tag, value)) == PARSE_OK) {
+		if (strcmp(tag,";)")==0) {
+			if (!game_check(game)) {
+				warn("error while importing a GGF game\n");
 			}
-			if (strcmp(tag,"GM") == 0 && strcmp(value, "othello") != 0) break;
-			if (strcmp(tag, "BO") == 0) {
-				if (value[0] != '8') break;
-				game_set_initial_board(game, value + 2, board_set);
-			} else if (strcmp(tag, "PB") == 0) {
-				memcpy(game->name[BLACK], value, 31);
-				game->name[BLACK][31] = '\0';
-			} else if (strcmp(tag, "DT") == 0) {
-				int v[6]; // hack for windows that does not support %hhd in sscanf
-				sscanf(value, "%d.%d.%d_%d:%d:%d", v, v + 1, v + 2, v + 3, v + 4, v + 5);
+			game->hash = game_moves_hash(game);
+			return GAME_IMPORT_READ;
+		}
+		if (strcmp(tag,"GM") == 0 && strcmp(value, "othello") != 0) break;
+		if (strcmp(tag, "BO") == 0) {
+			if (value[0] != '8') break;
+			game_set_initial_board(game, value + 2, board_set);
+		} else if (strcmp(tag, "PB") == 0) {
+			memcpy(game->name[BLACK], value, 31);
+			game->name[BLACK][31] = '\0';
+		} else if (strcmp(tag, "DT") == 0) {
+			int v[6];
+			// the whole date and time, in range; else the game has no date
+			if (parse_numbers(value, ".._::", 6, v) && date_is_valid(v) && time_is_valid(v + 3)) {
 				game->date.year = v[0]; game->date.month = v[1]; game->date.day = v[2];
 				game->date.hour = v[3]; game->date.minute = v[4]; game->date.second = v[5];
-		} else if (strcmp(tag, "PW") == 0) {
-				memcpy(game->name[WHITE], value, 31);
-				game->name[WHITE][31] = '\0';
-			} else if (i < 60 && (strcmp(tag, "B") == 0 || strcmp(tag, "W") == 0)) {
-				if (strncmp("pa", value, 2) == 0) continue;
-				game->move[i] = string_to_coordinate(value);
-				game->hash = crc32c_u8(game->hash, game->move[i]);
-				i++;
 			}
+		} else if (strcmp(tag, "PW") == 0) {
+			memcpy(game->name[WHITE], value, 31);
+			game->name[WHITE][31] = '\0';
+		} else if (i < 60 && (strcmp(tag, "B") == 0 || strcmp(tag, "W") == 0)) {
+			if (strncmp("pa", value, 2) == 0) continue;
+			game->move[i] = string_to_coordinate(value);
+			i++;
 		}
-		while (game_parse_ggf(f, tag, value) != PARSE_END_OF_FILE && strcmp(tag,";)") != 0) ;
 	}
-	return;
+	while (r != PARSE_END_OF_FILE && strcmp(tag, ";)") != 0) r = game_parse_ggf(f, tag, value);
+	if (r == PARSE_END_OF_FILE) {
+		warn("a GGF game is cut by the end of the file\n");
+		return GAME_IMPORT_INCOMPLETE;
+	}
+	game->hash = game_moves_hash(game);
+	return GAME_IMPORT_READ;
 }
 
 /**
@@ -766,35 +844,42 @@ int parse_ggf(Game *game, const char *string)
 
 	game_init(game);
 
+	// the game is between "(;" and ";)", each tag read: else nothing of it is taken (-1)
 	while ((next = parse_tag(s, tag, value)) != s && strcmp(tag, "(;") != 0) s = next;
+	if (next == s || strcmp(tag, "(;") != 0) return -1;
 
-	if (strcmp(tag, "(;") == 0) {
+	s = next;
+	while ((next = parse_tag(s, tag, value)) != s && strcmp(tag, ";)") != 0) {
 		s = next;
-		while ((next = parse_tag(s, tag, value)) != s && strcmp(tag, ";)") != 0) {
-			s = next;
 
-			if (strcmp(tag, "GM") == 0 && strcmp(value, "othello") != 0) {
-				return -1;
-			} else if (strcmp(tag, "BO") == 0) {
-				if (value[0] != '8') {
-					return -1;
-				}
-				game_set_initial_board(game, value + 2, board_set);
-			} else if (strcmp(tag, "PB") == 0) {
-				memcpy(game->name[BLACK], value, 31);
-				game->name[BLACK][31] = '\0';
-			} else if (strcmp(tag, "PW") == 0) {
-				memcpy(game->name[WHITE], value, 31);
-				game->name[WHITE][31] = '\0';
-			} else if (i < 60 && (strcmp(tag, "B") == 0 || strcmp(tag, "W") == 0)) {
-				lastmove = string_to_coordinate(value);
-				if (lastmove != PASS)
-					game->move[i++] = lastmove;
+		if (strcmp(tag, "GM") == 0 && strcmp(value, "othello") != 0) {
+			return -1;
+		} else if (strcmp(tag, "BO") == 0) {
+			Board board;
+			const int player = (value[0] == '8') ? board_set(&board, value + 2) : EMPTY;
+
+			if ((player != BLACK && player != WHITE) || !board_is_usable(&board)) return -1;
+			game->initial_board = board;
+			game->player = player;
+		} else if (strcmp(tag, "PB") == 0) {
+			memcpy(game->name[BLACK], value, 31);
+			game->name[BLACK][31] = '\0';
+		} else if (strcmp(tag, "PW") == 0) {
+			memcpy(game->name[WHITE], value, 31);
+			game->name[WHITE][31] = '\0';
+		} else if (strcmp(tag, "B") == 0 || strcmp(tag, "W") == 0) {
+			lastmove = string_to_coordinate(value);
+			if (lastmove == NOMOVE) return -1;
+			if (lastmove != PASS) {
+				if (i == 60) return -1;
+				game->move[i++] = lastmove;
 			}
 		}
 	}
+	if (next == s || strcmp(tag, ";)") != 0) return -1;
 
 	if (!game_check(game)) return -1;
+	game->hash = game_moves_hash(game);
 
 	return lastmove;
 }
@@ -928,44 +1013,109 @@ static int game_parse_sgf(FILE *f, char *tag, char *value)
  */
 void game_import_sgf(Game *game, FILE *f)
 {
-	char tag[4], value[1000];
+	game_import_sgf_checked(game, f);
+}
+
+/**
+ * @brief Set the initial board of a sgf game, from its setup (AB, AW, PL).
+ *
+ * @param game Game.
+ * @param black Squares of the black discs.
+ * @param white Squares of the white discs.
+ * @param player Player to move.
+ */
+static void game_set_sgf_setup(Game *game, const unsigned long long black, const unsigned long long white, const int player)
+{
+	Board board;
+
+	board.player = (player == BLACK) ? black : white;
+	board.opponent = (player == BLACK) ? white : black;
+	if (board_is_usable(&board)) {
+		game->initial_board = board;
+		game->player = player;
+	} else {
+		warn("unusable initial board in a SGF game\n");
+	}
+}
+
+/**
+ * @brief Read a game from a sgf file, telling whether a game was read.
+ *
+ * The initial board is the one of AB, AW (the black and white discs) and PL (the player to move), given
+ * before the first move: game_save_sgf() writes them. A game that the end of the file cuts (no ")") is
+ * not a game: GAME_IMPORT_INCOMPLETE.
+ *
+ * @param game The output game.
+ * @param f The file stream.
+ * @return GAME_IMPORT_READ, GAME_IMPORT_NONE (no game left) or GAME_IMPORT_INCOMPLETE.
+ */
+int game_import_sgf_checked(Game *game, FILE *f)
+{
+	char tag[4], value[1000], property[4] = "";
 	int i = 0, level = 1;
+	unsigned long long black = 0, white = 0;
+	int player = -1;
+	bool setup = false;
 
 	game_parse_sgf(f, tag, value);
 	game_init(game);
-	if (strcmp(tag, "(") == 0) {
-		while (game_parse_sgf(f, tag, value)) {
-			if (strcmp(tag,"(") == 0) level++;
-			if (strcmp(tag,")") == 0) {
-				level--;
-				if (!game_check(game)) {
-					warn("error while importing a SGF game\n");
+	if (strcmp(tag, "(") != 0) return feof(f) ? GAME_IMPORT_NONE : GAME_IMPORT_READ;
+
+	while (game_parse_sgf(f, tag, value)) {
+		if (tag[0] != '\0') strcpy(property, tag); // (a value without a tag is one more value of the last property)
+		if (strcmp(tag,"(") == 0) level++;
+		if (strcmp(tag,")") == 0) {
+			level--;
+			if (setup || player >= 0) {
+				if (!setup) {
+					black = (game->player == BLACK) ? game->initial_board.player : game->initial_board.opponent;
+					white = (game->player == BLACK) ? game->initial_board.opponent : game->initial_board.player;
 				}
-				return;
+				game_set_sgf_setup(game, black, white, player >= 0 ? player : BLACK);
 			}
-			if (strcmp(tag, "GM") == 0 && strcmp(value, "2") != 0) break;
-			if (strcmp(tag, "SZ") == 0 && strcmp(value, "8") != 0) break;
-			if (strcmp(tag, "PB") == 0) {
-				memcpy(game->name[BLACK], value, 31);
-				game->name[BLACK][31] = '\0';
-			} else if (strcmp(tag, "PW") == 0) {
-				memcpy(game->name[WHITE], value, 31);
-				game->name[WHITE][31] = '\0';
-			} else if (i < 60 && (strcmp(tag,"B") == 0 || strcmp(tag, "W") == 0)) {
-				const int x = string_to_coordinate(value);
-				if (x != PASS) { // (a pass, that game_save_sgf() writes as B[PA], is not a move of the game)
-					game->move[i] = (char) x;
-					game->hash = crc32c_u8(game->hash, game->move[i]);
-					i++;
-				}
+			if (!game_check(game)) {
+				warn("error while importing a SGF game\n");
 			}
+			game->hash = game_moves_hash(game);
+			return GAME_IMPORT_READ;
 		}
-		while (level > 0 && game_parse_sgf(f, tag, value)) {
-			if (strcmp(tag,"(") == 0) level++;
-			if (strcmp(tag,")") == 0) level--;
+		if (strcmp(tag, "GM") == 0 && strcmp(value, "2") != 0) break;
+		if (strcmp(tag, "SZ") == 0 && strcmp(value, "8") != 0) break;
+		if (i == 0 && (strcmp(property, "AB") == 0 || strcmp(property, "AW") == 0)) {
+			const int x = string_to_coordinate(value);
+			if (A1 <= x && x <= H8) {
+				if (property[1] == 'B') black |= x_to_bit(x);
+				else white |= x_to_bit(x);
+				setup = true;
+			}
+		} else if (i == 0 && strcmp(tag, "PL") == 0) {
+			if (toupper((unsigned char) value[0]) == 'B') player = BLACK;
+			else if (toupper((unsigned char) value[0]) == 'W') player = WHITE;
+		} else if (strcmp(tag, "PB") == 0) {
+			memcpy(game->name[BLACK], value, 31);
+			game->name[BLACK][31] = '\0';
+		} else if (strcmp(tag, "PW") == 0) {
+			memcpy(game->name[WHITE], value, 31);
+			game->name[WHITE][31] = '\0';
+		} else if (i < 60 && (strcmp(tag,"B") == 0 || strcmp(tag, "W") == 0)) {
+			const int x = string_to_coordinate(value);
+			if (i == 0 && player < 0 && setup) player = (tag[0] == 'B') ? BLACK : WHITE; // (no PL: the first move tells)
+			if (x != PASS) { // (a pass, that game_save_sgf() writes as B[PA], is not a move of the game)
+				game->move[i] = (char) x;
+				i++;
+			}
 		}
 	}
-	return;
+	while (level > 0 && game_parse_sgf(f, tag, value)) {
+		if (strcmp(tag,"(") == 0) level++;
+		if (strcmp(tag,")") == 0) level--;
+	}
+	if (level > 0 && feof(f)) {
+		warn("a SGF game is cut by the end of the file\n");
+		return GAME_IMPORT_INCOMPLETE;
+	}
+	game->hash = game_moves_hash(game);
+	return GAME_IMPORT_READ;
 }
 
 /**
@@ -1078,8 +1228,8 @@ void game_import_pgn(Game *game, FILE *f)
  */
 bool game_import_pgn_checked(Game *game, FILE *f)
 {
-	int c, state, i, j, k, n;
-	bool found = false;
+	int c, state, i, j, k, n = 0;
+	bool found = false, number_in_range = true;
 	char move[5] = "--\0\0";
 	int score[2] = {0, 0};
 	char info_tag[257] = "", info_value[257] = ""; // 256 is the maximal info size according to PGN standard
@@ -1163,12 +1313,12 @@ bool game_import_pgn_checked(Game *game, FILE *f)
 						memcpy(game->name[WHITE], info_value, 31);
 						game->name[WHITE][31] = '\0';
 					} else if (strcmp(info_tag, "date") == 0) {
-						if (sscanf(info_value, "%d.%d.%d", value, value + 1, value + 2) == 3) {
+						// (the whole date, in range: else the game has no date)
+						if (parse_numbers(info_value, "..", 3, value) && date_is_valid(value)) {
 							game->date.year = value[0]; game->date.month = value[1]; game->date.day = value[2];
 						}
 					} else if (strcmp(info_tag, "time") == 0) {
-						if (sscanf(info_value, "%d:%d:%d", value, value + 1, value + 2) == 3 ||
-							sscanf(info_value, "%d.%d.%d", value, value + 1, value + 2) == 3) {
+						if ((parse_numbers(info_value, "::", 3, value) || parse_numbers(info_value, "..", 3, value)) && time_is_valid(value)) {
 							game->date.hour = value[0]; game->date.minute = value[1]; game->date.second = value[2];
 						}
 					} else if (strcmp(info_tag, "fen") == 0) {
@@ -1179,7 +1329,8 @@ bool game_import_pgn_checked(Game *game, FILE *f)
 		}  else  if (isdigit(c)) {
 			switch(state) {
 			case STATE_BEGIN_SCORE:
-				score[1] = score[1] * 10 + (c - '0');
+				if (0 <= score[1] && score[1] <= 99999) score[1] = score[1] * 10 + (c - '0'); // (at most 6 digits: no overflow)
+				else if (score[1] > 99999) number_in_range = false;
 				break;
 			case STATE_END_INFO:
 			case STATE_END_MOVE:
@@ -1187,14 +1338,14 @@ bool game_import_pgn_checked(Game *game, FILE *f)
 				n = c - '0';
 				break;
 			case STATE_BEGIN_MOVE_N:
-				n = 10 * n + (c - '0');
+				if (n <= 99999) n = 10 * n + (c - '0');
+				else number_in_range = false;
 				break;
 			case STATE_BEGIN_MOVE:
 				state = STATE_END_MOVE;
 				move[k++] = c;
 				if (i < 60) {
 					game->move[i] = string_to_coordinate(move);
-					game->hash = crc32c_u8(game->hash, game->move[i]);
 					i++;
 				} else if (i == 60) {
 					warn("PGN contains more than 60 moves; excess moves ignored\n");
@@ -1333,6 +1484,8 @@ bool game_import_pgn_checked(Game *game, FILE *f)
 	if (found && !game_check(game)) {
 		warn("error while importing a PGN game\n");
 	}
+	if (!number_in_range) warn("a move number or a score of a PGN game has more than 6 digits: it is not read\n");
+	game->hash = game_moves_hash(game);
 	return found;
 }
 
@@ -1821,6 +1974,7 @@ int game_complete_with(Game *game, Search *search, void (*run)(void*, Search*, c
 			game_append_line(game, &search->result->pv, i);
 		} else {
 			game->move[i] = search->result->move;
+			game->hash = game_moves_hash(game);
 		}
 		if (search->result->score != 0) {
 			if (report) {

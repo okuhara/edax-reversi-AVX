@@ -106,6 +106,10 @@ void statistics_sum_nodes(Search *search)
 		statistics.n_task_nodes[i] = search->tasks->task[i].n_nodes;
 		statistics.n_task[i] = search->tasks->task[i].n_calls;
 	}
+	for (; i < MAX_THREADS; ++i) { // (tasks that no longer exist: fewer tasks than before)
+		statistics.n_task_nodes[i] = 0;
+		statistics.n_task[i] = 0;
+	}
 }
 
 /**

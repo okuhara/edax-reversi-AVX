@@ -24,6 +24,7 @@
 #include <stdarg.h>
 
 Log xboard_log[1];
+bool ui_book_save_at_end(UI *ui, const bool to_book_file);
 
 typedef struct {
 	unsigned long long time;
@@ -96,7 +97,7 @@ void ui_init_xboard(UI *ui)
  */
 void ui_free_xboard(UI *ui)
 {
-	if (ui->book.need_saving) book_save(&ui->book, options.book_file);
+	ui_book_save_at_end(ui, false);
 	book_free(&ui->book);
 	play_free(ui->play);
 	log_close(xboard_log);
@@ -287,6 +288,11 @@ static void xboard_go(UI *ui, XBoardStats *stats, long long increment)
 	// move does not fill it, and the totals printed at "quit" were meaningless.)
 	Result *const result = &play->result;
 
+	if (play_is_game_over(play)) { // no move to play: the result is sent (an earlier move was sent again, or none existed)
+		xboard_check_game_over(play);
+		return;
+	}
+
 	play_go(play, true);
 	if (options.play_type == EDAX_TIME_PER_GAME)
 		play->time[!play->player].left += increment;
@@ -366,8 +372,9 @@ static void xboard_analyze(Play *play)
  * Analyze loop.
  *
  * @param ui User Interface.
+ * @return true after "exit" (back to the main loop), false after "quit" or the end of the input.
  */
-static void xboard_loop_analyze(UI *ui)
+static bool xboard_loop_analyze(UI *ui)
 {
 	Play *play = ui->play;
 	char *cmd = NULL, *param = NULL;
@@ -409,16 +416,15 @@ static void xboard_loop_analyze(UI *ui)
 			if (!play_set_board_from_FEN(play, param)) xboard_error("(bad FEN): %s\n", param);
 			xboard_analyze(play);
 
-		} else if (strcmp(cmd, "exit") == 0) {
+		} else if (strcmp(cmd, "exit") == 0) { // back to the main loop, which keeps its state
 			xboard_stop_analyzing(play);
 			free(cmd); free(param);
-			ui_loop_xboard(ui);
-			return;
+			return true;
 
 		} else if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "eof") == 0 || strcmp(cmd, "q") == 0) { // (the end of the input: nothing else will come)
 			xboard_stop_analyzing(play);
 			free(cmd); free(param);
-			return;
+			return false;
 
 		} else {
 			xboard_stop_analyzing(play);
@@ -684,9 +690,14 @@ void ui_loop_xboard(UI *ui)
 				options.verbosity = 0;
 
 			} else if ((strcmp(cmd, "analyze") == 0)) {
-				free(cmd); free(param);
-				xboard_loop_analyze(ui);
-				return;
+				// the analysis is done as in force mode: after "exit", Edax plays no move until "go" or "playother"
+				play_stop_pondering(play);
+				if (edax_turn != EMPTY) last_edax_turn = edax_turn;
+				edax_turn = EMPTY;
+				if (!xboard_loop_analyze(ui)) {
+					free(cmd); free(param);
+					return;
+				}
 
 			} else if ((strcmp(cmd, "name") == 0)) {
 				xboard_send("Hello %s!\n", param);

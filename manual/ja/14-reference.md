@@ -164,6 +164,10 @@
 | `book-leaf-recalculate-rounds` | 1〜1000000 | 1 | 1 | `book leaf recalculate` 系列の回数の上限 |
 | `book-seed` | 0〜2^64−1、`auto` | `auto` | `auto` | book の同点候補を選ぶ乱数の種（`auto` は時計から） |
 | `book-reproducible` | `on`／`off` | `off` | `off` | book のコマンドを、毎回同じ book になるように行う（[7章](07-book-learning.md)） |
+| `lazy` | 数、`auto` | 0 | 0 | 根の局面を読む補助の探索の数（`auto`：4 スレッド以上の中盤の探索に 1 つ。[4.5](04-settings.md)） |
+| `pc-slope` | `off`／`on`／`slope[,limit[,fewest empties]]` | `off` | `off` | 最後まで読む読みの probcut の傾き（v4.5.5-nikque.33 から。[4.5](04-settings.md)） |
+| `pc-dev` | `off`／`on`／`d0,k,fmin` | `off` | `off` | 読み筋から外れた手の probcut を狭める（v4.5.5-nikque.33 から） |
+| `pc-mob` | `off`／`on`／`a,b,c[,...]` | `off` | `off` | 着手可能数による probcut（v4.5.5-nikque.33 から） |
 | `probcut-model` | `standard`／`refit` | `standard` | `standard` | 枝刈りの方式（`refit` は実験用） |
 | `book-reduce-index` | `binary`／`table` | `table` | | `book reducecount` で番号から局面を引く方法（v4.5.5-nikque.22 から。[8.4](08-book-maintenance.md)） |
 | `book-reduce-walk` | `loss`／`group` | `loss` | | `book reducecount` を並列で行うときの、たどる順（v4.5.5-nikque.22 から） |
@@ -194,6 +198,16 @@
 | `game-file` | ファイル | `data/game.ggf` | （このビルドの画面では使われていません） |
 | `ggs-host`・`ggs-port`・`ggs-login`・`ggs-password`・`ggs-open`・`ggs-log-file` | 文字 | なし | GGS への接続 |
 | `debug-cassio`・`follow-cassio` | （スイッチ） | | Cassio 用 |
+| `lazy-min` | 数 | 16 | `lazy` の補助を使う反復の、最も浅い深さ |
+| `time-ext-max` | 小数 | 2.0 | 1 手の時間を（fail low の後に）延ばす最大の倍率 |
+| `time-ext-h` | 小数 | 0.5 | 次の反復を始めるのに、残りの時間に収まる必要がある割合 |
+| `time-stop-master` | `on`／`off` | `on` | 分けた探索も、延ばした親の時間に従う |
+| `split-probe` | `on`／`off` | `on` | probcut の浅い読みもスレッドで分ける |
+| `pc-r` | 小数 | 1 | probcut：幅の倍率 |
+| `pc-end` | `x` か `e:x,...` | なし（`pc-slope` を使うときは 0.85） | probcut：最後まで読む読みの幅の倍率。全部の空きで 1 つか、空きの数ごと |
+| `pc-gate` | `on`／`off` | `on` | probcut：浅い読みをするかを評価値で選ぶ |
+| `pc-dev-root` | `on`／`off` | `on` | probcut：根の 2 手目以降を読み筋から外れた手として扱う |
+| `lmr` | 0〜2 | 0 | 後の手を浅く読む（late move reductions。0：使わない） |
 
 ## 14.6 ファイルの拡張子
 

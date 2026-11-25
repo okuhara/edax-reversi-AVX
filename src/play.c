@@ -1126,8 +1126,9 @@ const char* play_get_moves(const Play *play, char *moves)
  *
  * @param play Play.
  * @param file Book file name (NULL: no file).
+ * @return true if the book of the file was loaded (up to v4.5.5-nikque.33 nothing told it).
  */
-void play_book_load(Play *play, const char *file)
+bool play_book_load(Play *play, const char *file)
 {
 	Book *book = play->book;
 	Book next = {0};
@@ -1142,10 +1143,12 @@ void play_book_load(Play *play, const char *file)
 		book_free(book);
 		*book = next;
 		book_set_loaded_file(file, false); // the book file may still hold the previous book: see book_save_to_book_file()
+		return true;
 	} else {
 		book_free(&next);
 		warn("Book %s was not loaded; current book retained\n", file);
 	}
+	return false;
 }
 
 /**
@@ -1239,6 +1242,7 @@ typedef struct LearnProgress {
 	long long games, learned;      /**< games read and learned in these lines */
 	unsigned long long positions;  /**< number of positions of the book */
 	int level, empties;            /**< level and depth (empty squares) of the book */
+	unsigned long long book;       /**< fingerprint of the book (book_fingerprint) */
 } LearnProgress;
 
 /** the saves to <book-file>.store of a book learn <file> */
@@ -1697,16 +1701,22 @@ char* play_learn_parse(char *line, int *randomness)
  * Progress of book learn <file>.
  *
  * While the games of a file are learned, the file <book-file>.learn tells how many lines of the file of games
- * are learned in the book of <book-file>.store, with a hash of these lines and the size, level and depth of
- * this book. book learn run again with the same file, on this book (<book-file>.store loaded, or the book
- * saved at the exit), skips these lines: the games are not played again. When the whole file is learned, the
- * progress file is removed. With book-store-auto-save off (no save to <book-file>.store), no progress is kept.
+ * are learned in the book of <book-file>.store, with the name of the file of games, a hash of these lines, and
+ * the size, level, depth and fingerprint (book_fingerprint: its positions, links and scores) of this book.
+ * book learn run again with the same file, on this book (<book-file>.store loaded, or the book saved at the
+ * exit), skips these lines: the games are not played again. A progress of another file, or of another book
+ * (even of as many positions), is not used: the games are learned from the first line. When the whole file is
+ * learned, the progress file is removed; it is kept when the file of games cannot be read to its end. With
+ * book-store-auto-save off (no save to <book-file>.store), no progress is kept.
+ *
+ * A progress file of v4.5.5-nikque.29 to .33 (without file= and book=) is not used either: it tells the book
+ * by its numbers of positions and links only.
  *
  * The book and the progress cannot be replaced together, and a run can stop at any moment:
  * - before a save, the progress is written with two states: the book of the last save (lines=, hash=, ...) and
  *   the book to save (next_lines=, next_hash=, ...). The book on the disk is one of the two, and a new run takes
- *   the one of the book in use. If they have as many positions (the save only adds links), next_links= tells them
- *   apart. A save that fails leaves the first one true;
+ *   the one of the book in use, by its fingerprint (next_links= is still written for the earlier versions). A save
+ *   that fails leaves the first one true;
  * - after the save, the progress is written with this book alone, as up to v4.5.5-nikque.32 (that wrote it only
  *   then: a run stopped in between could not be continued). Such a file is read as a book without next state.
  * Each write replaces the whole file (see learn_progress_write).
@@ -1717,7 +1727,10 @@ typedef struct LearnRecord {
 	LearnProgress saved;  /**< the book of the last save (lines = 0: none, the book in use when book learn started) */
 	LearnProgress next;   /**< the book that was being saved */
 	bool has_next;        /**< next is given */
-	long long next_links; /**< links of next, when it has as many positions as saved (else -1) */
+	long long next_links; /**< links of next, when it has as many positions as saved (else -1; written for the
+	                           versions up to v4.5.5-nikque.33, that tell the two books apart by it) */
+	bool old;             /**< written up to v4.5.5-nikque.33: no fingerprint of the book, nor name of the file of games */
+	char *file;           /**< file of games (NULL if none is given) */
 } LearnRecord;
 
 /** first value of the hash of the lines of a file of games (FNV-1a, 64 bits) */
@@ -1757,17 +1770,23 @@ static bool learn_progress_read(const char *path, LearnRecord *r)
 	char *line;
 	int seen = 0, seen_next = 0;
 
-	if (f == NULL) return false;
 	memset(r, 0, sizeof *r);
 	r->next_links = -1;
+	if (f == NULL) return false;
 	while ((line = string_read_line(f)) != NULL) {
-		if (sscanf(line, "lines=%lld", &p->lines) == 1) seen |= 1;
+		if (strncmp(line, "file=", 5) == 0) {
+			free(r->file);
+			r->file = string_duplicate(line + 5);
+			if (r->file) seen |= 256;
+		} else if (sscanf(line, "lines=%lld", &p->lines) == 1) seen |= 1;
 		else if (sscanf(line, "hash=%llx", &p->hash) == 1) seen |= 2;
 		else if (sscanf(line, "games=%lld", &p->games) == 1) seen |= 4;
 		else if (sscanf(line, "learned=%lld", &p->learned) == 1) seen |= 8;
 		else if (sscanf(line, "positions=%llu", &p->positions) == 1) seen |= 16;
 		else if (sscanf(line, "level=%d", &p->level) == 1) seen |= 32;
 		else if (sscanf(line, "empties=%d", &p->empties) == 1) seen |= 64;
+		else if (sscanf(line, "book=%llx", &p->book) == 1) seen |= 128;
+		else if (sscanf(line, "next_book=%llx", &q->book) == 1) seen_next |= 32;
 		else if (sscanf(line, "next_lines=%lld", &q->lines) == 1) seen_next |= 1;
 		else if (sscanf(line, "next_hash=%llx", &q->hash) == 1) seen_next |= 2;
 		else if (sscanf(line, "next_games=%lld", &q->games) == 1) seen_next |= 4;
@@ -1776,11 +1795,15 @@ static bool learn_progress_read(const char *path, LearnRecord *r)
 		else sscanf(line, "next_links=%lld", &r->next_links);
 		free(line);
 	}
+	if (ferror(f)) seen = 0; // (a file read in part tells nothing)
 	fclose(f);
 	q->level = p->level;
 	q->empties = p->empties;
-	r->has_next = (seen_next == 31 && q->lines > 0);
-	return seen == 127 && (p->lines > 0 || (p->lines == 0 && r->has_next));
+	// a file of the versions up to v4.5.5-nikque.33 tells the book by its numbers of positions and links only (another
+	// book may have them), and not the file of games: it is not used
+	r->old = ((seen & 127) == 127 && (seen & 384) != 384);
+	r->has_next = (seen_next == 63 && q->lines > 0);
+	return seen == 511 && (p->lines > 0 || (p->lines == 0 && r->has_next));
 }
 
 /**
@@ -1788,14 +1811,15 @@ static bool learn_progress_read(const char *path, LearnRecord *r)
  *
  * @param r Progress.
  * @param book Book in use.
+ * @param fingerprint Its fingerprint (book_fingerprint).
  * @return the state, NULL if the progress is of another book.
  */
-static const LearnProgress* learn_progress_find(const LearnRecord *r, const Book *book)
+static const LearnProgress* learn_progress_find(const LearnRecord *r, const Book *book, const unsigned long long fingerprint)
 {
 	if (r->saved.level != book->options.level || r->saved.empties != book->options.n_empties) return NULL;
-	if (r->has_next && r->next.positions == book->n_nodes
-	 && (r->next.positions != r->saved.positions || r->next_links == book_count_links(book))) return &r->next;
-	return (r->saved.positions == book->n_nodes) ? &r->saved : NULL;
+	if (r->has_next && r->next.positions == book->n_nodes && r->next.book == fingerprint) return &r->next;
+	// (the state of no line learned skips nothing: its fingerprint is not computed, see play_learn_file)
+	return (r->saved.positions == book->n_nodes && (r->saved.lines == 0 || r->saved.book == fingerprint)) ? &r->saved : NULL;
 }
 
 /**
@@ -1823,12 +1847,13 @@ static bool learn_progress_write(const char *path, const LearnRecord *r, const c
 	}
 	fprintf(f, "# book learn %s: the first lines of this file of games are learned in the book that has these positions.\n", file);
 	fprintf(f, "# book learn with the same file, on this book, skips them. This file is removed when the whole file is learned.\n");
-	fprintf(f, "lines=%lld\nhash=%016llx\ngames=%lld\nlearned=%lld\npositions=%llu\nlevel=%d\nempties=%d\n",
-		p->lines, p->hash, p->games, p->learned, p->positions, p->level, p->empties);
+	fprintf(f, "file=%s\n", file);
+	fprintf(f, "lines=%lld\nhash=%016llx\ngames=%lld\nlearned=%lld\npositions=%llu\nlevel=%d\nempties=%d\nbook=%016llx\n",
+		p->lines, p->hash, p->games, p->learned, p->positions, p->level, p->empties, p->book);
 	if (r->has_next) {
 		fprintf(f, "# a save of the book began: if it ended, the book has these values.\n");
-		fprintf(f, "next_lines=%lld\nnext_hash=%016llx\nnext_games=%lld\nnext_learned=%lld\nnext_positions=%llu\n",
-			q->lines, q->hash, q->games, q->learned, q->positions);
+		fprintf(f, "next_lines=%lld\nnext_hash=%016llx\nnext_games=%lld\nnext_learned=%lld\nnext_positions=%llu\nnext_book=%016llx\n",
+			q->lines, q->hash, q->games, q->learned, q->positions, q->book);
 		if (r->next_links >= 0) fprintf(f, "next_links=%lld\n", r->next_links);
 	}
 	// on the disk before the book that it tells
@@ -1859,14 +1884,15 @@ static bool learn_progress_write(const char *path, const LearnRecord *r, const c
 static void learn_saves_store(LearnSaves *s, Book *book, const char *store)
 {
 	const int i = s->n_stored - 1;
-	const LearnProgress next = {s->line[i], s->hash[i], s->games + s->n_stored, s->learned + s->n_learned,
-		book->n_nodes, book->options.level, book->options.n_empties};
-	LearnRecord r = {s->saved, next, true, -1};
+	LearnProgress next = {s->line[i], s->hash[i], s->games + s->n_stored, s->learned + s->n_learned,
+		book->n_nodes, book->options.level, book->options.n_empties, 0};
+	LearnRecord r = {s->saved, next, true, -1, false, NULL};
 
 	if (book->failed) { // which games are complete in the book is not known
 		book_save_progress(book, store);
 		return;
 	}
+	r.next.book = next.book = book_fingerprint(book); // (the book to save)
 	if (next.positions == s->saved.positions) r.next_links = book_count_links(book);
 	if (learn_progress_write(s->path, &r, s->games_file)) s->own = true;
 	if (book_save_progress(book, store)) {
@@ -1905,7 +1931,8 @@ int play_learn_file(Play *play, const char *file)
 	char progress_file[FILENAME_MAX + 1];
 	LearnRecord record;
 	LearnSaves saves = {0};
-	unsigned long long hash = LEARN_HASH_START;
+	unsigned long long hash = LEARN_HASH_START, fingerprint = 0; // (0: not computed, for a progress of no line learned)
+	bool read_failed = false;
 
 	if (f == NULL) {
 		warn("cannot open game file %s\n", file);
@@ -1914,8 +1941,12 @@ int play_learn_file(Play *play, const char *file)
 
 	// the lines learned by a run that did not end
 	file_add_ext(options.book_file, ".learn", progress_file);
-	if (learn_progress_read(progress_file, &record)) {
-		const LearnProgress *done = learn_progress_find(&record, book);
+	if (!learn_progress_read(progress_file, &record)) {
+		if (record.old) warn("%s was written by an earlier version, that does not tell the book and the file of games it is of: the games of %s are learned from the first line\n", progress_file, file);
+	} else if (strcmp(record.file, file) != 0) {
+		warn("%s is the progress of book learn of another file (%s): the games of %s are learned from the first line\n", progress_file, record.file, file);
+	} else {
+		const LearnProgress *done = learn_progress_find(&record, book, fingerprint = book_fingerprint(book));
 
 		if (done == NULL) {
 			const LearnProgress *of = record.saved.lines ? &record.saved : &record.next;
@@ -1924,9 +1955,16 @@ int play_learn_file(Play *play, const char *file)
 				progress_file, of->positions, of->level, 61 - of->empties, book->n_nodes, book->options.level, 61 - book->options.n_empties, file);
 		} else if (done->lines > 0) { // (0: stopped before the first save ended, nothing is learned in this book)
 			while (n_line < done->lines && (line = string_read_line(f)) != NULL) {
+				if (ferror(f)) { free(line); break; }
 				hash = learn_hash_line(hash, line);
 				++n_line;
 				free(line);
+			}
+			if (ferror(f)) { // (the lines to skip are not known: nothing is learned)
+				warn("cannot read game file %s\n", file);
+				free(record.file);
+				fclose(f);
+				return -1;
 			}
 			if (n_line == done->lines && hash == done->hash) {
 				saves.saved = *done;
@@ -1940,8 +1978,9 @@ int play_learn_file(Play *play, const char *file)
 			}
 		}
 	}
+	free(record.file);
 	if (!saves.own) {
-		const LearnProgress none = {0, LEARN_HASH_START, 0, 0, book->n_nodes, book->options.level, book->options.n_empties};
+		const LearnProgress none = {0, LEARN_HASH_START, 0, 0, book->n_nodes, book->options.level, book->options.n_empties, fingerprint};
 
 		saves.saved = none;
 	}
@@ -1954,6 +1993,11 @@ int play_learn_file(Play *play, const char *file)
 
 	while (more) {
 		line = string_read_line(f);
+		if (ferror(f)) { // (not the end of the file: a line read in part is not a game, and the progress is kept)
+			free(line);
+			line = NULL;
+			read_failed = true;
+		}
 		more = (line != NULL);
 		if (line) {
 			int r = options.book_randomness;
@@ -1991,8 +2035,9 @@ int play_learn_file(Play *play, const char *file)
 		}
 	}
 	fclose(f);
+	if (read_failed) warn("cannot read game file %s after line %d: the following games are not learned\n", file, n_line);
 	// the whole file is learned: the progress is removed (it is kept when learning stopped)
-	if (saves.own && !play->book->failed && remove(progress_file) == 0) book_print("Book learn: %s is learned to its end: %s removed\n", file, progress_file);
+	if (saves.own && !play->book->failed && !read_failed && remove(progress_file) == 0) book_print("Book learn: %s is learned to its end: %s removed\n", file, progress_file);
 	book_print("%d/%d games learned\n", n_learned, n_games);
 	return n_learned;
 }

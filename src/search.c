@@ -415,6 +415,23 @@ void search_alloc_thread_hash(Search *search)
 }
 
 /**
+ * @brief Bind the first task of the stack of tasks to the search that owns it.
+ *
+ * @param search Search.
+ */
+static void search_bind_task(Search *search)
+{
+	search->task = search->tasks->task;
+	search->task->loop = false;
+	search->task->run = true;
+	search->task->node = NULL;
+	search->task->move = NULL;
+	search->task->n_calls = 0;
+	search->task->n_nodes = 0;
+	search->task->search = search;
+}
+
+/**
  * @brief Init the *main* search.
  *
  * Initialize a new search structure.
@@ -473,15 +490,7 @@ void search_init_with(Search *search, const int n_task, const int hash_bits)
 	task_stack_init(search->tasks, n_task);
 	search->allow_node_splitting = (search->tasks->n > 1);
 
-	/* task associated with the current search */
-	search->task = search->tasks->task;
-	search->task->loop = false;
-	search->task->run = true;
-	search->task->node = NULL;
-	search->task->move = NULL;
-	search->task->n_calls = 0;
-	search->task->n_nodes = 0;
-	search->task->search = search;
+	search_bind_task(search);
 
 	search->parent = NULL;
 	search->n_child = 0;
@@ -1090,7 +1099,7 @@ void search_check_timeout(Search *search)
 		t = search_time(master);
 		if (t > master->time.extra) {
 			printf("*** SEARCH STILL RUNNING ? (%d) ***\n", search->stop);
-			search->stop = STOP_TIMEOUT;
+			search_set_state(search, STOP_TIMEOUT); // (under the lock, as search_stop_all())
 		}
 	}
 }
@@ -1105,6 +1114,7 @@ void search_set_task_number(Search *search, const int n)
 {
 	assert(n > 0 && n < MAX_THREADS);
 	task_stack_resize(search->tasks, n);
+	search_bind_task(search); // (the tasks were allocated again: search->task pointed to the freed ones)
 	search->allow_node_splitting = (search->tasks->n > 1); // (fewer tasks than n if their threads cannot be created)
 }
 

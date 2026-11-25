@@ -416,7 +416,7 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 					assert(SCORE_MIN <= node.bestscore && node.bestscore <= SCORE_MAX);
 				}
 				if (search->options.verbosity == 4) pv_debug(search, move, stdout);
-				if (search_time(search) > search->time.maxi && node.bestscore > alpha) search->stop = STOP_TIMEOUT;
+				if (search_time(search) > search->time.maxi && node.bestscore > alpha) search_set_state(search, STOP_TIMEOUT);
 			}
 			node_wait_slaves(&node);
 		}
@@ -495,8 +495,14 @@ int aspiration_search(Search *search, int alpha, int beta, const int depth, int 
 
 	high = MIN(SCORE_MAX, search->stability_bound.upper + 2);
 	low = MAX(SCORE_MIN, search->stability_bound.lower - 2);
-	if (alpha < low) alpha = low;
-	if (beta > high) beta = high;
+	// The window is narrowed to the scores the stable discs allow only when the two meet: a window wholly above
+	// (or below) them is kept as it is, and the search fails low (or high) at it, as its bounds ask. (Up to
+	// v4.5.5-nikque.33 such a window was turned upside down: alpha >= beta.)
+	if (alpha < high && low < beta) {
+		if (alpha < low) alpha = low;
+		if (beta > high) beta = high;
+	}
+	assert(alpha < beta);
 	if (score < low) score = low; else if (score > high) score = high;
 	if (score < alpha) score = alpha; else if (score > beta) score = beta;
 	log_print(search_log, "initial bound = [%+03d, %+03d]\n", low, high);
@@ -630,7 +636,7 @@ static bool get_last_level(Search *search, int *depth, int *selectivity)
 static void lazy_stop(Search *search)
 {
 	for (int i = 0; i < search->n_lazy; ++i) search_set_state(search->lazy[i]->search, STOP_PARALLEL_SEARCH);
-	for (int i = 0; i < search->n_lazy; ++i) while (search->lazy[i]->run) cpu_pause();
+	for (int i = 0; i < search->n_lazy; ++i) while (ybwc_load_acquire(&search->lazy[i]->run)) cpu_pause();
 	search->n_lazy = 0;
 }
 
@@ -959,10 +965,13 @@ void* search_run(void *v)
 	Search *search = (Search*) v;
 	Move *move;
 
-	search->stop = RUNNING;
+	// The state is set under the lock of the search, then *stop_pending is read: a stop asked by another thread
+	// (search_stop_all(), under the same lock) either comes after this line and stays, or came before it, and then
+	// its *stop_pending, set before the stop, is seen. (Up to v4.5.5-nikque.33 the state was written without the
+	// lock: the processor could read *stop_pending before its write of the state was seen, and both were lost.)
+	search_set_state(search, RUNNING);
 	search->pv_dev[0] = 0;
-	// a stop that came before the line above is forgotten by it: the one who asked has set *stop_pending before
-	const bool hurry = (search->stop_pending && *search->stop_pending);
+	const bool hurry = (search->stop_pending && ybwc_load(search->stop_pending));
 	const bool per_move = search->options.time_per_move;
 	const long long time_set = search->options.time, time_max = search->options.time_max, time_left = search->options.time_left;
 	if (hurry) search_set_move_time(search, 0);
@@ -1032,7 +1041,9 @@ void* search_run(void *v)
 		unlock(search_log);
 	}
 
+	spin_lock(search); // (a stop asked meanwhile stays)
 	if (search->stop == RUNNING) search->stop = STOP_END;
+	spin_unlock(search);
 	search->time.spent += search_clock(search);
 	search->result->time = search->time.spent;
 

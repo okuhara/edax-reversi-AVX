@@ -16,6 +16,8 @@
 
 #include <stdarg.h>
 
+bool ui_book_save_at_end(UI *ui, const bool to_book_file);
+
 static Log nboard_log[1];
 
 static void nboard_send(const char *format, ...)
@@ -100,7 +102,7 @@ void ui_init_nboard(UI *ui)
  */
 void ui_free_nboard(UI *ui)
 {
-	if (ui->book.need_saving) book_save(&ui->book, options.book_file);
+	ui_book_save_at_end(ui, false); // (as the other protocols: "@save ok=<0|1> file=<book file>")
 	book_free(&ui->book);
 	play_free(ui->play);
 	log_close(nboard_log);

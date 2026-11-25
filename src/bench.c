@@ -51,7 +51,7 @@ static void bench_move_generator(void)
 	Board board;
 	Move move;
 	int i, x;
-	volatile int v;
+	volatile unsigned long long v; // unsigned: the sums wrap around instead of overflowing
 	const int N_WARMUP = 1000;
 	const int N_REPEAT = 1000000;
 	unsigned long long c, overhead;
@@ -92,7 +92,7 @@ static void bench_move_generator(void)
 		}
 		c += click();
 
-		t = ((double)(c - overhead)) / N_REPEAT;
+		t = (c > overhead ? (double)(c - overhead) : 0.0) / N_REPEAT;
 		t_mean += t;
 		t_var += t * t;
 		if (t < t_min) t_min = t;
@@ -104,6 +104,7 @@ static void bench_move_generator(void)
 
 	t_mean /= x;
 	t_var = t_var / x - (t_mean * t_mean);
+	if (t_var < 0.0) t_var = 0.0; // (below 0 by rounding)
 
 	printf("board_get_move_flip:  %.2f < %.2f +/- %.2f < %.2f\n", t_min, t_mean, sqrt(t_var), t_max);
 }
@@ -117,7 +118,7 @@ static void bench_count_last_flip(void)
 	char m[4];
 	Board board;
 	int i, x;
-	volatile int v;
+	volatile unsigned long long v; // unsigned: the sums wrap around instead of overflowing
 	const int N_WARMUP = 1000;
 	const int N_REPEAT = 1000000;
 	unsigned long long c, overhead;
@@ -159,7 +160,7 @@ static void bench_count_last_flip(void)
 		}
 		c += click();
 
-		t = ((double)(c - overhead)) / N_REPEAT;
+		t = (c > overhead ? (double)(c - overhead) : 0.0) / N_REPEAT;
 		t_mean += t;
 		t_var += t * t;
 		if (t < t_min) t_min = t;
@@ -171,6 +172,7 @@ static void bench_count_last_flip(void)
 
 	t_mean /= x;
 	t_var = t_var / x - (t_mean * t_mean);
+	if (t_var < 0.0) t_var = 0.0; // (below 0 by rounding)
 
 	printf("count_last_flip:  %.2f < %.2f +/- %.2f < %.2f\n", t_min, t_mean, sqrt(t_var), t_max);
 }
@@ -184,7 +186,7 @@ static void bench_solve_1(void)
 	char m[4];
 	Board board;
 	int i, x;
-	volatile int v;
+	volatile unsigned long long v; // unsigned: the sums wrap around instead of overflowing
 	const int N_WARMUP = 1000;
 	const int N_REPEAT = 1000000;
 	unsigned long long c, overhead;
@@ -227,7 +229,7 @@ static void bench_solve_1(void)
 		}
 		c += click();
 
-		t = ((double)(c - overhead)) / N_REPEAT;
+		t = (c > overhead ? (double)(c - overhead) : 0.0) / N_REPEAT;
 		t_mean += t;
 		t_var += t * t;
 		if (t < t_min) t_min = t;
@@ -239,6 +241,7 @@ static void bench_solve_1(void)
 
 	t_mean /= x;
 	t_var = t_var / x - (t_mean * t_mean);
+	if (t_var < 0.0) t_var = 0.0; // (below 0 by rounding)
 
 	printf("solve_1:  %.2f < %.2f +/- %.2f < %.2f\n", t_min, t_mean, sqrt(t_var), t_max);
 }
@@ -252,7 +255,7 @@ static void bench_mobility(void)
 	char m[4];
 	Board board;
 	int i, x;
-	volatile int v;
+	volatile unsigned long long v; // unsigned: the sums wrap around instead of overflowing
 	const int N_WARMUP = 1000;
 	const int N_REPEAT = 1000000;
 	unsigned long long c, overhead;
@@ -305,18 +308,19 @@ static void bench_mobility(void)
 		}
 		c += click();
 
-		t = ((double)(c - overhead)) / N_REPEAT / 2;
+		t = (c > overhead ? (double)(c - overhead) : 0.0) / N_REPEAT / 2;
 		t_mean += t;
 		t_var += t * t;
 		if (t < t_min) t_min = t;
 		if (t > t_max) t_max = t;
 
-		if (options.verbosity >= 2) printf("v = %d\n", v);
+		if (options.verbosity >= 2) printf("v = %llu\n", (unsigned long long) v);
 		if (options.verbosity >= 2) printf("mobility: %s %.1f clicks;\n", move_to_string(x, WHITE, m), t);
 	}
 
 	t_mean /= x;
 	t_var = t_var / x - (t_mean * t_mean);
+	if (t_var < 0.0) t_var = 0.0; // (below 0 by rounding)
 
 	printf("mobility:  %.2f < %.2f +/- %.2f < %.2f\n", t_min, t_mean, sqrt(t_var), t_max);
 }
@@ -330,7 +334,7 @@ static void bench_stability(void)
 	char m[4];
 	Board board;
 	int i, x;
-	volatile int v;
+	volatile unsigned long long v; // unsigned: the sums wrap around instead of overflowing
 	const int N_WARMUP = 1000;
 	const int N_REPEAT = 1000000;
 	unsigned long long c, overhead;
@@ -381,18 +385,19 @@ static void bench_stability(void)
 		}
 		c += click();
 
-		t = ((double)(c - overhead)) / N_REPEAT;
+		t = (c > overhead ? (double)(c - overhead) : 0.0) / N_REPEAT;
 		t_mean += t;
 		t_var += t * t;
 		if (t < t_min) t_min = t;
 		if (t > t_max) t_max = t;
 
-		if (options.verbosity >= 2) printf("v = %d\n", v);
+		if (options.verbosity >= 2) printf("v = %llu\n", (unsigned long long) v);
 		if (options.verbosity >= 2) printf("stability: %s %.1f clicks;\n", move_to_string(x, WHITE, m), t);
 	}
 
 	t_mean /= x;
 	t_var = t_var / x - (t_mean * t_mean);
+	if (t_var < 0.0) t_var = 0.0; // (below 0 by rounding)
 	
 	printf("stability:  %.2f < %.2f +/- %.2f < %.2f\n", t_min, t_mean, sqrt(t_var), t_max);
 }

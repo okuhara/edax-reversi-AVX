@@ -153,7 +153,7 @@ int first_one(uint64 b) {
 }
 
 /* clear the first bit set and search the next one */
-inline int next_one(uint64 *b, int x) {
+static inline int next_one(uint64 *b, int x) {
 	*b ^= (1ULL << x);
 	return first_one(*b);
 }
@@ -161,7 +161,7 @@ inline int next_one(uint64 *b, int x) {
 #define foreach_bits(i, b) for (i = first_one(b); b; i = next_one(&b, i))
 
 /* count the number of bits set */
-inline int count(uint64 b) {
+static inline int count(uint64 b) {
 	b -=  (b >> 1) & 0x5555555555555555ULL;
 	b  = ((b >> 2) & 0x3333333333333333ULL) + (b & 0x3333333333333333ULL);
 	b  = ((b >>4) + b) & 0x0f0f0f0f0f0f0f0fULL;
@@ -709,7 +709,7 @@ int main() {
 		0, 0, 1, 1, 1, 1, 0, 0,
 	};
 
-	setvbuf(stdout, NULL, _IOLBF, 0);
+	setvbuf(stdout, NULL, _IONBF, 0);
 
 	f = fopen("flip_kindergarten.c", "w");
 	if (f == NULL) {
@@ -884,14 +884,14 @@ int main() {
 		fprintf(f, " * @return flipped disc pattern.\n");
 		fprintf(f, " */\n");
 		fprintf(f, "static unsigned long long flip_%s(const unsigned long long P, const unsigned long long O)\n{\n", s);
-		fprintf(f, "\tregister int index_h, index_v");
+		fprintf(f, "\tint index_h, index_v");
 		if (merge_diagonals[n] & MERGE_DIAGONALS) fprintf(f, ", index_d");
 		else {
 			if (has_diagonal_d7[n]) fprintf(f, ", index_d7");
 			if (has_diagonal_d9[n]) fprintf(f, ", index_d9");
 		}
 		fprintf(f, ";\n");
-		fprintf(f, "\tregister unsigned long long flipped;\n");
+		fprintf(f, "\tunsigned long long flipped;\n");
 		fprintf(f, "\n");
 
 		// start by vertical because the first index of OUTFLANK & FLIPPED differ from the other direction
@@ -981,6 +981,10 @@ int main() {
 	}
 	fprintf(f, "\tflip_pass, flip_pass\n};\n\n");
 
-	fclose(f);
+	if (ferror(f) | fclose(f)) {
+		fprintf(stderr, "cannot write the generated file\n");
+		exit(EXIT_FAILURE);
+	}
+	return 0;
 }
 

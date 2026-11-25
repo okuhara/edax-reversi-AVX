@@ -881,10 +881,8 @@ static const PositionName NOM_POSITION[] = {
 	{{0x0000000c08200000, 0x00001c1010100000}, "Ishii transverse"},
 	{{0x0000000c08200000, 0x0000303030181000}, "Brightwell orque"},
 	{{0x0000000c08202000, 0x0000303030181800}, "orque diagonale Rossi"},
-	{{0x0000000c08280800, 0x0000303030141000}, "Popov"},
-	{{0x0000000c08280800, 0x0000303030141000}, "Popov (interversion)"},
-	{{0x0000000c08300800, 0x00003030300c0400}, "Japon 93 (interversion)"},
-	{{0x0000000c08300800, 0x00003030300c0400}, "tigre Japon 93"},
+	{{0x0000000c08280800, 0x0000303030141000}, "Popov, Popov (interversion)"},
+	{{0x0000000c08300800, 0x00003030300c0400}, "Japon 93 (interversion), tigre Japon 93"},
 	{{0x0000000c0c002000, 0x0000201070381810}, "Heath Comp'oth prétendante, var. de béton"},
 	{{0x0000000c0c082400, 0x0000387030301000}, "Rose Daunas Microb"},
 	{{0x0000000c0c2c0000, 0x0000383030101000}, "compacte d'opposition française"},
@@ -935,8 +933,7 @@ static const PositionName NOM_POSITION[] = {
 	{{0x00000018180c0000, 0x0000382024000000}, "compacte en coin"},
 	{{0x000000181a100000, 0x00040c06040e0000}, "campagnarde Shibata"},
 	{{0x000000181c1c0000, 0x0000382020200000}, "Brightwell aile"},
-	{{0x000000181c1e0800, 0x0000382020202400}, "Moorlin"},
-	{{0x000000181c1e0800, 0x0000382020202400}, "moorlin retardée"},
+	{{0x000000181c1e0800, 0x0000382020202400}, "Moorlin, moorlin retardée"},
 	{{0x000000181c2c0000, 0x00101c0702000000}, "Ishii nordique"},
 	{{0x000000181c2c0000, 0x00101e0602000000}, "Ishii décollée classique"},
 	{{0x000000183a010000, 0x00000407040e0000}, "campagnarde ???"},
@@ -1023,8 +1020,7 @@ static const PositionName NOM_POSITION[] = {
 	{{0x0000003713200000, 0x000018080c0c1c00}, "Heath standard"},
 	{{0x0000003a1c0c0000, 0x0000760400100000}, "bicorne"},
 	{{0x0000003c00040000, 0x000020001e080000}, "Ishii Heath"},
-	{{0x0000003c0c040000, 0x0000000030382c00}, "campagnarde Taniguchi"},
-	{{0x0000003c0c040000, 0x0000000030382c00}, "campagnarde Tanigushi"},
+	{{0x0000003c0c040000, 0x0000000030382c00}, "campagnarde Taniguchi, campagnarde Tanigushi"},
 	{{0x0000003c1c000400, 0x00000800201e0000}, "triangle Nicolet"},
 	{{0x0000003c1c000800, 0x00000800201e0000}, "geisha"},
 	{{0x0000003c1c001000, 0x00000800201e0000}, "geisha décalée"},
@@ -1193,8 +1189,7 @@ static const PositionName NOM_POSITION[] = {
 
 /** The list of french opening names */
 static const PositionName POSITION_NAME[] = {
-	{{0x0000000000080800, 0x0000001c1c140000}, "heath-chimney"},
-	{{0x0000000000080800, 0x0000001c1c140000}, "\"mass-turning\""},
+	{{0x0000000000080800, 0x0000001c1c140000}, "heath-chimney, \"mass-turning\""},
 	{{0x0000000000240000, 0x00001c3c7c000000}, "Tanida buffalo"},
 	{{0x0000000008080000, 0x00001c1c14000000}, "chimney"},
 	{{0x0000000008102000, 0x0000001c140c0000}, "lollipop"},
@@ -1218,8 +1213,7 @@ static const PositionName POSITION_NAME[] = {
 	{{0x0000000408100000, 0x0000083810080000}, "horse"},
 	{{0x000000040c3c0800, 0x0000187830400000}, "Murakami variation"},
 	{{0x0000000410300000, 0x000008182c080000}, "Inoue"},
-	{{0x0000000414241000, 0x0000181828180800}, "Dawg"},
-	{{0x0000000414241000, 0x0000181828180800}, "Greenberg"},
+	{{0x0000000414241000, 0x0000181828180800}, "Dawg, Greenberg"},
 	{{0x0000000418100000, 0x0000383804000000}, "Brightwell"},
 	{{0x000000041c000000, 0x00000e1800000000}, "peasant, snake"},
 	{{0x000000041c000000, 0x00020c1800000000}, "x-square opening"},
@@ -1332,19 +1326,60 @@ static bool match(const char *s1, const char *s2)
 }
 
 /**
+ * @brief Tell whether an opening of the list has the line of an earlier opening of the same name.
+ *
+ * @param name Name.
+ * @param o Opening of the list.
+ */
+static bool opening_line_seen(const char *name, const OpeningName *o)
+{
+	const OpeningName *p;
+
+	for (p = OPENING_NAME; p < o; ++p) {
+		if (strcmp(p->line, o->line) == 0 && match(name, p->name)) return true;
+	}
+	return false;
+}
+
+/**
  * @brief Translate an opening name into its move sequence.
  *
+ * Several lines may have the same name: "<name> #<n>" gives the n-th of them (in the order of the list,
+ * each line once), "<name>" the first.
+ *
  * @param opening_name An opening name (in lowercase).
- * @return A move sequence.
+ * @return A move sequence (NULL: no opening of this name).
  */
 const char *opening_get_line(const char *opening_name)
 {
 	const OpeningName *o;
+	char name[256];
+	const char *sharp;
+	int n = 1, k = 0;
 
 	for (o = OPENING_NAME; o->name != NULL; ++o) {
-		if (match(opening_name, o->name)) break;
+		if (match(opening_name, o->name)) return o->line;
 	}
-	return o->line;
+
+	// "<name> #<n>"
+	sharp = strrchr(opening_name, '#');
+	if (sharp == NULL || (size_t) (sharp - opening_name) >= sizeof name) return NULL;
+	{
+		const char *s = sharp + 1;
+
+		while (isspace((unsigned char) *s)) ++s;
+		if (!isdigit((unsigned char) *s)) return NULL;
+		for (n = 0; isdigit((unsigned char) *s) && n < 1000; ++s) n = n * 10 + (*s - '0');
+		while (isspace((unsigned char) *s)) ++s;
+		if (*s != '\0' || n < 1) return NULL;
+	}
+	memcpy(name, opening_name, (size_t) (sharp - opening_name));
+	name[sharp - opening_name] = '\0';
+
+	for (o = OPENING_NAME; o->name != NULL; ++o) {
+		if (match(name, o->name) && !opening_line_seen(name, o) && ++k == n) return o->line;
+	}
+	return NULL;
 }
 
 /**

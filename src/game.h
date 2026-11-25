@@ -65,6 +65,10 @@ bool game_import_text_checked(Game*, FILE*);
 void game_import_wthor(Game*, FILE*);
 void game_import_ggf(Game*, FILE*);
 void game_import_sgf(Game*, FILE *);
+/** what game_import_ggf_checked and game_import_sgf_checked read */
+enum { GAME_IMPORT_INCOMPLETE = -1, GAME_IMPORT_NONE = 0, GAME_IMPORT_READ = 1 };
+int game_import_ggf_checked(Game*, FILE*);
+int game_import_sgf_checked(Game*, FILE *);
 int parse_ggf(Game*, const char*);
 void game_import_pgn(Game*, FILE *);
 bool game_import_pgn_checked(Game*, FILE *);

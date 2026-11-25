@@ -50,6 +50,54 @@ static void wthor_header_set(WthorHeader *wheader, unsigned int n_games, unsigne
 }
 
 /**
+ * @brief Set a wthor header for a file whose games are kept: the year of its games and the depth of their
+ * theoric scores are those of the file.
+ *
+ * @param wheader Wthor's file header (its game_year and depth are kept).
+ * @param n_games Game number.
+ */
+static void wthor_header_set_kept(WthorHeader *wheader, unsigned int n_games)
+{
+	const unsigned short game_year = wheader->game_year;
+	const char depth = wheader->depth;
+
+	wthor_header_set(wheader, n_games, 0, 0);
+	wheader->game_year = game_year;
+	wheader->depth = depth;
+}
+
+/**
+ * @brief Name of a file in the folder of a wthor file (WTHOR.JOU, WTHOR.TRN).
+ *
+ * @param file Wthor file.
+ * @param name Name of the file in its folder.
+ * @param path The name (at most size - 1 characters).
+ * @param size Size of path.
+ * @return false (said) if the name is too long: path is then not set.
+ */
+static bool wthor_companion_path(const char *file, const char *name, char *path, const size_t size)
+{
+	const char *c, *start = file;
+	size_t n;
+
+	for (c = file; *c; ++c) {
+#ifdef _WIN32 // (also a backslash, or the colon of a drive, as path_get_dir)
+		if (*c == '/' || *c == '\\' || *c == ':') start = c + 1;
+#else
+		if (*c == '/') start = c + 1;
+#endif
+	}
+	n = (size_t) (start - file);
+	if (n + strlen(name) >= size) {
+		warn("The name of the folder of %s is too long for its file %s\n", file, name);
+		return false;
+	}
+	memcpy(path, file, n);
+	strcpy(path + n, name);
+	return true;
+}
+
+/**
  * @brief Read wthor header.
  *
  * @param wheader Wthor's file header.
@@ -332,6 +380,7 @@ void wthor_init(WthorBase *base)
 	base->tournament = NULL;
 	base->player = NULL;
 	base->game = NULL;
+	wthor_header_set(&base->header, 0, 0, 0);
 }
 
 /**
@@ -343,16 +392,14 @@ void wthor_init(WthorBase *base)
 bool wthor_load(WthorBase *base, const char *file)
 {
 	FILE *f;
-	char path[FILENAME_MAX];
+	char path[FILENAME_MAX], players_path[FILENAME_MAX];
 	int r = 0;
 
 	wthor_init(base);
 
-	path_get_dir(file, path); strcat(path, "WTHOR.TRN");
+	if (!wthor_companion_path(file, "WTHOR.TRN", path, sizeof path) || !wthor_companion_path(file, "WTHOR.JOU", players_path, sizeof players_path)) return false;
 	wthor_tournaments_load(base, path);
-
-	path_get_dir(file, path); strcat(path, "WTHOR.JOU");
-	wthor_players_load(base, path);
+	wthor_players_load(base, players_path);
 
 	if ((f = fopen(file, "rb")) != NULL) {
 		if (wthor_header_read(&base->header, f) && base->header.board_size == 8 && (int) base->header.n_games >= 0) {
@@ -408,13 +455,14 @@ bool wthor_save(WthorBase *base, const char *file)
 	char path[FILENAME_MAX];
 	int r = 0;
 
-	path_get_dir(file, path); strcat(path, "WTHOR.JOU");
+	if (!wthor_companion_path(file, "WTHOR.JOU", path, sizeof path)) return false; // (nothing is written)
 	wthor_players_save(base, path);
 
 	if ((f = fopen(file, "wb")) != NULL) {
 		// the header, then every game (up to v4.5.5-nikque.15 the count of the writes, at most 2, was compared
-		// with the count of the games, and any write was taken for a success)
-		wthor_header_set(&base->header, base->n_games, 0, 0);
+		// with the count of the games, and any write was taken for a success); the year of the games and the
+		// depth of their theoric scores are kept
+		wthor_header_set_kept(&base->header, base->n_games);
 		r = wthor_header_write(&base->header, f);
 		if (r && base->n_games > 0) {
 			r = (base->game != NULL && fwrite(base->game, sizeof (WthorGame), base->n_games, f) == (unsigned) base->n_games);
@@ -820,10 +868,14 @@ void base_unique(Base *base)
 	base->n_games = k;
 }
 
-/** @brief Read a game from a ggf, sgf or wthor file: a game was read unless the end of the file was reached. */
-static bool base_import_ggf(Game *game, FILE *f) { game_import_ggf(game, f); return !feof(f); }
-static bool base_import_sgf(Game *game, FILE *f) { game_import_sgf(game, f); return !feof(f); }
-static bool base_import_wthor(Game *game, FILE *f) { game_import_wthor(game, f); return !feof(f); }
+/**
+ * @brief Read a game from a file: GAME_IMPORT_READ, GAME_IMPORT_NONE (no game left), or GAME_IMPORT_INCOMPLETE
+ * (a game cut by the end of the file: the file is not read completely).
+ */
+static int base_import_text(Game *game, FILE *f) { return game_import_text_checked(game, f) ? GAME_IMPORT_READ : GAME_IMPORT_NONE; }
+static int base_import_pgn(Game *game, FILE *f) { return game_import_pgn_checked(game, f) ? GAME_IMPORT_READ : GAME_IMPORT_NONE; }
+static int base_import_edx(Game *game, FILE *f) { return game_read_checked(game, f) ? GAME_IMPORT_READ : GAME_IMPORT_NONE; }
+static int base_import_wthor(Game *game, FILE *f) { game_import_wthor(game, f); return feof(f) ? GAME_IMPORT_NONE : GAME_IMPORT_READ; }
 
 /**
  * @brief Read the games of a file, one after the other.
@@ -836,11 +888,11 @@ static bool base_import_wthor(Game *game, FILE *f) { game_import_wthor(game, f);
  */
 static int base_read_games(const char *file, bool (*take)(void*, const Game*), void *to, bool *complete)
 {
-	bool (*load)(Game*, FILE*) = game_import_text_checked;
+	int (*load)(Game*, FILE*) = base_import_text;
 	Game game;
 	FILE *f;
 	char ext[8];
-	int l, n_games = 0;
+	int l, n_games = 0, r;
 	bool ok = true;
 	WthorHeader header;
 
@@ -848,18 +900,18 @@ static int base_read_games(const char *file, bool (*take)(void*, const Game*), v
 	l = strlen(file);
 	if (l < 4) { warn("Unknown game format extension: %s\n", file); return 0; }
 	strcpy(ext, file + l - 4); string_to_lowercase(ext);
-	if (strcmp(ext, ".txt") == 0) load = game_import_text_checked;
-	else if (strcmp(ext, ".ggf") == 0) load = base_import_ggf;
-	else if (strcmp(ext, ".sgf") == 0) load = base_import_sgf;
-	else if (strcmp(ext, ".pgn") == 0) load = game_import_pgn_checked;
+	if (strcmp(ext, ".txt") == 0) load = base_import_text;
+	else if (strcmp(ext, ".ggf") == 0) load = game_import_ggf_checked;
+	else if (strcmp(ext, ".sgf") == 0) load = game_import_sgf_checked;
+	else if (strcmp(ext, ".pgn") == 0) load = base_import_pgn;
 	else if (strcmp(ext, ".wtb") == 0) load = base_import_wthor;
-	else if (strcmp(ext, ".edx") == 0) load = game_read_checked;
+	else if (strcmp(ext, ".edx") == 0) load = base_import_edx;
 	else {
 		warn("Unknown game format extension: %s\n", ext);
 		return 0;
 	}
 
-	if (load == base_import_wthor || load == game_read_checked) f = fopen(file, "rb");
+	if (load == base_import_wthor || load == base_import_edx) f = fopen(file, "rb");
 	else f = fopen(file, "r");
 	if (f == NULL) {
 		warn("Cannot open file %s\n", file);
@@ -870,14 +922,16 @@ static int base_read_games(const char *file, bool (*take)(void*, const Game*), v
 	if (load == base_import_wthor && !wthor_header_read(&header, f)) ok = false;
 	// the last game of a file is read when the end of the file is reached (a text file without an end of line
 	// after its last game, a pgn file): up to v4.5.5-nikque.15 it was not added
-	while (load(&game, f)) {
+	while ((r = load(&game, f)) == GAME_IMPORT_READ) {
 		if (ferror(f) || n_games == INT_MAX || !take(to, &game)) { ok = false; break; }
 		++n_games;
 	}
 	if (ferror(f)) ok = false;
+	// a ggf or sgf game cut by the end of the file: the file is not complete (base correct does not replace it)
+	if (r == GAME_IMPORT_INCOMPLETE) ok = false;
 	// a binary file ends after its last game: a truncated or damaged game stops before (up to v4.5.5-nikque.15
 	// the games read until then were taken for the whole file)
-	if (load == game_read_checked && (!feof(f) || ftell(f) % (long) sizeof (Game) != 0)) ok = false;
+	if (load == base_import_edx && (!feof(f) || ftell(f) % (long) sizeof (Game) != 0)) ok = false;
 	// a wthor file holds the count of its games in its header: fewer games is a truncated file
 	if (ok && load == base_import_wthor && n_games < header.n_games) ok = false;
 	info("done (%d games loaded)\n", n_games);
@@ -1063,6 +1117,9 @@ static bool base_writer_copy_wthor(BaseWriter *w, FILE *f)
 		if (fwrite(&thor, sizeof thor, 1, w->f) != 1) return false;
 	}
 	w->n_games = header.n_games;
+	// the year of the games and the depth of their theoric scores of the file are kept (see base_writer_close)
+	w->wthor.header.game_year = header.game_year;
+	w->wthor.header.depth = header.depth;
 	return true;
 }
 
@@ -1118,7 +1175,10 @@ BaseWriter* base_writer_open(const char *file)
 	if (is_wthor) {
 		char path[FILENAME_MAX + 16];
 
-		path_get_dir(file, path); strcat(path, "WTHOR.JOU");
+		if (!wthor_companion_path(file, "WTHOR.JOU", path, sizeof path)) {
+			base_writer_abort(w);
+			return NULL;
+		}
 		wthor_players_load(&w->wthor, path);
 		if (w->wthor.n_players <= 0 || w->wthor.player == NULL) {
 			warn("Cannot read the players of %s: it was not replaced\n", file);
@@ -1168,7 +1228,7 @@ bool base_writer_close(BaseWriter *w)
 	bool ok = w->ok;
 
 	if (ok && w->save == NULL) {
-		wthor_header_set(&w->wthor.header, (unsigned int) w->n_games, 0, 0);
+		wthor_header_set_kept(&w->wthor.header, (unsigned int) w->n_games); // (the year and depth of the file, if any)
 		if (fseek(w->f, 0, SEEK_SET) != 0 || !wthor_header_write(&w->wthor.header, w->f)) ok = false;
 	}
 	if (ferror(w->f)) ok = false;
@@ -1177,10 +1237,12 @@ bool base_writer_close(BaseWriter *w)
 	if (ok && w->save == NULL) { // the players first: their list only grows, so it also suits the games that are there
 		char tmp_path[FILENAME_MAX + 32];
 
-		path_get_dir(w->file, path); strcat(path, "WTHOR.JOU");
-		strcpy(tmp_path, path); strcat(tmp_path, ".writing");
-		ok = wthor_players_save(&w->wthor, tmp_path) && file_replace(tmp_path, path);
-		if (!ok) remove(tmp_path);
+		ok = wthor_companion_path(w->file, "WTHOR.JOU", path, sizeof path);
+		if (ok) {
+			strcpy(tmp_path, path); strcat(tmp_path, ".writing");
+			ok = wthor_players_save(&w->wthor, tmp_path) && file_replace(tmp_path, path);
+			if (!ok) remove(tmp_path);
+		}
 	}
 	if (ok && !file_replace(w->tmp_file, w->file)) ok = false;
 	if (!ok) {

@@ -267,6 +267,24 @@ int main(int argc,char **argv){if(argc<2)return 1;setbuf(stdout,NULL);bit_init()
  else if(!strcmp(t,"analyze")){Search s;init_search(&s,1);Game g;game_init(&g);g.initial_board=late_board(4);printf("ANALYZE custom initial empty=%d moves=0\n",board_count_empties(&g.initial_board));fflush(stdout);game_analyze(&g,&s,4,false);search_free(&s);}
  else if(!strcmp(t,"enhance")){Search s;init_search(&s,1);Book b={0};b.search=&s;book_init(&b);b.options.level=0;b.options.n_empties=58;options.book_file="audit-enhance.dat";Board start;board_init(&start);book_add_board(&b,&start);book_enhance(&b,&start,64,64);printf("ENHANCE nodes_after=%d\n",b.n_nodes);book_clean(&b);position_negamax(book_probe(&b,&start),&b);book_clean(&b);position_enhance(book_probe(&b,&start),&b);int pending=0;Position *p;PositionArray *a;Book *bp=&b;foreach_position(p,a,bp)pending+=position_is_todo(p,bp);printf("ENHANCE pending_after_finished=%d\n",pending);book_free(&b);search_free(&s);}
  else if(!strcmp(t,"core")){core(argc>2?atoi(argv[2]):1);}
+ else if(!strcmp(t,"taskzero")){ /* the first task of the stack, after the number of tasks changed: bound to its search, its counts from 0 */
+  Search s;init_search(&s,2);int bad=0;for(int n=1;n<=4;++n){search_set_task_number(&s,n);Task *t0=s.tasks->task;
+   if(s.task!=t0||t0->search!=&s||t0->n_calls!=0||t0->n_nodes!=0||t0->loop)++bad;
+   Board b=late_board(10);search_cleanup(&s);search_set_board(&s,&b,BLACK);search_set_level(&s,60,board_count_empties(&b));search_run(&s);
+   for(int i=s.tasks->n;i<MAX_THREADS;++i)if(statistics.n_task_nodes[i]||statistics.n_task[i])++bad;}
+  search_free(&s);printf("TASK ZERO bad=%d\n",bad);if(bad)return 2;}
+ else if(!strcmp(t,"stabwindow")){ /* the window of the options alpha and beta against the scores the stable discs allow [lo, hi] (as search_run computes them): above, touching, overlapping, below; the result keeps the contract of the window */
+  Search s;init_search(&s,argc>2?atoi(argv[2]):1);int n_case[4]={0},checked=0;
+  for(int i=0;i<240;++i){Board b=late_board(6+i%9);int n=board_count_empties(&b),want=ref_solve(b,-65,65);
+   int hi=MIN(SCORE_MAX,SCORE_MAX-2*get_stability(b.opponent,b.player)+2),lo=MAX(SCORE_MIN,2*get_stability(b.player,b.opponent)-SCORE_MAX-2);
+   int win[6][3]={{hi+2,hi+6,0},{hi,hi+2,1},{hi-2,hi+2,2},{lo-2,lo+2,2},{lo-2,lo,1},{lo-6,lo-2,3}}; /* kind: 0 above, 1 touching, 2 overlapping, 3 below */
+   for(int k=0;k<6;++k){int a=win[k][0],z=win[k][1];if(a<SCORE_MIN||z>SCORE_MAX||a>=z)continue;
+    options.alpha=a;options.beta=z;search_cleanup(&s);search_set_board(&s,&b,BLACK);search_set_level(&s,60,n);search_run(&s);int r=s.result->score;
+    bool ok=want<=a?(r<=a&&r>=want):want>=z?(r>=z&&r<=want):r==want;
+    if(!ok){printf("FAIL stability window [%d, %d] stable scores [%d, %d] empty=%d expected=%d actual=%d\n",a,z,lo,hi,n,want,r);return 2;}
+    ++n_case[win[k][2]];++checked;}}
+  options.alpha=SCORE_MIN;options.beta=SCORE_MAX;search_free(&s);
+  printf("PASS stability window checks=%d above=%d touching=%d overlapping=%d below=%d\n",checked,n_case[0],n_case[1],n_case[2],n_case[3]);if(!n_case[0]||!n_case[1]||!n_case[2]||!n_case[3])return 2;}
  else if(!strcmp(t,"solid-hash")){return test_solid_hash();}
 #if COUNT_LAST_FLIP == COUNT_LAST_FLIP_BMI2
  else if(!strcmp(t,"last-empty-diagonals")){return test_last_empty_diagonals();}
@@ -465,12 +483,111 @@ int main(int argc,char **argv){if(argc<2)return 1;setbuf(stdout,NULL);bit_init()
   histogram_init(h);if(!capture_begin(1))return 2;histogram_stats(h);out=capture_end();if(!out)return 2;
   for(char *c=out;*c;++c)*c=(char)tolower((unsigned char)*c);
   {const int ok0=!strstr(out,"nan")&&!strstr(out,"inf")&&!strstr(out,"ind");printf("HISTOGRAM stats of 0 position: without nan nor inf=%d\n",ok0);ok=ok&&ok0;}free(out);
+  /* histogram_stats of 1 position, then of 3 positions of the same evaluation: no variance, no division by 0 */
+  histogram_init(h);h[64][32]=1;if(!capture_begin(1))return 2;histogram_stats(h);h[70][40]=2;h[70][41]=1;h[64][32]=0;histogram_stats(h);out=capture_end();if(!out)return 2;
+  for(char *c=out;*c;++c)*c=(char)tolower((unsigned char)*c);
+  {const int ok1=!strstr(out,"nan")&&!strstr(out,"inf")&&!strstr(out,"ind")&&strstr(out,"undefined");printf("HISTOGRAM stats of 1 position, of 1 evaluation: without nan nor inf=%d\n",ok1);ok=ok&&ok1;}free(out);
   /* every row and column of many positions: the text, as before (its hash) */
   for(int i=0;i<129;++i)for(int j=0;j<65;++j)h[i][j]=1+rr()%5;
   if(!capture_begin(1))return 2;histogram_print(h);out=capture_end();if(!out)return 2;{unsigned long long x=1469598103934665603ULL;for(char *c=out;*c;++c)x=(x^(unsigned char)*c)*1099511628211ULL;printf("HISTOGRAM of random counts: %d characters, hash %016llx\n",(int)strlen(out),x);}
   free(out);
   if(!capture_begin(1))return 2;histogram_stats(h);out=capture_end();if(!out)return 2;{unsigned long long x=1469598103934665603ULL;for(char *c=out;*c;++c)x=(x^(unsigned char)*c)*1099511628211ULL;printf("HISTOGRAM stats of random counts: %d characters, hash %016llx\n",(int)strlen(out),x);}
   free(out);if(!ok)return 2;}
+ else if(!strcmp(t,"gameio")){ /* game files: a ggf or sgf game cut by the end of the file, dates and numbers, sgf of a game from a position, the hash of a corrected
+   game, the nboard game command, the names of the files of a wthor base, the year and depth of a wthor file, OBF boards and output, opening names */
+  int ok=1,r;Base b;FILE *f;Game g,h;char s[256];long n0,n1;
+  static const char *ggf[2]={"(;GM[othello]PB[a]PW[b]B[f5]W[d6];)\n(;GM[othello]PB[c]PW[d]B[f5]W[f6];)\n","(;GM[othello]PB[e]B[f5]W["};
+  static const char *sgf[2]={"(;FF[4]GM[2]SZ[8]PB[a]PW[b];B[f5];W[d6])\n(;FF[4]GM[2]SZ[8]PB[c]PW[d];B[f5];W[f6])\n","(;FF[4]GM[2]SZ[8];B[f5];W["};
+  for(int k=0;k<2;++k){const char *name=k?"audit-cut.sgf":"audit-cut.ggf";const char **x=k?sgf:ggf;
+   OPEN(f,name,"wb");fputs(x[0],f);fclose(f);base_init(&b);r=base_load(&b,name);printf("GAMEIO %s of 2 complete games: loaded=%d games=%d\n",name,r,b.n_games);ok=ok&&r&&b.n_games==2;base_free(&b);
+   OPEN(f,name,"wb");fputs(x[0],f);fputs(x[1],f);n0=ftell(f);fclose(f);base_init(&b);r=base_load(&b,name);if(r)base_replace(&b,name); /* (as base correct) */
+   base_free(&b);OPEN(f,name,"rb");fseek(f,0,SEEK_END);n1=ftell(f);fclose(f);
+   printf("GAMEIO %s with a game cut by its end: loaded=%d (0 expected), size %ld -> %ld\n",name,r,n0,n1);ok=ok&&!r&&n0==n1;remove(name);}
+  {static const struct{const char *dt;int y,mo,d,h;}c[]={{"DT[2003.11.21_17:32:51.met]",2003,11,21,17},{"DT[2003.11]",0,0,0,-1},{"DT[2003.13.21_17:32:51]",0,0,0,-1},{"DT[1069432371]",0,0,0,-1}};
+   for(int i=0;i<4;++i){sprintf(s,"(;GM[othello]%sB[f5];)\n",c[i].dt);OPEN(f,"audit-date.ggf","wb");fputs(s,f);fclose(f);OPEN(f,"audit-date.ggf","r");game_import_ggf(&g,f);fclose(f);
+    printf("GAMEIO GGF %s: %d.%d.%d %d h\n",c[i].dt,g.date.year,g.date.month,g.date.day,g.date.hour);ok=ok&&g.date.year==c[i].y&&g.date.month==c[i].mo&&g.date.day==c[i].d&&g.date.hour==c[i].h&&g.move[0]==F5;}
+   remove("audit-date.ggf");}
+  OPEN(f,"audit-num.pgn","wb");fputs("[Date \"2003.01.05\"]\n[Time \"10:20:30\"]\n\n1. f5 d6 99999999999999999999. c3 1-99999999999999999999\n\n[Date \"99999.01.01\"]\n\n1. f5 *\n",f);fclose(f);
+  OPEN(f,"audit-num.pgn","r");game_import_pgn(&g,f);game_import_pgn(&h,f);fclose(f);remove("audit-num.pgn");
+  printf("GAMEIO PGN date %d.%d.%d %d:%d:%d, moves %d %d %d; date 99999.01.01 read as year %d (0 expected)\n",g.date.year,g.date.month,g.date.day,g.date.hour,g.date.minute,g.date.second,g.move[0],g.move[1],g.move[2],h.date.year);
+  ok=ok&&g.date.year==2003&&g.date.month==1&&g.date.day==5&&g.date.hour==10&&g.date.minute==20&&g.date.second==30&&g.move[0]==F5&&g.move[1]==D6&&g.move[2]==C3&&h.date.year==0;
+  {Line line;Board pos,e1,e2;game_init(&g);text_to_game("f5d6c3",&g);game_get_board(&g,3,&pos);line_init(&line,WHITE);line_push(&line,D3);line_push(&line,C4);line_to_game(&pos,&line,&h);strcpy(h.name[0],"x");
+   game_init(&g);text_to_game("f5d6c3d3c4",&g);OPEN(f,"audit-pos.sgf","wb");game_export_sgf(&h,f);game_export_sgf(&g,f);fclose(f);base_init(&b);r=base_load(&b,"audit-pos.sgf");remove("audit-pos.sgf");
+   const int same=r&&b.n_games==2&&board_equal(&b.game[0].initial_board,&pos)&&b.game[0].player==WHITE&&b.game[0].move[0]==D3&&b.game[0].move[1]==C4&&b.game[0].move[2]==NOMOVE
+    &&game_get_board(b.game,2,&e1)&&game_get_board(&h,2,&e2)&&board_equal(&e1,&e2)&&board_equal(&b.game[1].initial_board,&g.initial_board)&&b.game[1].player==BLACK&&!memcmp(b.game[1].move,g.move,60);
+   printf("GAMEIO SGF of a game from a position (white to move) and of a game from the start, saved and read: the same=%d\n",same);ok=ok&&same;base_free(&b);
+   /* a game whose end is replaced (base correct): the hash of its new moves, the hash of the same game read from a text */
+   game_init(&g);text_to_game("f5d6c3d3c4f4",&g);line_init(&line,WHITE);line_push(&line,B3);line_push(&line,C5);game_append_line(&g,&line,5);game_init(&h);text_to_game("f5d6c3d3c4b3c5",&h);
+   base_init(&b);base_append(&b,&g);base_append(&b,&h);base_unique(&b);
+   printf("GAMEIO hash of a game whose end is replaced %08llx, of the same game read %08llx, games after base unique %d (1 expected)\n",g.hash,h.hash,b.n_games);ok=ok&&g.hash==h.hash&&b.n_games==1;base_free(&b);}
+  {static const struct{const char *s;int r;}c[]={{"(;GM[Othello]PB[a]PW[b]B[F5]W[D6];)",D6},{"(;GM[Othello]PB[a]B[F5]",-1},{"nothing",-1},{"(;GM[Othello]BO[8 x]B[F5];)",-1},{"(;GM[Othello]B[F5]W[Z9];)",-1},{"(;GM[Othello]B[F5]W[D6]XYZW[1];)",-1}};
+   for(int i=0;i<(int)(sizeof c/sizeof *c);++i){r=parse_ggf(&g,c[i].s);printf("GAMEIO nboard game \"%s\": %d (%d expected)\n",c[i].s,r,c[i].r);ok=ok&&r==c[i].r;}}
+  {static char longname[FILENAME_MAX*2+16];WthorBase w;memset(longname,'a',sizeof longname-1);longname[FILENAME_MAX+8]='/';strcpy(longname+FILENAME_MAX+9,"x.wtb");
+   r=wthor_load(&w,longname);wthor_free(&w);const int saved=wthor_save(&w,longname);printf("GAMEIO wthor base in a folder of %d characters: loaded=%d saved=%d (0 expected)\n",FILENAME_MAX+8,r,saved);ok=ok&&!r&&!saved;}
+  {WthorHeader hd;WthorGame wg,w0;WthorBase w;
+#ifdef _WIN32
+   CreateDirectoryA("audit-wthor",NULL);
+#else
+   mkdir("audit-wthor",0777);
+#endif
+   wthor_header_set(&hd,1,0,1999);hd.depth=22;OPEN(f,"audit-wthor/a.wtb","wb");wthor_header_write(&hd,f);game_init(&g);text_to_game("f5d6c3d3c4",&g);game_to_wthor(&g,&wg);wg.black=wg.white=0;fwrite(&wg,sizeof wg,1,f);fclose(f);
+   base_init(&b);game_init(&g);text_to_game("f5f6",&g);base_append(&b,&g);r=base_save(&b,"audit-wthor/a.wtb");base_free(&b);
+   OPEN(f,"audit-wthor/a.wtb","rb");wthor_header_read(&hd,f);n0=(long)fread(&w0,sizeof w0,1,f);fclose(f);
+   printf("GAMEIO a game added to a wthor file of 1999, depth 22: saved=%d games=%d year %d depth %d, first game kept=%d\n",r,hd.n_games,hd.game_year,hd.depth,n0==1&&!memcmp(&w0,&wg,sizeof wg));
+   ok=ok&&r&&hd.n_games==2&&hd.game_year==1999&&hd.depth==22&&n0==1&&!memcmp(&w0,&wg,sizeof wg);
+   r=wthor_load(&w,"audit-wthor/a.wtb")&&wthor_save(&w,"audit-wthor/a.wtb");wthor_free(&w);OPEN(f,"audit-wthor/a.wtb","rb");wthor_header_read(&hd,f);fclose(f);
+   printf("GAMEIO wthor file loaded and saved: %d, year %d depth %d\n",r,hd.game_year,hd.depth);ok=ok&&r&&hd.game_year==1999&&hd.depth==22;
+   remove("audit-wthor/a.wtb");remove("audit-wthor/WTHOR.JOU");remove("audit-wthor/WTHOR.TRN");
+#ifdef _WIN32
+   RemoveDirectoryA("audit-wthor");
+#else
+   rmdir("audit-wthor");
+#endif
+  }
+  {OBF obf;char *tmp;FILE *in,*out;OPEN(f,"audit-obf.obf","wb");fputs("--------------------------XO------------------------------------- X;\n---------------------------OX------XO--------------------------- X;\n",f);fclose(f);
+   OPEN(in,"audit-obf.obf","r");memset(&obf,0,sizeof obf);r=obf_read(&obf,in);obf_free(&obf);const int r2=obf_read(&obf,in);obf_free(&obf);fclose(in);
+   printf("GAMEIO OBF board of 2 discs: %d (skipped %d expected), of 4 discs: %d\n",r,OBF_PARSE_SKIP,r2);ok=ok&&r==OBF_PARSE_SKIP&&r2==OBF_PARSE_OK;
+   /* an output is only replaced once the input is read to its end */
+   OPEN(f,"audit-out.obf","wb");fputs("old\n",f);fclose(f);OPEN(in,"audit-obf.obf","r");out=obf_output_open("audit-out.obf",&tmp);if(!out)return 2;fputs("new\n",out);
+   r=obf_output_close(out,"audit-out.obf",tmp,in);OPEN(f,"audit-out.obf","rb");n0=(long)fread(s,1,sizeof s-1,f);s[n0]=0;fclose(f);printf("GAMEIO OBF output of an input not read to its end: replaced=%d, \"%.3s\"\n",r,s);ok=ok&&!r&&!strcmp(s,"old\n");
+   while(fgets(s,sizeof s,in));out=obf_output_open("audit-out.obf",&tmp);if(!out)return 2;fputs("new\n",out);r=obf_output_close(out,"audit-out.obf",tmp,in);fclose(in);
+   OPEN(f,"audit-out.obf","rb");n0=(long)fread(s,1,sizeof s-1,f);s[n0]=0;fclose(f);printf("GAMEIO OBF output of an input read to its end: replaced=%d, \"%.3s\"\n",r,s);ok=ok&&r&&!strncmp(s,"new",3); /* (written as text) */
+   remove("audit-out.obf");remove("audit-obf.obf");}
+  {const char *l1=opening_get_line("heath"),*l2=opening_get_line("heath #2"),*l3=opening_get_line("ganglion #2"),*l4=opening_get_line("ganglion #3"),*l5=opening_get_line("tigre");Board x;Move m;const char *e;int bad=0,same=0;
+   printf("GAMEIO opening heath: %s, heath #2: %s, ganglion #2: %s, ganglion #3: %s\n",l1?l1:"-",l2?l2:"-",l3?l3:"-",l4?l4:"-");
+   ok=ok&&l1&&!strcmp(l1,"f5f6e6f4g5")&&l2&&!strcmp(l2,"f5f6e6d6e7")&&l3&&!strcmp(l3,"f5d6c4g5")&&!l4&&l5&&!strcmp(l5,"f5d6c3d3c4");
+   board_init(&x);e="f5f6e6d6e7f4";while(*e){const char *n=parse_move(e,&x,&m);if(n==e)break;board_update(&x,&m);e=n;}e=opening_get_english_name(&x);
+   printf("GAMEIO english name of f5f6e6d6e7f4: %s\n",e?e:"-");ok=ok&&e&&!strcmp(e,"heath-chimney, \"mass-turning\"");
+   for(const OpeningName *o=OPENING_NAME;o->name;++o){board_init(&x);e=o->line;while(*e){const char *n=parse_move(e,&x,&m);if(n==e||m.x==PASS)break;board_update(&x,&m);e=n;}if(*e)++bad;}
+   for(const PositionName *p=POSITION_NAME;p->name;++p)for(const PositionName *q=POSITION_NAME;q<p;++q)same+=board_equal(&p->board,&q->board);
+   for(const PositionName *p=NOM_POSITION;p->name;++p)for(const PositionName *q=NOM_POSITION;q<p;++q)same+=board_equal(&p->board,&q->board);
+   printf("GAMEIO opening lines that are not legal: %d, boards of two names: %d (0 expected)\n",bad,same);ok=ok&&!bad&&!same;}
+  if(!ok)return 2;}
+ /* GTP: time_settings in ms without overflow, a time out of range keeps the clock; reg_genmove keeps the game (also a forced pass) */
+ else if(!strcmp(t,"gtpclock")||!strcmp(t,"gtpregpass")){
+  if(!have_fixture())return 2;options.book_file=(char*)FIXTURE;init_engine(1);options.level=1;UI *ui=ui_new();ui->type=UI_GTP;ui_init_gtp(ui);int ok=1;Play *p=ui->play;
+  if(!strcmp(t,"gtpclock")){
+   event_add_message(&ui->event,string_duplicate("time_settings 3000000 0 0"));event_add_message(&ui->event,string_duplicate("quit"));ui_loop_gtp(ui);long long t1=options.time;ok&=(t1==3000000000LL);
+   event_add_message(&ui->event,string_duplicate("time_settings 3000000000 0 0"));event_add_message(&ui->event,string_duplicate("time_settings -5 0 0"));event_add_message(&ui->event,string_duplicate("quit"));ui_loop_gtp(ui);ok&=(options.time==3000000000LL);
+   printf("GTP CLOCK 3000000 s=%lld ms, after out of range=%lld ms\n",t1,options.time);
+  } else {
+   char s[80];memset(s,'-',64);memcpy(s,"OXXX",4);strcpy(s+64," X");play_set_board(p,s); /* black to move, no black move, white has e1 */
+   Board b0=p->board;int p0=p->player,i0=p->i_game,n0=p->n_game;long long l0=p->time[BLACK].left,l1=p->time[WHITE].left;
+   event_add_message(&ui->event,string_duplicate("reg_genmove white"));event_add_message(&ui->event,string_duplicate("quit"));ui_loop_gtp(ui);
+   int same=board_equal(&b0,&p->board)&&p0==p->player&&i0==p->i_game&&n0==p->n_game&&l0==p->time[BLACK].left&&l1==p->time[WHITE].left;ok&=same;
+   event_add_message(&ui->event,string_duplicate("genmove white"));event_add_message(&ui->event,string_duplicate("quit"));ui_loop_gtp(ui);
+   ok&=(p->i_game==i0+2);printf("GTP REG_GENMOVE game kept=%d, genmove then: %d moves (pass and e1)\n",same,p->i_game-i0);
+  }
+  ui_free_gtp(ui);ui_delete(ui);if(!ok)return 2;}
+ /* GGS: a board update with a bad player on turn keeps the game; a good one updates it */
+ else if(!strcmp(t,"ggsturn")){
+  init_engine(1);options.can_ponder=false;UI *ui=ui_new();play_init(ui->play,&ui->book);play_init(ui->play+1,&ui->book);play_new(ui->play);play_new(ui->play+1);
+  GGSClient *c=(GGSClient*)calloc(1,sizeof *c);if(!c)return 2;ui->ggs=c;c->me="edax";c->board->id=(char*)"1.2";c->board->player[0].name=(char*)"edax";c->board->player[1].name=(char*)"opp";
+  c->board->move=37;memset(c->board->board,'-',64);memcpy(c->board->board+27,"O*",2);memcpy(c->board->board+35,"***",3);c->board->board[64]=0; /* after f5 */
+  c->board->turn='?';ui_ggs_update(ui);int bad=(ui->play->player==BLACK&&ui->play->i_game==0);
+  c->board->turn='O';ui_ggs_update(ui);Board e;char s2[80];sprintf(s2,"%s O",c->board->board);board_set(&e,s2);int good=(ui->play->player==WHITE&&ui->play->i_game==1&&board_equal(&e,&ui->play->board));
+  printf("GGS TURN bad turn: game kept=%d; good turn: game updated=%d\n",bad,good);
+  play_free(ui->play);play_free(ui->play+1);free(c);ui_delete(ui);if(!bad||!good)return 2;}
  else return 1;
  return 0;
 }

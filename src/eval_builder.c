@@ -30,6 +30,11 @@ enum { MAX_N_GAMES = 3200000 };
 #include <stdio.h>
 #include <stdbool.h>
 #include <time.h>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h> // (MoveFileExA)
+#endif
 
 #define EDAX_BUILDER_REGULAR
 
@@ -107,7 +112,7 @@ typedef struct EvalBuilder {
 	short** data;                /* data[ply][config] */
 	short** coeff;               /* coeff[vector][subconfig] -> data */
 	int** feature;               /* feature[game][feature] */
-	char* score;			     /* score[game] */
+	signed char* score;		     /* score[game], -64..64: signed whatever the sign of char */
 } EvalBuilder;
 
 typedef struct EvalOption {
@@ -279,7 +284,7 @@ static void init_eval_packing(void)
 		c10[1][j] = c10[0][OPPONENT_FEATURE[j + 236196]];
 		i10[1][j] = i10[0][OPPONENT_FEATURE[j + 236196]];
 	}
-	set_eval_packing(s12[0], T, kd_S12, 0, 0, 0, 12);	/* 12 squares : 531441 -> 145341 */
+	set_eval_packing(s12[0], T, kd_S12, 0, 0, 0, 12);	/* 12 squares : 531441 -> 266085 */
 	for (j = 0; j < 531441; ++j)
 		s12[1][j] = s12[0][OPPONENT_FEATURE[j]];
 	free(T); // (4 MB, only used to build the tables: up to v4.5.5-nikque.15 not freed)
@@ -389,6 +394,16 @@ int MExamine(Board* b, int Mv, int color)	/* Returns turn count as if Mv perform
 		}
 	} while ((vect = *Tvp++) != 0);
 	return (TurnCnt);
+}
+
+/* tell whether the player to move has a move */
+static bool board_can_move(Board* b)
+{
+	int	i;
+	for (i = 0; i < 64; ++i)
+		if (b->square[i] == PEMPTY && MExamine(b, i, b->player))
+			return true;
+	return false;
 }
 
 bool board_is_game_over(Board* b)
@@ -604,7 +619,11 @@ void gamebase_import(Gamebase* base, const char* file_1, int minimax_ply)
 		j = 0; p = s;
 		while ((((*p >= 'A') && (*p <= 'H')) || ((*p >= 'a') && (*p <= 'h'))) && *(p + 1)) {
 			m = ((*p - 'A') & 7) + ((*(p + 1) - '1') & 7) * 8;
-			assert(b.square[m] == PEMPTY);
+			// a move on an empty square; the other player only plays after a pass, when the player to move has no move
+			if (b.square[m] != PEMPTY || (!MExamine(&b, m, b.player) && board_can_move(&b))) {
+				fprintf(stderr, "gamebase_import : illegal move in line %d\n", i);
+				exit(EXIT_FAILURE);
+			}
 			if (!MPerform(&b, m)) {
 				b.player ^= (PBLACK ^ PWHITE);
 				b.ScoreDiff = -b.ScoreDiff;
@@ -1011,7 +1030,7 @@ EvalBuilder* eval_builder_create(int n_vectors, int* vector_size, int* vector_ti
 	for (i = 1; i < n_games; i++) {
 		eval->feature[i] = eval->feature[i - 1] + eval->n_features;
 	}
-	eval->score = (char*)malloc(n_rows * sizeof(char));
+	eval->score = (signed char*)malloc(n_rows * sizeof(signed char));
 	assert(eval->score != NULL);
 
 	return eval;
@@ -1081,14 +1100,30 @@ void eval_builder_read(EvalBuilder* eval, const char* file) {
 	fclose(f);
 }
 
-/* write an EvalBuilder structure */
+/* replace a file by another one (false: not done, both are left as they are) */
+static bool eval_builder_replace_file(const char* from, const char* to) {
+#ifdef _WIN32
+	return MoveFileExA(from, to, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+#else
+	return rename(from, to) == 0;
+#endif
+}
+
+/* write an EvalBuilder structure: to "<file>.tmp", which replaces the file once it is written
+   (a file that cannot be written leaves the file as it was: it may be the file that was read) */
 void eval_builder_write(EvalBuilder* eval, const char* file) {
 	FILE* f;
 	size_t r;
+	char* tmp = (char*)malloc(strlen(file) + 5);
 
-	f = fopen(file, "wb");
+	if (tmp == NULL) {
+		fprintf(stderr, "eval_builder_write : not enough memory to write %s\n", file);
+		exit(EXIT_FAILURE);
+	}
+	sprintf(tmp, "%s.tmp", file);
+	f = fopen(tmp, "wb");
 	if (f == NULL) {
-		fprintf(stderr, "eval_builder_write : can't open %s\n", file);
+		fprintf(stderr, "eval_builder_write : can't open %s\n", tmp);
 		exit(EXIT_FAILURE);
 	}
 
@@ -1100,10 +1135,12 @@ void eval_builder_write(EvalBuilder* eval, const char* file) {
 	r += fwrite(&(eval->date), sizeof(double), 1, f);
 	r += fwrite(eval->data[0], sizeof(short), eval->n_data * eval->n_ply, f);
 	// (up to v4.5.5-nikque.15 an error of writing was not told, and the file was not closed)
-	if (fclose(f) != 0 || r != (size_t) (6 + eval->n_data * eval->n_ply)) {
-		fprintf(stderr, "eval_builder_write : can't write %s\n", file);
+	if (fclose(f) != 0 || r != (size_t) (6 + eval->n_data * eval->n_ply) || !eval_builder_replace_file(tmp, file)) {
+		fprintf(stderr, "eval_builder_write : can't write %s (it is left as it was)\n", file);
+		remove(tmp);
 		exit(EXIT_FAILURE);
 	}
+	free(tmp);
 }
 
 /* init eval_builder_edax features for a board */
@@ -1701,7 +1738,7 @@ double eval_builder_get_abs_error(EvalBuilder* eval, double* w, double* e) {
 	int i, j, I = eval->n_games, J = eval->n_features;
 	double E = 0.0, score;
 	int** x = eval->feature;
-	char* y = eval->score;
+	signed char* y = eval->score;
 
 	for (i = 0; i < I; i++) {
 		score = 0.0; for (j = 0; j < J; j++) score += w[x[i][j]];
@@ -1736,7 +1773,7 @@ double eval_builder_get_squared_error(EvalBuilder* eval, double* w, double* e) {
 	int i, j, I = eval->n_games, J = eval->n_features;
 	double E = 0.0, score;
 	int** x = eval->feature;
-	char* y = eval->score;
+	signed char* y = eval->score;
 
 	for (i = 0; i < I; i++) {
 		score = 0.0; for (j = 0; j < J; j++) score += w[x[i][j]];
@@ -1766,7 +1803,7 @@ double eval_builder_get_dir_squared_error(EvalBuilder* eval, double* w, double* 
 	int i, j, I = eval->n_games, J = eval->n_features;
 	double E = 0.0, e;
 	int** x = eval->feature;
-	char* y = eval->score;
+	signed char* y = eval->score;
 
 	for (i = 0; i < I; i++) {
 		e = y[i];
@@ -2205,7 +2242,7 @@ static int* eval_builder_compress_table(int size) {
 	case 10206: return c9[0];
 	case 29646: return s10[0];
 	case 29889: return c10[0];
-	case 145341: return s12[0];
+	case 266085: return s12[0]; // (12 squares, mirrored: (531441 + 729) / 2)
 	default: return NULL;
 	}
 }
@@ -2543,7 +2580,8 @@ void eval_builder_diff(EvalBuilder* eval_1, EvalBuilder* eval_2) {
 		eval_builder_get_coefficient(eval_1, w1);
 		eval_builder_get_coefficient(eval_2, w2);
 		for (k = n = 0; k < K; k++) {
-			if (w1[k] != 0.0 && w2[k] != 0.0) d[n++] = (w1[k] - w2[k]);
+			// the coefficients set in one of the files (also from 0, or to 0); not those that are 0 in both
+			if (w1[k] != 0.0 || w2[k] != 0.0) d[n++] = (w1[k] - w2[k]);
 		}
 		max_diff = sl_max(d, n);
 		min_diff = sl_min(d, n);

@@ -48,6 +48,14 @@ chmod +x lEdax-x86-64
 ./lEdax-x86-64
 ```
 
+macOS の実行ファイルは `mEdax-arm64`（Apple シリコン）か `mEdax-x64-modern`（Intel）です。
+
+```
+cd edax/bin
+chmod +x mEdax-arm64
+./mEdax-arm64
+```
+
 配布の ZIP から Linux・macOS で起動する手順は、このマニュアルの作成では試していません。Linux 版の動作は、ソースからビルドしたもので確認しています。
 
 ## 2.3 最初の画面

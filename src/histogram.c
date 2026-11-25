@@ -42,7 +42,7 @@ void histogram_print(unsigned long long h[129][65])
 			x = (i - 64);
 		for (j = 0; j < 65; ++j) {
 			y = 2 * j - 64;
-			printf("; %lld", h[i][j]);
+			printf("; %llu", h[i][j]);
 			n += h[i][j];
 			s += y * h[i][j];
 			s2 += (x - y) * (x - y) * h[i][j];
@@ -50,9 +50,9 @@ void histogram_print(unsigned long long h[129][65])
 		// (a row of 0 or 1 position: up to v4.5.5-nikque.26 divided by 0, nan and inf were printed)
 		s = n > 0 ? s / n : 0.0;
 		s2 = n > 1 ? s2 / (n - 1) : 0.0;
-		if (n > 5) printf("; %lld; %.2f; %.2f; %.2f; %.2f", n, s, sqrt(s2), x - s, sqrt(s2 - (x - s) * (x - s)));
-		else if (n > 0) printf("; %lld; %.2f; %.2f", n, s, sqrt(s2));
-		else printf("; %lld", n);
+		if (n > 5) printf("; %llu; %.2f; %.2f; %.2f; %.2f", n, s, sqrt(s2), x - s, s2 > (x - s) * (x - s) ? sqrt(s2 - (x - s) * (x - s)) : 0.0);
+		else if (n > 0) printf("; %llu; %.2f; %.2f", n, s, sqrt(s2));
+		else printf("; %llu", n);
 	}
 
 	printf("\n");
@@ -86,9 +86,9 @@ void histogram_print(unsigned long long h[129][65])
 			}
 			median[j] = (lower + upper) * 0.5 - 64;
 		}
-		printf("; %lld", n);
+		printf("; %llu", n);
 	}
-	printf("; %lld\n", N);
+	printf("; %llu\n", N);
 	printf("mean"); for (j = 0; j < 65; ++j) printf("; %.2f", mean[j]); printf("\n");
 	printf("median"); for (j = 0; j < 65; ++j) printf("; %.2f", median[j]); printf("\n");
 	printf("error"); for (j = 0; j < 65; ++j) printf("; %.2f", sqrt(variance[j])); printf("\n");
@@ -128,17 +128,22 @@ void histogram_stats(unsigned long long h[129][65])
 	m_x /= n;
 	m_y /= n;
 
-	s_x = sqrt(s_x / n - m_x * m_x);
-	s_y = sqrt(s_y / n - m_y * m_y);
+	// a variance below 0, or a few ulps above 0, by rounding is 0
+	s_x = s_x / n - m_x * m_x; if (s_x <= 1e-12 * (m_x * m_x + 1.0)) s_x = 0.0;
+	s_y = s_y / n - m_y * m_y; if (s_y <= 1e-12 * (m_y * m_y + 1.0)) s_y = 0.0;
+	s_x = sqrt(s_x);
+	s_y = sqrt(s_y);
 	s_xy = s_xy / n - m_x * m_y;
-
-	r = s_xy / (s_x * s_y);
-
 
 	printf("statistics summary\n");
 	printf("n  = %.0f\n", n);
 	printf("m_eval  = %.6f; m_score = %.6f\n", m_x, m_y);
 	printf("s_eval = %.6f; s_score = %.6f; cov = %.6f\n", s_x, s_y, s_xy);
+	if (s_x == 0.0 || s_y == 0.0) { // one value of the evaluation or of the score: the lines would divide by 0
+		printf("regression and correlation undefined (the %s has a single value)\n\n", s_x == 0.0 ? "evaluation" : "score");
+		return;
+	}
+	r = s_xy / (s_x * s_y);
 	a = s_xy / (s_x * s_x); // regression (covariance / variance: up to v4.5.5-nikque.15 sqrt(covariance) / deviation)
 	b = m_y - a * m_x;
 	printf("score = %.6f * eval + %.6f; r = %.6f; r2 = %.6f (regression)\n", a, b, r, r*r);

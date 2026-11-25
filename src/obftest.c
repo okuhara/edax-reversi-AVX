@@ -106,18 +106,41 @@ static FILE* obf_output_open(const char *file, char **tmp)
 /**
  * @brief Close an output file opened by obf_output_open, and give it its name.
  *
+ * The output file is only replaced when the input was read to its end and every line was written:
+ * else it is left as it was.
+ *
  * @param f Output stream.
  * @param file Output file name.
  * @param tmp Name of the file written.
+ * @param in Input stream, read to its end (NULL: none).
+ * @return true if the output file was replaced.
  */
-static void obf_output_close(FILE *f, const char *file, char *tmp)
+static bool obf_output_close(FILE *f, const char *file, char *tmp, FILE *in)
 {
-	const bool ok = (fclose(f) == 0) && file_replace(tmp, file);
+	const bool read = (in == NULL || (!ferror(in) && feof(in)));
+	const bool written = !ferror(f);
+	const bool ok = (fclose(f) == 0) && read && written && file_replace(tmp, file);
 	if (!ok) {
-		warn("cannot write %s\n", file);
+		if (!read) warn("cannot read the whole input: %s is not written\n", file);
+		else warn("cannot write %s\n", file);
 		remove(tmp);
 	}
 	free(tmp);
+	return ok;
+}
+
+/**
+ * @brief Tell whether the board of an OBF line can be searched.
+ *
+ * It holds at least the 4 discs of a game (at most 60 empties: the tables of the levels and of the
+ * evaluation stop there), and no square of both players.
+ *
+ * @param board Board.
+ * @return true if it can be searched.
+ */
+static bool obf_board_is_valid(const Board *board)
+{
+	return board_is_usable(board);
 }
 
 /** 
@@ -149,6 +172,11 @@ static int obf_read(OBF *obf, FILE *f)
 		} else {
 			next = parse_board(string, &obf->board, &obf->player);
 			parse_ok = (next > string) ? OBF_PARSE_OK : OBF_PARSE_SKIP;
+			if (parse_ok == OBF_PARSE_OK && !obf_board_is_valid(&obf->board)) {
+				warn("board with fewer than 4 discs (more than 60 empties) in %s: it is not searched\n", line);
+				obf->board.player = obf->board.opponent = 0; // (not written by obf_write)
+				parse_ok = OBF_PARSE_SKIP;
+			}
 		}
 
 		while (parse_ok == OBF_PARSE_OK && *(string = parse_find(next, ';')) == ';') {
@@ -418,8 +446,8 @@ void obf_test(Search *search, const char *obf_file, const char *wrong_file)
 
 	options.width += 4;
 
+	if (w) obf_output_close(w, wrong_file, w_tmp, f);
 	fclose(f);
-	if (w) obf_output_close(w, wrong_file, w_tmp);
 }
 
 /** 
@@ -479,9 +507,8 @@ void script_to_obf(Search *search, const char *script_file, const char *obf_file
 	if (options.verbosity == 1 && search->options.separator) printf("---+%s\n", search->options.separator);
 	putchar('\n');
 
+	obf_output_close(o, obf_file, o_tmp, i);
 	fclose(i);
-	obf_output_close(o, obf_file, o_tmp);
-
 }
 
 /**
@@ -529,8 +556,8 @@ void obf_filter(const char *input_file, const char *output_file)
 
 	printf("OBF filter: %d selected out of %d positions\n", f, n);
 
+	obf_output_close(out, output_file, out_tmp, in);
 	fclose(in);
-	obf_output_close(out, output_file, out_tmp);
 }
 
 /**

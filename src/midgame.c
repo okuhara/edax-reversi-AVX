@@ -492,7 +492,8 @@ static bool search_probcut(Search *search, const int alpha, const int depth, con
 		// compute reduced depth & associated error
 		probcut_depth = 2 * floor(options.probcut_d * depth) + (depth & 1);
 		if (probcut_depth == 0) probcut_depth = depth - 2; 
-		assert(probcut_depth > 1 && probcut_depth <= depth - 2 && (probcut_depth & 1) == (depth & 1));
+		if (probcut_depth < 2 || probcut_depth > depth - 2) return false; // (a probe as deep as the search, or shallower than 2, is no probe; none with the default probcut-d)
+		assert((probcut_depth & 1) == (depth & 1));
 		const bool sloped = options.pc_slope > 1.0 && depth >= search->eval.n_empties && search->eval.n_empties >= options.pc_slope_min;
 		const double ft = probcut_factor(search, depth, n_moves, true) * t; // (search-b: t with the default options)
 		if (options.probcut_model) probcut_error = ft * probcut_sigma(search->eval.n_empties, depth, probcut_depth) + RCD;	// refit (experimental)

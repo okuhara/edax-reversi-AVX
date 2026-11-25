@@ -18,7 +18,8 @@ marked positions a wrong score, which the new run must keep: it does not search 
 - leaf recalculate3 (every leaf of the walk): a small book (level 2, depth 8); every position marked: no leaf is searched, the marks go;
   half of them marked with a wrong leaf score: these keep it, the marks go.
 - learn: a file of 6 games; a progress file of its first 3 lines (written here): the next run learns the 3 others
-  and removes it; the progress of another book or another file is not used; a run stopped as soon as its
+  and removes it; the progress of another book (even of as many positions and links), of another file, or of an
+  earlier version (no file=, no book=) is not used; a run stopped as soon as its
   progress file and its .store are written, then a new run on the book it saved to <book-file>.store.
 - --form2 (C++23 version): the marks are kept by a book saved in form 2 and read again.
 - --stop-exe: the build of tests/book-learn-stop.c; book learn stopped at each of its writes (before and after
@@ -263,11 +264,39 @@ def book_header(path):
     return struct.unpack_from("<I", data, HEADER - 4)[0], level, empties
 
 
-def write_progress(path, lines, book, positions=None):
+def mix64(x):
+    x ^= x >> 30; x = (x * 0xbf58476d1ce4e5b9) & 0xffffffffffffffff
+    x ^= x >> 27; x = (x * 0x94d049bb133111eb) & 0xffffffffffffffff
+    return x ^ (x >> 31)
+
+
+def book_fingerprint(path):
+    """as book_fingerprint() of book.c: the positions (board, level, leaf, links), in any order"""
+    data, records = read_book(path)
+    total = 0
+    for r in records:
+        k = r["level_at"] - 39
+        player, opponent = struct.unpack_from("<QQ", data, k)
+        n_link, level = data[k + 38], data[k + 39] & 0x3f
+        h = mix64(player ^ mix64(opponent))
+        links = 0
+        for i in range(n_link):
+            score, move = data[k + FIXED + 2 * i], data[k + FIXED + 2 * i + 1]
+            links = (links + mix64(h ^ (score << 8 | move))) & 0xffffffffffffffff
+        leaf_score, leaf_move = data[r["leaf_at"]], data[r["leaf_at"] + 1]
+        total = (total + mix64(h ^ links ^ (level << 24 | leaf_score << 16 | leaf_move << 8 | n_link))) & 0xffffffffffffffff
+    return total
+
+
+def write_progress(path, lines, book, positions=None, games="games.txt", fingerprint=None, old=False):
     n, level, empties = book_header(book)
     with open(path, "w", newline="\n") as f:
+        if not old:  # (a progress file of v4.5.5-nikque.29 to .33 has no file= nor book=)
+            f.write(f"file={games}\n")
         f.write(f"lines={len(lines)}\nhash={learn_hash(lines):016x}\ngames={len(lines)}\nlearned={len(lines)}\n"
                 f"positions={n if positions is None else positions}\nlevel={level}\nempties={empties}\n")
+        if not old:
+            f.write(f"book={book_fingerprint(book) if fingerprint is None else fingerprint:016x}\n")
 
 
 def test_learn(args, work):
@@ -296,16 +325,43 @@ def test_learn(args, work):
     check(not os.path.exists(progress), "the progress file is removed at the end")
 
     n, level, empties = book_header(b("g3.dat"))
-    for next_links, left in ((999999, 6), (book_links(b("g3.dat")), 3)):  # the same positions before and after a save
+    fp = book_fingerprint(b("g3.dat"))
+    for next_book, left in ((fp ^ 1, 6), (fp, 3)):  # the same positions before and after a save
         with open(progress, "w", newline="\n") as f:
-            f.write(f"lines=0\nhash={learn_hash([]):016x}\ngames=0\nlearned=0\npositions={n}\nlevel={level}\nempties={empties}\n"
-                    f"next_lines=3\nnext_hash={learn_hash(GAMES[:3]):016x}\nnext_games=3\nnext_learned=3\n"
-                    f"next_positions={n}\nnext_links={next_links}\n")
+            f.write(f"file=games.txt\nlines=0\nhash={learn_hash([]):016x}\ngames=0\nlearned=0\npositions={n}\nlevel={level}\nempties={empties}\n"
+                    f"book={fp ^ 2:016x}\nnext_lines=3\nnext_hash={learn_hash(GAMES[:3]):016x}\nnext_games=3\nnext_learned=3\n"
+                    f"next_positions={n}\nnext_links={book_links(b('g3.dat'))}\nnext_book={next_book:016x}\n")
         text = run(args, work, ["book load g3.dat", "book learn games.txt"], extra=opts)
         check(re.search(rf"{left}/{left} games learned", text) is not None,
-              f"the same positions before and after a save: told apart by the links ({left} games to learn)")
+              f"the same positions before and after a save: told apart by the fingerprint ({left} games to learn)")
         if os.path.exists(progress):
             os.remove(progress)
+
+    # a book of as many positions and links, of another content (a leaf score changed): its progress is not used
+    data, records = read_book(b("g3.dat"))
+    r = next(r for r in records if data[r["leaf_at"] + 1] < 64)
+    data[r["leaf_at"]] = (data[r["leaf_at"]] + 1) & 0xff
+    open(b("g3other.dat"), "wb").write(data)
+    write_progress(progress, GAMES[:3], b("g3.dat"))
+    text = run(args, work, ["book load g3other.dat", "book learn games.txt"], extra=opts)
+    check(re.search(r"progress of book learn of another book", text) is not None and re.search(r"6/6 games learned", text) is not None,
+          "the progress of another book of as many positions and links is not used: 6 games learned")
+    if os.path.exists(progress):
+        os.remove(progress)
+
+    write_progress(progress, GAMES[:3], b("g3.dat"), old=True)
+    text = run(args, work, ["book load g3.dat", "book learn games.txt"], extra=opts)
+    check(re.search(r"written by an earlier version", text) is not None and re.search(r"6/6 games learned", text) is not None,
+          "a progress file of an earlier version (no file=, no book=) is not used: 6 games learned")
+    if os.path.exists(progress):
+        os.remove(progress)
+
+    write_progress(progress, GAMES[:3], b("g3.dat"), games="first3.txt")
+    text = run(args, work, ["book load g3.dat", "book learn games.txt"], extra=opts)
+    check(re.search(r"progress of book learn of another file \(first3\.txt\)", text) is not None and re.search(r"6/6 games learned", text) is not None,
+          "the progress of a file of games of another name is not used: 6 games learned")
+    if os.path.exists(progress):
+        os.remove(progress)
 
     write_progress(progress, GAMES[:3], b("g3.dat"), positions=1)
     text = run(args, work, ["book load g3.dat", "book learn games.txt"], extra=opts)
@@ -450,9 +506,10 @@ def stop_at_each_write(args, work, start, lines, threads, opts, fail, resumed):
         with open(b("cmds.txt"), "rb") as stdin:
             r = subprocess.run(line, stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=work, env=env, timeout=600)
         text = r.stdout.decode("utf-8", "replace").replace("\r", "\n")
-        if r.returncode not in (0, 77) and not fail:
+        # 77: stopped at the write asked; 0: ended (a failed save of .store is not an error of the program)
+        if r.returncode not in (0, 77):
             check(False, f"the Edax of --stop-exe ends with the exit code {r.returncode}")
-        return r.returncode == 77, text
+        return r.returncode == 77, text, r.returncode
 
     write_lines("lines.txt", len(lines))
     first = 0
@@ -460,7 +517,10 @@ def stop_at_each_write(args, work, start, lines, threads, opts, fail, resumed):
         n = 0
         while True:
             clear()
-            if not learn(n + 1)[0]:
+            stopped, _, code = learn(n + 1)
+            if not stopped:
+                if code != 0:  # (an end other than the stop asked or a normal end: said by learn)
+                    return
                 break
             n += 1
         first = n // 2
@@ -472,8 +532,10 @@ def stop_at_each_write(args, work, start, lines, threads, opts, fail, resumed):
         clear()
         if first:
             learn(first)
-        stopped, out = learn(stop, fail)
+        stopped, out, code = learn(stop, fail)
         if not stopped:
+            if code != 0:  # the enumeration of the stops ends only with a normal end
+                bad.append(f"after the write {stop - 1}: the exit code {code}, neither a stop nor a normal end")
             break
         where = re.findall(r"stopped (.*)", out)[-1].replace(work + os.sep, "")
         book = "book.dat.store" if os.path.exists(store) else "book.dat"

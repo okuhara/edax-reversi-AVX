@@ -165,6 +165,7 @@ typedef struct GGSClient {
 } GGSClient;
 
 static Log ggs_log[1];
+bool ui_book_save_at_end(UI *ui, const bool to_book_file);
 
 static char admin_list[][16] = {"delorme", "dan", "mic", "romano", "HCyrano", "romelica", ""};
 
@@ -938,12 +939,33 @@ static void* ggs_event_loop(void *v)
 				*buffer = '\0';
 				event->time = real_clock();
 			unlock(event);
-		} else {
-			event->loop = false;
+		} else { // the connection is closed (or broken)
+			lock(event);
+				event->loop = false;
+			unlock(event);
 		}
 	}
 
 	return NULL;
+}
+
+/**
+ * @brief ggs_event_is_closed
+ *
+ * Check if the connection is closed, and every complete line received was read.
+ *
+ * @param event Event.
+ * @return 'true' if nothing more can come from GGS.
+ */
+static bool ggs_event_is_closed(GGSEvent *event)
+{
+	bool closed;
+
+	lock(event);
+	closed = !event->loop && strpbrk(event->buffer, "\r\n") == NULL;
+	unlock(event);
+
+	return closed;
 }
 
 /**
@@ -1003,7 +1025,9 @@ static void ggs_event_init(GGSEvent *event)
 		fatal_error("Could not find %s %s\n", options.ggs_host, options.ggs_port);
 	}
 
-	thread_create(&event->thread, ggs_event_loop, event);
+	if (!thread_create(&event->thread, ggs_event_loop, event)) {
+		fatal_error("GGS: cannot create the thread that reads the server\n");
+	}
 }
 
 /**
@@ -1076,6 +1100,54 @@ static void ggs_client_free(GGSClient *client) {
 }
 
 /**
+ * @brief ggs_client_send_text
+ *
+ * Send a text to the GGS server. The log, the standard output and the warning of a failure show another text.
+ *
+ * @param client GGS client.
+ * @param text Text sent.
+ * @param length Length of the text.
+ * @param shown Text written to the log and the standard output.
+ */
+static void ggs_client_send_text(GGSClient *client, const char *text, const int length, const char *shown)
+{
+	int sent = 0, n;
+
+	log_send(ggs_log, "GGS", "%s", shown);
+	printf("GGS< %s", shown);
+	// send() may send a part of the message only: the rest is sent then (up to v4.5.5-nikque.15 it was lost)
+	while (sent < length) {
+		n = send(client->event.socket, text + sent, length - sent, 0);
+		if (n <= 0) {
+			warn("GGS: cannot send \"%s\"\n", shown);
+			break;
+		}
+		sent += n;
+	}
+}
+
+/**
+ * @brief ggs_client_send_password
+ *
+ * Send the password to the GGS server. The log and the standard output show "(password)" instead.
+ *
+ * @param client GGS client.
+ */
+static void ggs_client_send_password(GGSClient *client)
+{
+	const size_t n = strlen(options.ggs_password);
+	char *buffer = (char*) malloc(n + 2);
+
+	if (buffer == NULL) fatal_error("GGS: cannot allocate the password\n");
+	memcpy(buffer, options.ggs_password, n);
+	buffer[n] = '\n';
+	buffer[n + 1] = '\0';
+	ggs_client_send_text(client, buffer, (int) (n + 1), "(password)\n");
+	memset(buffer, 0, n + 2);
+	free(buffer);
+}
+
+/**
  * @brief ggs_client_send
  *
  * Send a message to the GGS server.
@@ -1108,20 +1180,7 @@ static void ggs_client_send(GGSClient *client, const char *fmt, ...) {
 		free(buffer);
 	}
 
-	log_send(ggs_log, "GGS", "%s", buffer);
-	printf("GGS< %s", buffer);
-	{	// send() may send a part of the message only: the rest is sent then (up to v4.5.5-nikque.15 it was lost)
-		int sent = 0, n;
-		while (sent < message_length) {
-			n = send(client->event.socket, buffer + sent, message_length - sent, 0);
-			if (n <= 0) {
-				warn("GGS: cannot send \"%s\"\n", buffer);
-				break;
-			}
-			sent += n;
-		}
-	}
-	
+	ggs_client_send_text(client, buffer, message_length, buffer);
 	free(buffer);
 }
 
@@ -1404,6 +1463,10 @@ static void ui_ggs_update(UI *ui) {
 	// set board as an edax's board
 	sprintf(buffer, "%s %c", ui->ggs->board->board, ui->ggs->board->turn);
 	turn = board_set(&board, buffer);
+	if (turn != BLACK && turn != WHITE) { // the player on turn is used as an index: a bad one keeps the game as it is
+		warn("GGS: bad player on turn '%c' in game %s: the board is not updated\n", ui->ggs->board->turn, ui->ggs->board->id ? ui->ggs->board->id : "?");
+		return;
+	}
 
 	// update the board... if possible
 	if (!play_move(play, ui->ggs->board->move)) {
@@ -1519,6 +1582,12 @@ void ui_loop_ggs(UI *ui) {
 
 		/* look for a ggs event */
 		if (!ggs_event_peek(&client->event, &text)) {
+			// the server closed the connection: nothing more will come
+			if (text.n_lines == 0 && ggs_event_is_closed(&client->event)) {
+				printf("[GGS connection closed]\n");
+				free(cmd); free(param);
+				return;
+			}
 			continue;
 		}
 
@@ -1530,7 +1599,7 @@ void ui_loop_ggs(UI *ui) {
 
 		/* password */
 		} else if (ggs_password(&text)) {
-			ggs_client_send(client, "%s\n", options.ggs_password);
+			ggs_client_send_password(client);
 
 			ggs_client_send(client, "vt100 -\n");
 			ggs_client_send(client, "bell -t -tc -tg -n -nc -ng -ni -nn\n");
@@ -1626,9 +1695,14 @@ void ui_loop_ggs(UI *ui) {
 					client->once->cmd = string_duplicate(client->loop->cmd);
 				} else {
 					client->once->cmd = (char*) malloc(strlen(cmd) + strlen(param) + 3);
-					sprintf(client->once->cmd, "%s %s\n", cmd, param);
-				}	
-				printf("[received GGS_SAIO_DELAY, retry request in %.1f s]\n", 0.001 * (client->once->delay - real_clock()));
+					if (client->once->cmd) sprintf(client->once->cmd, "%s %s\n", cmd, param);
+				}
+				if (client->once->cmd == NULL) { // no command (no loop, or no memory): nothing is sent later
+					warn("GGS: no request to retry\n");
+					client->once->delay = 0;
+				} else {
+					printf("[received GGS_SAIO_DELAY, retry request in %.1f s]\n", 0.001 * (client->once->delay - real_clock()));
+				}
 			} else {
 				client->once->delay = 0;
 			}
@@ -1657,7 +1731,7 @@ void ui_loop_ggs(UI *ui) {
 void ui_free_ggs(UI *ui) {
 	play_free(ui->play);
 	play_free(ui->play + 1);
-	if (ui->book.need_saving) book_save(&ui->book, options.book_file);
+	ui_book_save_at_end(ui, false);
 	book_free(&ui->book);
 	ggs_client_free(ui->ggs);
 	free(ui->ggs->loop->cmd);

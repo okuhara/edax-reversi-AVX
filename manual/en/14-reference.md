@@ -170,6 +170,10 @@ The "built-in value" is the value used when nothing is given.
 | `book-leaf-recalculate-rounds` | 1 to 1000000 | 1 | 1 | The limit for the number of passes of the `book leaf recalculate` family |
 | `book-seed` | 0 to 2^64 - 1, `auto` | `auto` | `auto` | The seed of the random choice among book moves of equal score (`auto`: from the clock) |
 | `book-reproducible` | `on` / `off` | `off` | `off` | Book commands give the same book from one run to the next ([chapter 7](07-book-learning.md)) |
+| `lazy` | a number, `auto` | 0 | 0 | The number of helper searches at the root (`auto`: one in a midgame search of at least 4 threads; [4.5](04-settings.md)) |
+| `pc-slope` | `off` / `on` / `slope[,limit[,fewest empties]]` | `off` | `off` | The slope of the probcut of the searches to the end (since v4.5.5-nikque.33; [4.5](04-settings.md)) |
+| `pc-dev` | `off` / `on` / `d0,k,fmin` | `off` | `off` | A narrower probcut off the principal variation (since v4.5.5-nikque.33) |
+| `pc-mob` | `off` / `on` / `a,b,c[,...]` | `off` | `off` | The probcut by the mobility (since v4.5.5-nikque.33) |
 | `probcut-model` | `standard` / `refit` | `standard` | `standard` | The pruning method (`refit` is experimental) |
 | `book-reduce-index` | `binary` / `table` | `table` | | How `book reducecount` finds a position from its number (since v4.5.5-nikque.22; [8.4](08-book-maintenance.md)) |
 | `book-reduce-walk` | `loss` / `group` | `loss` | | The order of the walk of `book reducecount` with threads (since v4.5.5-nikque.22) |
@@ -200,6 +204,16 @@ These are normally left unchanged. For their meaning, see the built-in help (`-h
 | `game-file` | file | `data/game.ggf` | (not used by the screen of this build) |
 | `ggs-host`, `ggs-port`, `ggs-login`, `ggs-password`, `ggs-open`, `ggs-log-file` | text | none | The connection to GGS |
 | `debug-cassio`, `follow-cassio` | (switches) | | For Cassio |
+| `lazy-min` | a number | 16 | Lowest depth of an iteration with `lazy` helpers |
+| `time-ext-max` | a decimal | 2.0 | Longest stretch of the time of a move (after a fail low) |
+| `time-ext-h` | a decimal | 0.5 | Part of the next iteration that must fit in the time left to start it |
+| `time-stop-master` | `on` / `off` | `on` | Split searches obey the stretched time of the master |
+| `split-probe` | `on` / `off` | `on` | Split the searches of probcut between threads |
+| `pc-r` | a decimal | 1 | Probcut: factor of the margins |
+| `pc-end` | `x` or `e:x,...` | none (0.85 with `pc-slope`) | Probcut: factor of the margins of the searches to the end, for all empties or by empties |
+| `pc-gate` | `on` / `off` | `on` | Probcut: shallow searches chosen by the evaluation |
+| `pc-dev-root` | `on` / `off` | `on` | Probcut: the later moves of the root are off the principal variation |
+| `lmr` | 0 to 2 | 0 | Late move reductions (0: off) |
 
 ## 14.6 File extensions
 

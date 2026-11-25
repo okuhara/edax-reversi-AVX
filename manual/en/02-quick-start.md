@@ -45,6 +45,14 @@ chmod +x lEdax-x86-64
 ./lEdax-x86-64
 ```
 
+On macOS, the executable is `mEdax-arm64` (Apple silicon) or `mEdax-x64-modern` (Intel):
+
+```
+cd edax/bin
+chmod +x mEdax-arm64
+./mEdax-arm64
+```
+
 Starting the Linux or macOS executables from the package ZIP was not tested for this manual. The behaviour of the Linux version was checked with builds from the source.
 
 ## 2.3 The first screen

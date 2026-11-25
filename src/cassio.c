@@ -400,8 +400,15 @@ void* engine_init(void)
 	
 	// the input thread is waited for before the engine is freed (see "quit"): up to v4.5.5-nikque.15 it was
 	// detached, and could still use the engine and its event once they were freed
-	thread_create(&engine->event->thread, engine_input_loop, engine);
-	
+	if (!thread_create(&engine->event->thread, engine_input_loop, engine)) {
+		// no input thread: no command can come, and there is no thread to wait for
+		engine_send("ERROR: Cannot create the input thread.");
+		engine_free(engine->search); // (also closes the log)
+		event_free(engine->event);
+		free(engine);
+		return NULL;
+	}
+
 	return engine;
 }
 
@@ -704,6 +711,11 @@ void engine_loop(void)
 {
 	char *cmd = NULL, *param = NULL;
 	Engine *const engine = (Engine*) engine_init();
+
+	if (engine == NULL) {
+		engine_send("bye bye.");
+		return;
+	}
 
 	// loop forever
 	for (;;) {

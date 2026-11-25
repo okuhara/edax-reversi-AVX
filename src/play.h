@@ -100,7 +100,7 @@ Move *play_get_last_move(Play*);
 void play_analyze(Play*, int);
 void play_book_analyze(Play*, int);
 const char* play_get_moves(const Play*, char*);
-void play_book_load(Play*, const char*);
+bool play_book_load(Play*, const char*);
 void play_book_import(Play*, const char*);
 void play_book_merge(Play*, const char*);
 void play_learn(Play*);

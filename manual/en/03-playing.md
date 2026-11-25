@@ -26,6 +26,8 @@ Type a command after `>` and press Enter. Many commands have a short form (`u` f
 
 **Opening names**: as in `play tiger`, you can give `play` the English name of any opening that Edax knows. Conversely, `opening` (English) and `ouverture` (French) print the name of the opening of the current position. If the position has no name, they print `?`.
 
+When several lines have the same name, `<name> #<n>` gives the n-th of them: `play heath` plays the first line named heath, `play heath #2` the second one (f5f6e6d6e7). When a position has several names, `opening` and `ouverture` print them on one line, joined with `, ` (for example `Dawg, Greenberg`).
+
 ```
 >play tiger
 >opening

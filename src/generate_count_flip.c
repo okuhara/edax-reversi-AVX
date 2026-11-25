@@ -377,7 +377,7 @@ int main() {
 
 	f = fopen("count_last_flip_kindergarten.c", "w");
 	if (f == NULL) {
-		fprintf(stderr, "cannot open 'count_flip.c'\n");
+		fprintf(stderr, "cannot open 'count_last_flip_kindergarten.c'\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -419,6 +419,7 @@ int main() {
 	fprintf(f, " * @version 4.4\n");
 	fprintf(f, " *\n");
 	fprintf(f, " */\n\n");
+	fprintf(f, "#include \"bit.h\"\n\n");
 
 	fprintf(f, "/** precomputed count flip array */\n");
 	fprintf(f, "const char COUNT_FLIP[8][256] = {\n");
@@ -444,7 +445,7 @@ int main() {
 		fprintf(f, " * @return flipped disc count.\n");
 	 	fprintf(f, " */\n");
 		fprintf(f, "static int count_last_flip_%s(const unsigned long long P)\n{\n", s);
-		fprintf(f, "\tregister int n_flipped;\n");
+		fprintf(f, "\tint n_flipped;\n");
 		fprintf(f, "\n");
 
 		fprintf(f, "\tn_flipped  = COUNT_FLIP[%d][((P & 0x%016llxULL) * 0x%016llxULL) >> 56];\n", v_flip_index(n), v_mask(n), (0x0102040810204080ull >> x));
@@ -507,5 +508,28 @@ int main() {
 	}
 	fprintf(f, "\tcount_last_flip_pass,\n};\n\n");
 
-	fclose(f);
+	fprintf(f, "/**\n");
+	fprintf(f, " * @brief Get the final score.\n");
+	fprintf(f, " *\n");
+	fprintf(f, " * Get the final score, when 1 empty square remain.\n");
+	fprintf(f, " *\n");
+	fprintf(f, " * @param P      Board.player to evaluate.\n");
+	fprintf(f, " * @param pos    Last empty square to play.\n");
+	fprintf(f, " * @return       The final score, as a disc difference.\n");
+	fprintf(f, " */\n");
+	fprintf(f, "int solve_exact_1(unsigned long long P, int pos)\n{\n");
+	fprintf(f, "\tint p_flips, o_flips;\n");
+	fprintf(f, "\tint score = 2 * bit_count(P) - 64 + 2;\t// = (bit_count(P) + 1) - (SCORE_MAX - 1 - bit_count(P))\n\n");
+	fprintf(f, "\tp_flips = count_last_flip[pos](P);\n");
+	fprintf(f, "\tif (p_flips)\n");
+	fprintf(f, "\t\treturn score + p_flips;\n\n");
+	fprintf(f, "\to_flips = -count_last_flip[pos](~P);\n");
+	fprintf(f, "\treturn score + o_flips - (int)((o_flips | (score - 1)) < 0) * 2;\t// last square for O if O can move or score <= 0\n");
+	fprintf(f, "}\n\n");
+
+	if (ferror(f) | fclose(f)) {
+		fprintf(stderr, "cannot write the generated file\n");
+		exit(EXIT_FAILURE);
+	}
+	return 0;
 }

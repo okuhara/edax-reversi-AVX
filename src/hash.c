@@ -215,6 +215,73 @@ inline unsigned int writeable_level(HashData *data)
 /** true if the entry was stored after the last cleanup (else it is empty). */
 #define	hash_is_live(hash_table, hash)	((hash)->data.wl.c.date >= (hash_table)->base)
 
+/*
+ * The board and the date of an entry are read before the lock of the entry is taken (hash_get,
+ * hash_exclude_move), so that the lock is only taken for an entry that may hold the position; the
+ * entry is then read again under the lock, and only that second reading is used. These two fields
+ * are read and written as relaxed atomics: on 64-bit processors they are the plain loads and stores,
+ * with no fence. All the other fields are only read and written under the lock.
+ */
+#if (defined(__GNUC__) || defined(__clang__)) && defined(__SIZEOF_POINTER__) && (__SIZEOF_POINTER__ == 8)
+static inline unsigned long long hash_peek_u64(const unsigned long long *p) { return __atomic_load_n(p, __ATOMIC_RELAXED); }
+static inline void hash_poke_u64(unsigned long long *p, const unsigned long long v) { __atomic_store_n(p, v, __ATOMIC_RELAXED); }
+static inline unsigned char hash_peek_u8(const unsigned char *p) { return __atomic_load_n(p, __ATOMIC_RELAXED); }
+static inline void hash_poke_u8(unsigned char *p, const unsigned char v) { __atomic_store_n(p, v, __ATOMIC_RELAXED); }
+#else
+// (volatile: one load or store each time. A 64-bit value may be read in two halves on a 32-bit processor: the
+// test before the lock is then wrong for this reading only, and the test under the lock decides.)
+static inline unsigned long long hash_peek_u64(const unsigned long long *p) { return *(const volatile unsigned long long *) p; }
+static inline void hash_poke_u64(unsigned long long *p, const unsigned long long v) { *(volatile unsigned long long *) p = v; }
+static inline unsigned char hash_peek_u8(const unsigned char *p) { return *(const volatile unsigned char *) p; }
+static inline void hash_poke_u8(unsigned char *p, const unsigned char v) { *(volatile unsigned char *) p = v; }
+#endif
+
+/**
+ * @brief Test, without the lock, if an entry may hold a board.
+ *
+ * @param hash_table Hash table.
+ * @param hash Hash entry.
+ * @param board Bitboard.
+ * @return true if the entry looked like the board when it was read (to be tested again under the lock).
+ */
+static inline bool hash_peek(const HashTable *hash_table, const Hash *hash, const Board *board)
+{
+	return hash_peek_u64(&hash->board.player) == board->player && hash_peek_u64(&hash->board.opponent) == board->opponent
+		&& hash_peek_u8(&hash->data.wl.c.date) >= hash_table->base;
+}
+
+/** Write the board of an entry (under its lock). */
+static inline void hash_put_board(Hash *hash, const Board *board)
+{
+	hash_poke_u64(&hash->board.player, board->player);
+	hash_poke_u64(&hash->board.opponent, board->opponent);
+}
+
+/** Write the date of an entry (under its lock). */
+static inline void hash_put_date(HashData *data, const unsigned char date)
+{
+	hash_poke_u8(&data->wl.c.date, date);
+}
+
+/** Write the level (depth, selectivity, cost, date) of an entry (under its lock). */
+static inline void hash_put_level(HashData *data, const HashData *from)
+{
+	data->wl.c.depth = from->wl.c.depth;
+	data->wl.c.selectivity = from->wl.c.selectivity;
+	data->wl.c.cost = from->wl.c.cost;
+	hash_put_date(data, from->wl.c.date);
+}
+
+/** Write all the data of an entry (under its lock). */
+static inline void hash_put_data(HashData *data, const HashData *from)
+{
+	data->lower = from->lower;
+	data->upper = from->upper;
+	data->move[0] = from->move[0];
+	data->move[1] = from->move[1];
+	hash_put_level(data, from);
+}
+
 /**
  * @brief Level of an entry, as an eagerly cleaned table would have it.
  *
@@ -325,21 +392,15 @@ static void data_new(HashData *data, HashStoreData *storedata)
 	if (score > storedata->alpha || score == SCORE_MIN) data->move[0] = storedata->data.move[0];
 	else data->move[0] = NOMOVE;
 	data->move[1] = NOMOVE;
-	data->wl = storedata->data.wl;
+	hash_put_level(data, &storedata->data);
 	assert(data->upper >= data->lower);
 }
 
 /**
- * @brief Initialize a new hash table item.
- *
- * This implementation tries to be robust against concurrency. Data are first
- * set up in a local thread-safe structure, before being copied into the
- * hashtable entry. Then the hashcode of the entry is xored with the thread
- * safe structure ; so that any corrupted entry won't be readable.
+ * @brief Initialize a new hash table item (under the lock of the entry).
  *
  * @param hash Hash Entry.
- * @param lock Lock.
- * @param hash_code Hash code.
+ * @param board Bitboard.
  * @param storedata.data.date Hash date.
  * @param storedata.data.depth Search depth.
  * @param storedata.data.selectivity Search selectivity.
@@ -349,27 +410,19 @@ static void data_new(HashData *data, HashStoreData *storedata)
  * @param storedata.score Best score.
  * @param storedata.move Best move.
  */
-static void hash_new(Hash *hash, HashLock *lock, const Board *board, HashStoreData *storedata)
+static void hash_new(Hash *hash, const Board *board, HashStoreData *storedata)
 {
-	spin_lock(lock);
 	HASH_STATS(if (storedata->data.wl.c.date == hash->data.wl.c.date) ++statistics.n_hash_remove;)
 	HASH_STATS(++statistics.n_hash_new;)
 	HASH_COLLISIONS(hash->key = storedata->hash_code;)
-	hash->board = *board;
+	hash_put_board(hash, board);
 	data_new(&hash->data, storedata);
-	spin_unlock(lock);
 }
 
 /**
- * @brief Set a new hash table item.
- *
- * This implementation tries to be robust against concurrency. Data are first
- * set up in a local thread-safe structure, before being copied into the
- * hashtable entry. Then the hashcode of the entry is xored with the thread
- * safe structure ; so that any corrupted entry won't be readable.
+ * @brief Set a new hash table item (under the lock of the entry).
  *
  * @param hash Hash Entry.
- * @param lock Lock.
  * @param board Bitboard.
  * @param storedata.data.date Hash date.
  * @param storedata.data.depth Search depth.
@@ -379,31 +432,21 @@ static void hash_new(Hash *hash, HashLock *lock, const Board *board, HashStoreDa
  * @param storedata.data.upper Upper score bound.
  * @param storedata.move Best move.
  */
-static void hash_set(Hash *hash, HashLock *lock, const Board *board, HashStoreData *storedata)
+static void hash_set(Hash *hash, const Board *board, HashStoreData *storedata)
 {
 	storedata->data.move[1] = NOMOVE;
-	spin_lock(lock);
 	HASH_STATS(if (storedata->data.wl.c.date == hash->data.wl.c.date) ++statistics.n_hash_remove;)
 	HASH_STATS(++statistics.n_hash_new;)
 	HASH_COLLISIONS(hash->key = storedata->hash_code;)
-	hash->board = *board;
-	hash->data = storedata->data;
+	hash_put_board(hash, board);
+	hash_put_data(&hash->data, &storedata->data);
 	assert(hash->data.upper >= hash->data.lower);
-	spin_unlock(lock);
 }
 
-
 /**
- * @brief update the hash entry
- *
- * This implementation tries to be robust against concurrency. Data are first
- * set up in a local thread-safe structure, before being copied into the
- * hashtable entry. Then the hashcode of the entry is xored with the thread
- * safe structure ; so that any corrupted entry won't be readable.
+ * @brief update the hash entry that holds the board (under the lock of the entry).
  *
  * @param hash Hash Entry.
- * @param lock Lock.
- * @param board Bitboard.
  * @param storedata.data.date Hash date.
  * @param storedata.data.depth Search depth.
  * @param storedata.data.selectivity Search selectivity.
@@ -412,71 +455,22 @@ static void hash_set(Hash *hash, HashLock *lock, const Board *board, HashStoreDa
  * @param storedata.beta Beta bound.
  * @param storedata.score Best score.
  * @param storedata.move Best move.
- * @return true if an entry has been updated, false otherwise.
  */
-static bool hash_update(const HashTable *hash_table, Hash *hash, HashLock *lock, const Board *board, HashStoreData *storedata)
+static void hash_update(Hash *hash, HashStoreData *storedata)
 {
-	bool ok = false;
-
-	if (board_equal(&hash->board, board) && hash_is_live(hash_table, hash)) {
-		spin_lock(lock);
-		if (board_equal(&hash->board, board) && hash_is_live(hash_table, hash)) {
-			if (hash->data.wl.us.selectivity_depth == storedata->data.wl.us.selectivity_depth)
-				data_update(&hash->data, storedata);
-			else	data_upgrade(&hash->data, storedata);
-			hash->data.wl.c.date = storedata->data.wl.c.date;
-			if (hash->data.lower > hash->data.upper) { // reset the hash-table...
-				data_new(&hash->data, storedata);
-			}
-			ok = true;
-		} 
-		spin_unlock(lock);
+	if (hash->data.wl.us.selectivity_depth == storedata->data.wl.us.selectivity_depth)
+		data_update(&hash->data, storedata);
+	else	data_upgrade(&hash->data, storedata);
+	hash_put_date(&hash->data, storedata->data.wl.c.date);
+	if (hash->data.lower > hash->data.upper) { // reset the hash-table...
+		data_new(&hash->data, storedata);
 	}
-	return ok;
 }
 
 /**
- * @brief replace the hash entry.
- *
- * This implementation tries to be robust against concurrency. Data are first
- * set up in a local thread-safe structure, before being copied into the
- * hashtable entry. Then the hashcode of the entry is xored with the thread
- * safe structure ; so that any corrupted entry won't be readable.
+ * @brief Reset the hash entry that holds the board from new data values (under the lock of the entry).
  *
  * @param hash Hash Entry.
- * @param lock Lock.
- * @param board Bitboard.
- * @param storedata.data.date Hash date.
- * @param storedata.data.depth Search depth.
- * @param storedata.data.selectivity Search selectivity.
- * @param storedata.data.cost Hash Cost (log2(node count)).
- * @param storedata.alpha Alpha bound.
- * @param storedata.beta Beta bound.
- * @param storedata.score Best score.
- * @param storedata.move Best move.
- * @return true if an entry has been replaced, false otherwise.
- */
-static bool hash_replace(const HashTable *hash_table, Hash *hash, HashLock *lock, const Board *board, HashStoreData *storedata)
-{
-	bool ok = false;
-
-	if (board_equal(&hash->board, board) && hash_is_live(hash_table, hash)) {
-		spin_lock(lock);
-		if (board_equal(&hash->board, board) && hash_is_live(hash_table, hash)) {
-			data_new(&hash->data, storedata);
-			ok = true;
-		}
-		spin_unlock(lock);
-	}
-	return ok;
-}
-
-/**
- * @brief Reset an hash entry from new data values.
- *
- * @param hash Hash Entry.
- * @param lock Lock.
- * @param board Bitboard.
  * @param storedata.data.date Hash date.
  * @param storedata.data.depth Search depth.
  * @param storedata.data.selectivity Search selectivity.
@@ -484,34 +478,45 @@ static bool hash_replace(const HashTable *hash_table, Hash *hash, HashLock *lock
  * @param storedata.data.upper Upper score bound.
  * @param storedata.move Best move.
  */
-static bool hash_reset(const HashTable *hash_table, Hash *hash, HashLock *lock, const Board *board, HashStoreData *storedata)
+static void hash_reset(Hash *hash, HashStoreData *storedata)
 {
-	bool ok = false;
-
-	if (board_equal(&hash->board, board) && hash_is_live(hash_table, hash)) {
-		spin_lock(lock);
-		if (board_equal(&hash->board, board) && hash_is_live(hash_table, hash)) {
-			if (hash->data.wl.us.selectivity_depth == storedata->data.wl.us.selectivity_depth) {
-				if (hash->data.lower < storedata->data.lower) hash->data.lower = storedata->data.lower;
-				if (hash->data.upper > storedata->data.upper) hash->data.upper = storedata->data.upper;
-			} else {
-				hash->data.lower = storedata->data.lower;
-				hash->data.upper = storedata->data.upper;
-			}
-			hash->data.wl = storedata->data.wl;
-			if (storedata->data.move[0] != NOMOVE) {
-				// if (hash->data.move[0] != storedata->data.move[0]) {
-					hash->data.move[1] = hash->data.move[0];
-					hash->data.move[0] = storedata->data.move[0];
-				// } else {
-				//	hash->data.move[1] = storedata->data.move[0];
-				// }
-			}
-			ok = true;
-		}
-		spin_unlock(lock);
+	if (hash->data.wl.us.selectivity_depth == storedata->data.wl.us.selectivity_depth) {
+		if (hash->data.lower < storedata->data.lower) hash->data.lower = storedata->data.lower;
+		if (hash->data.upper > storedata->data.upper) hash->data.upper = storedata->data.upper;
+	} else {
+		hash->data.lower = storedata->data.lower;
+		hash->data.upper = storedata->data.upper;
 	}
-	return ok;
+	hash_put_level(&hash->data, &storedata->data);
+	if (storedata->data.move[0] != NOMOVE) {
+		hash->data.move[1] = hash->data.move[0];
+		hash->data.move[0] = storedata->data.move[0];
+	}
+}
+
+/**
+ * @brief Look for the board in the HASH_N_WAY entries of a hash code (under their lock).
+ *
+ * The entries are read under the lock: two threads that store the same board at the same time do not
+ * both take a new entry for it, and the entry to replace is chosen from the levels the entries have.
+ * (Up to v4.5.5-nikque.33 they were read before the lock was taken.)
+ *
+ * @param hash_table Hash table.
+ * @param hash First entry of the hash code.
+ * @param board Bitboard.
+ * @param worst Output: the entry of the lowest level, to be replaced when the board is not found.
+ * @return the entry that holds the board, or NULL.
+ */
+static Hash* hash_find_locked(const HashTable *hash_table, Hash *hash, const Board *board, Hash **worst)
+{
+	int i;
+
+	*worst = hash;
+	for (i = 0; i < HASH_N_WAY; ++i, ++hash) {
+		if (board_equal(&hash->board, board) && hash_is_live(hash_table, hash)) return hash;
+		if (entry_level(hash_table, *worst) > entry_level(hash_table, hash)) *worst = hash;
+	}
+	return NULL;
 }
 
 /**
@@ -528,27 +533,19 @@ static bool hash_reset(const HashTable *hash_table, Hash *hash, HashLock *lock, 
 void hash_feed(HashTable *hash_table, const Board *board, const unsigned long long hash_code, HashStoreData *storedata)
 {
 	Hash *hash, *worst;
-	HashLock *lock; 
-	int i;
+	HashLock *lock = hash_lock(hash_table, hash_code);
 
 	storedata->data.wl.c.date = (hash_table->date ? hash_table->date : 1) + hash_table->base;
 	storedata->data.wl.c.cost = 0;
 
-	worst = hash = hash_table->hash + (hash_code & hash_table->hash_mask);
-	lock = hash_lock(hash_table, hash_code);
-	if (hash_reset(hash_table, hash, lock, board, storedata)) return;
-
-	for (i = 1; i < HASH_N_WAY; ++i) {
-		++hash;
-		if (hash_reset(hash_table, hash, lock, board, storedata)) return;
-		if (entry_level(hash_table, worst) > entry_level(hash_table, hash)) {
-			worst = hash;
-		}
+	spin_lock(lock);
+	hash = hash_find_locked(hash_table, hash_table->hash + (hash_code & hash_table->hash_mask), board, &worst);
+	if (hash) hash_reset(hash, storedata);
+	else {
+		HASH_COLLISIONS(storedata->hash_code = hash_code;)
+		hash_set(worst, board, storedata);
 	}
-
-	// new entry
-	HASH_COLLISIONS(storedata->hash_code = hash_code;)
-	hash_set(worst, lock, board, storedata);
+	spin_unlock(lock);
 }
 
 /**
@@ -582,25 +579,19 @@ void hash_feed(HashTable *hash_table, const Board *board, const unsigned long lo
  */
 void hash_store(HashTable *hash_table, const Board *board, const unsigned long long hash_code, HashStoreData *storedata)
 {
-	int i;
-	Hash *worst, *hash;
-	HashLock *lock;
+	Hash *hash, *worst;
+	HashLock *lock = hash_lock(hash_table, hash_code);
 
-	worst = hash = hash_table->hash + (hash_code & hash_table->hash_mask);
-	lock = hash_lock(hash_table, hash_code);
 	storedata->data.wl.c.date = hash_table->date + hash_table->base;
-	if (hash_update(hash_table, hash, lock, board, storedata)) return;
 
-	for (i = 1; i < HASH_N_WAY; ++i) {
-		++hash;
-		if (hash_update(hash_table, hash, lock, board, storedata)) return;
-		if (entry_level(hash_table, worst) > entry_level(hash_table, hash)) {
-			worst = hash;
-		}
+	spin_lock(lock);
+	hash = hash_find_locked(hash_table, hash_table->hash + (hash_code & hash_table->hash_mask), board, &worst);
+	if (hash) hash_update(hash, storedata);
+	else {
+		HASH_COLLISIONS(storedata->hash_code = hash_code;)
+		hash_new(worst, board, storedata);
 	}
-
-	HASH_COLLISIONS(storedata->hash_code = hash_code;)
-	hash_new(worst, lock, board, storedata);
+	spin_unlock(lock);
 }
 
 /**
@@ -656,25 +647,19 @@ void hash_store_local(Hash *hash, V2DI vboard, int alpha, int beta, int score, i
  */
 void hash_force(HashTable *hash_table, const Board *board, const unsigned long long hash_code, HashStoreData *storedata)
 {
-	int i;
-	Hash *worst, *hash;
-	HashLock *lock;
+	Hash *hash, *worst;
+	HashLock *lock = hash_lock(hash_table, hash_code);
 
-	worst = hash = hash_table->hash + (hash_code & hash_table->hash_mask);
-	lock = hash_lock(hash_table, hash_code);
 	storedata->data.wl.c.date = hash_table->date + hash_table->base;
-	if (hash_replace(hash_table, hash, lock, board, storedata)) return;
 
-	for (i = 1; i < HASH_N_WAY; ++i) {
-		++hash;
-		if (hash_replace(hash_table, hash, lock, board, storedata)) return;
-		if (entry_level(hash_table, worst) > entry_level(hash_table, hash)) {
-			worst = hash;
-		}
+	spin_lock(lock);
+	hash = hash_find_locked(hash_table, hash_table->hash + (hash_code & hash_table->hash_mask), board, &worst);
+	if (hash) data_new(&hash->data, storedata);
+	else {
+		HASH_COLLISIONS(storedata->hash_code = hash_code;)
+		hash_new(worst, board, storedata);
 	}
-
-	HASH_COLLISIONS(storedata->hash_code = hash_code;)
-	hash_new(worst, lock, board, storedata);
+	spin_unlock(lock);
 }
 
 /**
@@ -708,14 +693,14 @@ bool hash_get(HashTable *hash_table, const Board *board, const unsigned long lon
 		HASH_COLLISIONS(	})
 		HASH_COLLISIONS(	spin_unlock(lock);)
 		HASH_COLLISIONS(})
-		if (board_equal(&hash->board, board) && hash_is_live(hash_table, hash)) {
+		if (hash_peek(hash_table, hash, board)) {
 			lock = hash_lock(hash_table, hash_code);
 			spin_lock(lock);
 			if (board_equal(&hash->board, board) && hash_is_live(hash_table, hash)) {
 				*data = hash->data;
 				data->wl.c.date -= hash_table->base;	// as stored by an eagerly cleaned table
 				HASH_STATS(++statistics.n_hash_found;)
-				hash->data.wl.c.date = hash_table->date + hash_table->base;
+				hash_put_date(&hash->data, (unsigned char) (hash_table->date + hash_table->base));
 				ok = true;
 			}
 			spin_unlock(lock);
@@ -756,7 +741,7 @@ void hash_exclude_move(HashTable *hash_table, const Board *board, const unsigned
 
 	hash = hash_table->hash + (hash_code & hash_table->hash_mask);
 	for (i = 0; i < HASH_N_WAY; ++i) {
-		if (board_equal(&hash->board, board) && hash_is_live(hash_table, hash)) {
+		if (hash_peek(hash_table, hash, board)) {
 			lock = hash_lock(hash_table, hash_code);
 			spin_lock(lock);
 			if (board_equal(&hash->board, board) && hash_is_live(hash_table, hash)) {

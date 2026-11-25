@@ -17,6 +17,7 @@
 #include <ctype.h>
 
 static Log gtp_log[1];
+bool ui_book_save_at_end(UI *ui, const bool to_book_file);
 
 static void gtp_observer(Result *result)
 {
@@ -114,7 +115,7 @@ void ui_init_gtp(UI *ui)
  */
 void ui_free_gtp(UI *ui)
 {
-	if (ui->book.need_saving) book_save(&ui->book, options.book_file);
+	ui_book_save_at_end(ui, false);
 	book_free(&ui->book);
 	play_free(ui->play);
 	log_close(gtp_log);
@@ -234,25 +235,38 @@ void ui_loop_gtp(UI *ui)
 		} else if (strcmp(cmd, "genmove") == 0 || strcmp(cmd, "reg_genmove") == 0) {
 			const bool update = strcmp(cmd, "genmove") == 0;
 			char m[4];
+			// reg_genmove leaves the game as it is: its board, its player, its moves and its clocks
+			const Board saved_board = play->board;
+			const int saved_player = play->player;
+			unsigned char saved_time[sizeof play->time];
+			memcpy(saved_time, play->time, sizeof play->time);
 			gtp_parse_color(param, &color);
 			if (color == EMPTY) {
 				gtp_fail("syntax error (wrong or missing color)", id, has_id);
 				continue;
 			} else if (color != play->player) {
-				if (play_must_pass(play)) {
-					play_move(play, PASS);
-				} else {
+				if (!play_must_pass(play)) {
 					gtp_fail("wrong color", id, has_id);
 					continue;
+				} else if (update) {
+					play_move(play, PASS);
+				} else { // the pass is not played: the position after it is searched
+					board_pass(&play->board);
+					play->player ^= 1;
 				}
 			}
 			if (play_is_game_over(play)) {
 				gtp_send("pass", id, has_id);
-				continue;
+			} else {
+				play_go(play, update);
+				if (play->result.move == PASS) gtp_send("pass", id, has_id);
+				else gtp_send(move_to_string(play->result.move, WHITE, m), id, has_id);
 			}
-			play_go(play, update);
-			if (play->result.move == PASS) gtp_send("pass", id, has_id);
-			else gtp_send(move_to_string(play->result.move, WHITE, m), id, has_id);
+			if (!update) {
+				play->board = saved_board;
+				play->player = saved_player;
+				memcpy(play->time, saved_time, sizeof play->time);
+			}
 
 		// optional GTP commands but needed or supported by Quarry
 		} else if (strcmp(cmd, "undo") == 0) {
@@ -265,15 +279,23 @@ void ui_loop_gtp(UI *ui)
 
 		} else if (strcmp(cmd, "time_settings") == 0) {
 			char *s;
-			s = parse_int(param, &main_time);
-			s = parse_int(s, &byo_yomi_time);
-			s = parse_int(s, &byo_yomi_stone);
+			int t_main = main_time, t_byo_yomi = byo_yomi_time, n_byo_yomi = byo_yomi_stone; // (a missing number keeps its value)
+			errno = 0;
+			s = parse_int(param, &t_main);
+			s = parse_int(s, &t_byo_yomi);
+			s = parse_int(s, &n_byo_yomi);
+			// numbers of seconds or stones from 0 to INT_MAX: else the settings are kept
+			if (errno == ERANGE || t_main < 0 || t_byo_yomi < 0 || n_byo_yomi < 0) {
+				gtp_fail("syntax error (time settings)", id, has_id);
+				continue;
+			}
+			main_time = t_main; byo_yomi_time = t_byo_yomi; byo_yomi_stone = n_byo_yomi;
 			if (byo_yomi_stone > 0) {
 				options.play_type = EDAX_TIME_PER_MOVE;
 			} else {
 				options.play_type = EDAX_TIME_PER_GAME;
 			}
-			options.time = 1000 * main_time;
+			options.time = 1000LL * main_time; // (in a long long: more than 2147483 s overflows an int)
 			gtp_send("", id, has_id);
 
 		} else if (strcmp(cmd, "time_left") == 0) {
@@ -285,11 +307,18 @@ void ui_loop_gtp(UI *ui)
 				gtp_fail("syntax error (wrong or missing color)", id, has_id);
 				continue;
 			}
-			s = parse_real(s, &t); t *= 1000;
-			s = parse_int(s, &n);
+			s = parse_real(s, &t);
+			errno = 0;
+			s = parse_int(s, &n); // (a missing number is 0)
+			// seconds from 0 to INT_MAX (as time_settings) and a number of stones from 0: else the clock is kept
+			if (errno == ERANGE || !(t >= 0.0 && t <= (double) INT_MAX) || n < 0) {
+				gtp_fail("syntax error (time left)", id, has_id);
+				continue;
+			}
+			t *= 1000;
 			options.level = 60;
 			if (options.play_type == EDAX_TIME_PER_MOVE) {// time_per_move ?
-				if (n == 0) play->time[color].left = byo_yomi_stone > 0 ? (t + byo_yomi_time * 1000) / byo_yomi_stone : t;
+				if (n == 0) play->time[color].left = byo_yomi_stone > 0 ? (t + byo_yomi_time * 1000.0) / byo_yomi_stone : t;
 				else play->time[color].left = t / n;
 			} else { // time_per_game
 				play->time[color].left = t;

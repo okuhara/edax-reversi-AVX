@@ -109,8 +109,28 @@ typedef struct BaJob {
 	Board board;            /**< current position */
 	int player;             /**< side to move (BLACK or WHITE) */
 	Book *book;
-	volatile bool cancel;   /**< stop asked */
+	volatile bool cancel;   /**< stop asked (ba_cancelled, ba_cancel) */
 } BaJob;
+
+/** @return true if the stop of an analysis was asked (read by its threads while the input thread may set it). */
+static inline bool ba_cancelled(const BaJob *job)
+{
+#if defined(_MSC_VER)
+	return *(const volatile bool*) &job->cancel; // (an aligned volatile access is not torn)
+#else
+	return __atomic_load_n(&job->cancel, __ATOMIC_RELAXED);
+#endif
+}
+
+/** @brief Ask an analysis to stop. */
+static inline void ba_cancel(BaJob *job)
+{
+#if defined(_MSC_VER)
+	*(volatile bool*) &job->cancel = true;
+#else
+	__atomic_store_n(&job->cancel, true, __ATOMIC_RELAXED);
+#endif
+}
 
 /** Place of each bucket in the numbering of the positions (bucket, then place in the bucket). */
 typedef struct BaIndex {
@@ -302,6 +322,7 @@ static bool ba_params_read(const char *param, BaParams *p)
 
 	ba_params_default(p);
 	while (ba_next_word(&s, word, (int) sizeof word, &cut)) {
+		if (cut) goto wrong; // a word too long is not used cut (a file name would name another file)
 		value = strchr(word, '=');
 		if (value == NULL) goto wrong;
 		*value++ = '\0';
@@ -1060,7 +1081,7 @@ static int ba_walk_deviate(BaWork *w, const int which, Position *root, const uns
 			unsigned char m;
 			Link *l;
 
-			if (w->job->cancel) return -1;
+			if (ba_cancelled(w->job)) return -1;
 			if (!(lo <= v && v <= up && ba_walkable(book, p))) continue;
 			m = ba_visit_get(&w->visit, idx);
 			if (m) {
@@ -1100,7 +1121,7 @@ static int ba_deviate_rec(BaWork *w, const int which, const long long item, cons
 	const int v = p->score.value;
 	Link *l;
 
-	if (w->job->cancel) return -1;
+	if (ba_cancelled(w->job)) return -1;
 	if (!ba_visit_get(&w->visit, idx) && lower <= v && v <= upper && ba_walkable(w->book, p)) {
 		if (!ba_visit_set(&w->visit, idx, 1)) return -1;
 		foreach_link(l, p) {
@@ -1190,7 +1211,7 @@ static int ba_walk_total(BaWork *w, const int which, Position *root, const unsig
 			int move_error;
 			Link *l;
 
-			if (w->job->cancel) return -1;
+			if (ba_cancelled(w->job)) return -1;
 			if (ba_visit_get(&w->visit, idx) != L + 1) continue; // reached later with a smaller loss
 			foreach_link(l, p) {
 				move_error = v - l->score;
@@ -1262,7 +1283,7 @@ static long long ba_best_lines(BaWork *w, Position *root, const unsigned int roo
 		bool next = false;
 		Link *l;
 
-		if (w->job->cancel) return -1;
+		if (ba_cancelled(w->job)) return -1;
 		if (board_is_game_over(&p->board) || position_is_solved(p)) { *found = true; continue; }
 		foreach_link(l, p) {
 			if (l->score == v) {
@@ -1331,7 +1352,7 @@ static int ba_stage_total(BaWork *w, Position *root, const unsigned int root_idx
 			int e;
 			Link *l;
 
-			if (w->job->cancel) goto stop;
+			if (ba_cancelled(w->job)) goto stop;
 			if (ba_visit_get(&w->visit, q->item[item].idx) != L + 1) continue; // reached later with a smaller loss
 			foreach_link(l, p) {
 				e = v - l->score;
@@ -1509,10 +1530,11 @@ static inline bool ba_bit_set(volatile unsigned int *bits, const unsigned int i)
 {
 	const unsigned int m = 1u << (i & 31);
 	volatile unsigned int *word = bits + (i >> 5);
-	if (*word & m) return false;
 #if defined(_MSC_VER)
+	if (*word & m) return false; // (an aligned volatile access is not torn)
 	return (_InterlockedOr((volatile long*) word, (long) m) & (long) m) == 0;
 #else
+	if (__atomic_load_n(word, __ATOMIC_RELAXED) & m) return false; // (other threads set bits of the same word)
 	return (__atomic_fetch_or(word, m, __ATOMIC_RELAXED) & m) == 0;
 #endif
 }
@@ -1561,7 +1583,7 @@ static void* ba_reach_run(void *v)
 	long long k;
 	int n = 0;
 
-	for (k = t->first; k < t->last && !t->w->job->cancel; ++k) {
+	for (k = t->first; k < t->last && !ba_cancelled(t->w->job); ++k) {
 		Position *p = (Position*) t->cur[k];
 		Link *l;
 		foreach_link(l, p) {
@@ -1598,7 +1620,7 @@ static long long ba_reach(BaWork *w, Position *root, const unsigned int root_idx
 	ba_bit_set(bits, root_idx);
 	++hist[root->level];
 	if (!ba_list_push(&cur, (long long) (intptr_t) root)) { free((void*) bits); return -1; }
-	while (cur.n > 0 && !w->job->cancel) {
+	while (cur.n > 0 && !ba_cancelled(w->job)) {
 		const int m = cur.n < 4096 ? 1 : n_thread; // (a small ply is not worth threads)
 		bool oom = false;
 		for (i = 0; i < m; ++i) {
@@ -1624,7 +1646,7 @@ static long long ba_reach(BaWork *w, Position *root, const unsigned int root_idx
 	for (i = 0; i < MAX_THREADS; ++i) free(t[i].next.v);
 	free(cur.v);
 	free((void*) bits);
-	return w->job->cancel ? -1 : n;
+	return ba_cancelled(w->job) ? -1 : n;
 }
 
 /** @brief ba_reach, kept (see BaReached). @return the number, -1 if stopped. */
@@ -1772,7 +1794,7 @@ static int ba_umi_build(BaWork *w, Position *root, const unsigned int root_idx, 
 		const unsigned long long first = w->n_edge;
 		Link *l;
 
-		if (w->job->cancel) return -1;
+		if (ba_cancelled(w->job)) return -1;
 		if (60 - board_count_empties(&p->board) < prm->depth) {
 			foreach_link(l, p) {
 				int child_loss = 0;
@@ -1988,7 +2010,7 @@ static bool ba_prune(BaWork *w, BaTerms *e, const int counter, const bool bound)
 		e->n = BA_TERM_MAX;
 		w->inexact = true;
 	}
-	return !w->job->cancel;
+	return !ba_cancelled(w->job);
 }
 
 /** @brief out = a + b (the ends of both, the shared positions counted once). */
@@ -2188,7 +2210,7 @@ static bool ba_umi_keep_value(BaWork *w, const unsigned int v, const int counter
 	if (!w->inexact) {
 		BA_TEST_COUNT(ba_test_umi_keeps);
 		value = ba_resolve(w, w->rep + v, counter);
-		if (w->job->cancel) return false;
+		if (ba_cancelled(w->job)) return false;
 		if (w->inexact) {
 			unsigned int u;
 			for (u = 0; u < w->n_node; ++u) w->g[u] = -1;
@@ -2243,7 +2265,7 @@ static long long ba_umi_count(BaWork *w, const int counter)
 		v = w->order[r];
 		w->g[v] = -1;
 		if (w->node[v].alias != v) continue;
-		if (w->job->cancel) return -1;
+		if (ba_cancelled(w->job)) return -1;
 		if (w->n_pool > (1u << 22) && w->n_pool > 2 * w->pool_kept && !ba_pool_compact(w)) return -1;
 		if (w->node[v].end) {
 			if (!ba_terms_push(&e, 1, 0, 0)) return -1;
@@ -2551,7 +2573,7 @@ static bool ba_move_umi(BaWork *w, const int player, BaMove *m)
 		m->umi[BLACK] = m->umi[WHITE] = 0;
 		m->umi_exact = true;
 	} else if (r < 0) {
-		if (w->job->cancel) return false;
+		if (ba_cancelled(w->job)) return false;
 		m->umi_state = 2;
 	} else {
 		bool exact;
@@ -2561,7 +2583,7 @@ static bool ba_move_umi(BaWork *w, const int player, BaMove *m)
 		m->umi[WHITE] = (m->umi[BLACK] >= 0) ? ba_umi_count(w, WHITE) : -1;
 		exact = exact && !w->inexact;
 		ba_umi_clear(w);
-		if (w->job->cancel) return false;
+		if (ba_cancelled(w->job)) return false;
 		if (m->umi[BLACK] < 0 || m->umi[WHITE] < 0) m->umi_state = 2;
 		else ba_umi_keep(w, player);
 		m->umi_exact = exact;
@@ -2586,14 +2608,14 @@ static void* ba_team_run(void *v)
 		i = team->next++;
 		failed = team->failed;
 		unlock(team);
-		if (i >= team->n_move || job->cancel || failed) break;
+		if (i >= team->n_move || ba_cancelled(job) || failed) break;
 		m = team->move + i;
 		if (m->p == NULL || m->same >= 0) continue;
 		if (team->part == BA_PART_STAGE) {
 			if (ba_move_stage(&w, team->current, &team->current_info, team->current_known, m) < 0) {
 				// no memory: the analysis ends with an error (up to v4.5.5-nikque.26 the line of the move was left
 				// out of an @end without error)
-				if (!job->cancel) { lock(team); team->failed = true; unlock(team); }
+				if (!ba_cancelled(job)) { lock(team); team->failed = true; unlock(team); }
 				break;
 			}
 			ba_print_move(job, m, true);
@@ -2705,19 +2727,19 @@ static int ba_moveinfo(BaJob *job, const BaParams *prm)
 	for (i = 0; i < n; ++i) if (move[i].p == NULL || !(prm->parts & BA_PART_STAGE)) {
 		ba_print_move(job, move + i, move[i].p == NULL); // (a move out of the book is written with its stage 0)
 	}
-	if ((prm->parts & BA_PART_STAGE) && !job->cancel) {
+	if ((prm->parts & BA_PART_STAGE) && !ba_cancelled(job)) {
 		team.part = BA_PART_STAGE;
 		ba_team(&team);
-		for (i = 0; i < n && !job->cancel && !team.failed; ++i) if (move[i].p && move[i].same >= 0) {
+		for (i = 0; i < n && !ba_cancelled(job) && !team.failed; ++i) if (move[i].p && move[i].same >= 0) {
 			move[i].stage = move[move[i].same].stage;
 			move[i].missing = move[move[i].same].missing;
 			ba_print_move(job, move + i, true);
 		}
 	}
-	if ((prm->parts & BA_PART_UMI) && prm->umi != BA_UMI_OFF && !job->cancel && !team.failed) {
+	if ((prm->parts & BA_PART_UMI) && prm->umi != BA_UMI_OFF && !ba_cancelled(job) && !team.failed) {
 		team.part = BA_PART_UMI;
 		ba_team(&team);
-		for (i = 0; i < n && !job->cancel; ++i) if (move[i].p && move[i].same >= 0) {
+		for (i = 0; i < n && !ba_cancelled(job); ++i) if (move[i].p && move[i].same >= 0) {
 			const BaMove *s = move + move[i].same;
 			move[i].umi[BLACK] = s->umi[BLACK];
 			move[i].umi[WHITE] = s->umi[WHITE];
@@ -2728,16 +2750,16 @@ static int ba_moveinfo(BaJob *job, const BaParams *prm)
 	}
 	failed = team.failed;
 	lock_free(&team);
-	if ((prm->parts & BA_PART_COUNT) && !job->cancel && !failed) {
+	if ((prm->parts & BA_PART_COUNT) && !ba_cancelled(job) && !failed) {
 		long long hist[61];
-		for (i = 0; i < n && !job->cancel; ++i) if (move[i].p) {
+		for (i = 0; i < n && !ba_cancelled(job); ++i) if (move[i].p) {
 			const long long k = ba_reach_kept(&w, move[i].p, move[i].idx, hist);
-			if (k < 0) { failed = !job->cancel; break; } // (no memory: an error, as for the stages)
+			if (k < 0) { failed = !ba_cancelled(job); break; } // (no memory: an error, as for the stages)
 			ba_print("@move id=%d sq=%s part=count positions=%lld\n", job->id, move[i].sq, k);
 		}
 	}
 	ba_work_free(&w);
-	if (job->cancel || failed) return -1; // (ba_run tells it: @cancel, or @error memory=1)
+	if (ba_cancelled(job) || failed) return -1; // (ba_run tells it: @cancel, or @error memory=1)
 	ba_print("@end id=%d ms=%lld\n", job->id, real_clock() - t);
 	return 0;
 }
@@ -2866,7 +2888,7 @@ static int ba_missing(BaJob *job, const BaParams *prm)
 	}
 	if (count < 0) { ba_work_free(&w); return -1; }
 
-	for (i = 0; i < w.todo.ref.n && shown < prm->n && !job->cancel; ++i) {
+	for (i = 0; i < w.todo.ref.n && shown < prm->n && !ba_cancelled(job); ++i) {
 		const long long ref = w.todo.ref.v[i];
 		const int which = (int) (ref >> 40);
 		const long long item = ref & ((1LL << 40) - 1);
@@ -2890,7 +2912,7 @@ static int ba_missing(BaJob *job, const BaParams *prm)
 		++shown;
 	}
 	ba_work_free(&w);
-	if (job->cancel) return -1;
+	if (ba_cancelled(job)) return -1;
 	if (root_stage >= 0) ba_print("@end id=%d count=%lld shown=%lld stage=%d ms=%lld\n", job->id, count, shown, root_stage, real_clock() - t);
 	else ba_print("@end id=%d count=%lld shown=%lld ms=%lld\n", job->id, count, shown, real_clock() - t);
 	return 0;
@@ -2907,7 +2929,7 @@ static int ba_levels(BaJob *job, const BaParams *prm)
 	memset(hist, 0, sizeof hist);
 	if (prm->all) {
 		const Book *book = job->book;
-		for (i = 0; i < book->n && !job->cancel; ++i) {
+		for (i = 0; i < book->n && !ba_cancelled(job); ++i) {
 			const PositionArray *a = book->array + i;
 			int k;
 			for (k = 0; k < a->n; ++k) ++hist[a->positions[k].level];
@@ -2923,7 +2945,7 @@ static int ba_levels(BaJob *job, const BaParams *prm)
 		ba_work_free(&w);
 		if (n < 0) return -1;
 	}
-	if (job->cancel) return -1;
+	if (ba_cancelled(job)) return -1;
 	for (i = 0; i <= 60; ++i) if (hist[i]) ba_print("@level id=%d level=%d count=%lld\n", job->id, i, hist[i]);
 	ba_print("@end id=%d positions=%lld ms=%lld\n", job->id, n, real_clock() - t);
 	return 0;
@@ -2960,7 +2982,7 @@ static int ba_bestlines_build(BaWork *w, Position *root, const unsigned int root
 		const unsigned long long first = w->n_edge;
 		Link *l;
 
-		if (w->job->cancel) return -1;
+		if (ba_cancelled(w->job)) return -1;
 		if (60 - board_count_empties(&p->board) < prm->depth && (prm->follow_solved || !position_is_solved(p))) {
 			foreach_link(l, p) {
 				const int e = v - l->score;
@@ -3026,6 +3048,7 @@ static int ba_bestlines(BaJob *job, const BaParams *prm)
 	unsigned long long *lines = NULL, *incomplete = NULL;
 	long long ends = 0, incomplete_ends = 0, written = 0;
 	FILE *f = NULL;
+	char *tmp = NULL; // (the file is written under this name, then renamed: see book_text_create)
 	int result = -1;
 
 	ba_work_init(&w, job, prm);
@@ -3035,13 +3058,13 @@ static int ba_bestlines(BaJob *job, const BaParams *prm)
 		ba_print("@end id=%d lines=0 ends=0 incomplete=0 incomplete_ends=0 positions=0 written=0 ms=%lld\n", job->id, real_clock() - t);
 		return 0;
 	}
-	if (prm->file[0] && (f = fopen(prm->file, "w")) == NULL) {
+	if (prm->file[0] && (f = book_text_create(prm->file, &tmp)) == NULL) {
 		ba_work_free(&w);
 		ba_print("@error id=%d word=file\n@end id=%d error=1\n", job->id, job->id);
 		return 0;
 	}
 	if (ba_bestlines_build(&w, root, root_idx, &parent, &move) < 0) {
-		if (w.too_large && !job->cancel) { // (more positions than BA_UMI_NODE_MAX)
+		if (w.too_large && !ba_cancelled(job)) { // (more positions than BA_UMI_NODE_MAX)
 			ba_print("@error id=%d size=1\n@end id=%d error=1\n", job->id, job->id);
 			result = 0;
 		}
@@ -3073,7 +3096,7 @@ static int ba_bestlines(BaJob *job, const BaParams *prm)
 		static char buffer[1 << 20];
 		unsigned int v, chain[128];
 		setvbuf(f, buffer, _IOFBF, sizeof buffer);
-		for (v = 0; v < w.n_node && !job->cancel; ++v) {
+		for (v = 0; v < w.n_node && !ba_cancelled(job); ++v) {
 			const BaUNode *u = w.node + v;
 			char s[2 * 128 + 1];
 			Board board = job->board;
@@ -3091,23 +3114,24 @@ static int ba_bestlines(BaJob *job, const BaParams *prm)
 			if (fprintf(f, "%s%s\n", job->line ? job->line : "", s) < 0) break;
 			++written;
 		}
-		{ // (the file is closed before the answer: the user interface may read it at once)
-			const bool failed = (ferror(f) != 0) | (fclose(f) != 0);
+		{ // (the file is in its place before the answer: the user interface may read it at once)
+			const bool cancelled = ba_cancelled(job);
+			const bool written = book_text_commit(f, tmp, prm->file, !cancelled); // (stopped: the former file is kept)
 			f = NULL;
-			if (!job->cancel && failed) {
+			if (!cancelled && !written) {
 				ba_print("@error id=%d word=file\n@end id=%d error=1\n", job->id, job->id);
 				result = 0;
 				goto end;
 			}
 		}
 	}
-	if (!job->cancel) {
+	if (!ba_cancelled(job)) {
 		ba_print("@end id=%d lines=%llu ends=%lld incomplete=%llu incomplete_ends=%lld positions=%u written=%lld ms=%lld\n",
 			job->id, lines[0], ends, incomplete[0], incomplete_ends, w.n_node, written, real_clock() - t);
 		result = 0;
 	}
 end:
-	if (f) fclose(f); // (a file stopped half way is left as it is)
+	if (f) book_text_commit(f, tmp, prm->file, false); // (a file stopped half way is removed: the former file is kept)
 	free(lines); free(incomplete); free(parent); free(move);
 	ba_work_free(&w);
 	return result;
@@ -3275,6 +3299,7 @@ long long book_deviate_export(Book *book, const Board *board, const char *line, 
 	long long k, written = 0;
 	bool ok;
 	FILE *f;
+	char *tmp;
 
 	// (as book deviate2, deviate3: a mark of one byte a position; up to v4.5.5-nikque.26 edax and libedax each warned
 	// in their own words)
@@ -3282,7 +3307,7 @@ long long book_deviate_export(Book *book, const Board *board, const char *line, 
 		warn("total loss %d reduced to %d\n", y, VISIT_LOSS_MAX);
 		y = VISIT_LOSS_MAX;
 	}
-	f = fopen(file, "w");
+	f = book_text_create(file, &tmp); // (written under another name, then renamed)
 	if (f == NULL) {
 		printf("ERROR: book %s %d %d export: cannot write the file %s\n", name, x, y, file);
 		return -1;
@@ -3292,7 +3317,7 @@ long long book_deviate_export(Book *book, const Board *board, const char *line, 
 	ok = ba_index_get(book);
 	unlock(&ba);
 	if (!ok) {
-		fclose(f);
+		book_text_commit(f, tmp, file, false);
 		printf("ERROR: book %s %d %d export: not enough memory\n", name, x, y);
 		return -1;
 	}
@@ -3325,7 +3350,8 @@ long long book_deviate_export(Book *book, const Board *board, const char *line, 
 			++written;
 		}
 	}
-	ok = ok & (ferror(f) == 0) & (fclose(f) == 0);
+	ok = book_text_commit(f, tmp, file, ok); // (the former file is kept if this one is not complete)
+	f = NULL;
 	ba_visit_free(&mark);
 	free(order.v);
 	ba_work_free(&w);
@@ -3583,7 +3609,7 @@ static int ba_findline(BaJob *job, const BaParams *prm)
 			unsigned long long moves = get_moves(board.player, board.opponent);
 			bool pass = false;
 
-			if (job->cancel) goto end;
+			if (ba_cancelled(job)) goto end;
 			if (moves == 0) pass = can_move(board.opponent, board.player);
 			else moves &= occupied & ~(board.player | board.opponent);
 			while (moves || pass) {
@@ -3615,7 +3641,7 @@ static int ba_findline(BaJob *job, const BaParams *prm)
 
 	v = ba_find_get(&f, &prm->target, prm->target_color);
 	if (v != UINT_MAX) {
-		for (k = 0; k < f.node[v].n_best && !job->cancel; ++k) {
+		for (k = 0; k < f.node[v].n_best && !ba_cancelled(job); ++k) {
 			char s[2 * 128 + 1];
 			unsigned char chain[128];
 			unsigned int a = v;
@@ -3632,12 +3658,12 @@ static int ba_findline(BaJob *job, const BaParams *prm)
 			++count;
 		}
 	}
-	if (!job->cancel) {
+	if (!ba_cancelled(job)) {
 		ba_print("@end id=%d count=%d paths=%llu positions=%u ms=%lld\n", job->id, count, v == UINT_MAX ? 0ULL : f.node[v].paths, f.n_node, real_clock() - t);
 		result = 0;
 	}
 end:
-	if (result < 0 && f.too_large && !job->cancel) {
+	if (result < 0 && f.too_large && !ba_cancelled(job)) {
 		ba_print("@error id=%d size=1\n@end id=%d error=1\n", job->id, job->id);
 		result = 0;
 	}
@@ -3782,7 +3808,7 @@ static int ba_negamax_values(BaWork *w, Position *root, const unsigned int root_
 			++n;
 			next = NULL;
 		}
-		if (w->job->cancel) { ok = false; break; }
+		if (ba_cancelled(w->job)) { ok = false; break; }
 		top = stack + n - 1;
 		while (top->link < top->p->n_link) {
 			const Link *l = position_links(top->p) + top->link;
@@ -3834,7 +3860,7 @@ static long long ba_reduce_walk(BaWork *w, Position *root, const unsigned int ro
 			int v;
 			Link *l;
 
-			if (w->job->cancel) { ok = false; break; }
+			if (ba_cancelled(w->job)) { ok = false; break; }
 			if (ba_visit_get(&w->visit, idx) != L + 1) continue; // reached later with a smaller loss
 			p = ba_position(w, idx);
 			v = ba_visit_get(val, idx) - 128;
@@ -3941,7 +3967,7 @@ static void* ba_red_reach_run(void *v)
 	unsigned int ci[256];
 	long long k;
 
-	for (k = t->first; k < t->last && !t->w->job->cancel && !t->broken; ++k) {
+	for (k = t->first; k < t->last && !ba_cancelled(t->w->job) && !t->broken; ++k) {
 		const Position *p = ba_position(t->w, t->cur[k]);
 		const int n = ba_children(t->w, p, child, ci), g = ba_red_group(p);
 		int i;
@@ -3962,7 +3988,7 @@ static void* ba_red_negamax_run(void *v)
 	unsigned int ci[256];
 	long long k;
 
-	for (k = t->first; k < t->last && !t->w->job->cancel; ++k) {
+	for (k = t->first; k < t->last && !ba_cancelled(t->w->job); ++k) {
 		const unsigned int idx = t->cur[k];
 		const Position *p = ba_position(t->w, idx);
 		const int n = ba_children(t->w, p, child, ci);
@@ -3987,7 +4013,7 @@ static void* ba_red_walk_run(void *v)
 	unsigned int ci[256];
 	long long k;
 
-	for (k = t->first; k < t->last && !t->w->job->cancel; ++k) {
+	for (k = t->first; k < t->last && !ba_cancelled(t->w->job); ++k) {
 		const unsigned int idx = t->cur[k];
 		int vp, n, i;
 		if (atomic_load_uchar(t->mark + idx) != t->L + 1) continue; // reached later with a smaller loss
@@ -4081,7 +4107,7 @@ static void* ba_red_gwalk_run(void *v)
 	unsigned int ci[256];
 	long long k;
 
-	for (k = t->first; k < t->last && !t->w->job->cancel; ++k) {
+	for (k = t->first; k < t->last && !ba_cancelled(t->w->job); ++k) {
 		const unsigned int idx = t->cur[k];
 		const unsigned char m = atomic_load_uchar(t->mark + idx);
 		const Position *p;
@@ -4155,7 +4181,7 @@ static long long ba_reduce_threads(BaWork *w, Position *root, const unsigned int
 		mark[root_idx] = 1;
 		ok = ba_rlist_push(group + ba_red_group(root), root_idx) && ba_rlist_push(&front, root_idx);
 	}
-	while (ok && front.n > 0 && !w->job->cancel) {
+	while (ok && front.n > 0 && !ba_cancelled(w->job)) {
 		ba_red_run(t, n_thread, &front, 0, ba_red_reach_run);
 		front.n = 0;
 		for (i = 0; ok && i < n_thread; ++i) {
@@ -4173,7 +4199,7 @@ static long long ba_reduce_threads(BaWork *w, Position *root, const unsigned int
 	for (g = 0; g < BA_RED_GROUPS; ++g) ba_rlist_trim(group + g); // (the lists of the groups do not grow any more)
 
 	// the values, group after group
-	for (g = 0; ok && g < BA_RED_GROUPS && !w->job->cancel; ++g) {
+	for (g = 0; ok && g < BA_RED_GROUPS && !ba_cancelled(w->job); ++g) {
 		if (group[g].n) ba_red_run(t, n_thread, group + g, 0, ba_red_negamax_run);
 		for (i = 0; i < n_thread; ++i) if (t[i].broken) broken = true;
 		if (broken) ok = false;
@@ -4181,19 +4207,19 @@ static long long ba_reduce_threads(BaWork *w, Position *root, const unsigned int
 	}
 
 	// the walk
-	if (ok && !w->job->cancel) {
+	if (ok && !ba_cancelled(w->job)) {
 		memset(mark, 0, (size_t) n_book + 1);
 		mark[root_idx] = 1;
 		if (!by_group && ba_walkable(book, root)) ok = ba_rlist_push(level, root_idx);
 	}
-	for (g = BA_RED_GROUPS - 1; by_group && ok && g >= 0 && !w->job->cancel; --g) { // in the order of the groups
+	for (g = BA_RED_GROUPS - 1; by_group && ok && g >= 0 && !ba_cancelled(w->job); --g) { // in the order of the groups
 		if (group[g].n) ba_red_run(t, n_thread, group + g, 0, ba_red_gwalk_run);
 		for (i = 0; i < n_thread; ++i) { kept += t[i].n_new; t[i].n_new = 0; }
 		ba_rlist_free(group + g);
 	}
-	for (L = 0; !by_group && ok && L <= total_loss && !w->job->cancel; ++L) { // by increasing loss
+	for (L = 0; !by_group && ok && L <= total_loss && !ba_cancelled(w->job); ++L) { // by increasing loss
 		long long done = 0;
-		while (ok && done < level[L].n && !w->job->cancel) {
+		while (ok && done < level[L].n && !ba_cancelled(w->job)) {
 			const long long end = level[L].n;
 			for (i = 0; i < n_thread; ++i) t[i].L = L;
 			ba_red_run(t, n_thread, level + L, done, ba_red_walk_run);
@@ -4208,7 +4234,7 @@ static long long ba_reduce_threads(BaWork *w, Position *root, const unsigned int
 		ba_rlist_free(level + L);
 	}
 
-	if (w->job->cancel) result = -1;
+	if (ba_cancelled(w->job)) result = -1;
 	else if (broken) result = BA_DAMAGED;
 	else if (ok) result = kept;
 	for (g = 0; g < BA_RED_GROUPS; ++g) free(group[g].v);
@@ -4326,7 +4352,7 @@ static int ba_reducecount(BaJob *job, const BaParams *prm)
 		} else ba_visit_free(&val);
 	}
 	ba_work_free(&w);
-	if (marks && options.book_reduce_reuse && !job->cancel) {
+	if (marks && options.book_reduce_reuse && !ba_cancelled(job)) {
 		ba_counted.root = root->board;
 		ba_counted.x = prm->x;
 		ba_counted.y = prm->y;
@@ -4339,7 +4365,7 @@ static int ba_reducecount(BaJob *job, const BaParams *prm)
 		ba_visit_free(&kept_marks);
 		ba_visit_free(&val);
 	}
-	if (kept == BA_DAMAGED && !job->cancel) { // (the positions after the root do not make a book that can be counted)
+	if (kept == BA_DAMAGED && !ba_cancelled(job)) { // (the positions after the root do not make a book that can be counted)
 		ba_print("@error id=%d damaged=1\n@end id=%d error=1\n", job->id, job->id);
 		return 0;
 	}
@@ -4544,7 +4570,7 @@ static void ba_run(BaJob *job)
 	else if (job->kind == BA_REDUCECOUNT) r = ba_reducecount(job, &prm);
 	else r = ba_levels(job, &prm);
 	if (r < 0) {
-		if (job->cancel) ba_print("@cancel id=%d\n", job->id);
+		if (ba_cancelled(job)) ba_print("@cancel id=%d\n", job->id);
 		else ba_print("@error id=%d memory=1\n@end id=%d error=1\n", job->id, job->id);
 	}
 }
@@ -4607,15 +4633,21 @@ bool book_analysis_command(Book *book, const char *param, const Board *board, co
 		return true;
 	}
 	job = (BaJob*) calloc(1, sizeof *job);
-	if (job == NULL) return true;
-	job->param = string_duplicate(s);
-	if (job->param == NULL) { free(job); return true; }
+	if (job == NULL || (job->param = string_duplicate(s)) == NULL) {
+		free(job);
+		ba_print("@error id=%d memory=1\n@end id=%d error=1\n", id, id); // (as an analysis without memory)
+		return true;
+	}
 	job->id = id;
 	job->kind = kind;
 	job->board = *board;
 	job->player = player;
 	job->book = book;
-	if (line && (job->line = string_duplicate(line)) == NULL) { ba_job_free(job); return true; }
+	if (line && (job->line = string_duplicate(line)) == NULL) {
+		ba_job_free(job);
+		ba_print("@error id=%d memory=1\n@end id=%d error=1\n", id, id);
+		return true;
+	}
 
 	lock(&ba);
 	if (!ba.started) {
@@ -4680,7 +4712,7 @@ bool book_analysis_stop(const char *param)
 	}
 	lock(&ba);
 	if (ba.current && (!has_id || ba.current->id == id)) {
-		ba.current->cancel = true; // (the analysis answers "@cancel" when it stops)
+		ba_cancel(ba.current); // (the analysis answers "@cancel" when it stops)
 		found = true;
 	}
 	ba_cancel_waiting(!has_id, id, &found);
@@ -4696,7 +4728,7 @@ static void ba_quiesce(const bool keep_counted)
 	if (!ba.init) return;
 	lock(&ba);
 	ba_cancel_waiting(true, 0, &found);
-	if (ba.current) ba.current->cancel = true;
+	if (ba.current) ba_cancel(ba.current);
 	while (ba.current) condition_wait(&ba);
 	ba_index_free();
 	unlock(&ba);

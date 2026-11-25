@@ -23,6 +23,32 @@ struct Move;
 struct MoveList;
 struct Task;
 
+/*
+ * Shared fields of the nodes and of the tasks read without their lock: a test made again under the lock,
+ * the alpha bound of a node read by its slaves, or a flag that a thread waits for. They are written under the
+ * lock. ybwc_load()/ybwc_store() are relaxed atomics: the plain loads and stores of the processor, with no
+ * fence. The end of a task (task->run) is written with a release and waited for with an acquire, so that
+ * what the task did before is seen after the wait: plain loads and stores on x86, ldar/stlr on arm64.
+ */
+#if defined(__GNUC__) || defined(__clang__)
+	#define	ybwc_load(p)	__atomic_load_n((p), __ATOMIC_RELAXED)
+	#define	ybwc_store(p, v)	__atomic_store_n((p), (v), __ATOMIC_RELAXED)
+	#define	ybwc_load_acquire(p)	__atomic_load_n((p), __ATOMIC_ACQUIRE)
+	#define	ybwc_store_release(p, v)	__atomic_store_n((p), (v), __ATOMIC_RELEASE)
+#elif defined(_M_IX86) || defined(_M_X64)
+	// (MSVC: the fields are volatile; on x86 a volatile load is an acquire and a volatile store a release)
+	#define	ybwc_load(p)	(*(p))
+	#define	ybwc_store(p, v)	(*(p) = (v))
+	#define	ybwc_load_acquire(p)	(*(p))
+	#define	ybwc_store_release(p, v)	(*(p) = (v))
+#else
+	#define	ybwc_load(p)	(*(p))
+	#define	ybwc_store(p, v)	(*(p) = (v))
+	static inline bool ybwc_load_acquire_bool(const volatile bool *p) { const bool v = *p; MemoryBarrier(); return v; }
+	#define	ybwc_load_acquire(p)	ybwc_load_acquire_bool(p)
+	#define	ybwc_store_release(p, v)	do { MemoryBarrier(); *(p) = (v); } while (0)
+#endif
+
 /**
  * A Task is a parallel search thread.
  */

@@ -743,6 +743,17 @@ void options_bound(void)
 		options.alpha = options.beta;
 		options.beta = tmp;
 	}
+	if (options.alpha == options.beta) { // (an empty window: the search needs alpha < beta)
+		fprintf(stderr, "WARNING: alphabeta [%d, %d] is empty: ", options.alpha, options.beta);
+		if (options.beta < SCORE_MAX) ++options.beta; else --options.alpha;
+		fprintf(stderr, "[%d, %d] is used.\n", options.alpha, options.beta);
+	}
+
+	// probcut-d: the depth of the probe, 2 * floor(probcut_d * depth) + (depth & 1), must be below the depth of the search
+	if (!(options.probcut_d >= 0.0 && options.probcut_d < 0.5)) {
+		warn("probcut-d %g is out of [0, 0.5): 0.25 is used\n", options.probcut_d);
+		options.probcut_d = 0.25;
+	}
 
 	if (options.name == NULL) options.name = string_duplicate(EDAX_NAME);
 	if (options.game_file == NULL) options.game_file = string_duplicate("data/game.ggf");
@@ -775,7 +786,7 @@ void options_dump(FILE *f)
 	fprintf(f, "\tsorting depth increment: pv = %d, all = %d, cut = %d\n",  options.inc_sort_depth[0], options.inc_sort_depth[1], options.inc_sort_depth[2]);
 	fprintf(f, "\ttask number for parallel search: %d\n", options.n_task);
 	fprintf(f, "\tsearch level: %d\n", options.level);
-	fprintf(f, "\tsearch alloted time:"); time_print(options.time, false, stdout); fprintf(f, "\n");
+	fprintf(f, "\tsearch alloted time:"); time_print(options.time, false, f); fprintf(f, "\n");
 	fprintf(f, "\tsearch with: %s\n", play_type[options.play_type]);
 	fprintf(f, "\tsearch pondering: %s\n", boolean_string[options.can_ponder]);
 	fprintf(f, "\tsearch depth: %d\n", options.depth);
@@ -808,7 +819,7 @@ void options_dump(FILE *f)
 	fprintf(f, "\thost: %s\n", options.ggs_host ? options.ggs_host : "?");
 	fprintf(f, "\tport: %s\n", options.ggs_port ? options.ggs_port : "?");
 	fprintf(f, "\tlogin: %s\n", options.ggs_login ? options.ggs_login : "?");
-	fprintf(f, "\tpassword: %s\n", options.ggs_password ? options.ggs_password : "?");
+	fprintf(f, "\tpassword: %s\n", options.ggs_password ? "(set)" : "?");
 	fprintf(f, "\topen: %s\n\n", boolean_string[options.ggs_open]);
 
 	fprintf(f, "PV options\n");

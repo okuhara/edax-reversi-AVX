@@ -128,6 +128,9 @@ void book_exhaust(Book*, const Board*);
 
 void book_info(Book*);
 long long book_count_links(const Book*);
+unsigned long long book_fingerprint(const Book*);
+FILE* book_text_create(const char*, char**);
+bool book_text_commit(FILE*, char*, const char*, bool);
 void book_show(Book*, Board*);
 void book_stats(Book *book);
 bool book_get_moves(Book*, const Board*, MoveList*);
