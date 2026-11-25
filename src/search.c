@@ -1405,11 +1405,11 @@ bool search_SC_NWS(Search *search, const int alpha, int *score)
  * @param score Score to return in case of a cutoff is found.
  * @return 'true' if a cutoff is found, false otherwise.
  */
-bool search_SC_NWS_4(Search *search, const int alpha, int *score)
+bool search_SC_NWS_4(Search *search, const int alpha, const int pos, int *score)
 {
 	if (USE_SC && alpha < -NWS_STABILITY_THRESHOLD[4]) {
 		CUTOFF_STATS(++statistics.n_stability_try;)
-		get_full_lines_on_demand(&search->eval.full_lines, search->board.opponent | search->board.player);
+		update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, pos);
 		*score = 2 * get_stability(search->board.opponent, search->board.player, &search->eval.full_lines) - SCORE_MAX;
 		if (*score > alpha) {
 			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)

@@ -232,9 +232,6 @@ static int search_solve_4(Search *search, int alpha)
 	SEARCH_STATS(++statistics.n_search_solve_4);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
-	// stability cutoff (try 12%, cut 7%)
-	if (search_SC_NWS_4(search, alpha, &score)) return score;
-
 	OP = _mm_loadu_si128((__m128i *) &search->board);
 	x1 = search->empties[NOMOVE].next;
 	x2 = search->empties[x1].next;

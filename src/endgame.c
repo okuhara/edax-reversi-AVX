@@ -269,9 +269,6 @@ static int search_solve_4(Search *search, int alpha)
 	SEARCH_STATS(++statistics.n_search_solve_4);
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
-	// stability cutoff (try 12%, cut 7%)
-	if (search_SC_NWS_4(search, alpha, &score)) return score;
-
 	x1 = search->empties[NOMOVE].next;
 	x2 = search->empties[x1].next;
 	x3 = search->empties[x2].next;
@@ -442,7 +439,6 @@ static int NWS_SHALLOW_ENDGAME_BODY(Search *search, const int alpha, bool pass1)
 	}
 
 	bestscore = -SCORE_INF;
-	full0 = search->eval.full_lines;
 	parity0 = search->eval.parity;
 #if ENDGAME_LONE_FIRST
 	// a quadrant's only empty first, then the other odd quadrants, then the even ones (idea from KUROOBI (MIT))
@@ -455,7 +451,10 @@ static int NWS_SHALLOW_ENDGAME_BODY(Search *search, const int alpha, bool pass1)
 	if (prioritymoves == 0)	// all even
 		prioritymoves = moves;
 
-	if (search->eval.n_empties == 5)	// transfer to search_solve_n, no longer uses n_empties, parity (53%)
+	if (search->eval.n_empties == 5) {	// transfer to search_solve_n, no longer uses n_empties, parity (53%)
+		if (USE_SC && alpha < -NWS_STABILITY_THRESHOLD[4])
+			get_full_lines_on_demand(&search->eval.full_lines, search->board.player | search->board.opponent);
+		full0 = search->eval.full_lines;
 		do {
 			moves ^= prioritymoves;
 			x = NOMOVE;
@@ -467,10 +466,10 @@ static int NWS_SHALLOW_ENDGAME_BODY(Search *search, const int alpha, bool pass1)
 				prioritymoves &= ~x_to_bit(x);
 				search->empties[prev].next = search->empties[x].next;	// remove - maintain single link only
 				vboard_next(board0, x, &search->board);
-				incremental_update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, x);
-				score = SEARCH_SOLVE_4(search, alpha);
+				if (!search_SC_NWS_4(search, alpha, x, &score))
+					score = SEARCH_SOLVE_4(search, alpha);
 				search->empties[prev].next = x;	// restore
-				incremental_restore_full_lines(&search->eval.full_lines, full0);
+				search->eval.full_lines = full0;
 
 				if (score > alpha)	// (49%)
 					return score;
@@ -479,7 +478,8 @@ static int NWS_SHALLOW_ENDGAME_BODY(Search *search, const int alpha, bool pass1)
 			} while (prioritymoves);	// (34%)
 		} while ((prioritymoves = NEXT_MOVE_CLASS(moves, oddmoves)));	// (38%)
 
-	else {
+	} else {
+		full0 = search->eval.full_lines;
 		--search->eval.n_empties;	// for next depth
 		do {
 			moves ^= prioritymoves;
@@ -574,7 +574,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 	board0.bb = hashboard.bb = search->board;
 	ofssolid = 0;
 #ifdef USE_SOLID
-	if (USE_SC && alpha >= NWS_STABILITY_SOLID_THRESHOLD) {	// (7%)
+	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {	// (7%)
 		unsigned long long solid;
 
 		CUTOFF_STATS(++statistics.n_stability_try;)
