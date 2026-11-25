@@ -21,7 +21,7 @@ vc-x64-v4:
 # remove /vlen=256 for cl earlier than 14.42
 	if not exist ..\bin mkdir ..\bin
 	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /arch:AVX512 /vlen=256 /D POPCOUNT all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v4.exe /link /VERSION:4.5
-	copy /Y ..\config.ini ..\bin\config.ini
+#	copy /Y ..\config.ini ..\bin\config.ini
 
 vc-x64-v2:
 	cl $(VC_FLAGS) /GL /D HAS_CPU_64 /D POPCOUNT /D __SSSE3__ /D __SSE4_1__ /D __SSE4_2__ all.c ws2_32.lib /Fe..\bin\wEdax-x86-64-v2.exe /link /VERSION:4.5

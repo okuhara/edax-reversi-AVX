@@ -147,14 +147,14 @@
 #ifdef THREAD_LOCAL_HASH4_BITS
 #define THREAD_LOCAL_HASH4_SIZE THREAD_LOCAL_HASH4_BITS
 #else
-#define THREAD_LOCAL_HASH4_SIZE 14
+#define THREAD_LOCAL_HASH4_SIZE 10
 #endif
 
 /** Thread local hash size per thread for 5 and 6 empties (in number of bits; with ENDGAME_HASH56) */
 #ifdef THREAD_LOCAL_HASH56_BITS
 #define THREAD_LOCAL_HASH56_SIZE THREAD_LOCAL_HASH56_BITS
 #else
-#define THREAD_LOCAL_HASH56_SIZE 14
+#define THREAD_LOCAL_HASH56_SIZE 10
 #endif
 
 /** Swith from endgame to shallow search (faster but less node efficient) at this depth. */

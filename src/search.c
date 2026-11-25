@@ -1484,6 +1484,26 @@ bool search_TC_NWS(HashData *data, const int depth, const int selectivity, const
 	return false;
 }
 
+bool search_TC_NWS_local(HashData *data, const int alpha, const int ofssolid, int *score)
+{
+	if (USE_TC) {
+		int lower = data->lower + ofssolid;
+		int upper = data->upper + ofssolid;
+		CUTOFF_STATS(++statistics.n_hash_try;)
+		if (alpha < lower) {
+			CUTOFF_STATS(++statistics.n_hash_high_cutoff;)
+			*score = lower;
+			return true;
+		}
+		if (alpha >= upper) {
+			CUTOFF_STATS(++statistics.n_hash_low_cutoff;)
+			*score = upper;
+			return true;
+		}
+	}
+	return false;
+}
+
 /**
  * @brief Enhanced Transposition Cutoff (ETC).
  *

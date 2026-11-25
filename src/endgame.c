@@ -347,31 +347,6 @@ static int search_solve_4(Search *search, int alpha)
  * @param alpha Alpha bound.
  * @return The final score, as a disc difference.
  */
-#if ENDGAME_HASH4
-/**
- * @brief search_solve_4() behind a thread-local 1-way hash for 4 empties (idea from KUROOBI (MIT)).
- */
-static int search_solve_4_cached(Search *search, int alpha)
-{
-	Hash *hash_entry;
-	vBoard hashboard;
-	int score;
-
-	hashboard.bb = search->board;
-	hash_entry = search->thread_hash4.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash4.hash_mask);
-	if (vboard_equal(hashboard, &hash_entry->board)) {
-		if (alpha < hash_entry->data.lower) return hash_entry->data.lower;
-		if (alpha >= hash_entry->data.upper) return hash_entry->data.upper;
-	}
-	score = search_solve_4(search, alpha);
-	vhash_store_local(hash_entry, hashboard, alpha, alpha + 1, score, NOMOVE);
-	return score;
-}
-#define SEARCH_SOLVE_4 search_solve_4_cached
-#else
-#define SEARCH_SOLVE_4 search_solve_4
-#endif
-
 #if ENDGAME_LONE_FIRST
 /** the empties that are alone in their quadrant */
 static inline unsigned long long lone_empties(vBoard b)
@@ -399,21 +374,14 @@ static inline unsigned long long lone_empties(vBoard b)
 #else
 #define NEXT_MOVE_CLASS(moves, oddmoves) (moves)
 #endif
-#if ENDGAME_HASH56
-static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1);
-#define NWS_SHALLOW_ENDGAME_BODY NWS_shallow_endgame_body
-#else
-#define NWS_SHALLOW_ENDGAME_BODY NWS_shallow_endgame
-#endif
-static int NWS_SHALLOW_ENDGAME_BODY(Search *search, const int alpha, bool pass1)
+
+static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1)
 {
-	unsigned long long moves, prioritymoves;
-#if ENDGAME_LONE_FIRST
-	unsigned long long oddmoves;
-#endif
+	unsigned long long moves, prioritymoves, oddmoves;
 	int x, prev, score, bestscore;
 	// const int beta = alpha + 1;
-	vBoard board0;
+	Hash *hash_entry56, *hash_entry4;
+	vBoard board0, hashboard56, hashboard4;
 	unsigned int parity0;
 	V4DI full0;
 
@@ -438,15 +406,20 @@ static int NWS_SHALLOW_ENDGAME_BODY(Search *search, const int alpha, bool pass1)
 		return bestscore;
 	}
 
+#if ENDGAME_HASH56
+	hashboard56.bb = search->board;
+	hash_entry56 = search->thread_hash56.hash + (board_get_hash_code(&hashboard56.bb) & search->thread_hash56.hash_mask);
+	if (vboard_equal(hashboard56, &hash_entry56->board))
+		if (search_TC_NWS_local(&hash_entry56->data, alpha, 0, &score)) return score;
+#endif
+
 	bestscore = -SCORE_INF;
 	parity0 = search->eval.parity;
+	prioritymoves = oddmoves = moves & quadrant_mask[parity0];
 #if ENDGAME_LONE_FIRST
 	// a quadrant's only empty first, then the other odd quadrants, then the even ones (idea from KUROOBI (MIT))
-	oddmoves = moves & quadrant_mask[parity0];
-	prioritymoves = oddmoves & lone_empties(board0);
+	prioritymoves &= lone_empties(board0);
 	if (prioritymoves == 0) prioritymoves = oddmoves;
-#else
-	prioritymoves = moves & quadrant_mask[parity0];
 #endif
 	if (prioritymoves == 0)	// all even
 		prioritymoves = moves;
@@ -466,14 +439,26 @@ static int NWS_SHALLOW_ENDGAME_BODY(Search *search, const int alpha, bool pass1)
 				prioritymoves &= ~x_to_bit(x);
 				search->empties[prev].next = search->empties[x].next;	// remove - maintain single link only
 				vboard_next(board0, x, &search->board);
-				if (!search_SC_NWS_4(search, alpha, x, &score))
-					score = SEARCH_SOLVE_4(search, alpha);
+				if (!search_SC_NWS_4(search, alpha, x, &score)) {
+#if ENDGAME_HASH4
+					hashboard4.bb = search->board;
+					hash_entry4 = search->thread_hash4.hash + (board_get_hash_code(&hashboard4.bb) & search->thread_hash4.hash_mask);
+					if (!(vboard_equal(hashboard4, &hash_entry4->board) && search_TC_NWS_local(&hash_entry4->data, alpha, 0, &score)))
+						score = search_solve_4(search, alpha);
+					vhash_store_local(hash_entry4, hashboard4, alpha, alpha + 1, score, NOMOVE);
+#else
+					score = search_solve_4(search, alpha);
+#endif
+				}
 				search->empties[prev].next = x;	// restore
 				search->eval.full_lines = full0;
 
-				if (score > alpha)	// (49%)
+				if (score > alpha) {	// (49%)
+#if ENDGAME_HASH56
+					vhash_store_local(hash_entry56, hashboard56, alpha, alpha + 1, score, NOMOVE);
+#endif
 					return score;
-				else if (score > bestscore)
+				} else if (score > bestscore)
 					bestscore = score;
 			} while (prioritymoves);	// (34%)
 		} while ((prioritymoves = NEXT_MOVE_CLASS(moves, oddmoves)));	// (38%)
@@ -502,6 +487,10 @@ static int NWS_SHALLOW_ENDGAME_BODY(Search *search, const int alpha, bool pass1)
 					// search->board = board0.board;
 					// search->eval.parity = parity0;
 					++search->eval.n_empties;
+					bestscore = score;
+#if ENDGAME_HASH56
+					vhash_store_local(hash_entry56, hashboard56, alpha, alpha + 1, score, NOMOVE);
+#endif
 					return score;
 
 				} else if (score > bestscore)
@@ -511,36 +500,14 @@ static int NWS_SHALLOW_ENDGAME_BODY(Search *search, const int alpha, bool pass1)
 		// search->eval.parity = parity0;
 		++search->eval.n_empties;
 	}
+#if ENDGAME_HASH56
+	vhash_store_local(hash_entry56, hashboard56, alpha, alpha + 1, bestscore, NOMOVE);
+#endif
 	// search->board = board0.board;	// restore in caller
-
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
 	return bestscore;	// (33%)
 }
 
-#if ENDGAME_HASH56
-/**
- * @brief NWS_shallow_endgame() behind a thread-local 1-way hash for 5 and 6 empties (idea from KUROOBI (MIT)).
- *
- * The table is small to stay in the caches: at these depths the transpositions are many,
- * but the subtrees are too small to pay for a probe that misses the caches.
- */
-static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1)
-{
-	Hash *hash_entry;
-	vBoard hashboard;
-	int score;
-
-	hashboard.bb = search->board;
-	hash_entry = search->thread_hash56.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash56.hash_mask);
-	if (vboard_equal(hashboard, &hash_entry->board)) {
-		if (alpha < hash_entry->data.lower) return hash_entry->data.lower;
-		if (alpha >= hash_entry->data.upper) return hash_entry->data.upper;
-	}
-	score = NWS_shallow_endgame_body(search, alpha, pass1);
-	vhash_store_local(hash_entry, hashboard, alpha, alpha + 1, score, NOMOVE);
-	return score;
-}
-#endif
 /**
  * @brief Evaluate an endgame position with a Null Window Search algorithm,
  * with thread-local lockfree hash. (7..10 empties)
@@ -619,20 +586,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 		Hash *hash_entry = search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask);
 		if (vboard_equal(hashboard, &hash_entry->board)) {	// (6%)
 			hashmove[0] = hash_entry->data.move[0];
-			// search_TC_NWS(&hash_data.data, search->eval.n_empties, NO_SELECTIVITY, alpha, &score)
-			if (USE_TC /* && (data->wl.c.selectivity >= NO_SELECTIVITY && data->wl.c.depth >= search->eval.n_empties) */) {
-				int lower = hash_entry->data.lower + ofssolid;
-				int upper = hash_entry->data.upper + ofssolid;
-				CUTOFF_STATS(++statistics.n_hash_try;)
-				if (alpha < lower) {
-					CUTOFF_STATS(++statistics.n_hash_high_cutoff;)
-					return lower;
-				}
-				if (alpha >= upper) {
-					CUTOFF_STATS(++statistics.n_hash_low_cutoff;)
-					return upper;
-				}
-			}
+			if (search_TC_NWS_local(&hash_entry->data, alpha, ofssolid, &score)) return score;
 		}
 
 		if (movelist.n_moves > 1)

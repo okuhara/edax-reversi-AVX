@@ -197,6 +197,7 @@ bool search_SC_NWS(Search*, const int, int*);
 bool search_SC_NWS_4(Search*, const int, const int, int*);
 // bool search_TC_PVS(HashData*, const int, const int, int*, int*, int*);
 bool search_TC_NWS(HashData*, const int, const int, const int, int*);
+bool search_TC_NWS_local(HashData*, const int, const int, int*);
 // bool search_ETC_PVS(Search*, MoveList*, unsigned long long, const int, const int, int*, int*, int*);
 bool search_ETC_NWS(Search*, MoveList*, unsigned long long, const int, const int, const int, int*);
 
