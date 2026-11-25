@@ -456,13 +456,11 @@ static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1)
 				search->empties[prev].next = x;	// restore
 				search->eval.full_lines = full0;
 
-				if (score > alpha) {	// (49%)
-#if ENDGAME_HASH56
-					vhash_store_local(hash_entry56, hashboard56, alpha - ofssolid56, alpha + 1 - ofssolid56, score - ofssolid56, NOMOVE);
-#endif
-					return score;
-				} else if (score > bestscore)
+				if (score > bestscore) {
 					bestscore = score;
+					if (bestscore > alpha)	// (49%)
+						goto cut4;
+				}
 			} while (prioritymoves);	// (34%)
 		} while ((prioritymoves = NEXT_MOVE_CLASS(moves, oddmoves)));	// (38%)
 
@@ -486,23 +484,18 @@ static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1)
 				search->empties[prev].next = x;	// restore
 				incremental_restore_full_lines(&search->eval.full_lines, full0);
 
-				if (score > alpha) {	// (40%)
-					// search->board = board0.board;
-					// search->eval.parity = parity0;
-					++search->eval.n_empties;
+				if (score > bestscore) {
 					bestscore = score;
-#if ENDGAME_HASH56
-					vhash_store_local(hash_entry56, hashboard56, alpha - ofssolid56, alpha + 1 - ofssolid56, score - ofssolid56, NOMOVE);
-#endif
-					return score;
-
-				} else if (score > bestscore)
-					bestscore = score;
+					if (bestscore > alpha)	// (40%)
+						goto cut56;
+				}
 			} while (prioritymoves);	// (54%)
 		} while ((prioritymoves = NEXT_MOVE_CLASS(moves, oddmoves)));	// (23%)
+	cut56:
 		// search->eval.parity = parity0;
 		++search->eval.n_empties;
 	}
+cut4:
 #if ENDGAME_HASH56
 	vhash_store_local(hash_entry56, hashboard56, alpha - ofssolid56, alpha + 1 - ofssolid56, bestscore - ofssolid56, NOMOVE);
 #endif
