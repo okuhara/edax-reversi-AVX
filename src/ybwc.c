@@ -106,30 +106,39 @@ void node_free(Node *node)
  * @param parent A parent node.
  * @param node Searched node.
  * @param move Searched move.
- * @return the task if a helper task has been launched, NULL otherwise.
+ * @return true if an helper task has been launch, false otherwise.
  */
-static Task* get_helper(Node *parent, Node *node, Move *move)
+static bool get_helper(Node *master, Node *node, Move *move)
 {
-	Task *task = NULL;
+	Task *task;
+	bool found = false;
 
-	while (parent && task == NULL) {
-		// is parent available ?
-		if (parent->n_slave < SPLIT_MAX_SLAVES && parent->is_waiting && !parent->is_helping) {
-			lock(&parent->lock);
-			if (parent->n_slave < SPLIT_MAX_SLAVES && parent->is_waiting && !parent->is_helping) {
-				parent->is_helping = true;
-				task = &parent->help;
-				task_init(task);
-				task_set(task, node, move);
-				condition_broadcast(&parent->cond);
+	if (master) {
+		if (master->is_waiting && !master->is_helping) {
+			lock(&master->lock);
+			if (master->n_slave && master->is_waiting && !master->is_helping) {
+				master->is_helping = true;
+				task = &master->help;
+				task_init(task) ;
+				task->is_helping = true;
+				task->node = node;
+				task->move = move;
+				search_clone(task->search, node->search);
+				lock(&node->lock);
+					node->slave[node->n_slave++] = task->search;
+				unlock(&node->lock);
+				task->run = true;
+				found = true;
+
+				condition_broadcast(&master->cond);
 			}
-			unlock(&parent->lock);
+			unlock(&master->lock);
+		} else {
+			found = get_helper(master->parent, node, move);
 		}
-		// if parent node is not available seek for an helper node from grand-parent node
-		parent = parent->parent;
 	}
 
-	return task;
+	return found;
 }
 
 /**
@@ -166,11 +175,16 @@ bool node_split(Node *node, Move *move)
 	 && node->n_moves_todo >=  SPLIT_MIN_MOVES_TODO) {  // do not split the last move(s), to diminish waiting time
 		YBWC_STATS(atomic_add(&statistics.n_split_try, 1);)
 
-		if ((task = get_helper(node->parent, node, move)) != NULL) {
+		if (get_helper(node->parent, node, move)) {
 			YBWC_STATS(atomic_add(&statistics.n_master_helper, 1);)
 			return true;
 		} else if ((task = task_stack_get_idle_task(search->tasks)) != NULL) {
-			task_set(task, node, move);
+			task->node = node;
+			task->move = move;
+			search_clone(task->search, search);
+			lock(&node->lock);
+				node->slave[node->n_slave++] = task->search;
+			unlock(&node->lock);
 			YBWC_STATS(atomic_add(&statistics.n_split_success, 1);)
 
 			lock(&task->lock);
@@ -254,12 +268,11 @@ void node_wait_slaves(Node* node)
  */
 void node_update(Node* node, Move *move)
 {
-	Search *search;
+	Search *search = node->search;
 	const int score = move->score;
 	int i;
 
 	lock(&node->lock);
-	search = node->search;
 	if (search_get_state(search) == RUNNING && score > node->bestscore) {
 		node->bestscore = score;
 		node->bestmove = move->x;
@@ -348,23 +361,6 @@ Move* node_next_move(Node *node)
 }
 
 /**
- * @brief task_set copy the search state to the task.
- *
- * @param task The task to setup.
- * @param node The node to attach to the task.
- * @param move The movelist to attach to the task.
- */
-void task_set(Task *task, Node *node, Move *move)
-{
-	task->node = node;
-	task->move = move;
-	search_clone(task->search, node->search);
-	lock(&node->lock);
-	node->slave[node->n_slave++] = task->search;
-	unlock(&node->lock);
-}
-
-/**
  * @brief A parallel search within a Task structure.
  *
  * Here we share the search with a main parent task.
@@ -440,9 +436,6 @@ void task_search(Task *task)
 			if (node->bestscore > node->alpha) {
 				node->alpha = node->bestscore;
 				if (node->alpha >= node->beta && search_get_state(node->search) == RUNNING) { // stop the master thread?
-					node->stop_point = true;
-					search_set_state(node->search, STOP_PARALLEL_SEARCH);
-					YBWC_STATS(atomic_add(&statistics.n_stopped_master, 1);)
 					spin_lock(&node->search->spin); // (see node_wait_slaves)
 					if (search_get_state(node->search) == RUNNING) {
 						node->stop_point = true;
