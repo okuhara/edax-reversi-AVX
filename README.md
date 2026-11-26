@@ -56,9 +56,13 @@ The complete list is in the [release notes](RELEASE-NOTES.md).
 
 ## Build
 
-- **Windows** (Visual Studio 2022, Developer Command Prompt): in `src`, run `nmake -f NMakefile vc-x64-v4` (other targets are in `src/NMakefile`; `build-win-v4.cmd` builds the v4 executable). For a local PGO build, use the PGO targets (`vc-pgo-x64-v4`, `vc-pgo-x64-v3`, `vc-pgo-x64`, and `vc-pgo-x86-sse`, `vc-pgo-x86` from an x86 prompt).
-- **Libraries**: Windows `nmake -f NMakefile vc-lib-x64` (`-v3`, `-v4`); Linux and others `make libbuild ARCH=<x86-64|x86-64-v3|x86-64-v4> COMP=gcc OS=linux`. See [manual 12.2](manual/en/12-integration.md).
-- **Other platforms**: the [release-binaries workflow](.github/workflows/release-binaries.yaml) builds Linux, macOS and Android; `package-release.py` assembles the ZIP.
+- **Windows** (Visual Studio 2022, Developer Command Prompt): in `src`, run `nmake -f NMakefile vc-x64-v4` (other targets are in `src/NMakefile`; `build-win-v4.cmd` builds the v4 executable). These builds are without PGO.
+- **Windows release binaries** (PGO): in `src`, from an x64 prompt run `nmake -f NMakefile vc-pgo-x64-v4 vc-pgo-x64-v3 vc-pgo-x64 vc-pgo-lib`; from an x86 prompt run `nmake -f NMakefile vc-pgo-x86-sse vc-pgo-x86`.
+  - The executables are trained with `-solve problem/fforum-20-39.obf` and 4 games at level 18. The 3 DLLs are trained with `bench 20` and the API tests of `tests/libedax_test.c`.
+  - Each program is recorded in `bin/pgo-build.txt` (its SHA-256 and the commit).
+- **Libraries**: Windows `nmake -f NMakefile vc-pgo-lib` (`vc-pgo-lib-x64`, `-v3`, `-v4`; `vc-lib-x64` and others build them without PGO); Linux and others `make libbuild ARCH=<x86-64|x86-64-v3|x86-64-v4> COMP=gcc OS=linux`. See [manual 12.2](manual/en/12-integration.md).
+- **Other platforms**: the [release-binaries workflow](.github/workflows/release-binaries.yaml) builds `wEdax-arm64.exe` (without PGO), Linux, macOS and Android.
+- **Release ZIP**: `python package-release.py <zip> [--artifacts DIR] [--pgo DIR]`. It takes the Windows x64 and x86 programs from `bin/` (or `--pgo DIR`) and the other programs from the workflow artifacts. It stops when a Windows x64 or x86 program is not a PGO build of the commit recorded in `pgo-build.txt`.
 - The 32-bit Linux build (`lEdax-x86`) needs an i486 or later CPU. The upstream 32-bit macOS `mEdax-x86` is not included: current Xcode SDKs cannot link a corrected i386 binary.
 
 ## License

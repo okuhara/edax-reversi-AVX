@@ -756,7 +756,7 @@ int main(int argc, char **argv)
 	CHECK_INT(hintlist->n_hints, 3);
 	if (!original) { // edax_stop from another thread ends edax_hint; a stop before a call does not stop it
 		TestThread t;
-		edax_set_option("level", "20");
+		edax_set_option("level", "24");
 		stop_often_on = 1;
 		t = thread_start(stop_often);
 		edax_hint(60, hintlist);

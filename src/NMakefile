@@ -99,6 +99,9 @@ clang-a64+crc:
 # Build the x86 targets from a native x86 prompt (vcvarsall x86): the instrumented exe needs the x86 pgort140.dll.
 PGO_SOLVE = -n 1 -l 60 -solve ..\problem\fforum-20-39.obf
 PGO_PLAY = -n 1 -l 18 -auto-store on -auto-start on -repeat 4 -auto-quit on -mode 2 -book-file book.pgo < nul
+# The eval.dat that the profile runs read; pgo-record.cmd writes its SHA-256 in ..\bin\pgo-build.txt
+# with the SHA-256 of the program and the commit (package-release.py checks them).
+PGO_EVAL = ..\bin\data\eval.dat
 
 vc-pgo-x64-v4:
 	if not exist ..\bin mkdir ..\bin
@@ -106,6 +109,7 @@ vc-pgo-x64-v4:
 	cd ..\bin && .\wEdax-x86-64-v4.exe $(PGO_SOLVE) >nul && .\wEdax-x86-64-v4.exe $(PGO_PLAY) >nul
 	-del ..\bin\book.pgo ..\bin\book.pgo.store 2>nul
 	link /nologo all.obj ws2_32.lib /out:..\bin\wEdax-x86-64-v4.exe /LTCG:PGO /PGD:..\bin\wEdax-x86-64-v4.pgd /VERSION:4.5
+	cmd /c .\pgo-record.cmd ..\bin\wEdax-x86-64-v4.exe "$(PGO_EVAL)"
 	del ..\bin\wEdax-x86-64-v4*.pgc ..\bin\wEdax-x86-64-v4.pgd
 	copy /Y ..\config.ini ..\bin\config.ini
 
@@ -115,6 +119,7 @@ vc-pgo-x64-v3:
 	cd ..\bin && .\wEdax-x86-64-v3.exe $(PGO_SOLVE) >nul && .\wEdax-x86-64-v3.exe $(PGO_PLAY) >nul
 	-del ..\bin\book.pgo ..\bin\book.pgo.store 2>nul
 	link /nologo all.obj ws2_32.lib /out:..\bin\wEdax-x86-64-v3.exe /LTCG:PGO /PGD:..\bin\wEdax-x86-64-v3.pgd /VERSION:4.5
+	cmd /c .\pgo-record.cmd ..\bin\wEdax-x86-64-v3.exe "$(PGO_EVAL)"
 	del ..\bin\wEdax-x86-64-v3*.pgc ..\bin\wEdax-x86-64-v3.pgd
 	copy /Y ..\config.ini ..\bin\config.ini
 
@@ -124,6 +129,7 @@ vc-pgo-x64:
 	cd ..\bin && .\wEdax-x86-64.exe $(PGO_SOLVE) >nul && .\wEdax-x86-64.exe $(PGO_PLAY) >nul
 	-del ..\bin\book.pgo ..\bin\book.pgo.store 2>nul
 	link /nologo all.obj ws2_32.lib /out:..\bin\wEdax-x86-64.exe /LTCG:PGO /PGD:..\bin\wEdax-x86-64.pgd /VERSION:4.5
+	cmd /c .\pgo-record.cmd ..\bin\wEdax-x86-64.exe "$(PGO_EVAL)"
 	del ..\bin\wEdax-x86-64*.pgc ..\bin\wEdax-x86-64.pgd
 	copy /Y ..\config.ini ..\bin\config.ini
 
@@ -133,6 +139,7 @@ vc-pgo-x86-sse:
 	cd ..\bin && .\wEdax-x86-sse.exe $(PGO_SOLVE) >nul && .\wEdax-x86-sse.exe $(PGO_PLAY) >nul
 	-del ..\bin\book.pgo ..\bin\book.pgo.store 2>nul
 	link /nologo all.obj ws2_32.lib /out:..\bin\wEdax-x86-sse.exe /LTCG:PGO /PGD:..\bin\wEdax-x86-sse.pgd /VERSION:4.5
+	cmd /c .\pgo-record.cmd ..\bin\wEdax-x86-sse.exe "$(PGO_EVAL)"
 	del ..\bin\wEdax-x86-sse*.pgc ..\bin\wEdax-x86-sse.pgd
 	copy /Y ..\config.ini ..\bin\config.ini
 
@@ -142,6 +149,7 @@ vc-pgo-x86:
 	cd ..\bin && .\wEdax-x86.exe $(PGO_SOLVE) >nul && .\wEdax-x86.exe $(PGO_PLAY) >nul
 	-del ..\bin\book.pgo ..\bin\book.pgo.store 2>nul
 	link /nologo all.obj ws2_32.lib /out:..\bin\wEdax-x86.exe /LTCG:PGO /PGD:..\bin\wEdax-x86.pgd /VERSION:4.5
+	cmd /c .\pgo-record.cmd ..\bin\wEdax-x86.exe "$(PGO_EVAL)"
 	del ..\bin\wEdax-x86*.pgc ..\bin\wEdax-x86.pgd
 	copy /Y ..\config.ini ..\bin\config.ini
 
@@ -168,7 +176,6 @@ icc-pgo-x64-v3:
 # Library (libedax): Edax as a dll with the api of src\libedax.h, for the programs written for
 # libedax (libedax4dart, edax_runner). These programs load libedax-x64.dll; edax_runner loads
 # libedax-x64-v3.dll or libedax-x64-v4.dll instead when the CPU supports it (libedax_cpu_level).
-# No profile-guided build: it was measured to bring nothing here.
 VC_LIB_FLAGS = $(VC_FLAGS) /GL /D HAS_CPU_64 /D LIB_BUILD /LD
 
 vc-lib-x64-v4:
@@ -187,6 +194,57 @@ vc-lib-x64:
 	del libedax-x64.lib libedax-x64.exp
 
 vc-lib: vc-lib-x64 vc-lib-x64-v3 vc-lib-x64-v4
+
+# Profile-guided builds of the library (used for the release dlls), from an x64 prompt. Each dll is built
+# with /LTCG:PGI in its own folder of ..\tests\libedax\pgo (with data\eval.dat, a copy of PGO_EVAL), then
+# tests\libedax_test.c is linked with its import library and run there twice, each run its own process:
+# the search of "libedax_test <dll> bench 20 1" (one thread), then the whole api test (a failure stops the
+# build; its output is libedax_test-pgi.log). The dll is linked again with /LTCG:PGO and copied to ..\bin.
+PGO_LIB = ..\tests\libedax\pgo
+
+vc-pgo-lib-x64-v4:
+	if not exist ..\bin mkdir ..\bin
+	if exist $(PGO_LIB)\x64-v4 rmdir /s /q $(PGO_LIB)\x64-v4
+	mkdir $(PGO_LIB)\x64-v4\data
+	copy /Y "$(PGO_EVAL)" $(PGO_LIB)\x64-v4\data\eval.dat
+	cl $(VC_LIB_FLAGS) /arch:AVX512 /vlen=256 /D POPCOUNT all.c ws2_32.lib /Fo$(PGO_LIB)\x64-v4\all.obj /Fe$(PGO_LIB)\x64-v4\libedax-x64-v4.dll /link /LTCG:PGI /PGD:$(PGO_LIB)\x64-v4\libedax-x64-v4.pgd /VERSION:4.5 /IMPLIB:$(PGO_LIB)\x64-v4\libedax-x64-v4.lib
+	cl /nologo /utf-8 /O1 /MT /D_CRT_SECURE_NO_DEPRECATE ..\tests\libedax_test.c $(PGO_LIB)\x64-v4\libedax-x64-v4.lib /Fo$(PGO_LIB)\x64-v4\libedax_test.obj /Fe$(PGO_LIB)\x64-v4\libedax_test.exe
+	cd $(PGO_LIB)\x64-v4 && .\libedax_test.exe libedax-x64-v4.dll bench 20 1
+	cd $(PGO_LIB)\x64-v4 && (.\libedax_test.exe libedax-x64-v4.dll > libedax_test-pgi.log 2>&1 || (type libedax_test-pgi.log & exit 1))
+	findstr /c:" checks, " $(PGO_LIB)\x64-v4\libedax_test-pgi.log
+	link /nologo /DLL $(PGO_LIB)\x64-v4\all.obj ws2_32.lib /out:$(PGO_LIB)\x64-v4\libedax-x64-v4.dll /LTCG:PGO /PGD:$(PGO_LIB)\x64-v4\libedax-x64-v4.pgd /VERSION:4.5 /IMPLIB:$(PGO_LIB)\x64-v4\libedax-x64-v4.lib
+	copy /Y $(PGO_LIB)\x64-v4\libedax-x64-v4.dll ..\bin\libedax-x64-v4.dll
+	cmd /c .\pgo-record.cmd ..\bin\libedax-x64-v4.dll "$(PGO_EVAL)"
+
+vc-pgo-lib-x64-v3:
+	if not exist ..\bin mkdir ..\bin
+	if exist $(PGO_LIB)\x64-v3 rmdir /s /q $(PGO_LIB)\x64-v3
+	mkdir $(PGO_LIB)\x64-v3\data
+	copy /Y "$(PGO_EVAL)" $(PGO_LIB)\x64-v3\data\eval.dat
+	cl $(VC_LIB_FLAGS) /arch:AVX2 /D POPCOUNT all.c ws2_32.lib /Fo$(PGO_LIB)\x64-v3\all.obj /Fe$(PGO_LIB)\x64-v3\libedax-x64-v3.dll /link /LTCG:PGI /PGD:$(PGO_LIB)\x64-v3\libedax-x64-v3.pgd /VERSION:4.5 /IMPLIB:$(PGO_LIB)\x64-v3\libedax-x64-v3.lib
+	cl /nologo /utf-8 /O1 /MT /D_CRT_SECURE_NO_DEPRECATE ..\tests\libedax_test.c $(PGO_LIB)\x64-v3\libedax-x64-v3.lib /Fo$(PGO_LIB)\x64-v3\libedax_test.obj /Fe$(PGO_LIB)\x64-v3\libedax_test.exe
+	cd $(PGO_LIB)\x64-v3 && .\libedax_test.exe libedax-x64-v3.dll bench 20 1
+	cd $(PGO_LIB)\x64-v3 && (.\libedax_test.exe libedax-x64-v3.dll > libedax_test-pgi.log 2>&1 || (type libedax_test-pgi.log & exit 1))
+	findstr /c:" checks, " $(PGO_LIB)\x64-v3\libedax_test-pgi.log
+	link /nologo /DLL $(PGO_LIB)\x64-v3\all.obj ws2_32.lib /out:$(PGO_LIB)\x64-v3\libedax-x64-v3.dll /LTCG:PGO /PGD:$(PGO_LIB)\x64-v3\libedax-x64-v3.pgd /VERSION:4.5 /IMPLIB:$(PGO_LIB)\x64-v3\libedax-x64-v3.lib
+	copy /Y $(PGO_LIB)\x64-v3\libedax-x64-v3.dll ..\bin\libedax-x64-v3.dll
+	cmd /c .\pgo-record.cmd ..\bin\libedax-x64-v3.dll "$(PGO_EVAL)"
+
+vc-pgo-lib-x64:
+	if not exist ..\bin mkdir ..\bin
+	if exist $(PGO_LIB)\x64 rmdir /s /q $(PGO_LIB)\x64
+	mkdir $(PGO_LIB)\x64\data
+	copy /Y "$(PGO_EVAL)" $(PGO_LIB)\x64\data\eval.dat
+	cl $(VC_LIB_FLAGS) all.c ws2_32.lib /Fo$(PGO_LIB)\x64\all.obj /Fe$(PGO_LIB)\x64\libedax-x64.dll /link /LTCG:PGI /PGD:$(PGO_LIB)\x64\libedax-x64.pgd /VERSION:4.5 /IMPLIB:$(PGO_LIB)\x64\libedax-x64.lib
+	cl /nologo /utf-8 /O1 /MT /D_CRT_SECURE_NO_DEPRECATE ..\tests\libedax_test.c $(PGO_LIB)\x64\libedax-x64.lib /Fo$(PGO_LIB)\x64\libedax_test.obj /Fe$(PGO_LIB)\x64\libedax_test.exe
+	cd $(PGO_LIB)\x64 && .\libedax_test.exe libedax-x64.dll bench 20 1
+	cd $(PGO_LIB)\x64 && (.\libedax_test.exe libedax-x64.dll > libedax_test-pgi.log 2>&1 || (type libedax_test-pgi.log & exit 1))
+	findstr /c:" checks, " $(PGO_LIB)\x64\libedax_test-pgi.log
+	link /nologo /DLL $(PGO_LIB)\x64\all.obj ws2_32.lib /out:$(PGO_LIB)\x64\libedax-x64.dll /LTCG:PGO /PGD:$(PGO_LIB)\x64\libedax-x64.pgd /VERSION:4.5 /IMPLIB:$(PGO_LIB)\x64\libedax-x64.lib
+	copy /Y $(PGO_LIB)\x64\libedax-x64.dll ..\bin\libedax-x64.dll
+	cmd /c .\pgo-record.cmd ..\bin\libedax-x64.dll "$(PGO_EVAL)"
+
+vc-pgo-lib: vc-pgo-lib-x64 vc-pgo-lib-x64-v3 vc-pgo-lib-x64-v4
 
 clean:
 	del -f pgopti* *.dyn all.gc* *~ *.p* *.obj

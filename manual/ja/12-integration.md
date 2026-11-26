@@ -233,7 +233,8 @@ int main(void)
 
 **ビルド**
 
-- Windows：`nmake -f NMakefile vc-lib`（`vc-lib-x64`・`vc-lib-x64-v3`・`vc-lib-x64-v4`）。
+- Windows：`nmake -f NMakefile vc-pgo-lib`（`vc-pgo-lib-x64`・`vc-pgo-lib-x64-v3`・`vc-pgo-lib-x64-v4`）。配布版と同じ PGO のビルドです。`bench 20` と `tests/libedax_test.c` の API のテストで学習します。
+- Windows（PGO なし）：`nmake -f NMakefile vc-lib`（`vc-lib-x64`・`vc-lib-x64-v3`・`vc-lib-x64-v4`）。
 - Linux など：`make libbuild ARCH=<x86-64|x86-64-v3|x86-64-v4> COMP=gcc OS=linux`。
 - Android：`ndk-build -C src NDK_PROJECT_PATH=. NDK_APPLICATION_MK=./Application-lib.mk NDK_OUT=./obj-lib NDK_LIBS_OUT=./libs-lib`。`src/libs-lib/<ABI>/libedax.so` ができます（NDK r27d で確認）。
 - テスト：`tests\build-libedax-test.cmd`。

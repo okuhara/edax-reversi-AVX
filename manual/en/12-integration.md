@@ -224,7 +224,8 @@ The library and the edax program (for the same CPU) search the same number of no
 
 **Building**
 
-- Windows: `nmake -f NMakefile vc-lib` (`vc-lib-x64`, `vc-lib-x64-v3`, `vc-lib-x64-v4`).
+- Windows: `nmake -f NMakefile vc-pgo-lib` (`vc-pgo-lib-x64`, `vc-pgo-lib-x64-v3`, `vc-pgo-lib-x64-v4`). These are the PGO builds of the release; they are trained with `bench 20` and the API tests of `tests/libedax_test.c`.
+- Windows without PGO: `nmake -f NMakefile vc-lib` (`vc-lib-x64`, `vc-lib-x64-v3`, `vc-lib-x64-v4`).
 - Other systems: `make libbuild ARCH=<x86-64|x86-64-v3|x86-64-v4> COMP=gcc OS=linux`.
 - Android: `ndk-build -C src NDK_PROJECT_PATH=. NDK_APPLICATION_MK=./Application-lib.mk NDK_OUT=./obj-lib NDK_LIBS_OUT=./libs-lib`. It produces `src/libs-lib/<ABI>/libedax.so` (checked with NDK r27d).
 - Test: `tests\build-libedax-test.cmd`.
