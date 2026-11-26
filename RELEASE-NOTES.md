@@ -118,9 +118,11 @@ This release fixes game record handling, opening books, search cancellation and 
 
 **Notes**
 
-- The initial Windows release binaries were built without PGO in GitHub Actions. See the [README](README.md#build) for the local PGO targets.
+- The five Windows x64 and x86 executables and the three DLLs are local PGO builds. So is the standalone `wEdax-x86-64-v4.exe` attached to the release.
+- The release ZIP and the standalone `wEdax-x86-64-v4.exe` were replaced on 2026-11-26. Files downloaded before then were built without PGO in GitHub Actions.
+- `wEdax-arm64.exe` and the Linux, macOS and Android executables and libraries are still the GitHub Actions builds (without PGO). See the [README](README.md#build) for the local PGO targets.
 
-**Not checked**: live GGS play, large production books, playing strength, and speed differences from PGO builds.
+**Not checked**: live GGS play, large production books, playing strength, and the speed difference between the files before the replacement (without PGO) and after it (PGO).
 
 [Tests and measurements](docs/validation/nikque.en.md#v455-nikque34)
 

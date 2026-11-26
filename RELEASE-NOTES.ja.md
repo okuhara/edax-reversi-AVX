@@ -118,9 +118,11 @@ eval2・Heath（旧名 newedax）の各版は、同じ行の nikque の版の変
 
 **注意**
 
-- 公開当初の Windows 配布版は GitHub Actions で PGO を使わずにビルドしました。PGO 用のターゲットは [README](README.md#build) を参照してください。
+- Windows の x64・x86 の実行ファイル 5 本と DLL 3 本は、手元で PGO 付きでビルドしたものです。Release に単体で添付した `wEdax-x86-64-v4.exe` も同じです。
+- 2026-11-26 に、Release の ZIP と単体の `wEdax-x86-64-v4.exe` を差し替えました。それより前に取得したものは、GitHub Actions で PGO を使わずにビルドしたものです。
+- `wEdax-arm64.exe` と、Linux・macOS・Android の実行ファイルとライブラリは、GitHub Actions のビルド（PGO なし）のままです。PGO 用のターゲットは [README](README.md#build) を参照してください。
 
-**未確認**：実 GGS サーバーとの対局、実運用の大規模な定石帳、対局での強さ、PGO 配布版との速度差。
+**未確認**：実 GGS サーバーとの対局、実運用の大規模な定石帳、対局での強さ、差し替えの前（PGO なし）と後（PGO）の速さの差。
 
 [検証記録](docs/validation/nikque.ja.md#v455-nikque34)
 

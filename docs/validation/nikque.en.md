@@ -8,6 +8,15 @@ For what changed, see the [release notes](../../RELEASE-NOTES.md). "Above" and "
 
 The final Windows x64 AVX2 build accepted a synthetic OBF and returned exit code 1 for a missing input. Interactive `solve` accepted another command after the error. A local GGS fixture covered LF-terminated and CR-terminated lines followed by an incomplete continuation. The stability regression passed 1,024 windows on 240 boards. An independent search verified the stored 240 scores. MSVC built the standalone `eval_builder`.
 
+Checks of the Windows release files (PGO) that replaced the earlier ones on 2026-11-26:
+
+- The five executables (`wEdax-x86-64-v4`, `-v3`, `wEdax-x86-64`, `wEdax-x86-sse`, `wEdax-x86`) were built with the `vc-pgo-*` targets of `src/NMakefile`. The profiles came from `-n 1 -l 60 -solve problem\fforum-20-39.obf` and `-n 1 -l 18 -auto-store on -auto-start on -repeat 4 -auto-quit on -mode 2`.
+- The three DLLs (`libedax-x64`, `-v3`, `-v4`) were built with `/LTCG:PGI`, trained with `libedax_test <dll> bench 20 1` and the full API test of `tests/libedax_test.c`, then built with `/LTCG:PGO`.
+- fforum-20-39, exact search (1 thread, `-l 60`): the five PGO executables and the CI `wEdax-x86-64.exe` from before the replacement all had no wrong move or score. They all searched 93,536,024 positions.
+- The libedax API test (290 checks) of the three DLLs: 0 failures.
+- Speed was not measured. The CPU was shared with other work, so the times were not compared.
+- The 15 files that were not replaced (`wEdax-arm64.exe`, Linux, macOS, Android) were not part of these checks.
+
 Production books, live GGS, playing strength and PGO performance differences were outside this verification.
 
 ---
