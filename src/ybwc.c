@@ -535,9 +535,7 @@ static Search* task_search_create(Task *task)
 	if (search == NULL) {
 		fatal_error("task_init: cannot allocate the search position.\n");
 	}
-	if (!search_alloc_thread_hash(search)) {
-		fatal_error("Cannot allocate a thread hash\n");
-	}
+	search_alloc_thread_hash(search);
 
 	search->n_nodes = 0;
 	search->n_child = 0;
