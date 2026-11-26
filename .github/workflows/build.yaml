@@ -51,7 +51,7 @@ jobs:
         path: bin
 
   windows-build:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 10
 
     steps:
@@ -59,9 +59,9 @@ jobs:
 
     - name: build
       run: |-
-        mkdir -p bin
-        cd src
-        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+        if not exist bin mkdir bin
+        cd src || exit /b 1
+        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
         nmake -fnmakefile vc-x64-v3
       shell: cmd
 
