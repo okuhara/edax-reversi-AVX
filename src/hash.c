@@ -778,24 +778,34 @@ void hash_print(const HashData *data, FILE *f)
  *     -if (score > alpha) update the lower bound of the hash entry
  * The best move is also stored, but only if score >= alpha.
  */
-static inline void data_update_local(Hash *hash, int alpha, int beta, int score, int move)
-{
-	if (score < beta && score < hash->data.upper) hash->data.upper = score;
-	if (score > alpha) {
-		if (score > hash->data.lower) hash->data.lower = score;
-		hash->data.move[0] = move;
-	}
-}
 
-static inline void data_new_local(Hash *hash, int alpha, int beta, int score, int move)
+/**
+ * @brief Find an hash table entry according to the evaluated board hash codes.
+ * If not found, keep and reset the entry to store the search result afterwards.
+ *
+ * @param hash   Hash table entry to update.
+ * @param board  Bitboard.
+ * @return True the board was found, false otherwise.
+ */
+#ifdef hasSSE2
+bool vectorcall hash_get_or_reset_local(Hash *hash, __m128i board)
 {
-	hash->data.upper = (score < beta) ? score : SCORE_MAX;
-	if (score <= alpha) {
-		score = SCORE_MIN;
-		move = NOMOVE;
-	}
-	hash->data.lower = score;
-	hash->data.move[0] = move;
+	if (_mm_movemask_epi8(_mm_cmpeq_epi8(board, _mm_loadu_si128((__m128i *) &hash->board))) == 0xFFFF)
+		return true;
+
+	_mm_storeu_si128((__m128i *) &hash->board, board);
+#else
+bool hash_get_or_reset_local(Hash *hash, Board *board)
+{
+	if (board_equal(board, &hash->board))
+		return true;
+
+	hash->board = *board;
+#endif
+	hash->data.upper = SCORE_MAX;
+	hash->data.lower = SCORE_MIN;
+	hash->data.move[0] = NOMOVE;
+	return false;
 }
 
 /**
@@ -805,28 +815,29 @@ static inline void data_new_local(Hash *hash, int alpha, int beta, int score, in
  * @param alpha  Alpha bound when calling the alphabeta function.
  * @param beta   Beta bound when calling the alphabeta function.
  * @param score  Best score found.
- * @param board  Bitboard.
  * @param move   Best move found.
  */
-#ifdef hasSSE2
-void vectorcall hash_store_local(Hash *hash, int alpha, int beta, int score, __m128i board, int move)
+void hash_store_local(Hash *hash, int alpha, int beta, int score, int move)
 {
-	vBoard vboard = { board };
-	if (vboard_equal(vboard, &hash->board)) {
-		data_update_local(hash, alpha, beta, score, move);
-	} else {
-		_mm_storeu_si128((__m128i *) &hash->board, vboard.v2);
-		data_new_local(hash, alpha, beta, score, move);
+	if (score < beta && score < hash->data.upper) hash->data.upper = score;
+	if (score > alpha) {
+		if (score > hash->data.lower) hash->data.lower = score;
+		hash->data.move[0] = move;
 	}
 }
-#else
-void hash_store_local(Hash *hash, Board *board, int alpha, int beta, int score, int move)
+
+/**
+ * @brief Store an hashtable item (where zero width, best move is not necessary)
+ *
+ * @param hash   Hash table entry to update.
+ * @param alpha  Alpha bound when calling the ZWS function.
+ * @param score  Best score found.
+ */
+void hash_store_shallow(Hash *hash, int alpha, int score)
 {
-	if (board_equal(board, &hash->board)) {
-		data_update_local(hash, alpha, beta, score, move);
+	if (score <= alpha) {
+		if (score < hash->data.upper) hash->data.upper = score;
 	} else {
-		hash->board = *board;
-		data_new_local(hash, alpha, beta, score, move);
+		if (score > hash->data.lower) hash->data.lower = score;
 	}
 }
-#endif

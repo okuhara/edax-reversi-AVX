@@ -878,6 +878,7 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 		// lacal hash (main thread only)
 		if (search->eval.n_empties <= depth && depth <= DEPTH_TO_USE_LOCAL_HASH && depth > DEPTH_TO_SHALLOW_SEARCH) {
 			vBoard hashboard;
+			Hash *localhash;
   #ifdef USE_SOLID
 			unsigned long long solid = search->eval.full_lines.ull[0] & search->eval.full_lines.ull[1]
 				& search->eval.full_lines.ull[2] & search->eval.full_lines.ull[3] & 0x3c7effffffff7e3c;
@@ -889,14 +890,16 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 					ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
 					hashboard.bb.player = search->board.player ^ solid;	// normalize solid to opponent
 					hashboard.bb.opponent = search->board.opponent ^ solid;
-					vhash_store_local(search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask),
-						hashboard, alpha - ofssolid, beta - ofssolid, node.bestscore - ofssolid, node.bestmove);
+					localhash = search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask);
+					vhash_get_or_reset_local(localhash, hashboard);
+					hash_store_local(localhash, alpha - ofssolid, beta - ofssolid, node.bestscore - ofssolid, node.bestmove);
 				}
 			}
   #endif
 			hashboard.bb = search->board;
-			vhash_store_local(search->thread_hash.hash + (hash_code & search->thread_hash.hash_mask),
-				hashboard, alpha, beta, node.bestscore, node.bestmove);
+			localhash = search->thread_hash.hash + (hash_code & search->thread_hash.hash_mask);
+			vhash_get_or_reset_local(localhash, hashboard);
+			hash_store_local(localhash, alpha, beta, node.bestscore, node.bestmove);
 		}
 
 		SQUARE_STATS(foreach_move(move, movelist))

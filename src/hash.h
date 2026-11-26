@@ -92,12 +92,14 @@ void hash_free(HashTable*);
 void hash_feed(HashTable*, const Board *, const unsigned long long, HashStoreData *);
 void hash_store(HashTable*, const Board *, const unsigned long long, HashStoreData *);
 #ifdef hasSSE2
-	void vectorcall hash_store_local(Hash*, int, int, int, __m128i, int);
-	#define vhash_store_local(hash,vboard,alpha,beta,score,move)	hash_store_local((hash), (alpha), (beta), (score), (vboard).v2, (move))
+	bool vectorcall hash_get_or_reset_local(Hash*, __m128i);
+	#define vhash_get_or_reset_local(hash,vboard)	hash_get_or_reset_local((hash), (vboard).v2)
 #else
-	void hash_store_local(Hash*, Board *, int, int, int, int);
-	#define vhash_store_local(hash,vboard,alpha,beta,score,move)	hash_store_local((hash), &(vboard).bb, (alpha), (beta), (score), (move))
+	bool hash_get_or_reset_local(Hash*, Board*);
+	#define vhash_get_or_reset_local(hash,vboard)	hash_get_or_reset_local((hash), &(vboard).bb)
 #endif
+void hash_store_local(Hash*, int, int, int, int);
+void hash_store_shallow(Hash*, int, int);
 void hash_force(HashTable*, const Board *, const unsigned long long, HashStoreData *);
 bool hash_get(HashTable*, const Board *, const unsigned long long, HashData *);
 bool hash_get_from_board(HashTable*, const Board *, HashData *);

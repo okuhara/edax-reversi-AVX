@@ -353,20 +353,21 @@ static int search_solid_NWS(Search *search, int alpha, vBoard *hashboard)
 	unsigned long long solid = search->eval.full_lines.ull[0] & search->eval.full_lines.ull[1]
 		& search->eval.full_lines.ull[2] & search->eval.full_lines.ull[3] & 0x3c7effffffff7e3c;
   #ifndef POPCOUNT
-	if (solid)	// (72%)
+	if (!solid)	// (28%)
+		return 0;
   #endif
-		// Takuro Yamana pointed out the old implementation has a potential bug
-		// when final score includes empties for the winner. (4.5.6)
-		if (((n = bit_count(solid) * 2) < alpha) || (~n > alpha)) {	// i.e. ofssolid will not alter the winner
-			solid &= hashboard->bb.player;
+	// Takuro Yamana pointed out the old implementation has a potential bug
+	// when final score includes empties for the winner. (4.5.6)
+	if (((n = bit_count(solid) * 2) < alpha) || (~n > alpha)) {	// i.e. ofssolid will not alter the winner
+		solid &= hashboard->bb.player;
   #ifdef hasSSE2
-			hashboard->v2 = _mm_xor_si128(hashboard->v2, _mm_set1_epi64x(solid));
+		hashboard->v2 = _mm_xor_si128(hashboard->v2, _mm_set1_epi64x(solid));
   #else
-			hashboard->bb.player ^= solid;	// normalize solid to opponent
-			hashboard->bb.opponent ^= solid;
+		hashboard->bb.player ^= solid;	// normalize solid to opponent
+		hashboard->bb.opponent ^= solid;
   #endif
-			ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
-		}
+		ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
+	}
 	return ofssolid;
 }
 #endif
@@ -450,7 +451,7 @@ static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1)
 
 #if ENDGAME_HASH56
 	hash_entry56 = search->thread_hash56.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash56.hash_mask);
-	if (vboard_equal(hashboard, &hash_entry56->board))
+	if (vhash_get_or_reset_local(hash_entry56, hashboard))
 		if (search_TC_NWS_local(&hash_entry56->data, alpha, ofssolid, &score)) return score;
 #endif
 
@@ -489,9 +490,9 @@ static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1)
 					ofssolid4 = search_solid_NWS(search, alpha, &hashboard4);
   #endif
 					hash_entry4 = search->thread_hash4.hash + (board_get_hash_code(&hashboard4.bb) & search->thread_hash4.hash_mask);
-					if (!(vboard_equal(hashboard4, &hash_entry4->board) && search_TC_NWS_local(&hash_entry4->data, alpha, ofssolid4, &score)))
+					if (!(vhash_get_or_reset_local(hash_entry4, hashboard4) && search_TC_NWS_local(&hash_entry4->data, alpha, ofssolid4, &score)))
 						score = search_solve_4(search, alpha);
-					vhash_store_local(hash_entry4, hashboard4, alpha - ofssolid4, alpha + 1 - ofssolid4, score - ofssolid4, NOMOVE);
+					hash_store_shallow(hash_entry4, alpha - ofssolid4, score - ofssolid4);
 #else
 					score = search_solve_4(search, alpha);
 #endif
@@ -540,7 +541,7 @@ static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1)
 	}
 cut4:
 #if ENDGAME_HASH56
-	vhash_store_local(hash_entry56, hashboard, alpha - ofssolid, alpha + 1 - ofssolid, bestscore - ofssolid, NOMOVE);
+	hash_store_shallow(hash_entry56, alpha - ofssolid, bestscore - ofssolid);
 #endif
 	// search->board = board0.board;	// restore in caller
  	assert(SCORE_MIN <= bestscore && bestscore <= SCORE_MAX);
@@ -592,7 +593,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 		// hash_get(&search->thread_hash, &hashboard.bb, hash_code, &hash_data.data)
 		unsigned char hashmove[2] = { NOMOVE, NOMOVE };
 		Hash *hash_entry = search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask);
-		if (vboard_equal(hashboard, &hash_entry->board)) {	// (6%)
+		if (vhash_get_or_reset_local(hash_entry, hashboard)) {	// (6%)
 			hashmove[0] = hash_entry->data.move[0];
 			if (search_TC_NWS_local(&hash_entry->data, alpha, ofssolid, &score)) return score;
 		}
@@ -633,7 +634,7 @@ static int NWS_endgame_local(Search *search, const int alpha)
 		if (search_get_state(search) != RUNNING)	// (1%)
 			return alpha;
 
-		vhash_store_local(hash_entry, hashboard, alpha - ofssolid, alpha - ofssolid + 1, bestscore - ofssolid, bestmove);
+		hash_store_local(hash_entry, alpha - ofssolid, alpha - ofssolid + 1, bestscore - ofssolid, bestmove);
 
 	} else {	// (1%)
 		if (can_move(search->board.opponent, search->board.player)) { // pass
