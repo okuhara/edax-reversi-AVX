@@ -14,7 +14,7 @@ Each eval2 and Heath (formerly newedax) version contains all changes of the nikq
 
 | nikque | eval2 | Heath (newedax) |
 |---|---|---|
-| nikque.34 | eval2.21 | — |
+| nikque.34 | eval2.21 | heath.21 |
 | nikque.33 | eval2.20 | heath.20 |
 | nikque.33-pre1 | eval2.20-pre1 | heath.20-pre1 |
 | nikque.32 | — | heath.19 |
@@ -57,6 +57,59 @@ This release fixes game record handling, opening books, search cancellation and 
 - `-solve` returns exit code 1 if it cannot open the problem file. Interactive `solve` reports the error and accepts further commands.
 - libedax honors `edax_stop` if it arrives just before the next hint or benchmark search.
 
+<details>
+<summary>Search and game protocols</summary>
+
+- GGS reassigns search workers when returning from synchronized play to a single game. On disconnect it processes complete CR- or LF-terminated lines, discards a partial last line, and exits. It rejects invalid turns and redacts passwords from configuration and connection diagnostics.
+- XBoard `playother` waits for the opponent's move. After the game ends, `go` reports the result without replaying the previous move. `exit` leaves analysis mode and returns to normal play.
+- GTP rejects out-of-range times in `time_settings` and `time_left`. `reg_genmove` preserves the board, move history, clocks, and the next randomized book choice even when the trial search requires a pass.
+- The input reader hands over cleanly to Cassio. A stop entered immediately after `ready` reaches the starting search, and equal search bounds are handled. End of input is still signalled if allocating a command fails.
+- NBoard leaves the current game intact when a record has an invalid starting board, an illegal pass or move, or a truncated game. Input processing also accepts a final line with no newline.
+- Stable discs narrow the search window only when the intersection has positive width. Out-of-range `probcut-d` values fall back to 0.25, and probes run only at valid depths.
+- Parallel search checks the shared lower bound again before searching or pruning. Searches restricted to selected moves leave lazy helpers off even with a numeric `lazy` setting. The thread count can be raised to its limit at runtime in debug builds.
+- 64-bit GCC and Clang builds use atomic speculative transposition-table reads with a match check under the lock. The Roxane flip implementation now handles the four central squares correctly.
+
+</details>
+
+<details>
+<summary>Opening books</summary>
+
+- A book move is returned only if a candidate remains after filtering for legality. Newly created books initialize their settings and statistics.
+- Interactive `book load` and `book open` report the load result with `@load ok=`. Exit-time saves, including NBoard saves, emit `@save ok=` and return exit status 1 on failure.
+- Unreadable and damaged books are protected. An occupied backup name leads to another candidate, and failure to retain the protected name blocks saving. A failed replacement triggers an attempt to restore the original filename.
+- Book export and book-analysis line output replace the destination after writing and closing a temporary file successfully. Cancellation or failure preserves the existing output.
+- Book merge checks that rereading the input yields the same contents and rolls back added positions if the input changed. Expansion removes links to child positions it could not register.
+- Book repair reserves space before moving normalized positions. It reports incomplete repairs and removes dangling links while retaining links to existing positions.
+- Parallel `book negamax` combines worker changes after processing and marks the book for saving even when only its statistics changed.
+- Book analysis rejects overlong arguments and emits `@end` on initialization failure once a request ID exists. Position lists use the correct element width on 32-bit builds, and temporary allocation failures no longer prevent retrying umigame counts. Cancellation and shared state during parallel traversal are handled more consistently.
+- Book learning checks the processed record prefix and a fingerprint of the book before resuming. It stops before updating the book if progress cannot be prepared, and reports book saving separately from resume availability if progress cannot be committed.
+
+</details>
+
+<details>
+<summary>Game records and problem files</summary>
+
+- SGF round-trips custom starting positions and the side to move, and follows the first variation. An incomplete GGF or SGF is reported and leaves the original file intact during record completion. Import accepts a leading UTF-8 BOM.
+- Text records round-trip custom starting positions and the side to move. Import reports malformed lines and continues reading valid records that follow.
+- GGF dates and PGN numbers are range-checked. PGN reports the correct winner and result even when White starts, and writes `*` for unfinished games. OBF and FEN output from game records respects the initial mover and passes.
+- WThor export preserves the year and depth and installs the player table for new output. It checks companion-path lengths and header depth. Record completion and binary import recalculate the hash used to detect duplicates.
+- OBF rejects overlapping discs or positions with fewer than four discs. The wrong-answer output includes problems with the correct move and the wrong score. Problem summaries show the full input path. Output uses a uniquely created temporary file, allowing the same input and output path on Windows.
+- CLI `-solve` returns exit status 1 if the input cannot be opened or the output cannot be committed. Interactive `solve` reports the error and accepts further commands. `count` accepts only board sizes 6 and 8.
+- Choose between opening lines with the same name using `name #number`. Duplicate names attached to the same position have been consolidated.
+
+</details>
+
+<details>
+<summary>Evaluation tools and builds</summary>
+
+- The standalone `eval_builder` uses the correct 12-square table size and signed scores. It rejects illegal passes and record read errors, and counts weight differences when either coefficient is zero.
+- POSIX `make code` runs the generators from the current directory. The flip-table generators also emit the single-empty-square endgame routine and check stream errors before closing.
+- Benchmark timing and overhead subtraction have been corrected. Histograms skip regression when variance is zero. A standalone harness supports comparison with the slow reference implementation. A failing QEMU comparison returns an error status.
+- Release builds check each required executable from the current run and exclude stale artifacts. Solve checks, including on macOS, reject duplicate answers and ranged scores.
+- Default regression includes stop and I/O coverage and checks stability windows against fixed reference scores. A mode can also recompute the references independently. The DLL test fails if a current API is missing.
+
+</details>
+
 **Compatibility**
 
 - The `eval.dat` and opening-book formats are unchanged. Scores, moves and node counts may change in affected search paths.
@@ -65,7 +118,7 @@ This release fixes game record handling, opening books, search cancellation and 
 
 **Notes**
 
-- Windows release binaries are built with GitHub Actions. See the [README](README.md#build) for the local PGO targets.
+- The initial Windows release binaries were built without PGO in GitHub Actions. See the [README](README.md#build) for the local PGO targets.
 
 **Not checked**: live GGS play, large production books, playing strength, and speed differences from PGO builds.
 
