@@ -6,7 +6,7 @@
 
 Edax is a program that plays Othello (Reversi). It was written by Richard Delorme. Toshihiko Okuhara publishes a faster version that uses the instruction sets of recent CPUs, such as AVX2 and AVX-512 (Edax 4.5.x, `okuhara/edax-reversi-AVX`).
 
-This **fixed version** (`Nikque/edax-reversi-AVX`) is based on that v4.5.5. Its versions are named `v4.5.5-nikque.N`. It adds:
+This v4.5.7 adopts the Nikque fork v4.5.5-nikque.31 (`Nikque/edax-reversi-AVX`) and the Richard Delome's 4.7（`abulmo/edax-reversi`） changes. It adds:
 
 - bug fixes (book handling, multi-threaded search, reading and writing games, …);
 - speed and memory improvements, so that large books (hundreds of millions of positions) can be handled;
@@ -44,7 +44,7 @@ The ZIP file on the Releases page contains the following:
 | `problem/` | Endgame problem sets (`fforum-1-19.obf` and three more; [chapter 11](11-solve-bench.md)) |
 | `README.md` | Overview of this fork (English and Japanese) and the upstream README |
 | `RELEASE-NOTES.md`, `RELEASE-NOTES.ja.md` | Changes of each version (tests and measurements: `docs/validation/` of the source) |
-| `manual/en/`, `manual/ja/` | This manual (English and Japanese; since v4.5.5-nikque.13) |
+| `manual/en/`, `manual/ja/` | This manual (English and Japanese) |
 | `LICENSE` | The licence (GPL-3.0) |
 
 ## 1.4 Which executable to use

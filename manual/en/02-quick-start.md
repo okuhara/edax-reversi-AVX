@@ -6,7 +6,7 @@ This chapter covers everything from starting Edax to playing a game against it a
 
 ## 2.1 Preparation
 
-1. Download the ZIP file from the Releases page (its name looks like `edax-4.5.5-nikque.19.zip`) and extract it to any folder.
+1. Download the ZIP file from the Releases page (its name looks like `edax-4.5.7.zip`) and extract it to any folder.
    - A folder with a short name and no spaces or non-ASCII characters (for example `C:\edax`) is recommended.
    - The reason: when a book is saved, a path that is too long can make the save fail ([chapter 13](13-troubleshooting.md)).
 2. Open the `bin` folder of the extracted package. Check that it contains the executables, `config.ini` and the `data` folder (with `eval.dat` and `book.dat`).

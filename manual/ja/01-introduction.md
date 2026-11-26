@@ -8,7 +8,7 @@ Edax は、オセロ（リバーシ）を打つプログラムです。作者は
 
 Toshihiko Okuhara 氏が、新しい CPU の命令セット（AVX2・AVX-512 など）を使って高速化した版を公開しています。この版は Edax 4.5.x（`okuhara/edax-reversi-AVX`）です。
 
-この**修正版**（`Nikque/edax-reversi-AVX`）は、その v4.5.5 を元にしています。版の名前は `v4.5.5-nikque.N` です。主な変更は次のとおりです。
+バージョン 4.5.7 は、Nikque版 v4.5.5-nikque.31（`Nikque/edax-reversi-AVX`）と Richard Delome 氏のバージョン 4.7（`abulmo/edax-reversi`）の変更を取り入れたものです。主な変更は次のとおりです。
 
 - 不具合の修正（book の処理、複数スレッドの探索、棋譜の読み書きなど）
 - 大きな book（数億局面）を扱うための、速度とメモリ使用量の改善
