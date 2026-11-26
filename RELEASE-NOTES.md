@@ -8,16 +8,13 @@ User-facing changes of each version. The "Compatibility" part of each entry says
 - [eval2 line](#eval2-line) (new evaluation function, branch `eval2`)
 - For the C++23 port, see the [Heath (formerly newedax) release notes](https://github.com/Nikque/Heath/blob/main/RELEASE-NOTES.md)
 
-## Unreleased
-
-- libedax now honors an `edax_stop` request that arrives just before the next hint or benchmark search begins. On cancellation, `edax_hint` retains completed hints. `edax_hint_next` and `edax_hint_next_no_multipv_depth` return `LIBEDAX_NOMOVE` for a cancelled search. The benchmark omits the cancelled position from its totals.
-
 ## Versions
 
 Each eval2 and Heath (formerly newedax) version contains all changes of the nikque version on the same row.
 
 | nikque | eval2 | Heath (newedax) |
 |---|---|---|
+| nikque.34 | eval2.21 | — |
 | nikque.33 | eval2.20 | heath.20 |
 | nikque.33-pre1 | eval2.20-pre1 | heath.20-pre1 |
 | nikque.32 | — | heath.19 |
@@ -45,6 +42,36 @@ Each eval2 and Heath (formerly newedax) version contains all changes of the nikq
 ---
 
 # nikque line
+
+## v4.5.5-nikque.34
+
+This release fixes game record handling, opening books, search cancellation and protocol behavior. It also improves file protection when an operation fails.
+
+**Fixes**
+
+- Opening-book play chooses only legal moves. Book saving, merging and exporting protect existing files and the active book when an operation fails.
+- `book learn` validates the game file and book before resuming. If it cannot commit progress, it reports whether the saved book has resumable progress.
+- GGS can return from a synchronized match to a single game. It also exits if a connection ends mid-message. Diagnostics redact credentials.
+- XBoard `playother` waits for the opponent's move. GTP `reg_genmove` leaves the subsequent choice of opening-book move unchanged.
+- SGF and text game records can round-trip from arbitrary starting positions. Correcting records leaves the destination intact when SGF or GGF input ends mid-game.
+- `-solve` returns exit code 1 if it cannot open the problem file. Interactive `solve` reports the error and accepts further commands.
+- libedax honors `edax_stop` if it arrives just before the next hint or benchmark search.
+
+**Compatibility**
+
+- The `eval.dat` and opening-book formats are unchanged. Scores, moves and node counts may change in affected search paths.
+- Learning starts at the first line if an older `.learn` file cannot identify the book and game file.
+- On cancellation, `edax_hint` returns completed hints. `edax_hint_next` and `edax_hint_next_no_multipv_depth` return `LIBEDAX_NOMOVE` for a cancelled search. Benchmarks omit cancelled positions from their totals.
+
+**Notes**
+
+- Windows release binaries are built with GitHub Actions. See the [README](README.md#build) for the local PGO targets.
+
+**Not checked**: live GGS play, large production books, playing strength, and speed differences from PGO builds.
+
+[Tests and measurements](docs/validation/nikque.en.md#v455-nikque34)
+
+---
 
 ## v4.5.5-nikque.33
 

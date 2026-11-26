@@ -8,16 +8,13 @@
 - [eval2 系列](#eval2-系列)（新しい評価関数。ブランチ `eval2`）
 - C++23 版の Heath（旧名 newedax）は [Heath の修正一覧](https://github.com/Nikque/Heath/blob/main/RELEASE-NOTES.ja.md)
 
-## 未公開の変更
-
-- libedax の `edax_stop` は、ヒントまたはベンチマークの次の探索が始まる直前の要求も引き継ぎます。停止時は `edax_hint` に完了済みのヒントだけが残り、`edax_hint_next` と `edax_hint_next_no_multipv_depth` は中断した探索について `LIBEDAX_NOMOVE` を返します。中断したベンチマーク局面は件数に含めません。
-
 ## 版の対応
 
 eval2・Heath（旧名 newedax）の各版は、同じ行の nikque の版の変更をすべて含みます。
 
 | nikque | eval2 | Heath (newedax) |
 |---|---|---|
+| nikque.34 | eval2.21 | — |
 | nikque.33 | eval2.20 | heath.20 |
 | nikque.33-pre1 | eval2.20-pre1 | heath.20-pre1 |
 | nikque.32 | — | heath.19 |
@@ -45,6 +42,36 @@ eval2・Heath（旧名 newedax）の各版は、同じ行の nikque の版の変
 ---
 
 # nikque 系列
+
+## v4.5.5-nikque.34
+
+オセロの棋譜、定石帳、探索の停止、対局プロトコルに関する不具合を修正しました。定石帳や棋譜の入出力に失敗したときの保護も見直しました。
+
+**不具合の修正**
+
+- 定石手は合法な候補から選びます。定石帳の保存・結合・書き出しに失敗した場合は、既存ファイルと作業中の定石帳を保護します。
+- `book learn` は棋譜と定石帳の内容を確認してから再開します。進捗を確定できない場合は、保存した定石帳と再開できる進捗を区別して知らせます。
+- GGS はシンクロ対局から単局に戻れます。受信途中で接続が切れた場合も終了します。認証情報は診断出力に表示しません。
+- XBoard の `playother` は相手の着手を待ちます。GTP の `reg_genmove` は、その後の定石手の選択を変えません。
+- 任意の初期局面から始まるSGFとテキスト棋譜を読み戻せます。途中で切れたSGFやGGFを使った棋譜の補正は、元ファイルを置き換えません。
+- `-solve` は問題ファイルを開けないと終了コード1を返します。対話の `solve` はエラーを表示した後もコマンドを受け付けます。
+- libedax はヒントやベンチマークの次の探索が始まる直前の `edax_stop` を引き継ぎます。
+
+**互換性**
+
+- `eval.dat` と定石帳ファイルの形式は従来と同じです。修正した探索経路では、評価値、選ぶ手、ノード数が変わる場合があります。
+- 旧版の `.learn` が定石帳と棋譜を識別できない場合、学習は先頭の行から始まります。
+- 停止した `edax_hint` は完了済みのヒントを返します。`edax_hint_next` および `edax_hint_next_no_multipv_depth` は中断した探索について `LIBEDAX_NOMOVE` を返します。中断した局面はベンチマークの件数に含めません。
+
+**注意**
+
+- Windows 配布版は GitHub Actions でビルドしました。PGO を使うときのターゲットは [README](README.md#build) を参照してください。
+
+**未確認**：実 GGS サーバーとの対局、実運用の大規模な定石帳、対局での強さ、PGO 配布版との速度差。
+
+[検証記録](docs/validation/nikque.ja.md#v455-nikque34)
+
+---
 
 ## v4.5.5-nikque.33
 

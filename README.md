@@ -56,7 +56,7 @@ The complete list is in the [release notes](RELEASE-NOTES.md).
 
 ## Build
 
-- **Windows** (Visual Studio 2022, Developer Command Prompt): in `src`, run `nmake -f NMakefile vc-x64-v4` (other targets are in `src/NMakefile`; `build-win-v4.cmd` builds the v4 executable). The release executables use the PGO targets (`vc-pgo-x64-v4`, `vc-pgo-x64-v3`, `vc-pgo-x64`, and `vc-pgo-x86-sse`, `vc-pgo-x86` from an x86 prompt), except ARM64.
+- **Windows** (Visual Studio 2022, Developer Command Prompt): in `src`, run `nmake -f NMakefile vc-x64-v4` (other targets are in `src/NMakefile`; `build-win-v4.cmd` builds the v4 executable). For a local PGO build, use the PGO targets (`vc-pgo-x64-v4`, `vc-pgo-x64-v3`, `vc-pgo-x64`, and `vc-pgo-x86-sse`, `vc-pgo-x86` from an x86 prompt).
 - **Libraries**: Windows `nmake -f NMakefile vc-lib-x64` (`-v3`, `-v4`); Linux and others `make libbuild ARCH=<x86-64|x86-64-v3|x86-64-v4> COMP=gcc OS=linux`. See [manual 12.2](manual/en/12-integration.md).
 - **Other platforms**: the [release-binaries workflow](.github/workflows/release-binaries.yaml) builds Linux, macOS and Android; `package-release.py` assembles the ZIP.
 - The 32-bit Linux build (`lEdax-x86`) needs an i486 or later CPU. The upstream 32-bit macOS `mEdax-x86` is not included: current Xcode SDKs cannot link a corrected i386 binary.

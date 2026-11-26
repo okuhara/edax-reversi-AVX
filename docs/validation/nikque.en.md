@@ -4,6 +4,14 @@ Tests and measurements done for each version, moved without changes from the for
 
 For what changed, see the [release notes](../../RELEASE-NOTES.md). "Above" and "below" in the text refer to positions in the former document.
 
+## v4.5.5-nikque.34
+
+The final Windows x64 AVX2 build accepted a synthetic OBF and returned exit code 1 for a missing input. Interactive `solve` accepted another command after the error. A local GGS fixture covered LF-terminated and CR-terminated lines followed by an incomplete continuation. The stability regression passed 1,024 windows on 240 boards. An independent search verified the stored 240 scores. MSVC built the standalone `eval_builder`.
+
+Production books, live GGS, playing strength and PGO performance differences were outside this verification.
+
+---
+
 ## v4.5.5-nikque.33
 
 - This version and the version before (v4.5.5-nikque.33-pre1 with lazy auto and `pc-slope`) were compared with one thread.
