@@ -82,7 +82,7 @@ This release fixes game record handling, opening books, search cancellation and 
 - Book repair reserves space before moving normalized positions. It reports incomplete repairs and removes dangling links while retaining links to existing positions.
 - Parallel `book negamax` combines worker changes after processing and marks the book for saving even when only its statistics changed.
 - Book analysis rejects overlong arguments and emits `@end` on initialization failure once a request ID exists. Position lists use the correct element width on 32-bit builds, and temporary allocation failures no longer prevent retrying umigame counts. Cancellation and shared state during parallel traversal are handled more consistently.
-- Book learning checks the processed record prefix and a fingerprint of the book before resuming. It stops before updating the book if progress cannot be prepared, and reports book saving separately from resume availability if progress cannot be committed.
+- Book learning checks the processed record prefix and a fingerprint of the book before resuming. If it cannot prepare progress, it invalidates stale progress, then saves the book to `.store` and reports that learning cannot resume. If it can neither invalidate nor remove stale progress, it preserves the previous `.store` and attempts to save to `.store.recovery`.
 
 </details>
 
