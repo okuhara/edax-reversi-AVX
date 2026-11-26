@@ -450,7 +450,8 @@ static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1)
 	}
 
 #if ENDGAME_HASH56
-	hash_entry56 = search->thread_hash56.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash56.hash_mask);
+	hash_entry56 = search->thread_hash56.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash56.hash_mask)
+		+ (1u << THREAD_LOCAL_HASH56_SIZE) * (search->eval.n_empties - 5);
 	if (vhash_get_or_reset_local(hash_entry56, hashboard))
 		if (search_TC_NWS_local(&hash_entry56->data, alpha, ofssolid, &score)) return score;
 #endif
@@ -592,7 +593,8 @@ static int NWS_endgame_local(Search *search, const int alpha)
 		// transposition cutoff
 		// hash_get(&search->thread_hash, &hashboard.bb, hash_code, &hash_data.data)
 		unsigned char hashmove[2] = { NOMOVE, NOMOVE };
-		Hash *hash_entry = search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask);
+		Hash *hash_entry = search->thread_hash.hash + (board_get_hash_code(&hashboard.bb) & search->thread_hash.hash_mask)
+			+ (1u << THREAD_LOCAL_HASH_SIZE) * (search->eval.n_empties - DEPTH_TO_SHALLOW_SEARCH);
 		if (vhash_get_or_reset_local(hash_entry, hashboard)) {	// (6%)
 			hashmove[0] = hash_entry->data.move[0];
 			if (search_TC_NWS_local(&hash_entry->data, alpha, ofssolid, &score)) return score;
@@ -687,7 +689,7 @@ int NWS_endgame(Search *search, const int alpha)
 
 	if (search_get_state(search) != RUNNING) return alpha;
 
-	if (search->eval.n_empties <= DEPTH_TO_USE_LOCAL_HASH)
+	if ((search->eval.n_empties <= DEPTH_TO_USE_LOCAL_HASH) && (search->eval.n_empties >= DEPTH_TO_SHALLOW_SEARCH))	// for local hash range
 		return NWS_endgame_local(search, alpha);
 
 	SEARCH_STATS(++statistics.n_NWS_endgame);

@@ -106,7 +106,7 @@ clang-a64-v9:
 # on single-thread runs (so the profile is reproducible), then linked again with the profile.
 # Build the x86 targets from a native x86 prompt (vcvarsall x86): the instrumented exe needs the x86 pgort140.dll.
 PGO_SOLVE = -n 1 -l 60 -solve ..\problem\fforum-20-39.obf
-PGO_PLAY = -n 1 -l 18 -auto-store on -auto-start on -repeat 4 -auto-quit on -mode 2 -book-file book.pgo < nul
+PGO_PLAY = -n 1 -l 18 -auto-store on -auto-start on -repeat 2 -auto-quit on -mode 2 -book-file book.pgo
 
 vc-pgo-x64-v4:
 	if not exist ..\bin mkdir ..\bin
@@ -115,7 +115,7 @@ vc-pgo-x64-v4:
 	-del ..\bin\book.pgo ..\bin\book.pgo.store 2>nul
 	link /nologo all.obj ws2_32.lib /out:..\bin\wEdax-x86-64-v4.exe /LTCG:PGO /PGD:..\bin\wEdax-x86-64-v4.pgd /VERSION:4.5
 	del ..\bin\wEdax-x86-64-v4*.pgc ..\bin\wEdax-x86-64-v4.pgd
-	copy /Y ..\config.ini ..\bin\config.ini
+#	copy /Y ..\config.ini ..\bin\config.ini
 
 vc-pgo-x64-v3:
 	if not exist ..\bin mkdir ..\bin
@@ -124,7 +124,7 @@ vc-pgo-x64-v3:
 	-del ..\bin\book.pgo ..\bin\book.pgo.store 2>nul
 	link /nologo all.obj ws2_32.lib /out:..\bin\wEdax-x86-64-v3.exe /LTCG:PGO /PGD:..\bin\wEdax-x86-64-v3.pgd /VERSION:4.5
 	del ..\bin\wEdax-x86-64-v3*.pgc ..\bin\wEdax-x86-64-v3.pgd
-	copy /Y ..\config.ini ..\bin\config.ini
+#	copy /Y ..\config.ini ..\bin\config.ini
 
 vc-pgo-x64:
 	if not exist ..\bin mkdir ..\bin
@@ -133,7 +133,7 @@ vc-pgo-x64:
 	-del ..\bin\book.pgo ..\bin\book.pgo.store 2>nul
 	link /nologo all.obj ws2_32.lib /out:..\bin\wEdax-x86-64.exe /LTCG:PGO /PGD:..\bin\wEdax-x86-64.pgd /VERSION:4.5
 	del ..\bin\wEdax-x86-64*.pgc ..\bin\wEdax-x86-64.pgd
-	copy /Y ..\config.ini ..\bin\config.ini
+#	copy /Y ..\config.ini ..\bin\config.ini
 
 vc-pgo-x86-sse:
 	if not exist ..\bin mkdir ..\bin
@@ -142,7 +142,7 @@ vc-pgo-x86-sse:
 	-del ..\bin\book.pgo ..\bin\book.pgo.store 2>nul
 	link /nologo all.obj ws2_32.lib /out:..\bin\wEdax-x86-sse.exe /LTCG:PGO /PGD:..\bin\wEdax-x86-sse.pgd /VERSION:4.5
 	del ..\bin\wEdax-x86-sse*.pgc ..\bin\wEdax-x86-sse.pgd
-	copy /Y ..\config.ini ..\bin\config.ini
+#	copy /Y ..\config.ini ..\bin\config.ini
 
 vc-pgo-x86:
 	if not exist ..\bin mkdir ..\bin
@@ -151,7 +151,7 @@ vc-pgo-x86:
 	-del ..\bin\book.pgo ..\bin\book.pgo.store 2>nul
 	link /nologo all.obj ws2_32.lib /out:..\bin\wEdax-x86.exe /LTCG:PGO /PGD:..\bin\wEdax-x86.pgd /VERSION:4.5
 	del ..\bin\wEdax-x86*.pgc ..\bin\wEdax-x86.pgd
-	copy /Y ..\config.ini ..\bin\config.ini
+#	copy /Y ..\config.ini ..\bin\config.ini
 
 vc-pgo-x64-k10:
 	set VCPROFILE_PATH=..\src

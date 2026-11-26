@@ -462,31 +462,34 @@ void search_set_hash_size(Search *search, const int bits)
 
 void search_alloc_thread_hash(Search *search)
 {
-	static const char *thread_hash_error = "Cannot allocate a thread hash\n";
-	search->thread_hash.hash = mm_malloc((1u << THREAD_LOCAL_HASH_SIZE) * sizeof (Hash));
-	if (search->thread_hash.hash == NULL) {
-		fatal_error(thread_hash_error);
+	Hash *base;
+	size_t totalsize = (1u << THREAD_LOCAL_HASH_SIZE) * sizeof (Hash);
+#if ENDGAME_HASH4
+	totalsize += (1 << THREAD_LOCAL_HASH4_SIZE) * sizeof (Hash);
+#endif
+#if ENDGAME_HASH56
+	totalsize += (1 << THREAD_LOCAL_HASH56_SIZE) * (DEPTH_TO_USE_LOCAL_HASH - 5 + 1) * sizeof (Hash);
+#endif
+	search->thread_hash.hash = base = mm_malloc(totalsize);
+	if (base == NULL) {
+		fatal_error("Cannot allocate a thread hash\n");
 	}
 	search->thread_hash.hash_mask = (1u << THREAD_LOCAL_HASH_SIZE) - 1;
 	search->thread_hash.n_hash = 1u << THREAD_LOCAL_HASH_SIZE;
 	hash_wipe(&search->thread_hash);	// read directly by NWS_endgame_local(), so really cleared
-#if ENDGAME_HASH56
-	search->thread_hash56.hash = (Hash*) mm_malloc((1 << THREAD_LOCAL_HASH56_SIZE) * sizeof (Hash));
-	if (search->thread_hash56.hash == NULL) {
-		fatal_error(thread_hash_error);
-	}
-	search->thread_hash56.hash_mask = (1 << THREAD_LOCAL_HASH56_SIZE) - 1;
-	search->thread_hash56.n_hash = 1 << THREAD_LOCAL_HASH56_SIZE;
-	hash_wipe(&search->thread_hash56);
-#endif
+	base += 1u << THREAD_LOCAL_HASH_SIZE;
 #if ENDGAME_HASH4
-	search->thread_hash4.hash = (Hash*) mm_malloc((1 << THREAD_LOCAL_HASH4_SIZE) * sizeof (Hash));
-	if (search->thread_hash4.hash == NULL) {
-		fatal_error(thread_hash_error);
-	}
-	search->thread_hash4.hash_mask = (1 << THREAD_LOCAL_HASH4_SIZE) - 1;
-	search->thread_hash4.n_hash = 1 << THREAD_LOCAL_HASH4_SIZE;
+	search->thread_hash4.hash = base;
+	search->thread_hash4.hash_mask = (1u << THREAD_LOCAL_HASH4_SIZE) - 1;
+	search->thread_hash4.n_hash = 1u << THREAD_LOCAL_HASH4_SIZE;
 	hash_wipe(&search->thread_hash4);
+	base += 1u << THREAD_LOCAL_HASH4_SIZE;
+#endif
+#if ENDGAME_HASH56
+	search->thread_hash56.hash = base;
+	search->thread_hash56.hash_mask = (1u << THREAD_LOCAL_HASH56_SIZE) - 1;
+	search->thread_hash56.n_hash = (1u << THREAD_LOCAL_HASH56_SIZE) * (DEPTH_TO_USE_LOCAL_HASH - 5 + 1);
+	hash_wipe(&search->thread_hash56);
 #endif
 }
 
@@ -610,12 +613,6 @@ void search_free(Search *search)
 	hash_free(&search->shallow_table);
 	// eval_free(search->eval);
 	mm_free(search->thread_hash.hash);
-#if ENDGAME_HASH56
-	mm_free(search->thread_hash56.hash);
-#endif
-#if ENDGAME_HASH4
-	mm_free(search->thread_hash4.hash);
-#endif
 
 	task_stack_free(search->tasks);
 	free(search->tasks);
