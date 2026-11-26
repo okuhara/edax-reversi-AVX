@@ -171,7 +171,7 @@ These commands transform the current game (including its moves) into a symmetric
 - The file name is relative to the current folder (`bin`). You can include a folder, as in `save games/mygame.txt`; create the folder first.
 - With an unknown extension, Edax prints `WARNING: Unknown game format extension: .abc` and saves nothing.
 - When loading fails, Edax prints the reason and the position does not change. Examples: `WARNING: Cannot open file nofile.txt`, `WARNING: Unknown game format extension: .abc`, `WARNING: Illegal move #2: A1`. Up to v4.5.5-nikque.12, nothing was printed.
-- **Save a game that started from a custom position (after `setboard`) as `.ggf`, `.pgn` or `.edx`.** `.txt` and `.sgf` files can be written, but they cannot be loaded back ([10.1](10-files.md)).
+- Starting with v4.5.5-nikque.34 (upcoming), SGF and TXT also preserve a custom starting position and side to move. GGF, PGN and EDX support custom starts as well ([10.1](10-files.md)).
 - A game that contains an illegal move is not loaded, and the board stays as it was before the load.
   - With `.ggf`, `.sgf` and `.pgn`, a warning such as `WARNING: error while importing a GGF game` is printed.
   - `.txt` is the exception: a warning is printed and the moves before the illegal one are loaded.

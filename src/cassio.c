@@ -49,7 +49,8 @@ typedef struct Engine {
 		Board board[ENGINE_N_POSITION];    /** Last position */
 		int n;               /** # of last position */
 	} last_position;
-	bool is_searching;
+	volatile bool is_searching;
+	volatile bool stop_pending;
 } Engine;
 
 
@@ -98,6 +99,7 @@ static void engine_get_input(Engine *engine)
 
 	if (buffer_with_garbage == NULL) { // stdin closed or not working
 		buffer_with_garbage = string_duplicate("ENGINE-PROTOCOL eof");
+		if (buffer_with_garbage == NULL) fatal_error("cannot allocate Cassio EOF notification\n");
 		event->loop = false;
 	}
 
@@ -105,28 +107,35 @@ static void engine_get_input(Engine *engine)
 
 	if (strcmp(protocol, "ENGINE-PROTOCOL") == 0) {
 		buffer = string_duplicate(buffer);
+		if (buffer == NULL) fatal_error("cannot allocate Cassio input command\n");
 		parse_word(buffer, cmd, 32);
 		string_to_lowercase(cmd);
 		// stop or quit: Interrupt immediately the current search & remove unprocessed messages.
 		if (strcmp(cmd, "stop") == 0) {
 			free(buffer); // (not queued: up to v4.5.5-nikque.15 it was not freed)
+			lock(event);
 			event_clear_messages(event);
-			if (engine->is_searching) {
+			const bool busy = event->busy;
+			if (busy) {
+				ybwc_store(&engine->stop_pending, true);
 				engine_stop(engine->search);
-			} else {
-				engine_send("ready."); 
 			}
+			unlock(event);
+			if (!busy) engine_send("ready.");
 		} else if (strcmp(cmd, "get-search-infos") == 0) {
 			free(buffer); // (not queued)
-			if (engine->is_searching) {
+			if (ybwc_load(&engine->is_searching)) {
 				engine_send("node %lld, time %.3f", search_count_nodes(engine->search), 0.001 * search_time(engine->search));
 			} else {
 				engine_send("ready."); 
 			}
 		} else {
 			if (strcmp(cmd, "quit") == 0) {
+				lock(event);
+				ybwc_store(&engine->stop_pending, true);
 				engine_stop(engine->search);
 				event_clear_messages(event);
+				unlock(event);
 				event->loop = false;
 			}
 			// add the message (including quit) to a queue for later processing.
@@ -137,7 +146,7 @@ static void engine_get_input(Engine *engine)
 
 		}
 	} else if (*protocol == '\0') {
-		if (engine->is_searching) {
+		if (ybwc_load(&engine->is_searching)) {
 			engine_send("ok.");
 		} else {
 			engine_send("ready.");
@@ -281,11 +290,11 @@ static int engine_open(Search *search, const Board *board, const int player, con
 	int score = 0;
 	
 	search->time.spent = -time_clock();
-	search->stop = RUNNING;
+	search_set_state(search, RUNNING);
 
 	// set alphabeta bounds
 	options.alpha = alpha;
-	BOUND(options.alpha, SCORE_MIN, SCORE_MAX, "alpha");
+	BOUND(options.alpha, SCORE_MIN, SCORE_MAX - 1, "alpha");
 
 	options.beta = beta;
 	BOUND(options.beta, options.alpha + 1, SCORE_MAX, "beta");
@@ -371,7 +380,9 @@ static void engine_close(Search *search)
 	// in case nothing have been sent yet...
 	if (*last_line_sent == '\0' && search->stop == RUNNING) engine_observer(search->result);
 
-	search->stop = STOP_END;
+	spin_lock(search);
+	if (search->stop == RUNNING) search->stop = STOP_END;
+	spin_unlock(search);
 }
 
 /**
@@ -393,7 +404,8 @@ void* engine_init(void)
 		engine_send("bye bye!");
 		exit(EXIT_FAILURE);
 	}
-	engine->is_searching = false;
+	ybwc_store(&engine->is_searching, false);
+	engine->stop_pending = false;
 	engine->last_position.n = 0; // (up to v4.5.5-nikque.15 it was only set by new-position and empty-hash)
 	engine->search = engine_create_search();
 	event_init(engine->event);
@@ -622,12 +634,14 @@ double engine_midgame_search(void *v, const char *position, const double alpha, 
 		return -SCORE_INF;
 	}
 	
-	engine->is_searching = true;
 	player = board_set(&board, position);
 	
 	old_score = engine_open(search, &board, player, floor(alpha), ceil(beta), depth, precision);
 	
-	if (skip_search(engine, &old_score)) {
+	ybwc_store(&engine->is_searching, true);
+	if (ybwc_load(&engine->stop_pending)) {
+		search_stop_all(search, STOP_ON_DEMAND);
+	} else if (skip_search(engine, &old_score)) {
 	} else if (is_position_new(engine, &board)) {
 		cassio_debug("iterative deepening.\n");
 		iterative_deepening(search, options.alpha, options.beta);
@@ -637,7 +651,7 @@ double engine_midgame_search(void *v, const char *position, const double alpha, 
 	}
 
 	engine_close(search);
-	engine->is_searching = false;
+	ybwc_store(&engine->is_searching, false);
 
 	return search->result->score * 1.0f;
 }
@@ -668,13 +682,15 @@ int engine_endgame_search(void *v, const char *position, const int  alpha, const
 		return -SCORE_INF;
 	}
 	
-	engine->is_searching = true;
 	player = board_set(&board, position);
 	depth = board_count_empties(&board);
 	
 	old_score = engine_open(search, &board, player, alpha, beta, depth, precision);
 	
-	if (skip_search(engine, &old_score)) {
+	ybwc_store(&engine->is_searching, true);
+	if (ybwc_load(&engine->stop_pending)) {
+		search_stop_all(search, STOP_ON_DEMAND);
+	} else if (skip_search(engine, &old_score)) {
 	} else if (is_position_new(engine, &board)) {
 		cassio_debug("iterative deepening.\n");
 		iterative_deepening(search, options.alpha, options.beta);
@@ -684,7 +700,7 @@ int engine_endgame_search(void *v, const char *position, const int  alpha, const
 	}
 	
 	engine_close(search);
-	engine->is_searching = false;
+	ybwc_store(&engine->is_searching, false);
 	
 	return search->result->score;
 }
@@ -719,6 +735,7 @@ void engine_loop(void)
 
 	// loop forever
 	for (;;) {
+		bool reply_ready = false;
 		errno = 0;
 
 		engine_wait_input(engine, &cmd, &param);
@@ -726,15 +743,15 @@ void engine_loop(void)
 		if (cmd == NULL || *cmd == '\0') {
 
 		} else if (strcmp(cmd, "init") == 0) {
-			engine_send("ready."); 
+			reply_ready = true;
 
 		} else if (strcmp(cmd, "get-version") == 0) {
 			engine_send("version: Edax %s", VERSION_STRING);
-			engine_send("ready."); 
+			reply_ready = true;
 
 		} else if (strcmp(cmd, "new-position") == 0) {
 			engine->last_position.n = 0;
-			engine_send("ready.");
+			reply_ready = true;
 
 		} else if (strcmp(cmd, "feed-hash") == 0) {
 			int depth = 21, precision = 73, player;
@@ -808,7 +825,7 @@ void engine_loop(void)
 					}
 				}
 			}
-			engine_send("ready."); 
+			reply_ready = true;
 
 		} else if (strcmp(cmd, "endgame-search") == 0) {
 			int alpha = -SCORE_INF, beta = SCORE_INF;
@@ -833,13 +850,19 @@ void engine_loop(void)
 					}
 				}
 			}
-			engine_send("ready."); 
+			reply_ready = true;
 
 		// ERROR: unknown message
 		} else {
 			engine_send("ERROR: unknown command %s", cmd);
-			engine_send("ready.");
+			reply_ready = true;
 		}
+		lock(engine->event);
+		reply_ready = reply_ready || ybwc_load(&engine->stop_pending);
+		engine->event->busy = false;
+		ybwc_store(&engine->stop_pending, false);
+		if (reply_ready) engine_send("ready.");
+		unlock(engine->event);
 	}
 }
 

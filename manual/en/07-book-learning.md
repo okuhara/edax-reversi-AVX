@@ -160,6 +160,8 @@ f5f4e3
 
 Before and after each save to `.store`, `book learn` also writes a small text file, `<book file name>.learn`. It records:
 
+- The game file name and the book fingerprint.
+
 - how many lines of the file of games have been learned;
 - a check value of these lines;
 - the number of positions, the level and the depth of the book at that time;
@@ -176,11 +178,12 @@ Book learn: the first 120 lines of learn.txt (118 games) were learned by a run t
 
 - **When the whole file has been learned, `.learn` is removed.**
 - In these cases, a warning is shown and the file is learned from its first line:
-  - the book in use does not match `.learn` (a different number of positions, level or depth);
+  - the book in use does not match `.learn` (a different number of positions, level, depth or book fingerprint);
   - the first lines of the file of games are not the ones learned.
 - Lines added at the end of the file of games do not prevent continuing.
 - A run stopped during or just after a save can be continued too. `book learn` finds whether the loaded book is the one before or after the save, and learns from the first line that this book does not have.
-- In v4.5.5-nikque.29 to 32, a run stopped between the save to `.store` and the write of `.learn` could not be continued: the file was learned from its first line. A `.learn` written by these versions can still be continued.
+- In v4.5.5-nikque.29 to 32, a run stopped between the save to `.store` and the write of `.learn` could not be continued: the file was learned from its first line. A legacy `.learn` without the game file name and book fingerprint starts again from the first line.
+- If writing the next progress record fails, Edax can still save the book to `.store`. An invalidation marker beside the progress file prevents old progress from being used. A later successful checkpoint clears the marker. If Edax cannot invalidate the old progress, it tries to save a separate `.store.recovery` and keeps the previous `.store`. Remove the old progress before using the recovery copy.
 - With the setting `book-store-auto-save = off` (no save to `.store`), no `.learn` is written.
 - Up to v4.5.5-nikque.28 there was no `.learn`. A new run played every line again from the beginning (with `book-randomness`, these were other games).
 

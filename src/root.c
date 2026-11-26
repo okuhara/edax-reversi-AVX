@@ -394,7 +394,9 @@ int PVS_root(Search *search, const int alpha, const int beta, const int depth)
 
 			// other moves : try to refute the first/best one
 			while ((move = node_next_move(&node))) {
-				const int alpha = depth > search->options.multipv_depth ? node.alpha : SCORE_MIN;
+				const int shared_alpha = ybwc_load(&node.alpha);
+				if (shared_alpha >= node.beta) break;
+				const int alpha = depth > search->options.multipv_depth ? shared_alpha : SCORE_MIN;
 
 				assert(board_check_move(&search->board, move));
 				if (depth > search->options.multipv_depth && node_split(&node, move)) {
@@ -656,11 +658,11 @@ static void lazy_stop(Search *search)
  */
 static int lazy_helpers(const Search *search)
 {
-	if (options.lazy != LAZY_AUTO) return options.lazy;
-
 	const int n_tasks = search_count_tasks(search);
-	if (n_tasks < LAZY_AUTO_TASKS || !search->allow_node_splitting) return 0;
-	if (search->movelist.n_moves < 2 || search->movelist.n_moves != bit_count(board_get_moves(&search->board))) return 0;
+	if (options.lazy == LAZY_AUTO && (n_tasks < LAZY_AUTO_TASKS
+	    || !search->allow_node_splitting || search->movelist.n_moves < 2)) return 0;
+	if (search->movelist.n_moves != bit_count(board_get_moves(&search->board))) return 0;
+	if (options.lazy != LAZY_AUTO) return options.lazy;
 	if (search->options.depth >= search->eval.n_empties) {
 		long long t = search->time.extra;
 		if (search->options.time >= TIME_MAX) {
@@ -970,6 +972,10 @@ void* search_run(void *v)
 	// its *stop_pending, set before the stop, is seen. (Up to v4.5.5-nikque.33 the state was written without the
 	// lock: the processor could read *stop_pending before its write of the state was seen, and both were lost.)
 	search_set_state(search, RUNNING);
+	if (search->cancel_pending && ybwc_load(search->cancel_pending)) {
+		search_set_state(search, STOP_ON_DEMAND);
+		return NULL;
+	}
 	search->pv_dev[0] = 0;
 	const bool hurry = (search->stop_pending && ybwc_load(search->stop_pending));
 	const bool per_move = search->options.time_per_move;

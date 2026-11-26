@@ -1,6 +1,7 @@
 #define main edax_original_main
 #include "../src/all.c"
 #undef main
+#include "stabwindow-reference.h"
 static unsigned rng=0x651197;
 static unsigned rr(void){rng^=rng<<13;rng^=rng>>17;return rng^=rng<<5;}
 static unsigned long long ref_flip(Board b,int x){
@@ -10,9 +11,68 @@ static unsigned long long ref_flip(Board b,int x){
  while(y>=0&&y<8&&z>=0&&z<8){unsigned long long q=1ULL<<(y*8+z);if(b.opponent&q)run|=q;else{if(b.player&q)ans|=run;break;}y+=dr;z+=dc;}}
  return ans;
 }
-static unsigned long long ref_moves(Board b){unsigned long long m=0;for(int x=0;x<64;++x)if(ref_flip(b,x))m|=1ULL<<x;return m;}
+static unsigned long long ref_moves(Board b)
+{
+ unsigned long long empty = ~(b.player | b.opponent), moves = 0;
+ while (empty) {
+  const int x = first_bit(empty);
+  empty &= empty - 1;
+  if (ref_flip(b, x)) moves |= 1ULL << x;
+ }
+ return moves;
+}
 static Board ref_next(Board b,int x){unsigned long long f=ref_flip(b,x);Board q={b.opponent^f,b.player^f^(1ULL<<x)};return q;}
-static int ref_solve(Board b,int alpha,int beta){unsigned long long m=ref_moves(b);if(!m){Board q={b.opponent,b.player};if(ref_moves(q))return -ref_solve(q,-beta,-alpha);int d=bit_count(b.player)-bit_count(b.opponent),e=64-bit_count(b.player|b.opponent);return d>0?d+e:d<0?d-e:0;}int best=-65;while(m){int x=first_bit(m);m&=m-1;int v=-ref_solve(ref_next(b,x),-beta,-alpha);if(v>best)best=v;if(v>alpha)alpha=v;if(alpha>=beta)break;}return best;}
+/* Test-only transposition cache. A hit requires both complete bitboards. */
+enum { REF_CACHE_BITS = 18 };
+enum RefKind { REF_EMPTY, REF_EXACT, REF_LOWER, REF_UPPER };
+typedef struct RefEntry {
+ Board board;
+ int score;
+ enum RefKind kind;
+} RefEntry;
+static RefEntry *ref_cache;
+
+static int ref_solve(Board board, int alpha, int beta)
+{
+ const int initial_alpha = alpha;
+ RefEntry *entry = NULL;
+ int best = -65;
+ if (ref_cache) {
+  const unsigned long long key = (board.player * 0x9e3779b97f4a7c15ULL)
+                               ^ (board.opponent * 0xbf58476d1ce4e5b9ULL);
+  entry = ref_cache + (key >> (64 - REF_CACHE_BITS));
+  if (entry->board.player == board.player && entry->board.opponent == board.opponent
+      && (entry->kind == REF_EXACT || (entry->kind == REF_LOWER && entry->score >= beta)
+          || (entry->kind == REF_UPPER && entry->score <= alpha))) return entry->score;
+ }
+
+ unsigned long long moves = ref_moves(board);
+ if (!moves) {
+  Board passed = {board.opponent, board.player};
+  if (ref_moves(passed)) best = -ref_solve(passed, -beta, -alpha);
+  else {
+   const int discs = bit_count(board.player) - bit_count(board.opponent);
+   const int empty = 64 - bit_count(board.player | board.opponent);
+   best = discs > 0 ? discs + empty : discs < 0 ? discs - empty : 0;
+  }
+ }
+ while (moves) {
+  const unsigned long long corners = moves & 0x8100000000000081ULL;
+  const unsigned long long other = moves & ~0x42c300000000c342ULL;
+  const int x = first_bit(corners ? corners : other ? other : moves);
+  moves ^= 1ULL << x;
+  const int score = -ref_solve(ref_next(board, x), -beta, -alpha);
+  if (score > best) best = score;
+  if (score > alpha) alpha = score;
+  if (alpha >= beta) break;
+ }
+ if (entry) {
+  entry->board = board;
+  entry->score = best;
+  entry->kind = best <= initial_alpha ? REF_UPPER : best >= beta ? REF_LOWER : REF_EXACT;
+ }
+ return best;
+}
 static const char *eval_path(void) { const char *p = getenv("EDAX_EVAL_FILE"); return p ? p : "data/eval.dat"; }
 /* the engine of the cases: threads, a small hash table, no output, the evaluation of eval_path() */
 static void init_engine(int tasks){options.n_task=tasks;options.hash_table_size=10;options.verbosity=0;options.cpu_affinity=false;eval_open(eval_path());search_global_init();}
@@ -275,15 +335,28 @@ int main(int argc,char **argv){if(argc<2)return 1;setbuf(stdout,NULL);bit_init()
   search_free(&s);printf("TASK ZERO bad=%d\n",bad);if(bad)return 2;}
  else if(!strcmp(t,"stabwindow")){ /* the window of the options alpha and beta against the scores the stable discs allow [lo, hi] (as search_run computes them): above, touching, overlapping, below; the result keeps the contract of the window */
   Search s;init_search(&s,argc>2?atoi(argv[2]):1);int n_case[4]={0},checked=0;
-  for(int i=0;i<240;++i){Board b=late_board(6+i%9);int n=board_count_empties(&b),want=ref_solve(b,-65,65);
+  const bool verify_reference = argc > 3 && strcmp(argv[3], "--verify-reference") == 0;
+  if (verify_reference) {
+   ref_cache = (RefEntry*) calloc(1U << REF_CACHE_BITS, sizeof *ref_cache);
+   if (!ref_cache) {search_free(&s); fputs("FAIL: cannot allocate reference search cache\n", stderr); return 2;}
+  }
+  const int n_positions = sizeof stabwindow_reference / sizeof stabwindow_reference[0];
+  for(int i=0;i<n_positions;++i){
+   Board b=late_board(6+i%9);
+   int n=board_count_empties(&b),want=stabwindow_reference[i].score;
+   if (b.player != stabwindow_reference[i].player || b.opponent != stabwindow_reference[i].opponent
+       || (verify_reference && want != ref_solve(b,-65,65))) {
+    fprintf(stderr, "FAIL: reference position %d changed\n", i + 1);
+    search_free(&s);free(ref_cache);return 2;
+   }
    int hi=MIN(SCORE_MAX,SCORE_MAX-2*get_stability(b.opponent,b.player)+2),lo=MAX(SCORE_MIN,2*get_stability(b.player,b.opponent)-SCORE_MAX-2);
    int win[6][3]={{hi+2,hi+6,0},{hi,hi+2,1},{hi-2,hi+2,2},{lo-2,lo+2,2},{lo-2,lo,1},{lo-6,lo-2,3}}; /* kind: 0 above, 1 touching, 2 overlapping, 3 below */
    for(int k=0;k<6;++k){int a=win[k][0],z=win[k][1];if(a<SCORE_MIN||z>SCORE_MAX||a>=z)continue;
     options.alpha=a;options.beta=z;search_cleanup(&s);search_set_board(&s,&b,BLACK);search_set_level(&s,60,n);search_run(&s);int r=s.result->score;
     bool ok=want<=a?(r<=a&&r>=want):want>=z?(r>=z&&r<=want):r==want;
-    if(!ok){printf("FAIL stability window [%d, %d] stable scores [%d, %d] empty=%d expected=%d actual=%d\n",a,z,lo,hi,n,want,r);return 2;}
+    if(!ok){printf("FAIL stability window [%d, %d] stable scores [%d, %d] empty=%d expected=%d actual=%d\n",a,z,lo,hi,n,want,r);search_free(&s);free(ref_cache);return 2;}
     ++n_case[win[k][2]];++checked;}}
-  options.alpha=SCORE_MIN;options.beta=SCORE_MAX;search_free(&s);
+  options.alpha=SCORE_MIN;options.beta=SCORE_MAX;search_free(&s);free(ref_cache);ref_cache = NULL;
   printf("PASS stability window checks=%d above=%d touching=%d overlapping=%d below=%d\n",checked,n_case[0],n_case[1],n_case[2],n_case[3]);if(!n_case[0]||!n_case[1]||!n_case[2]||!n_case[3])return 2;}
  else if(!strcmp(t,"solid-hash")){return test_solid_hash();}
 #if COUNT_LAST_FLIP == COUNT_LAST_FLIP_BMI2
@@ -550,7 +623,7 @@ int main(int argc,char **argv){if(argc<2)return 1;setbuf(stdout,NULL);bit_init()
    /* an output is only replaced once the input is read to its end */
    OPEN(f,"audit-out.obf","wb");fputs("old\n",f);fclose(f);OPEN(in,"audit-obf.obf","r");out=obf_output_open("audit-out.obf",&tmp);if(!out)return 2;fputs("new\n",out);
    r=obf_output_close(out,"audit-out.obf",tmp,in);OPEN(f,"audit-out.obf","rb");n0=(long)fread(s,1,sizeof s-1,f);s[n0]=0;fclose(f);printf("GAMEIO OBF output of an input not read to its end: replaced=%d, \"%.3s\"\n",r,s);ok=ok&&!r&&!strcmp(s,"old\n");
-   while(fgets(s,sizeof s,in));out=obf_output_open("audit-out.obf",&tmp);if(!out)return 2;fputs("new\n",out);r=obf_output_close(out,"audit-out.obf",tmp,in);fclose(in);
+   OPEN(in,"audit-obf.obf","r");while(fgets(s,sizeof s,in));out=obf_output_open("audit-out.obf",&tmp);if(!out)return 2;fputs("new\n",out);r=obf_output_close(out,"audit-out.obf",tmp,in);
    OPEN(f,"audit-out.obf","rb");n0=(long)fread(s,1,sizeof s-1,f);s[n0]=0;fclose(f);printf("GAMEIO OBF output of an input read to its end: replaced=%d, \"%.3s\"\n",r,s);ok=ok&&r&&!strncmp(s,"new",3); /* (written as text) */
    remove("audit-out.obf");remove("audit-obf.obf");}
   {const char *l1=opening_get_line("heath"),*l2=opening_get_line("heath #2"),*l3=opening_get_line("ganglion #2"),*l4=opening_get_line("ganglion #3"),*l5=opening_get_line("tigre");Board x;Move m;const char *e;int bad=0,same=0;

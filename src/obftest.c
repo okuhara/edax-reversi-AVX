@@ -22,6 +22,7 @@
 #include "options.h"
 #include "const.h"
 #include "settings.h"
+#include <errno.h>
 
 
 /** OBF structure: Othello Board File */
@@ -83,7 +84,7 @@ static void obf_write(OBF *obf, FILE *f)
 /**
  * @brief Open an output file that may be the input file under another name.
  *
- * It is written to "<file>.tmp" first, then renamed when complete (obf_output_close): up to v4.5.5-nikque.15 the
+ * It is written to an exclusive temporary file beside the destination, then renamed when complete: up to v4.5.5-nikque.15 the
  * output was opened at once, and an input of the same file (or the same file under another name) was emptied
  * before it was read.
  *
@@ -93,14 +94,17 @@ static void obf_write(OBF *obf, FILE *f)
  */
 static FILE* obf_output_open(const char *file, char **tmp)
 {
-	FILE *f;
-
-	*tmp = (char*) malloc(strlen(file) + 5);
+	*tmp = (char*) malloc(strlen(file) + 16);
 	if (*tmp == NULL) return NULL;
-	sprintf(*tmp, "%s.tmp", file);
-	f = fopen(*tmp, "w");
-	if (f == NULL) { free(*tmp); *tmp = NULL; }
-	return f;
+	for (int i = 0; i < 100; ++i) {
+		sprintf(*tmp, "%s.tmp.%d", file, i);
+		FILE *f = fopen(*tmp, "wx");
+		if (f) return f;
+		if (errno != EEXIST) break;
+	}
+	free(*tmp);
+	*tmp = NULL;
+	return NULL;
 }
 
 /**
@@ -112,17 +116,20 @@ static FILE* obf_output_open(const char *file, char **tmp)
  * @param f Output stream.
  * @param file Output file name.
  * @param tmp Name of the file written.
- * @param in Input stream, read to its end (NULL: none).
+ * @param in Input stream, closed before replacing the output file.
  * @return true if the output file was replaced.
  */
 static bool obf_output_close(FILE *f, const char *file, char *tmp, FILE *in)
 {
-	const bool read = (in == NULL || (!ferror(in) && feof(in)));
+	bool read = !ferror(in) && feof(in);
+	if (fclose(in) != 0) read = false;
 	const bool written = !ferror(f);
-	const bool ok = (fclose(f) == 0) && read && written && file_replace(tmp, file);
+	const bool closed = fclose(f) == 0;
+	const bool ok = closed && read && written && file_replace(tmp, file);
 	if (!ok) {
-		if (!read) warn("cannot read the whole input: %s is not written\n", file);
-		else warn("cannot write %s\n", file);
+		if (!read) error("cannot read the whole input: %s is not written\n", file);
+		else if (!written || !closed) error("cannot write %s\n", file);
+		else error("cannot replace %s\n", file);
 		remove(tmp);
 	}
 	free(tmp);
@@ -362,7 +369,7 @@ static void obf_build(Search *search, OBF *obf, int n)
  * @param obf_file OBF file.
  * @param wrong_file OBF file with position wrongly analyzed.
  */
-void obf_test(Search *search, const char *obf_file, const char *wrong_file)
+bool obf_test(Search *search, const char *obf_file, const char *wrong_file)
 {
 	FILE *f, *w = NULL;
 	char *w_tmp = NULL;
@@ -382,14 +389,17 @@ void obf_test(Search *search, const char *obf_file, const char *wrong_file)
 	// open script file with problems
 	f = fopen(obf_file, "r");
 	if (f == NULL) {
-		fprintf(stderr, "obf_test: cannot open Othello Position Description's file %s\n", obf_file);
-		exit(EXIT_FAILURE);
+		error("obf_test: cannot open OBF file %s\n", obf_file);
+		options.width += 4;
+		return false;
 	}
 	if (wrong_file && *wrong_file) {
 		w = obf_output_open(wrong_file, &w_tmp);
 		if (w == NULL) {
-			fprintf(stderr, "obf_test: cannot open Othello Position Description's file %s\n", wrong_file);
-			exit(EXIT_FAILURE);
+			error("obf_test: cannot create temporary output for %s\n", wrong_file);
+			fclose(f);
+			options.width += 4;
+			return false;
 		}
 	}
 	
@@ -414,7 +424,7 @@ void obf_test(Search *search, const char *obf_file, const char *wrong_file)
 				if (obf.move[i].score < obf.best_score) ++n_bad_move;
 				if (obf.move[i].score != search->result->score) ++n_bad_score;
 				move_error += abs(obf.best_score - obf.move[i].score);
-				if (w && obf.move[i].score < obf.best_score) obf_write(&obf, w);
+				if (w && (obf.move[i].score < obf.best_score || obf.move[i].score != search->result->score)) obf_write(&obf, w);
 			} else if (obf.best_score > -SCORE_INF) {
 				if (obf.n_moves > 0) ++n_bad_move;
 				if (search->result->score != obf.best_score) ++n_bad_score;
@@ -430,7 +440,7 @@ void obf_test(Search *search, const char *obf_file, const char *wrong_file)
 	}
 
 	if (options.verbosity == 1 && search->options.separator) printf("---+%s\n", search->options.separator);
-	printf("%.30s: ", obf_file);
+	printf("%s: ", obf_file);
 	if (n_nodes) printf("%llu nodes in ", n_nodes);
 	time_print(T, false, stdout);
 	if (T > 0 && n_nodes > 0) printf(" (%8.0f nodes/s).", 1000.0 * n_nodes / T);
@@ -446,8 +456,11 @@ void obf_test(Search *search, const char *obf_file, const char *wrong_file)
 
 	options.width += 4;
 
-	if (w) obf_output_close(w, wrong_file, w_tmp, f);
-	fclose(f);
+	if (w) return obf_output_close(w, wrong_file, w_tmp, f);
+	const bool read_ok = !ferror(f) && feof(f);
+	const bool close_ok = fclose(f) == 0;
+	if (!read_ok || !close_ok) error("obf_test: cannot read the whole input %s\n", obf_file);
+	return read_ok && close_ok;
 }
 
 /** 
@@ -471,22 +484,22 @@ void script_to_obf(Search *search, const char *script_file, const char *obf_file
 
 	// open script file with problems
 	if (script_file == NULL || obf_file == NULL) {
-		warn("script_to_obf: missing files\n");
+		error("script_to_obf: missing files\n");
 		return;
 	}
 	if (strcmp(script_file, obf_file) == 0) {
-		warn("script_to_obf: files should be different\n");
+		error("script_to_obf: files should be different\n");
 		return;
 	}
 
 	i = fopen(script_file, "r");
 	if (i == NULL) {
-		warn("script_to_obf: cannot open script file %s\n", script_file);
+		error("script_to_obf: cannot open script file %s\n", script_file);
 		return;
 	}
 	o = obf_output_open(obf_file, &o_tmp); // (the script may be the same file under another name)
 	if (o == NULL) {
-		warn("script_to_obf: cannot open obf file %s\n", obf_file);
+		error("script_to_obf: cannot open obf file %s\n", obf_file);
 		fclose(i);
 		return;
 	}
@@ -508,7 +521,6 @@ void script_to_obf(Search *search, const char *script_file, const char *obf_file
 	putchar('\n');
 
 	obf_output_close(o, obf_file, o_tmp, i);
-	fclose(i);
 }
 
 /**
@@ -527,13 +539,14 @@ void obf_filter(const char *input_file, const char *output_file)
 	// open script file with problems
 	in = fopen(input_file, "r");
 	if (in == NULL) {
-		fprintf(stderr, "obf_filter: cannot open Othello Position Description's file %s\n", input_file);
-		exit(EXIT_FAILURE);
+		error("obf_filter: cannot open OBF file %s\n", input_file);
+		return;
 	}
 	out = obf_output_open(output_file, &out_tmp); // (the input may be the same file)
 	if (out == NULL) {
-		fprintf(stderr, "obf_filter: cannot open Othello Position Description's file %s\n", output_file);
-		exit(EXIT_FAILURE);
+		error("obf_filter: cannot create temporary output for %s\n", output_file);
+		fclose(in);
+		return;
 	}
 	
 	n = f = 0;
@@ -554,10 +567,8 @@ void obf_filter(const char *input_file, const char *output_file)
 		obf_free(&obf);
 	}
 
-	printf("OBF filter: %d selected out of %d positions\n", f, n);
-
-	obf_output_close(out, output_file, out_tmp, in);
-	fclose(in);
+	if (obf_output_close(out, output_file, out_tmp, in))
+		printf("OBF filter: %d selected out of %d positions\n", f, n);
 }
 
 /**

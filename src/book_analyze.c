@@ -1518,7 +1518,7 @@ static int ba_stage(BaWork *w, Position *root, const unsigned int root_idx, long
 
 typedef struct BaReachThread {
 	BaWork *w;
-	const Position **cur;
+	const long long *cur;
 	long long first, last;
 	BaList next;                    /**< (Position*) */
 	long long n, hist[61];
@@ -1584,7 +1584,7 @@ static void* ba_reach_run(void *v)
 	int n = 0;
 
 	for (k = t->first; k < t->last && !ba_cancelled(t->w->job); ++k) {
-		Position *p = (Position*) t->cur[k];
+		Position *p = (Position*)(intptr_t) t->cur[k];
 		Link *l;
 		foreach_link(l, p) {
 			Board target;
@@ -1625,7 +1625,7 @@ static long long ba_reach(BaWork *w, Position *root, const unsigned int root_idx
 		bool oom = false;
 		for (i = 0; i < m; ++i) {
 			t[i].w = w;
-			t[i].cur = (const Position**) cur.v;
+			t[i].cur = cur.v;
 			t[i].first = cur.n * i / m;
 			t[i].last = cur.n * (i + 1) / m;
 			t[i].next.n = 0;
@@ -2588,8 +2588,9 @@ static bool ba_move_umi(BaWork *w, const int player, BaMove *m)
 		else ba_umi_keep(w, player);
 		m->umi_exact = exact;
 	}
+	const bool cache_result = m->umi_state != 2 || w->too_large;
 	ba_umi_free(w);
-	ba_cache_put_umi(m->idx, !player, cond, m->umi[BLACK], m->umi[WHITE], m->umi_state, m->umi_exact);
+	if (cache_result) ba_cache_put_umi(m->idx, !player, cond, m->umi[BLACK], m->umi[WHITE], m->umi_state, m->umi_exact);
 	return true;
 }
 

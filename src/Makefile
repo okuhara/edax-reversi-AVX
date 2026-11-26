@@ -389,8 +389,8 @@ noip:
 code:
 	$(CC) $(CFLAGS) $(LTOFLAG) generate_flip.c -o generate_flip
 	$(CC) $(CFLAGS) $(LTOFLAG) generate_count_flip.c -o generate_count_flip
-	generate_flip
-	generate_count_flip
+	./generate_flip
+	./generate_count_flip
 
 default:
 	help

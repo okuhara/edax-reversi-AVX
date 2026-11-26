@@ -402,7 +402,7 @@ bool wthor_load(WthorBase *base, const char *file)
 	wthor_players_load(base, players_path);
 
 	if ((f = fopen(file, "rb")) != NULL) {
-		if (wthor_header_read(&base->header, f) && base->header.board_size == 8 && (int) base->header.n_games >= 0) {
+		if (wthor_header_read(&base->header, f) && base->header.board_size == 8 && (unsigned char) base->header.depth <= 60 && (int) base->header.n_games >= 0) {
 			base->n_games = base->header.n_games;
 
 			base->game = (WthorGame*) malloc((base->n_games ? base->n_games : 1) * sizeof (WthorGame));
@@ -635,7 +635,7 @@ void wthor_test(const char *file, Search *search)
 
 			search_cleanup(search);
 			search_set_board(search, &board, player);
-			search_set_level(search, 60, base.header.depth);
+			search_set_level(search, 60, board_count_empties(&board));
 			search_run(search);
 			if (search->options.verbosity) putchar('\n');
 			n_nodes += search->result->n_nodes;
@@ -712,7 +712,7 @@ void wthor_eval(const char *file, Search *search, unsigned long long histogram[1
 
 			search_cleanup(search);
 			search_set_board(search, &board, player);
-			search_set_level(search, options.level, base.header.depth);
+			search_set_level(search, options.level, board_count_empties(&board));
 			search_run(search);
 			++histogram[search->result->score + 64][(score + 64) / 2];
 		}
@@ -872,7 +872,7 @@ void base_unique(Base *base)
  * @brief Read a game from a file: GAME_IMPORT_READ, GAME_IMPORT_NONE (no game left), or GAME_IMPORT_INCOMPLETE
  * (a game cut by the end of the file: the file is not read completely).
  */
-static int base_import_text(Game *game, FILE *f) { return game_import_text_checked(game, f) ? GAME_IMPORT_READ : GAME_IMPORT_NONE; }
+static int base_import_text(Game *game, FILE *f) { return game_import_text_status(game, f); }
 static int base_import_pgn(Game *game, FILE *f) { return game_import_pgn_checked(game, f) ? GAME_IMPORT_READ : GAME_IMPORT_NONE; }
 static int base_import_edx(Game *game, FILE *f) { return game_read_checked(game, f) ? GAME_IMPORT_READ : GAME_IMPORT_NONE; }
 static int base_import_wthor(Game *game, FILE *f) { game_import_wthor(game, f); return feof(f) ? GAME_IMPORT_NONE : GAME_IMPORT_READ; }
@@ -922,8 +922,14 @@ static int base_read_games(const char *file, bool (*take)(void*, const Game*), v
 	if (load == base_import_wthor && !wthor_header_read(&header, f)) ok = false;
 	// the last game of a file is read when the end of the file is reached (a text file without an end of line
 	// after its last game, a pgn file): up to v4.5.5-nikque.15 it was not added
-	while ((r = load(&game, f)) == GAME_IMPORT_READ) {
-		if (ferror(f) || n_games == INT_MAX || !take(to, &game)) { ok = false; break; }
+	while ((r = load(&game, f)) == GAME_IMPORT_READ || r == GAME_IMPORT_SKIPPED) {
+		if (ferror(f)) { ok = false; break; }
+		if (r == GAME_IMPORT_SKIPPED) {
+			// Collect subsequent valid games, but never replace a database read only in part.
+			ok = false;
+			continue;
+		}
+		if (n_games == INT_MAX || !take(to, &game)) { ok = false; break; }
 		++n_games;
 	}
 	if (ferror(f)) ok = false;
@@ -1323,8 +1329,9 @@ void base_to_problem(Base *base, const int n_empties, const char *problem)
 	if (f == NULL) return;
 
 	for (i = 0; i < base->n_games; ++i) {
-		if (game_get_board(base->game + i, 60 - n_empties, &board)) {
-			board_to_string(&board, n_empties & 1, s);
+		int player;
+		if (game_get_board_at_empties(base->game + i, n_empties, &board, &player)) {
+			board_to_string(&board, player, s);
 			fprintf(f, "%s\n", s);
 		}
 	}
@@ -1349,8 +1356,9 @@ void base_to_FEN(Base *base, const int n_empties, const char *problem)
 	if (f == NULL) return;
 
 	for (i = 0; i < base->n_games; ++i) {
-		if (game_get_board(base->game + i, 60 - n_empties, &board)) {
-			board_print_FEN(&board, n_empties & 1, f);
+		int player;
+		if (game_get_board_at_empties(base->game + i, n_empties, &board, &player)) {
+			board_print_FEN(&board, player, f);
 			putc('\n', f);
 		}
 	}

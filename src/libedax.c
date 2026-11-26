@@ -27,6 +27,7 @@
 #include "search.h"
 #include "util.h"
 #include "ui.h"
+#include "ybwc.h"
 
 #include <limits.h>
 
@@ -49,7 +50,7 @@ static bool lib_is_started = false;
 static struct {
 	Lock lock;
 	LibedaxBenchResult *result;
-	bool stop;                  /**< edax_stop was called during the bench */
+	volatile bool stop;                  /**< edax_stop was called during the bench */
 } lib_bench;
 
 /**
@@ -60,7 +61,7 @@ static struct {
 static struct {
 	Lock lock;
 	bool running;
-	bool stop;
+	volatile bool stop;
 } lib_hint;
 
 /**
@@ -852,7 +853,7 @@ static bool lib_bench_stopped(void)
 	bool stop;
 
 	lock(&lib_bench);
-	stop = lib_bench.stop;
+	stop = ybwc_load(&lib_bench.stop);
 	unlock(&lib_bench);
 	return stop;
 }
@@ -927,10 +928,13 @@ LIBEDAX_API void edax_bench(LibedaxBenchResult *result, int n)
 
 	lock(&lib_bench);
 	lib_bench.result = result;
-	lib_bench.stop = false;
+	ybwc_store(&lib_bench.stop, false);
 	unlock(&lib_bench);
 
-	lib_obf_speed(&g_ui->play->search, n);
+	Search *const search = &g_ui->play->search;
+	search->cancel_pending = &lib_bench.stop;
+	lib_obf_speed(search, n);
+	search->cancel_pending = NULL;
 
 	lock(&lib_bench);
 	lib_bench.result = NULL;
@@ -982,7 +986,9 @@ static void lib_hint_search_run(Play *play, const bool multipv_depth_max)
 	if (options.play_type == EDAX_TIME_PER_MOVE) search_set_move_time(search, options.time);
 	else search_set_game_time(search, play->time[play->player].left);
 	if (multipv_depth_max) search->options.multipv_depth = 60;
+	search->cancel_pending = &lib_hint.stop;
 	search_run(search);
+	search->cancel_pending = NULL;
 	if (multipv_depth_max) search->options.multipv_depth = MULTIPV_DEPTH;
 }
 
@@ -994,7 +1000,7 @@ static void lib_hint_set_running(const bool running)
 {
 	lock(&lib_hint);
 	lib_hint.running = running;
-	lib_hint.stop = false;
+	ybwc_store(&lib_hint.stop, false);
 	unlock(&lib_hint);
 }
 
@@ -1004,7 +1010,7 @@ static bool lib_hint_stopped(void)
 	bool stop;
 
 	lock(&lib_hint);
-	stop = lib_hint.stop;
+	stop = ybwc_load(&lib_hint.stop);
 	unlock(&lib_hint);
 	return stop;
 }
@@ -1065,6 +1071,7 @@ LIBEDAX_API void edax_hint(const int n_hints, LibedaxHintList *hintlist)
 
 	while (n-- > 0 && !lib_hint_stopped()) { // (a stop that came before this search, which clears the stop of the search)
 		lib_hint_search_run(play, n > 0);
+		if (lib_hint_stopped()) break;
 		lib_hint_set_result(hint, search->result);
 		++hint;
 		++(hintlist->n_hints);
@@ -1227,11 +1234,13 @@ static void lib_hint_next(LibedaxHint *hint, const bool multipv_depth_max)
 		}
 	}
 
+	lib_hint_set_running(true);
 	lib_hint_search_run(play, multipv_depth_max);
-
-	lib_hint_set_result(hint, search->result);
-
-	movelist_exclude(&search->movelist, search->result->move);
+	if (!lib_hint_stopped()) {
+		lib_hint_set_result(hint, search->result);
+		movelist_exclude(&search->movelist, search->result->move);
+	}
+	lib_hint_set_running(false);
 }
 
 /**
@@ -1266,14 +1275,14 @@ LIBEDAX_API void edax_stop(void)
 	// stop thinking
 	g_ui->mode = 3;
 	lock(&lib_bench);
-	if (lib_bench.result != NULL) lib_bench.stop = true; // a running bench ends (see lib_obf_speed)
-	unlock(&lib_bench);
 	lock(&lib_hint);
-	if (lib_hint.running) lib_hint.stop = true; // edax_hint ends: no other search starts (see lib_hint)
-	unlock(&lib_hint);
+	if (lib_bench.result != NULL) ybwc_store(&lib_bench.stop, true);
+	if (lib_hint.running) ybwc_store(&lib_hint.stop, true);
 	lock(&lib_book_change);
 	if (!lib_book_change.running) play_stop(g_ui->play);
 	unlock(&lib_book_change);
+	unlock(&lib_hint);
+	unlock(&lib_bench);
 }
 
 /**
@@ -1390,7 +1399,7 @@ static Book* lib_book_begin_change(void)
  */
 static void lib_book_fix(Book *book)
 {
-	book_fix(book); // do nothing (or edax is buggy)
+	if (!book_fix(book)) return;
 	book_link(book); // links nodes
 	book_negamax(book); // negamax nodes
 	book_sort(book); // sort moves
@@ -1835,7 +1844,10 @@ LIBEDAX_API void edax_book_subtree(void)
 
 	// subtree an opening book
 	book_subtree(book, &g_ui->play->board); // remove unreachable lines.
-	book_fix(book); // do nothing (or edax is buggy)
+	if (!book_fix(book)) {
+		lib_book_end(book);
+		return;
+	}
 #ifdef BOOK_TEST_SUBTREE_LINK_OLD
 	book_link(book); // links nodes
 #endif

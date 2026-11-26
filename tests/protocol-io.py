@@ -12,6 +12,7 @@ Each case runs Edax with 1 thread and a small hash table, for a few seconds at m
 """
 
 import argparse
+import os
 from pathlib import Path
 import shutil
 import socket
@@ -21,6 +22,7 @@ import threading
 import unittest
 
 TIMEOUT = 30
+COMMAND_ENCODING = "mbcs" if os.name == "nt" else "utf-8"
 
 
 class Protocol(unittest.TestCase):
@@ -40,7 +42,7 @@ class Protocol(unittest.TestCase):
             cwd=DIRECTORY,
             timeout=TIMEOUT,
         )
-        out = result.stdout.decode(errors="replace")
+        out = result.stdout.decode(COMMAND_ENCODING)
         self.assertEqual(result.returncode, 0, out)
         return out
 
@@ -49,7 +51,7 @@ class Protocol(unittest.TestCase):
         result = subprocess.run(
             [str(EXECUTABLE), "-q", "-n", "1", "-h", "10", "-book-file", str(book)],
             input=commands, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=DIRECTORY, timeout=TIMEOUT)
-        return result.returncode, result.stdout.decode(errors="replace")
+        return result.returncode, result.stdout.decode(COMMAND_ENCODING)
 
     def test_save_at_end(self):
         code, out = self.run_save(self.book, b"book new 1 1\n")
@@ -77,9 +79,9 @@ class Protocol(unittest.TestCase):
         b1, b3 = self.tmp / "b1.dat", self.tmp / "b3.dat"
         missing, bad = self.tmp / "missing.dat", self.tmp / "bad.dat"
         bad.write_bytes(b"not a book\n")
-        code, out = self.run_save(self.tmp / "other.dat", ("book new 3 1\nbook save %s\n" % b1).encode())
+        code, out = self.run_save(self.tmp / "other.dat", ("book new 3 1\nbook save %s\n" % b1).encode(COMMAND_ENCODING))
         self.assertEqual(code, 0, out)
-        code, out = self.run_save(self.book, ("book load %s\nbook load %s\nbook load %s\nbook save %s\n" % (b1, missing, bad, b3)).encode())
+        code, out = self.run_save(self.book, ("book load %s\nbook load %s\nbook load %s\nbook save %s\n" % (b1, missing, bad, b3)).encode(COMMAND_ENCODING))
         self.assertEqual(code, 0, out)
         self.assertEqual(out.count("@load ok=1 file=%s" % b1), 1, out)
         self.assertEqual(out.count("@load ok=0 file=%s" % missing), 1, out)
@@ -90,15 +92,24 @@ class Protocol(unittest.TestCase):
         self.assertEqual(int.from_bytes(data[18:22], "little"), 3, out)  # the level of b1: the book loaded is kept
 
     # NBoard: the save of the book at the end writes "@save ok=<0|1> file=<book>", as the other protocols
+    def book_positions(self):
+        with self.book.open("rb") as book:
+            header = book.read(64)
+        if header[:8] == b"XADEKOOB":
+            return int.from_bytes(header[38:42], "little")
+        self.assertEqual(header[:8], b"NEDXBOOK")
+        return int.from_bytes(header[48:56], "little")
+
     def test_nboard_save_at_end(self):
-        result = subprocess.run(
-            [str(EXECUTABLE), "-q", "-n", "1", "-h", "10", "-l", "1", "-book-file", str(self.book), "-nboard"],
-            input=b"nboard 1\ndepth 1\nmove f5\nlearn\nquit\n", stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            cwd=DIRECTORY, timeout=TIMEOUT)
-        out = result.stdout.decode(errors="replace")
-        self.assertEqual(result.returncode, 0, out)
+        code, out = self.run_save(self.book, b"book new 1 4\n")
+        self.assertEqual(code, 0, out)
+        positions_before = self.book_positions()
+
+        out = self.run_edax(["-q", "-l", "1", "-nboard"],
+                            b"nboard 1\ndepth 1\nmove f5\nmove d6\nlearn\n")
+        self.assertIn("status Edax is learning", out)
         self.assertEqual(out.count("@save ok=1 file=%s" % self.book), 1, out)
-        self.assertTrue(self.book.exists())
+        self.assertGreater(self.book_positions(), positions_before, out)
 
     # standard input of the Edax protocol
     def test_last_line_without_newline(self):

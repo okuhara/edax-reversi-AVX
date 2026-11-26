@@ -518,7 +518,7 @@ int options_read(const char *option, const char *value)
 	}
 
 	if (read) {
-		info("<set option %s %s>\n", option, value);
+		info("<set option %s %s>\n", option, strcmp(option, "ggs-password") == 0 ? "(password)" : value);
 	}
 
 	return read;

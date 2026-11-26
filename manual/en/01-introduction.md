@@ -53,18 +53,18 @@ The ZIP file on the Releases page contains the following:
 
 | Your machine | Executable |
 |---|---|
-| Windows (64-bit), any PC | `wEdax-x86-64.exe` |
-| Windows, a CPU with AVX2 | `wEdax-x86-64-v3.exe` (faster than the one above) |
-| Windows, a CPU with AVX-512 | `wEdax-x86-64-v4.exe` (faster still) |
+| Windows (x86-64) | `wEdax-x86-64.exe` |
+| Windows, an x86-64-v3 CPU | `wEdax-x86-64-v3.exe` (faster than the one above) |
+| Windows, an x86-64-v4 CPU | `wEdax-x86-64-v4.exe` (faster still) |
 | Windows (32-bit) | `wEdax-x86-sse.exe` (CPU with SSE2), `wEdax-x86.exe` |
 | Windows (ARM64) | `wEdax-arm64.exe` |
-| Linux (64-bit) | `lEdax-x86-64`, `lEdax-x86-64-v3` (AVX2), `lEdax-x86-64-v4` (AVX-512) |
+| Linux (64-bit) | `lEdax-x86-64`, `lEdax-x86-64-v3` (x86-64-v3), `lEdax-x86-64-v4` (x86-64-v4) |
 | Linux (32-bit) | `lEdax-x86` |
 | macOS | `mEdax-arm64` (Apple silicon), `mEdax-x64-modern` (Intel) |
 | Android | `aEdax-arm64-v8a`, `aEdax-armeabi-v7a` |
 
-- **If in doubt, use the executable without `v3` or `v4` in its name** (`wEdax-x86-64.exe` on Windows). It runs on any 64-bit CPU.
-- The `v3` executables need a CPU with AVX2, and the `v4` executables need a CPU with AVX-512. They do not run on CPUs without these instruction sets.
+- **If in doubt, use the executable without `v3` or `v4` in its name** (`wEdax-x86-64.exe` on Windows). It runs on any x86-64 CPU.
+- The `v3` executables need an x86-64-v3 CPU, and the `v4` executables need an x86-64-v4 CPU. They do not run on CPUs without these instruction sets. The v3 level includes AVX2, BMI1, BMI2, FMA, LZCNT and MOVBE. The v4 level also includes AVX-512 F, BW, CD, DQ and VL.
 - If you do not know which instruction sets your CPU supports, look up its model, or use the executable without a suffix.
 - Approximate speed difference: standard 69 million nodes per second, `v3` 81 million, `v4` 92 million. This was measured for the test records (`docs/validation/`) on a Ryzen 9 9950X, with one thread, solving 20 endgame positions exactly.
 - According to the test records (`docs/validation/`):

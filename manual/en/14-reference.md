@@ -36,7 +36,7 @@ All the commands and settings of this version, compiled from the lists in the so
 | `base` | | a base command (14.3) | | [10.2](10-files.md) |
 | `solve` | | file | Solve a problem set | [11.1](11-solve-bench.md) |
 | `bench` | | [count] | Measure the speed | [11.2](11-solve-bench.md) |
-| `count` | | `games`, `positions`, `shapes` [depth] [board size 6 to 8] | Count lines and positions | [11.3](11-solve-bench.md) |
+| `count` | | `games`, `positions`, `shapes` [depth] [board size 6 or 8] | Count lines and positions | [11.3](11-solve-bench.md) |
 | `perft` | | [depth] | Count lines (without the hash table) | [11.3](11-solve-bench.md) |
 | `estimate` | | [number of times] | Estimate the number of lines | [11.3](11-solve-bench.md) |
 | `microbench`, `script-to-obf`, `select-hard`, `wtest`, `weval`, `edaxify`, `seek`, `mobility`, `debug-pv` | | | For development and testing | [11.4](11-solve-bench.md) |

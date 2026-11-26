@@ -981,7 +981,9 @@ int main() {
 	}
 	fprintf(f, "\tflip_pass, flip_pass\n};\n\n");
 
-	if (ferror(f) | fclose(f)) {
+	const bool write_failed = ferror(f) != 0;
+	const bool close_failed = fclose(f) != 0;
+	if (write_failed || close_failed) {
 		fprintf(stderr, "cannot write the generated file\n");
 		exit(EXIT_FAILURE);
 	}

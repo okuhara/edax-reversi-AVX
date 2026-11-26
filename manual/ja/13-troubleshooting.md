@@ -36,10 +36,11 @@
 | 同じ局面なのに、毎回違う手を打つ | book の中の、同じ評価値の手から、ランダムに選んでいる。または複数スレッドの探索の揺れ | [6.5](06-book-basics.md)・[5.7](05-search.md) |
 | `WARNING: Cannot open file mygame.txt` | `load` のファイルが開けない（名前・フォルダーの間違い）。盤は前のまま | ファイルの名前と場所を確かめる。フォルダーは、今いるフォルダー（`bin`）から見た場所 |
 | `WARNING: Illegal move #2: A1` | `load` の棋譜の中に、打てない手がある（`#2` は、0 から数えた手の番号）。その棋譜は読み込まれず、盤は前のまま | 棋譜のファイルを直す（[10.1](10-files.md)） |
-| `WARNING: game text: "A1F4" is not a move that can be played here: the rest of the line is not read` | `.txt` の棋譜の行に、打てない手（または、手として読めない文字）がある。その手前までが読み込まれた | 行を直す。途中の局面から始まる対局を `.txt` で保存した行は、読み戻せない（[10.1](10-files.md)） |
+| `WARNING: game text: "A1F4" is not a move that can be played here: the rest of the line is not read` | 棋譜に打てない手や手として読めない文字があります。 | その行の初期配置、手番、手順を確認します。v4.5.5-nikque.34（次期版）から、盤面付き TXT を読み戻せます（[10.1](10-files.md)）。 |
 | `load` しても何も表示されず、何も変わらない（v4.5.5-nikque.12 までの版） | ファイルが開けない、または棋譜の中に打てない手がある。古い版は、理由を表示しない | ファイルの名前と場所、棋譜の中身を確かめる |
 | `WARNING: Unknown game format extension: .abc` | 拡張子が、知っている形式でない | `.txt`・`.sgf`・`.ggf`・`.pgn`・`.edx` を使う（[3.6](03-playing.md)） |
-| `WARNING: error while importing a SGF game`（GGF・PGN でも） | 棋譜の中に、打てない手がある。または、途中の局面から始まる SGF。その棋譜は読み込まれず、盤は前のまま | 棋譜のファイルを直す。途中の局面から始まる対局は、`.ggf`・`.pgn`・`.edx` で保存する（[10.1](10-files.md)）。**v4.5.5-nikque.12 までの版では、石を返さない手が置かれた、おかしな盤になることがある。そのときは `init` でやり直す** |
+| `WARNING: error while importing a SGF game`、`WARNING: error while importing a GGF game`、`WARNING: error while importing a PGN game` | 棋譜に打てない手があります。 | 初期配置と手順を確認します（[10.1](10-files.md)）。v4.5.5-nikque.12 までの版で石を返さない手が置かれた場合は、`init` で初期化します。 |
+| `unusable initial board in a SGF game` | 初期配置を使えません。 | `AB`・`AW` の石と `PL` の手番を確認します。 |
 | `WARNING: uncomplete game.`（v4.5.5-nikque.12 までの版） | 終局していない対局の `.pgn` を読み込んだ | 正常。読み込みは、できている |
 | `WARNING: board_set: bad string input` | `setboard` の盤が 64 マスに足りない、または手番がない | 64 マスを数え直し、最後に手番（`X` か `O`）を書く（[3.5](03-playing.md)） |
 | 持ち時間を指定したのに、level の深さで読みをやめる | `-l`（または `level` コマンド）を指定していると、それが上限になる | `-l` を付けない。`config.ini` の `level` は上限にならない（[3.8](03-playing.md)） |

@@ -651,6 +651,11 @@ void gamebase_import(Gamebase* base, const char* file_1, int minimax_ply)
 	}
 	if (i == MAX_N_GAMES && fgets(s, sizeof(s), f) != NULL) // (up to v4.5.5-nikque.15 the next games were left out silently)
 		fprintf(stderr, "gamebase_import : only the first %d games of %s are read\n", MAX_N_GAMES, file_1);
+	if (ferror(f)) {
+		fclose(f);
+		fprintf(stderr, "Cannot read game file %s\n", file_1);
+		exit(EXIT_FAILURE);
+	}
 	fclose(f);
 	base->n_games = i;
 	printf("eval_builder : read %d games\n", i);

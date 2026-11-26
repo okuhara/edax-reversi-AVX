@@ -136,10 +136,16 @@ def n_marked(path):
 
 # --- running Edax ------------------------------------------------------------
 
+def write_commands(path, commands):
+    # EOF drains queued commands before normal shutdown. An explicit quit can
+    # discard commands still queued while the engine is starting.
+    with open(path, "w", newline="\n") as f:
+        f.write("\n".join(commands) + "\n")
+
+
 def run(args, work, commands, threads=1, extra=()):
     cmd_file = os.path.join(work, "cmds.txt")
-    with open(cmd_file, "w", newline="\n") as f:
-        f.write("\n".join(commands + ["quit"]) + "\n")
+    write_commands(cmd_file, commands)
     line = [args.exe, "-eval-file", args.eval, "-book-file", os.path.join(work, "book.dat"), "-n", str(threads),
             "-book-save-interval", "0", "-book-usage", "off", "-auto-store", "off", *extra]
     with open(cmd_file, "rb") as stdin:
@@ -147,6 +153,8 @@ def run(args, work, commands, threads=1, extra=()):
     text = r.stdout.decode("utf-8", "replace").replace("\r", "\n")
     with open(os.path.join(work, "log.txt"), "a", encoding="utf-8") as log:
         log.write(f"### {' '.join(line)}\n### {commands}\n{text}\n")
+    if r.returncode != 0:
+        raise RuntimeError(f"Edax exited with status {r.returncode}: {commands!r}")
     return text
 
 
@@ -271,7 +279,7 @@ def mix64(x):
 
 
 def book_fingerprint(path):
-    """as book_fingerprint() of book.c: the positions (board, level, leaf, links), in any order"""
+    """Match the engine fingerprint of the stored position fields."""
     data, records = read_book(path)
     total = 0
     for r in records:
@@ -279,6 +287,12 @@ def book_fingerprint(path):
         player, opponent = struct.unpack_from("<QQ", data, k)
         n_link, level = data[k + 38], data[k + 39] & 0x3f
         h = mix64(player ^ mix64(opponent))
+        wins, draws, losses, lines = struct.unpack_from("<4I", data, k + 16)
+        value, lower, upper = struct.unpack_from("<3h", data, k + 32)
+        marks = data[k + 39] >> 6
+        h = mix64(h ^ (wins << 32 | draws))
+        h = mix64(h ^ (losses << 32 | lines))
+        h = mix64(h ^ ((value & 255) << 24 | (lower & 255) << 16 | (upper & 255) << 8 | marks))
         links = 0
         for i in range(n_link):
             score, move = data[k + FIXED + 2 * i], data[k + FIXED + 2 * i + 1]
@@ -349,6 +363,17 @@ def test_learn(args, work):
     if os.path.exists(progress):
         os.remove(progress)
 
+    data, records = read_book(b("g3.dat"))
+    offset = records[0]["level_at"] - 39 + 34
+    lower = struct.unpack_from("<h", data, offset)[0]
+    struct.pack_into("<h", data, offset, lower - 1 if lower > -127 else lower + 1)
+    open(b("g3bound.dat"), "wb").write(data)
+    write_progress(progress, GAMES[:3], b("g3.dat"))
+    text = run(args, work, ["book load g3bound.dat", "book learn games.txt"], extra=opts)
+    check("progress of book learn of another book" in text, "a changed score bound invalidates progress")
+    if os.path.exists(progress):
+        os.remove(progress)
+
     write_progress(progress, GAMES[:3], b("g3.dat"), old=True)
     text = run(args, work, ["book load g3.dat", "book learn games.txt"], extra=opts)
     check(re.search(r"written by an earlier version", text) is not None and re.search(r"6/6 games learned", text) is not None,
@@ -399,8 +424,7 @@ def learn_and_stop(args, work, games, opts, progress):
     """Start book learn, stop the process as soon as its progress file and its .store are written; return the file (None if the run ended first)."""
     import time
     cmd_file = os.path.join(work, "cmds.txt")
-    with open(cmd_file, "w", newline="\n") as f:
-        f.write(f"book learn {games}\nquit\n")
+    write_commands(cmd_file, [f"book learn {games}"])
     line = [args.exe, "-eval-file", args.eval, "-book-file", os.path.join(work, "book.dat"), "-n", "1",
             "-book-save-interval", "0", "-book-usage", "off", "-auto-store", "off", *opts]
     with open(cmd_file, "rb") as stdin:
@@ -414,6 +438,8 @@ def learn_and_stop(args, work, games, opts, progress):
                 text = open(progress).read()
                 break
             time.sleep(0.005)
+        if text is None and p.returncode != 0:
+            raise RuntimeError(f"Edax exited with status {p.returncode} before the requested stop")
     return text
 
 
@@ -499,8 +525,7 @@ def stop_at_each_write(args, work, start, lines, threads, opts, fail, resumed):
     def learn(stop=0, fail=0):
         env = dict(os.environ, EDAX_TEST_STOP_AT=str(stop), EDAX_TEST_FAIL_STORE=str(fail))
         commands = (["book load book.dat.store"] if os.path.exists(store) else []) + ["book learn lines.txt"]
-        with open(b("cmds.txt"), "w", newline="\n") as f:
-            f.write("\n".join(commands + ["quit"]) + "\n")
+        write_commands(b("cmds.txt"), commands)
         line = [args.stop_exe, "-eval-file", args.eval, "-book-file", b("book.dat"), "-n", str(threads),
                 "-book-save-interval", "0", "-book-usage", "off", "-auto-store", "off", *opts]
         with open(b("cmds.txt"), "rb") as stdin:

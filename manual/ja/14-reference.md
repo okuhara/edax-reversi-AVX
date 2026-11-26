@@ -36,7 +36,7 @@
 | `base` | | base のコマンド（14.3） | | [10.2](10-files.md) |
 | `solve` | | ファイル | 問題集を解く | [11.1](11-solve-bench.md) |
 | `bench` | | ［個数］ | 速さを測る | [11.2](11-solve-bench.md) |
-| `count` | | `games`・`positions`・`shapes` ［深さ］ ［盤の大きさ 6〜8］ | 手順・局面を数える | [11.3](11-solve-bench.md) |
+| `count` | | `games`・`positions`・`shapes` ［深さ］ ［盤の大きさ 6 または 8］ | 手順・局面を数える | [11.3](11-solve-bench.md) |
 | `perft` | | ［深さ］ | 手順を数える（ハッシュ表なし） | [11.3](11-solve-bench.md) |
 | `estimate` | | ［回数］ | 手順の数を見積もる | [11.3](11-solve-bench.md) |
 | `microbench`、`script-to-obf`、`select-hard`、`wtest`、`weval`、`edaxify`、`seek`、`mobility`、`debug-pv` | | | 開発・検査用 | [11.4](11-solve-bench.md) |

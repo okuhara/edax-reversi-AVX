@@ -514,6 +514,7 @@ void search_init_with(Search *search, const int n_task, const int hash_bits)
 	/* observers */
 	search->observer = search_observer;
 	search->stop_pending = NULL;
+	search->cancel_pending = NULL;
 
 	/* options */
 	search->options.depth = 60;
@@ -642,6 +643,7 @@ void search_clone(Search *search, Search *master)
 	search->tasks = master->tasks;
 	search->observer = master->observer;
 	search->stop_pending = NULL;
+	search->cancel_pending = NULL;
 
 	search->depth = master->depth;
 	search->selectivity = master->selectivity;
@@ -1112,7 +1114,7 @@ void search_check_timeout(Search *search)
  */
 void search_set_task_number(Search *search, const int n)
 {
-	assert(n > 0 && n < MAX_THREADS);
+	assert(n > 0 && n <= MAX_THREADS);
 	task_stack_resize(search->tasks, n);
 	search_bind_task(search); // (the tasks were allocated again: search->task pointed to the freed ones)
 	search->allow_node_splitting = (search->tasks->n > 1); // (fewer tasks than n if their threads cannot be created)

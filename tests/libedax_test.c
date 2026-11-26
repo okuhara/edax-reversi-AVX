@@ -8,7 +8,7 @@
  * The values which depend on the engine (scores, searched moves) are only printed.
  *
  * It is linked with the import library of the dll, and run from a directory containing
- * data/eval.dat (see build-libedax-test.cmd). It also works with the original libedax
+ * data/eval.dat (see build-libedax-test.cmd). Pass --original after the library name to test the original libedax
  * (copied under the name of the dll), to compare the two libraries.
  *
  * @date 2026
@@ -617,7 +617,11 @@ int main(int argc, char **argv)
 	deviate2 = (Deviate) optional(dll, "edax_book_deviate2");
 	deviate3 = (Deviate) optional(dll, "edax_book_deviate3");
 	export_lines = (Export) optional(dll, "edax_book_deviate_export");
-	original = !(deviate2 && deviate3);
+	original = argc == 3 && strcmp(argv[2], "--original") == 0;
+	if (!original && !(deviate2 && deviate3)) {
+		fprintf(stderr, "%s: missing edax_book_deviate2 or edax_book_deviate3 (use --original for the original library)\n", dll);
+		return 1;
+	}
 	printf("%s: %s\n", dll, original ? "original libedax" : "libedax of Edax 4.5.5");
 	if (!original) {
 		int (*cpu_level)(void) = (int (*)(void)) optional(dll, "libedax_cpu_level");

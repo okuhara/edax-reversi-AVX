@@ -295,7 +295,7 @@ book を育てる・保守するコマンドは、途中経過や結果を、`bo
 | `.err` | `book correct` |
 | `.dep` | `book deepen` |
 
-- これらは、中身はふつうの book のファイルです。`book load data/book.dat.dev2` で読めます。名前を `book.dat` に変えれば、そのまま使えます。
+- 保存された book は、ふつうの book として読めます。対応するコマンドを再開する場合は、進捗を記録するテキストファイル `.learn`・`.play-to` を残してください。`book load data/book.dat.dev2` で読めます。名前を `book.dat` に変えれば、そのまま使えます。
 - 育てるコマンドが無事に終わった後、`book save` をせずに Edax を終了すると、育てた book は `book-file`（`data/book.dat`）にも保存されます。
 - つまり、ふつうに使っているかぎり、**`book.dat` が最新**です。拡張子の付いたファイルは「途中で止まったときの保険」です。
 - **Windows では、`book-file` のフォルダーを含めた長さを 240 文字以内にしてください。** 長すぎると、拡張子の付いたファイルが保存できません（[13 章](13-troubleshooting.md)）。

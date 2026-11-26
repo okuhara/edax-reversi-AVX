@@ -193,6 +193,7 @@ static void ui_read_input(UI *ui)
 		} else if (feof(stdin) && ui->type != UI_GGS) {
 			// GGS can continue receiving server events after local input closes.
 			buffer = string_duplicate("eof");
+			if (buffer == NULL) fatal_error("cannot allocate EOF notification\n");
 		}
 		event->loop = false;
 	} else {

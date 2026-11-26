@@ -106,7 +106,7 @@ void book_pool_reclaim(Book*);
 void book_deepen(Book*);
 void book_correct_solved(Book*);
 void book_link(Book*);
-void book_fix(Book*);
+bool book_fix(Book*);
 void book_fill(Book *book, const int);
 void book_fill2(Book *book, const int);
 void book_fill_walk(Book*, Board*, const int, const bool, const int, const int);

@@ -47,3 +47,5 @@ overflow. The `core` case compares 96 exact searches with an independent solver.
 To check the exact solves against the scores of a problem file (the number of results, the score and the best move of each position), run `python tests/check-solve.py <executable> problem/fforum-1-19.obf --cwd bin` (one thread, level 60; exit code 0 all right, 1 a result differs, 2 the program fails or prints fewer results). The workflow `build.yaml` runs it on every system, and checks that it fails on a copy with a wrong score.
 
 `src/harness.c` compares the legal moves and the flipped discs of the move generator with a slow generator, on the starting position and on random games. It is a program of its own: the commands to build it are at the top of the file (`harness [games]`, exit code 0 when every move is right).
+
+`regression stabwindow 1 --verify-reference` recomputes the 240 stored exact scores with an independent scalar search. The default `stabwindow` checks the same boards and search windows against the stored scores.

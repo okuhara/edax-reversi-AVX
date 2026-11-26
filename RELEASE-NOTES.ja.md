@@ -8,6 +8,10 @@
 - [eval2 系列](#eval2-系列)（新しい評価関数。ブランチ `eval2`）
 - C++23 版の Heath（旧名 newedax）は [Heath の修正一覧](https://github.com/Nikque/Heath/blob/main/RELEASE-NOTES.ja.md)
 
+## 未公開の変更
+
+- libedax の `edax_stop` は、ヒントまたはベンチマークの次の探索が始まる直前の要求も引き継ぎます。停止時は `edax_hint` に完了済みのヒントだけが残り、`edax_hint_next` と `edax_hint_next_no_multipv_depth` は中断した探索について `LIBEDAX_NOMOVE` を返します。中断したベンチマーク局面は件数に含めません。
+
 ## 版の対応
 
 eval2・Heath（旧名 newedax）の各版は、同じ行の nikque の版の変更をすべて含みます。
@@ -1659,7 +1663,7 @@ v4.5.5-nikque.15 の変更を取り込みました（[nikque.15](#v455-nikque15)
 **不具合の修正**
 
 - eval2 系列の評価関数のファイルにも、nikque.15 と同じ 2 つの修正をしました。
-- 評価ファイルの印の検査は、8 バイトの両方がそろったときだけ通すようにしました。
+- 評価ファイルの印の検査は、4 バイトの語が2つとも同じバイト順で一致したときだけ通すようにしました。
 - libedax を別の `eval-file` で初期化し直したとき、そのファイルを読むようにしました。
 
 **互換性**

@@ -527,7 +527,9 @@ int main() {
 	fprintf(f, "\treturn score + o_flips - (int)((o_flips | (score - 1)) < 0) * 2;\t// last square for O if O can move or score <= 0\n");
 	fprintf(f, "}\n\n");
 
-	if (ferror(f) | fclose(f)) {
+	const bool write_failed = ferror(f) != 0;
+	const bool close_failed = fclose(f) != 0;
+	if (write_failed || close_failed) {
 		fprintf(stderr, "cannot write the generated file\n");
 		exit(EXIT_FAILURE);
 	}

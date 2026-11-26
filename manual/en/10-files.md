@@ -42,15 +42,17 @@ f5f6e6f4e3c5c4e7c6e2
 
 ### Saving a game that starts from a set-up position
 
-The same game (2 moves from a position set up with `setboard`) was saved in the 5 formats and loaded back, with these results:
+Starting with v4.5.5-nikque.34 (upcoming), the following formats preserve a custom starting position.
 
 | Format | Result of loading back |
 |---|---|
 | `.ggf`, `.pgn`, `.edx` | The first position and the moves, as they were |
-| `.txt` | **Cannot be read back.** No move is read; the result is a game without moves at the usual initial position (a warning is printed) |
-| `.sgf` | **Cannot be read back.** `WARNING: error while importing a SGF game` is printed and nothing is loaded (the board stays as it was before `load`) |
+| `.txt` | Restores the opening board and turn from the board prefix in the saved record. |
+| `.sgf` | Restores the starting discs (`AB` and `AW`) and side to move (`PL`). |
 
 A game that starts from the usual initial position can be loaded back in every format.
+
+The preceding release, v4.5.5-nikque.33, could not restore custom SGF starting positions. Use GGF when exchanging a custom start with that version.
 
 Up to v4.5.5-nikque.12, loading this `.sgf` printed the same warning but then left an incorrect board: the moves were placed on the usual initial position without flipping any discs.
 

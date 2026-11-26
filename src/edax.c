@@ -639,7 +639,8 @@ void ui_loop_edax(UI *ui)
 
 				count_param = parse_word(param, count_cmd, 15);
 				count_param = parse_int(count_param, &depth); BOUND(depth, 1, 90, "max-ply");
-				/* if (count_param) */ parse_int(count_param, &size); BOUND(size, 6, 8, "board-size");
+				/* if (count_param) */ parse_int(count_param, &size);
+				if (size != 6 && size != 8) { warn("board-size must be 6 or 8\n"); continue; }
 
 				if (strcmp(count_cmd, "games") == 0) { // game enumeration
 					quick_count_games(&play->board, depth, size);
@@ -875,7 +876,7 @@ void ui_loop_edax(UI *ui)
 
 				// fix an opening book
 				} else if (strcmp(book_cmd, "fix") == 0) {
-					book_fix(book); // do nothing (or edax is buggy)
+					if (!book_fix(book)) continue;
 					book_link(book); // links nodes
 					book_negamax(book); // negamax nodes
 					book_sort(book); // sort moves
@@ -888,7 +889,7 @@ void ui_loop_edax(UI *ui)
 				// check and correct solved positions of the book
 				} else if (strcmp(book_cmd, "correct") == 0) {
 					book_correct_solved(book); // do nothing (or edax is buggy)
-					book_fix(book); // do nothing (or edax is buggy)
+					if (!book_fix(book)) continue;
 					book_link(book); // links nodes
 					book_negamax(book); // negamax nodes
 					book_sort(book); // sort moves
@@ -896,7 +897,7 @@ void ui_loop_edax(UI *ui)
 				// prune an opening book
 				} else if (strcmp(book_cmd, "prune") == 0) {
 					book_prune(book); // remove unreachable lines.
-					book_fix(book); // do nothing (or edax is buggy)
+					if (!book_fix(book)) continue;
 					book_link(book); // links nodes
 					book_negamax(book); // negamax nodes
 					book_sort(book); // sort moves
@@ -904,7 +905,7 @@ void ui_loop_edax(UI *ui)
 				// subtree an opening book
 				} else if (strcmp(book_cmd, "subtree") == 0) {
 					book_subtree(book, &play->board); // remove unreachable lines.
-					book_fix(book); // do nothing (or edax is buggy)
+					if (!book_fix(book)) continue;
 #ifdef BOOK_TEST_SUBTREE_LINK_OLD
 					book_link(book); // links nodes
 #endif
@@ -927,7 +928,7 @@ void ui_loop_edax(UI *ui)
 					if (!words || val_1 < 0 || val_1 > 129 || val_2 < 0 || val_2 > 254) {
 						warn("book reduce: two loss limits are needed, from 0 to 129 and from 0 to 254, and nothing after them (book reduce <n1> <n2>); the book is not changed\n");
 					} else if (book_reduce(book, &play->board, val_1, val_2)) {
-						book_fix(book); // do nothing (or edax is buggy)
+						if (!book_fix(book)) continue;
 						book_negamax(book); // negamax nodes
 						book_negamax_subtree(book, &play->board); // (from this position, when the initial one is no longer in the book)
 						book_sort(book); // sort moves

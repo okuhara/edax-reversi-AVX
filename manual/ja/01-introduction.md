@@ -58,18 +58,18 @@ Release のページからダウンロードした ZIP を展開すると、次�
 
 | お使いの環境 | 実行ファイル |
 |---|---|
-| Windows（64 ビット）、ふつうの PC | `wEdax-x86-64.exe` |
-| Windows、AVX2 に対応した CPU | `wEdax-x86-64-v3.exe`（上より速い） |
-| Windows、AVX-512 に対応した CPU | `wEdax-x86-64-v4.exe`（さらに速い） |
+| Windows（x86-64） | `wEdax-x86-64.exe` |
+| Windows、x86-64-v3 に対応した CPU | `wEdax-x86-64-v3.exe`（上より速い） |
+| Windows、x86-64-v4 に対応した CPU | `wEdax-x86-64-v4.exe`（さらに速い） |
 | Windows（32 ビット） | `wEdax-x86-sse.exe`（SSE2 対応の CPU）、`wEdax-x86.exe` |
 | Windows（ARM64） | `wEdax-arm64.exe` |
-| Linux（64 ビット） | `lEdax-x86-64`、`lEdax-x86-64-v3`（AVX2）、`lEdax-x86-64-v4`（AVX-512） |
+| Linux（64 ビット） | `lEdax-x86-64`、`lEdax-x86-64-v3`（x86-64-v3）、`lEdax-x86-64-v4`（x86-64-v4） |
 | Linux（32 ビット） | `lEdax-x86` |
 | macOS | `mEdax-arm64`（Apple silicon）、`mEdax-x64-modern`（Intel） |
 | Android | `aEdax-arm64-v8a`、`aEdax-armeabi-v7a` |
 
-- **迷ったら、名前に `v3`・`v4` の付かないもの**を使ってください（Windows なら `wEdax-x86-64.exe`）。どの 64 ビットの CPU でも動きます。
-- `v3` の付いた実行ファイルには AVX2 に対応した CPU が、`v4` の付いたものには AVX-512 に対応した CPU が必要です。対応していない CPU では動きません。
+- **迷ったら、名前に `v3`・`v4` の付かないもの**を使ってください（Windows なら `wEdax-x86-64.exe`）。どの x86-64 CPU でも動きます。
+- `v3` の付いた実行ファイルには x86-64-v3 に対応した CPU が、`v4` の付いたものには x86-64-v4 に対応した CPU が必要です。対応していない CPU では動きません。 v3 には AVX2・BMI1・BMI2・FMA・LZCNT・MOVBE など、v4 にはさらに AVX-512 F・BW・CD・DQ・VL が含まれます。
 - 対応しているかどうか分からないときは、CPU の型番で調べるか、`v3`・`v4` の付いていないものを使ってください。
 - 速さの違いの目安は次のとおりです。標準 6,900 万ノード/秒、`v3` 8,100 万、`v4` 9,200 万。
   - 条件：Ryzen 9 9950X、1 スレッド、終盤の完全読みの 20 局面。

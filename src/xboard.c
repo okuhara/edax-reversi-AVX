@@ -564,7 +564,7 @@ void ui_loop_xboard(UI *ui)
 
 			// playother
 			} else if (strcmp(cmd, "playother") == 0) {
-				edax_turn = play->player;
+				edax_turn = play->player ^ 1;
 				play_ponder(play);
 
 			// white turn (obsolete in protocol version 2)

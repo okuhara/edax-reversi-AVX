@@ -44,7 +44,7 @@ def read_obf(path):
     return expected
 
 
-def read_results(output):
+def read_results(output, require_exact=True):
     """the results printed by -solve: {problem number: (score, move)}"""
     results = {}
     for line in output.splitlines():
@@ -53,13 +53,18 @@ def read_results(output):
             continue
         tokens = rest.split()
         # depth, score, time, nodes, [nodes per second], principal variation
-        if len(tokens) < 4 or not SCORE.match(tokens[1]):
-            continue
+        problem = int(head)
+        if problem in results:
+            raise ValueError(f'duplicate result for position {problem}')
+        if len(tokens) < 4 or not SCORE.fullmatch(tokens[1]):
+            raise ValueError(f'invalid result for position {problem}: {line!r}')
+        if require_exact and tokens[1].startswith(('<', '>')):
+            raise ValueError(f'position {problem} has a score bound, not an exact score: {tokens[1]}')
         k = 4
         if k < len(tokens) and tokens[k].isdigit():
             k += 1
         move = tokens[k].lower() if k < len(tokens) and MOVE.match(tokens[k]) else None
-        results[int(head)] = (int(SCORE.match(tokens[1]).group(1)), move)
+        results[problem] = (int(SCORE.match(tokens[1]).group(1)), move)
     return results
 
 
@@ -95,7 +100,11 @@ def main():
         print(f'FAIL: the program ended with the exit code {run.returncode}')
         return 2
 
-    results = read_results(run.stdout)
+    try:
+        results = read_results(run.stdout, require_exact=args.level >= 60)
+    except ValueError as e:
+        print(f'FAIL: {e}')
+        return 2
     bad = 0
     for n, (best, moves, line) in enumerate(expected, 1):
         if n not in results:

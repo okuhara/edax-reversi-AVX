@@ -52,6 +52,7 @@ typedef struct OkoGame {
 void game_init(Game*);
 void game_copy(Game*, const Game*);
 bool game_get_board(const Game*, const int, Board*);
+bool game_get_board_at_empties(const Game*, int, Board*, int*);
 bool game_update_board(Board *board, int x);
 bool game_check(Game*);
 bool game_equals(const Game*, const Game*);
@@ -62,14 +63,16 @@ bool game_read_checked(Game*, FILE*);
 void game_write(const Game*, FILE*);
 void game_import_text(Game*, FILE*);
 bool game_import_text_checked(Game*, FILE*);
+int game_import_text_status(Game*, FILE*);
 void game_import_wthor(Game*, FILE*);
 void game_import_ggf(Game*, FILE*);
 void game_import_sgf(Game*, FILE *);
 /** what game_import_ggf_checked and game_import_sgf_checked read */
-enum { GAME_IMPORT_INCOMPLETE = -1, GAME_IMPORT_NONE = 0, GAME_IMPORT_READ = 1 };
+enum { GAME_IMPORT_INCOMPLETE = -1, GAME_IMPORT_NONE = 0, GAME_IMPORT_READ = 1, GAME_IMPORT_SKIPPED = 2 };
 int game_import_ggf_checked(Game*, FILE*);
 int game_import_sgf_checked(Game*, FILE *);
 int parse_ggf(Game*, const char*);
+int parse_ggf_board(Game*, const char*, Board*);
 void game_import_pgn(Game*, FILE *);
 bool game_import_pgn_checked(Game*, FILE *);
 void game_export_text(const Game*, FILE*);

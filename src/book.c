@@ -34,7 +34,12 @@
 #include <io.h>
 #else
 #include <unistd.h>
+#include <sys/stat.h>
 #include <sched.h>
+#ifdef __linux__
+#include <fcntl.h>
+#include <sys/syscall.h>
+#endif
 #endif
 
 #define BOOK_DEBUG 0
@@ -1242,6 +1247,8 @@ static int position_negamax(Position *position, Book *book)
 
 		position_set_done(position, book);
 
+		const int old_value = position->score.value, old_lower = position->score.lower, old_upper = position->score.upper;
+		const unsigned int old_counts[4] = {position->n_wins, position->n_draws, position->n_losses, position->n_lines};
 		position->score.value = position->score.lower = position->score.upper = -SCORE_INF;
 
 		if (position->leaf.score > -SCORE_INF) {
@@ -1286,6 +1293,9 @@ static int position_negamax(Position *position, Book *book)
 		position->n_draws = (unsigned int) MIN(UINT_MAX, stat.n_draws);
 		position->n_losses = (unsigned int) MIN(UINT_MAX, stat.n_losses);
 		position->n_lines = (unsigned int) MIN(UINT_MAX, stat.n_lines);
+		if (old_value != position->score.value || old_lower != position->score.lower || old_upper != position->score.upper
+			|| old_counts[0] != MIN(UINT_MAX, stat.n_wins) || old_counts[1] != MIN(UINT_MAX, stat.n_draws)
+			|| old_counts[2] != MIN(UINT_MAX, stat.n_losses) || old_counts[3] != MIN(UINT_MAX, stat.n_lines)) book->need_saving = true;
 	}
 
 	return position->score.value;
@@ -1371,7 +1381,7 @@ static inline void book_spin_wait(int *spin)
  * @brief Compute the negamaxed values of a position from its (already negamaxed) children.
  * Same computation as position_negamax().
  *
- * @return true if a score of a link changed (the book needs saving: the caller tells it, as the threads
+ * @return true if a saved score or count changed (the book needs saving: the caller tells it, as the threads
  * do not write book->need_saving at the same time).
  */
 static bool position_negamax_compute(Position *position, Book *book, Position **children)
@@ -1384,6 +1394,8 @@ static bool position_negamax_compute(Position *position, Book *book, Position **
 	Link *l = position_links(position);
 	int i;
 
+	const int old_value = position->score.value, old_lower = position->score.lower, old_upper = position->score.upper;
+	const unsigned int old_counts[4] = {position->n_wins, position->n_draws, position->n_losses, position->n_lines};
 	position->score.value = position->score.lower = position->score.upper = -SCORE_INF;
 
 	if (position->leaf.score > -SCORE_INF) {
@@ -1424,6 +1436,9 @@ static bool position_negamax_compute(Position *position, Book *book, Position **
 	position->n_draws = (unsigned int) MIN(UINT_MAX, stat.n_draws);
 	position->n_losses = (unsigned int) MIN(UINT_MAX, stat.n_losses);
 	position->n_lines = (unsigned int) MIN(UINT_MAX, stat.n_lines);
+	if (old_value != position->score.value || old_lower != position->score.lower || old_upper != position->score.upper
+		|| old_counts[0] != MIN(UINT_MAX, stat.n_wins) || old_counts[1] != MIN(UINT_MAX, stat.n_draws)
+		|| old_counts[2] != MIN(UINT_MAX, stat.n_losses) || old_counts[3] != MIN(UINT_MAX, stat.n_lines)) changed = true;
 	return changed;
 }
 
@@ -1983,7 +1998,17 @@ static bool book_enhance_mark(Book *book, Position *root)
  * @param book Opening book.
  * @return true if a link was removed.
  */
-static bool position_remove_links(Position *position, Book *book)
+static bool book_has_symmetric_position(const Book *book, const Board *board)
+{
+	for (int s = 0; s < 8; ++s) {
+		Board equivalent;
+		board_symetry(board, s, &equivalent);
+		if (position_array_probe(book_array(book, &equivalent), &equivalent)) return true;
+	}
+	return false;
+}
+
+static bool position_remove_missing_links(Position *position, Book *book, bool allow_symmetry)
 {
 	int i, n = 0;
 	const Link *l = position_links(position);
@@ -1991,8 +2016,14 @@ static bool position_remove_links(Position *position, Book *book)
 	Board target;
 
 	for (i = 0; i < position->n_link; ++i) {
-		board_next(&position->board, l[i].move, &target);
-		if (!book_probe(book, &target)) {
+		const int x = l[i].move;
+		if (allow_symmetry && (x > PASS || (x == PASS ? !board_is_pass(&position->board)
+			: board_is_occupied(&position->board, x) || !board_flip(&position->board, x)))) {
+			kept[n++] = l[i];
+			continue;
+		}
+		board_next(&position->board, x, &target);
+		if (!book_probe(book, &target) && (!allow_symmetry || !book_has_symmetric_position(book, &target))) {
 			if (l[i].score > position->leaf.score) position->leaf = l[i];
 		} else {
 			kept[n++] = l[i];
@@ -2003,6 +2034,11 @@ static bool position_remove_links(Position *position, Book *book)
 		error("cannot allocate opening book position's moves\n");
 	}
 	return true;
+}
+
+static bool position_remove_links(Position *position, Book *book)
+{
+	return position_remove_missing_links(position, book, false);
 }
 
 /**
@@ -2451,6 +2487,26 @@ static void position_array_init(PositionArray *a)
 	a->positions = NULL;
 }
 
+static bool position_array_reserve(PositionArray *a, Book *book, int size)
+{
+	if (a->size >= size) return true;
+	if ((size_t) size > SIZE_MAX / sizeof (Position)) return false;
+	Position *positions;
+	if (a->size < 0) {
+		positions = (Position*) malloc((size_t) size * sizeof (Position));
+		if (positions) {
+			memcpy(positions, a->positions, (size_t) a->n * sizeof (Position));
+			book->pool_unused += a->n;
+		}
+	} else {
+		positions = (Position*) realloc(a->positions, (size_t) size * sizeof (Position));
+	}
+	if (!positions) return false;
+	a->positions = positions;
+	a->size = size;
+	return true;
+}
+
 /**
  * @brief Add a position to the array.
  *
@@ -2470,23 +2526,11 @@ static int position_array_add(PositionArray *a, const Position *p, Book *book)
 
 	for (i = 0; i < a->n; ++i) if (board_equal(&a->positions[i].board, &p->board)) return 0;
 	if (a->size < 0 || a->n == a->size) {
-		Position *n;
-		const int size = a->n + a->n / 2 + 1;
-		if (a->size < 0) { // the array lives in the book pool: move it to its own block
-			n = (Position*) malloc(size * sizeof (Position));
-			if (n) {
-				memcpy(n, a->positions, a->n * sizeof (Position));
-				book->pool_unused += a->n; // (see book_pool_reclaim)
-			}
-		} else {
-			n = (Position*) realloc(a->positions, size * sizeof (Position));
-		}
-		if (n == NULL) {
+		const int size = a->n < INT_MAX - a->n / 2 - 1 ? a->n + a->n / 2 + 1 : INT_MAX;
+		if (a->n == INT_MAX || !position_array_reserve(a, book, size)) {
 			error("cannot add a position to the book\n");
 			return -1;
 		}
-		a->positions = n;
-		a->size = size;
 	}
 	a->positions[a->n] = *p;
 	a->positions[a->n].state = book->epoch | POSITION_DONE; // a new position is 'done' until the next book_clean()
@@ -3060,6 +3104,7 @@ static struct {
 	BookUnreadMark *mark;  /**< the files */
 	int n;                 /**< number of files */
 } book_unread = {NULL, 0};
+static bool book_unread_untracked = false;
 
 /**
  * @return the index of the mark of a file, or -1 if it has none. A name written another way is of the
@@ -3090,7 +3135,11 @@ static void book_unread_add(const char *file, const bool unopened)
 	marks = (BookUnreadMark*) realloc(book_unread.mark, (book_unread.n + 1) * sizeof *marks);
 	if (marks) book_unread.mark = marks;
 	name = marks ? string_duplicate(file) : NULL;
-	if (name == NULL) { error("cannot allocate the mark of %s, which could not be loaded\n", file); return; }
+	if (name == NULL) {
+		book_unread_untracked = true;
+		error("cannot allocate the mark of %s, which could not be loaded\n", file);
+		return;
+	}
 	book_unread.mark[book_unread.n].file = name;
 	book_unread.mark[book_unread.n++].unopened = unopened;
 }
@@ -3115,6 +3164,7 @@ static void book_unread_remove(const int i)
 void book_unread_forget(void)
 {
 	while (book_unread.n > 0) free(book_unread.mark[--book_unread.n].file);
+	book_unread_untracked = false;
 }
 
 /**
@@ -3129,6 +3179,7 @@ int book_file_status(const char *file)
 {
 	const int i = book_unread_find(file);
 
+	if (book_unread_untracked) return BOOK_FILE_UNOPENED;
 	if (i < 0) return BOOK_FILE_REPLACEABLE;
 	return book_unread.mark[i].unopened ? BOOK_FILE_UNOPENED : BOOK_FILE_DAMAGED;
 }
@@ -3155,6 +3206,7 @@ static void book_set_unloaded(Book *book)
  * "book save <file>", with the name, replaces the file as asked.
  */
 static char *book_replaced_file = NULL;
+static bool book_replaced_untracked = false;
 
 /** The command after which the book in memory no longer is the book of that file (for the message). */
 static const char *book_replaced_by = "book new";
@@ -3166,8 +3218,14 @@ static const char *book_replaced_by = "book new";
  */
 void book_set_replaced_file(const char *file)
 {
+	char *name = file ? string_duplicate(file) : NULL;
+	book_replaced_untracked = file && !name;
+	if (book_replaced_untracked) {
+		error("cannot remember the previous book file %s; automatic saves are blocked\n", file);
+		return;
+	}
 	free(book_replaced_file);
-	book_replaced_file = file ? string_duplicate(file) : NULL;
+	book_replaced_file = name;
 	book_replaced_by = "book new";
 }
 
@@ -3191,9 +3249,15 @@ void book_set_loaded_file(const char *file, const bool imported)
 
 	if (file == NULL || book_file == NULL || strcmp(file, book_file) == 0) return; // (the book file itself: book_load() has cleared the mark)
 	n = strlen(book_file);
-	if (!imported && strncmp(file, book_file, n) == 0 && file[n] == '.' && strncmp(file + n, ".old", 4) != 0 && strncmp(file + n, ".damaged", 8) != 0) {
-		book_set_replaced_file(NULL);
-		return;
+	if (!imported && strncmp(file, book_file, n) == 0 && file[n] == '.') {
+		static const char *const extensions[] = {".store", ".dev", ".dev2", ".dev3", ".enh", ".mrg", ".play",
+			".gam", ".ext", ".exh", ".fill", ".fill2", ".lexp", ".err", ".dep", ".leaf", ".leaf2", ".leaf3", ".leaf4"};
+		for (size_t i = 0; i < sizeof extensions / sizeof *extensions; ++i) {
+			if (strcmp(file + n, extensions[i]) == 0) {
+				book_set_replaced_file(NULL);
+				return;
+			}
+		}
 	}
 	book_set_replaced_file(book_file);
 	book_replaced_by = imported ? "book import" : "book load";
@@ -3234,8 +3298,28 @@ static long long book_file_positions(const char *file)
 static bool book_rename_back(const char *from, const char *to)
 {
 #ifdef _WIN32
-	return MoveFileExA(from, to, 0) != 0;
+	if (MoveFileExA(from, to, 0)) return true;
+	const DWORD e = GetLastError();
+	errno = e == ERROR_ALREADY_EXISTS || e == ERROR_FILE_EXISTS ? EEXIST : EIO;
+	return false;
 #else
+#if defined(__linux__) && !defined(__ANDROID__) && defined(SYS_renameat2)
+	// RENAME_NOREPLACE is the Linux kernel flag with value 1.
+	if (syscall(SYS_renameat2, AT_FDCWD, from, AT_FDCWD, to, 1U) == 0) return true;
+	if (errno != ENOSYS && errno != EINVAL && errno != ENOTSUP && errno != EOPNOTSUPP) return false;
+#elif defined(__APPLE__)
+	if (renamex_np(from, to, RENAME_EXCL) == 0) return true;
+	if (errno != ENOSYS && errno != EINVAL && errno != ENOTSUP && errno != EOPNOTSUPP) return false;
+#endif
+	// Prefer an exclusive hard link where supported. If unlink fails, leave both names.
+	if (link(from, to) == 0) return unlink(from) == 0;
+	if (errno != ENOSYS && errno != EINVAL && errno != ENOTSUP && errno != EOPNOTSUPP
+		&& errno != EPERM && errno != EXDEV && errno != EMLINK) return false;
+
+	// Filesystems without either exclusive operation use a checked rename.
+	struct stat destination;
+	if (lstat(to, &destination) == 0) { errno = EEXIST; return false; }
+	if (errno != ENOENT) return false;
 	return rename(from, to) == 0;
 #endif
 }
@@ -3256,15 +3340,10 @@ static bool book_set_aside(const char *file, const char *ext, const char *reason
 	fclose(f);
 	for (i = 0; i < 100 && !ok; ++i) {
 		if (i) sprintf(name, "%s%s.%d", file, ext, i); else sprintf(name, "%s%s", file, ext);
-		if ((f = fopen(name, "rb")) != NULL) { fclose(f); continue; } // never replace a file kept before
-#ifdef _WIN32
-		if (MoveFileExA(file, name, 0)) {
-#else
-		if (rename(file, name) == 0) {
-#endif
+		if (book_rename_back(file, name)) {
 			warn("%s %s: it is kept as %s\n", file, reason, name);
 			ok = true;
-		}
+		} else if (errno != EEXIST) break;
 	}
 	if (ok && kept) *kept = name; // (the caller frees it)
 	else free(name);
@@ -3288,6 +3367,10 @@ bool book_keep_unread_file(const char *file)
 {
 	const int i = book_unread_find(file);
 
+	if (book_unread_untracked) {
+		error("cannot replace %s: protection for an unreadable book could not be recorded\n", file);
+		return false;
+	}
 	if (i < 0) return true;
 	if (book_unread.mark[i].unopened) {
 		errno = 0;
@@ -3873,6 +3956,10 @@ static bool book_save_to(Book *book, const char *file, const bool keep_replaced)
 	PositionArray *a;
 	Position *p;
 
+	if (keep_replaced && book_replaced_untracked) {
+		error("cannot save %s automatically: the previous book file could not be recorded\n", file);
+		return false;
+	}
 	// the file could not be opened when the book was to be loaded from it: this book does not hold its positions
 	if (book_file_status(file) == BOOK_FILE_UNOPENED) {
 		errno = 0;
@@ -5008,7 +5095,13 @@ static void book_fix_unique_find(BookTask *task)
  * @param book opening book.
  * @param n_fix Number of fixed positions (updated).
  */
-static void book_fix_unique_boards(Book *book, int *n_fix)
+static int book_fix_bucket_compare(const void *a, const void *b)
+{
+	const unsigned int x = *(const unsigned int*) a, y = *(const unsigned int*) b;
+	return (x > y) - (x < y);
+}
+
+static bool book_fix_unique_boards(Book *book, int *n_fix)
 {
 	BookTask task[MAX_THREADS];
 	const int n_tasks = book_parallel(book, book_fix_unique_find, task, NULL);
@@ -5018,8 +5111,29 @@ static void book_fix_unique_boards(Book *book, int *n_fix)
 	bool oom = false;
 
 	for (i = 0; i < n_tasks; ++i) { n += task[i].n; oom = oom || task[i].oom; }
-	if (n > 0 && !oom) moved = (Position*) malloc((size_t) n * sizeof *moved);
-	if (moved != NULL) {
+	if (n > 0 && !oom && (unsigned long long) n <= SIZE_MAX / sizeof *moved) {
+		moved = (Position*) malloc((size_t) n * sizeof *moved);
+		unsigned int *buckets = (unsigned int*) malloc((size_t) n * sizeof *buckets);
+		if (!moved || !buckets) oom = true;
+		if (!oom) {
+			long long k = 0;
+			for (i = 0; i < n_tasks; ++i) for (j = 0; j < task[i].n; ++j) {
+				Board unique;
+				board_unique(&TASK_POSITION(book, task[i].item[j])->board, &unique);
+				buckets[k++] = (unsigned int) (board_get_hash_code(&unique) & (book->n - 1));
+			}
+			qsort(buckets, (size_t) n, sizeof *buckets, book_fix_bucket_compare);
+			for (k = 0; k < n && !oom;) {
+				const long long first = k;
+				PositionArray *dest = book->array + buckets[k++];
+				while (k < n && buckets[k] == buckets[first]) ++k;
+				const long long size = dest->n + k - first;
+				oom = size > INT_MAX || !position_array_reserve(dest, book, (int) size);
+			}
+		}
+		free(buckets);
+	} else if (n > 0) oom = true;
+	if (moved && !oom) {
 		long long m = n;
 		// taken out from the end, so that the places of the positions still to take do not change
 		for (i = n_tasks - 1; i >= 0; --i) for (j = task[i].n - 1; j >= 0; --j) {
@@ -5033,11 +5147,14 @@ static void book_fix_unique_boards(Book *book, int *n_fix)
 			if (book_probe(book, &moved[j].board) != NULL || book_add(book, moved + j) <= 0) position_free(moved + j);
 			++*n_fix;
 		}
-		free(moved);
-	} else if (n > 0) {
-		warn("not enough memory to move the positions whose board is not unique\n");
 	}
+	free(moved);
 	book_tasks_free(task, n_tasks);
+	if (oom) {
+		book->failed = true;
+		error("not enough memory to move the positions whose board is not unique\n");
+	}
+	return !oom;
 }
 
 /**
@@ -5053,12 +5170,25 @@ static void book_fix_unique_boards(Book *book, int *n_fix)
  *
  * @param book opening book.
  */
-void book_fix(Book *book)
+bool book_fix(Book *book)
 {
 	int n_fix = 0, n_missing = 0;
 
 	bprint("Fixing book...\r");
-	book_fix_unique_boards(book, &n_fix); // (first: the other positions may link to them)
+	if (!book_fix_unique_boards(book, &n_fix)) {
+		// Repair dangling links even when non-canonical positions cannot be moved.
+		PositionArray *a;
+		Position *p;
+		unsigned int cleaned = 0;
+		foreach_position(p, a, book) {
+			if (board_is_usable(&p->board) && position_remove_missing_links(p, book, true)) ++cleaned;
+		}
+		if (cleaned) {
+			book->need_saving = true;
+			warn("links to missing positions removed from %u positions\n", cleaned);
+		}
+		return false;
+	}
 	if (book_n_task() > 1) {
 		BookTask task[MAX_THREADS];
 		const int n = book_parallel(book, book_fix_find, task, "Fixing book");
@@ -5087,7 +5217,9 @@ void book_fix(Book *book)
 		book_fix_one_by_one(book, 0, 0, &n_fix, &n_missing);
 	}
 	if (n_missing) warn("links to missing positions removed from %d positions\n", n_missing);
+	if (n_fix) book->need_saving = true;
 	bprint("Fixing book...%d done\n", n_fix);
+	return true;
 }
 
 /**
@@ -7229,9 +7361,9 @@ void book_enhance(Book *book, Board *board, const int midgame_error, const int e
 }
 
 /**
- * @brief Fingerprint of the content of a book: its positions (board, level, leaf and links, with their scores),
- * whatever their order in memory. A book saved and loaded again has the same fingerprint (book learn tells by it
- * the book its progress is of).
+ * @brief Fingerprint of the saved position data: board, level, progress marks, scores, counts, leaf and links.
+ * Position and link order, the save timestamp, and transient search state do not affect it.
+ * Book learn separately checks the book level and depth.
  *
  * @param book Opening book.
  * @return the fingerprint.
@@ -7246,6 +7378,12 @@ unsigned long long book_fingerprint(const Book *book)
 		const Link *l = position_links(p);
 		unsigned long long h = hash_mix(p->board.player ^ hash_mix(p->board.opponent)), links = 0;
 		int i;
+		const unsigned int n[4] = {p->n_wins, p->n_draws, p->n_losses, p->n_lines};
+		h = hash_mix(h ^ ((unsigned long long) n[0] << 32 | n[1]));
+		h = hash_mix(h ^ ((unsigned long long) n[2] << 32 | n[3]));
+		h = hash_mix(h ^ ((unsigned long long) (unsigned char) p->score.value << 24
+			| (unsigned long long) (unsigned char) p->score.lower << 16
+			| (unsigned long long) (unsigned char) p->score.upper << 8 | p->marks));
 
 		for (i = 0; i < p->n_link; ++i) links += hash_mix(h ^ ((unsigned long long) (unsigned char) l[i].score << 8 | l[i].move)); // (in any order)
 		sum += hash_mix(h ^ links ^ ((unsigned long long) p->level << 24 | (unsigned long long) (unsigned char) p->leaf.score << 16

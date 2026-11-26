@@ -1075,8 +1075,10 @@ static bool ggs_event_peek(GGSEvent *event, Text *text)
 	// a message ends where the next one starts (a line that does not start with '|'); when everything received
 	// is read, its last lines may still be on the way: it ends when nothing more comes for a while (up to
 	// v4.5.5-nikque.15 it was taken as complete at once, and its next lines as another message)
+	if (!event->loop && !strpbrk(event->buffer, "\r\n")) event->buffer[0] = '\0';
 	if (text->n_lines > 0) {
-		if (*event->buffer) ok = (*event->buffer != '|');
+		if (!event->loop) ok = true;
+		else if (*event->buffer) ok = (*event->buffer != '|');
 		else ok = (real_clock() - event->time >= 50);
 	}
 	unlock(event);
@@ -1292,7 +1294,7 @@ static void ui_ggs_play(UI *ui, int turn) {
 			play_stop_pondering(ui->play);
 			search_set_task_number(&ui->play[0].search, options.n_task);
 			play_stop_pondering(ui->play + 1);
-			search_set_task_number(&ui->play[1].search, 0);
+			search_set_task_number(&ui->play[1].search, 1);
 		}
 	} else {
 		play = ui->play + turn;

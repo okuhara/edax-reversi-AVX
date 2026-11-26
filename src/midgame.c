@@ -1010,7 +1010,8 @@ int PVS_midgame(Search *search, const int alpha, const int beta, int depth, Node
 			// other moves : try to refute the first/best one
 			while ((move = node_next_move(&node))) {
 				if (!node_split(&node, move)) {
-					const int alpha = node.alpha;
+					const int alpha = ybwc_load(&node.alpha);
+					if (alpha >= node.beta) break;
 					search_update_midgame(search, move);
 					const int off = (search->height > 1 || options.pc_dev_root); // (height 1: the root of a lazy helper)
 					search->pv_dev[search->height] += off;

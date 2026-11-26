@@ -193,7 +193,7 @@ White |   0 /   1  :    +0 |   0 /   0 :    +0 |          - |
 - 読み込みに失敗したときは、理由が表示されます。局面は変わりません。
   - 表示の例：`WARNING: Cannot open file nofile.txt`、`WARNING: Unknown game format extension: .abc`、`WARNING: Illegal move #2: A1` など。
   - v4.5.5-nikque.12 までの版では、何も表示されませんでした。
-- **途中の局面から始めた対局（`setboard` の後）は、`.ggf`・`.pgn`・`.edx` で保存してください。** `.txt` と `.sgf` では、保存はできますが、読み戻せません（[10.1](10-files.md)）。
+- v4.5.5-nikque.34（次期版）から、`setboard` で指定した初期盤面と手番を SGF・TXT でも読み戻せます。GGF・PGN・EDX も使えます（[10.1](10-files.md)）。
 - 打てない手を含む棋譜は、読み込まれません（[10.1](10-files.md)）。
   - 盤は、読み込む前のままです。
   - `.ggf`・`.sgf`・`.pgn` では、`WARNING: error while importing a GGF game` のような警告が出ます。

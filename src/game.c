@@ -27,7 +27,8 @@ enum {
 	PARSE_OK = 0,
 	PARSE_END_OF_FILE = 1,
 	PARSE_INVALID_TAG = 2,
-	PARSE_INVALID_VALUE = 3
+	PARSE_INVALID_VALUE = 3,
+	PARSE_TRUNCATED = 4
 };
 
 /**
@@ -292,6 +293,20 @@ bool game_get_board(const Game *game, const int ply, Board *board)
 	return true;
 }
 
+bool game_get_board_at_empties(const Game *game, int n_empties, Board *board, int *player)
+{
+	const int ply = board_count_empties(&game->initial_board) - n_empties;
+	if (ply < 0 || ply > 60) return false;
+	*board = game->initial_board;
+	*player = game->player;
+	for (int i = 0; i < ply; ++i) {
+		const bool passed = board_is_pass(board);
+		if (!game_update_board(board, game->move[i])) return false;
+		if (!passed) *player = !*player;
+	}
+	return true;
+}
+
 /**
  * @brief Check a game.
  *
@@ -352,15 +367,24 @@ int game_score(const Game *game)
  * @param line A move sequence in ascii.
  * @param game The output game.
  */
-void text_to_game(const char *line, Game *game)
+static bool text_to_game_checked(const char *line, Game *game)
 {
 	int i;
 	Board board;
 	Move move;
 	char *s;
 
-	board_init(&game->initial_board);
+	const char *separator = strchr(line, ';');
 	game_init(game);
+	if (separator) {
+		char initial[67];
+		if (separator - line != 66) return false;
+		memcpy(initial, line, 66);
+		initial[66] = '\0';
+		game->player = board_set(&game->initial_board, initial);
+		if (game->player == EMPTY || !board_is_usable(&game->initial_board)) return false;
+		line = separator + 1;
+	}
 	board = game->initial_board;
 	for (i = 0; i < 60 && *line;) {
 		s = parse_move(line, &board, &move);
@@ -368,7 +392,7 @@ void text_to_game(const char *line, Game *game)
 			// (the moves read so far are kept, as before; a line cut short used to be taken without a word)
 			s = parse_skip_spaces(line);
 			if (*s) warn("game text: \"%.12s\" is not a move that can be played here: the rest of the line is not read\n", s);
-			return;
+			return *s == '\0';
 		}
 		if (move.x != PASS) {
 			game->hash = crc32c_u8(game->hash, move.x);
@@ -377,6 +401,12 @@ void text_to_game(const char *line, Game *game)
 		board_update(&board, &move);
 		line = s;
 	}
+	return *parse_skip_spaces(line) == '\0';
+}
+
+void text_to_game(const char *line, Game *game)
+{
+	text_to_game_checked(line, game);
 }
 
 /**
@@ -600,14 +630,33 @@ void game_import_text(Game *game, FILE *f)
  */
 bool game_import_text_checked(Game *game, FILE *f)
 {
+	return game_import_text_status(game, f) == GAME_IMPORT_READ;
+}
+
+static void game_skip_utf8_bom(FILE *f)
+{
+	if (ftell(f) != 0) return;
+	const int first = fgetc(f);
+	if (first != 0xef) {
+		if (first != EOF) ungetc(first, f);
+		return;
+	}
+	if (fgetc(f) != 0xbb || fgetc(f) != 0xbf) fseek(f, 0, SEEK_SET);
+}
+
+int game_import_text_status(Game *game, FILE *f)
+{
+	game_skip_utf8_bom(f);
 	char *line = string_read_line(f);
-	const bool read = (line != NULL);
-
-	if (read) text_to_game(line, game);
-	else  game_init(game);
-
+	if (!line) {
+		game_init(game);
+		return ferror(f) ? GAME_IMPORT_INCOMPLETE : GAME_IMPORT_NONE;
+	}
+	const bool valid = text_to_game_checked(line, game);
 	free(line);
-	return read;
+	if (ferror(f)) return GAME_IMPORT_INCOMPLETE;
+	if (!valid) warn("invalid game in text file\n");
+	return valid ? GAME_IMPORT_READ : GAME_IMPORT_SKIPPED;
 }
 
 /**
@@ -622,7 +671,7 @@ void game_export_text(const Game *game, FILE *f)
 	Board board;
 
 	board_init(&board);
-	if (!board_equal(&board, &game->initial_board)) {
+	if (game->player != BLACK || !board_equal(&board, &game->initial_board)) {
 		board_to_string(&game->initial_board, game->player, s_board);
 		fprintf(f, "%s;", s_board);
 	}
@@ -697,6 +746,7 @@ static int game_parse_ggf(FILE *f, char *tag, char *value)
 		else if (i == 0 && (c == '(' || c == ';')) {
  			tag[0] = (char)c;
  			c = fgetc(f);
+			if (c == EOF || (tag[0] == '(' && c != ';')) return PARSE_TRUNCATED;
 			if ((tag[0] == '(' && c == ';') || (tag[0] == ';' && c == ')')) {
 				tag[1] = (char)c;
 				tag[2] = '\0';
@@ -751,7 +801,8 @@ int game_import_ggf_checked(Game* game, FILE* f)
 	int i = 0, r;
 
 	game_init(game);
-	while ((r = game_parse_ggf(f, tag, value)) != PARSE_END_OF_FILE && strcmp(tag, "(;") != 0) ;
+	while ((r = game_parse_ggf(f, tag, value)) != PARSE_END_OF_FILE && r != PARSE_TRUNCATED && strcmp(tag, "(;") != 0) ;
+	if (r == PARSE_TRUNCATED) return GAME_IMPORT_INCOMPLETE;
 	if (r == PARSE_END_OF_FILE) return GAME_IMPORT_NONE;
 
 	while ((r = game_parse_ggf(f, tag, value)) == PARSE_OK) {
@@ -834,15 +885,18 @@ static const char* parse_tag(const char *string, char *tag, char *value)
  * @param string An input string.
  * @return The Last move played, -1 on error.
  */
-int parse_ggf(Game *game, const char *string)
+int parse_ggf_board(Game *game, const char *string, Board *final_board)
 {
 	const char *s = string;
 	const char *next;
 	char tag[4], value[256];
 	int i = 0;
-	int lastmove = NOMOVE;
+	int lastmove = NOMOVE, player;
+	Board board;
 
 	game_init(game);
+	board = game->initial_board;
+	player = game->player;
 
 	// the game is between "(;" and ";)", each tag read: else nothing of it is taken (-1)
 	while ((next = parse_tag(s, tag, value)) != s && strcmp(tag, "(;") != 0) s = next;
@@ -855,8 +909,8 @@ int parse_ggf(Game *game, const char *string)
 		if (strcmp(tag, "GM") == 0 && strcmp(value, "othello") != 0) {
 			return -1;
 		} else if (strcmp(tag, "BO") == 0) {
-			Board board;
-			const int player = (value[0] == '8') ? board_set(&board, value + 2) : EMPTY;
+			if (lastmove != NOMOVE) return -1;
+			player = (value[0] == '8') ? board_set(&board, value + 2) : EMPTY;
 
 			if ((player != BLACK && player != WHITE) || !board_is_usable(&board)) return -1;
 			game->initial_board = board;
@@ -868,12 +922,24 @@ int parse_ggf(Game *game, const char *string)
 			memcpy(game->name[WHITE], value, 31);
 			game->name[WHITE][31] = '\0';
 		} else if (strcmp(tag, "B") == 0 || strcmp(tag, "W") == 0) {
-			lastmove = string_to_coordinate(value);
-			if (lastmove == NOMOVE) return -1;
-			if (lastmove != PASS) {
-				if (i == 60) return -1;
-				game->move[i++] = lastmove;
+			const int color = tag[0] == 'B' ? BLACK : WHITE;
+			const int x = string_to_coordinate(value);
+			if (color != player && x != PASS && board_is_pass(&board)) {
+				board_pass(&board);
+				player = !player;
 			}
+			if (color != player) return -1;
+			if (x == PASS) {
+				if (!board_is_pass(&board)) return -1;
+				board_pass(&board);
+			} else {
+				Move move;
+				if (i == 60 || x == NOMOVE || board_is_occupied(&board, x) || !board_get_move_flip(&board, x, &move)) return -1;
+				board_update(&board, &move);
+				game->move[i++] = x;
+			}
+			player = !player;
+			lastmove = x;
 		}
 	}
 	if (next == s || strcmp(tag, ";)") != 0) return -1;
@@ -881,7 +947,13 @@ int parse_ggf(Game *game, const char *string)
 	if (!game_check(game)) return -1;
 	game->hash = game_moves_hash(game);
 
+	if (final_board) *final_board = board;
 	return lastmove;
+}
+
+int parse_ggf(Game *game, const char *string)
+{
+	return parse_ggf_board(game, string, NULL);
 }
 
 /**
@@ -977,7 +1049,7 @@ static int game_parse_sgf(FILE *f, char *tag, char *value)
 	if (c != '[') return 0;
 	tag[i] = '\0';
 
-	for (i = 0; i < 1000; i++) {
+	for (i = 0; i < 999; i++) {
 		c = fgetc(f);
 		if (c == EOF) return 0;
 		if (c == ']') break;
@@ -987,10 +1059,8 @@ static int game_parse_sgf(FILE *f, char *tag, char *value)
 		}
 		value[i] = (char)c;
 	}
-	if (i < 1000) {
-		if (c != ']') return 0;
-		value[i] = '\0';
-	} else {
+	value[i] = '\0';
+	if (i == 999) {
 		for (i = 0; ; i++) {
 			c = fgetc(f);
 			if (c == EOF) return 0;
@@ -1053,19 +1123,21 @@ int game_import_sgf_checked(Game *game, FILE *f)
 {
 	char tag[4], value[1000], property[4] = "";
 	int i = 0, level = 1;
+	bool main_line = true;
 	unsigned long long black = 0, white = 0;
 	int player = -1;
 	bool setup = false;
 
+	game_skip_utf8_bom(f);
 	game_parse_sgf(f, tag, value);
 	game_init(game);
-	if (strcmp(tag, "(") != 0) return feof(f) ? GAME_IMPORT_NONE : GAME_IMPORT_READ;
+	if (strcmp(tag, "(") != 0) return feof(f) && !ferror(f) ? GAME_IMPORT_NONE : GAME_IMPORT_INCOMPLETE;
 
 	while (game_parse_sgf(f, tag, value)) {
-		if (tag[0] != '\0') strcpy(property, tag); // (a value without a tag is one more value of the last property)
-		if (strcmp(tag,"(") == 0) level++;
-		if (strcmp(tag,")") == 0) {
-			level--;
+		if (strcmp(tag, "(") == 0) { ++level; continue; }
+		if (strcmp(tag, ")") == 0) {
+			main_line = false;
+			if (--level > 0) continue;
 			if (setup || player >= 0) {
 				if (!setup) {
 					black = (game->player == BLACK) ? game->initial_board.player : game->initial_board.opponent;
@@ -1079,6 +1151,8 @@ int game_import_sgf_checked(Game *game, FILE *f)
 			game->hash = game_moves_hash(game);
 			return GAME_IMPORT_READ;
 		}
+		if (!main_line) continue;
+		if (tag[0] != '\0') strcpy(property, tag); // An untagged value belongs to the previous property.
 		if (strcmp(tag, "GM") == 0 && strcmp(value, "2") != 0) break;
 		if (strcmp(tag, "SZ") == 0 && strcmp(value, "8") != 0) break;
 		if (i == 0 && (strcmp(property, "AB") == 0 || strcmp(property, "AW") == 0)) {
@@ -1110,7 +1184,7 @@ int game_import_sgf_checked(Game *game, FILE *f)
 		if (strcmp(tag,"(") == 0) level++;
 		if (strcmp(tag,")") == 0) level--;
 	}
-	if (level > 0 && feof(f)) {
+	if (level > 0) {
 		warn("a SGF game is cut by the end of the file\n");
 		return GAME_IMPORT_INCOMPLETE;
 	}
@@ -1499,9 +1573,11 @@ void game_export_pgn(const Game *game, FILE *f)
 {
 	time_t t = time(NULL);
 	struct tm *date = localtime(&t);
-	int half_score = game_score(game) / 2;
-	const char *result = half_score < -32 ? "*" : (half_score < 0 ? "0-1" : (half_score > 0 ? "1-0" : "1/2-1/2"));
-	const char *winner = (half_score < 0 ?  game->name[WHITE]: (half_score > 0 ? game->name[BLACK] : NULL));
+	const int score = game_score(game);
+	const bool finished = score != -SCORE_INF;
+	const int half_score = finished ? (game->player == BLACK ? score : -score) / 2 : 0;
+	const char *result = !finished ? "*" : (half_score < 0 ? "0-1" : (half_score > 0 ? "1-0" : "1/2-1/2"));
+	const char *winner = (half_score < 0 ? game->name[WHITE] : (half_score > 0 ? game->name[BLACK] : NULL));
 	Board board;
 	char s[128];
 	int i, j, k;
@@ -1520,7 +1596,7 @@ void game_export_pgn(const Game *game, FILE *f)
 	fprintf(f, "[Black \"%s\"]\n", game->name[BLACK]);
 	fprintf(f, "[White \"%s\"]\n", game->name[WHITE]);
 	fprintf(f, "[Result \"%s\"]\n", result);
-	if (!board_equal(&game->initial_board, &board)) {
+	if (game->player != BLACK || !board_equal(&game->initial_board, &board)) {
 		fprintf(f, "[FEN \"%s\"]\n", board_to_FEN(&game->initial_board, game->player, s));
 		board = game->initial_board;
 	}
@@ -1546,7 +1622,7 @@ void game_export_pgn(const Game *game, FILE *f)
 		player = !player;
 	}
 	if (winner) fprintf(f, "\n{%s wins %d-%d}", winner, 32 + half_score, 32 - half_score);
-	else if (half_score == 0) fprintf(f, "\n{Draw 32-32}");
+	else if (finished) fprintf(f, "\n{Draw 32-32}");
 	fprintf(f, " %s\n\n\n", result);
 }
 

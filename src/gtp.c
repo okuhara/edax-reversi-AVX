@@ -238,6 +238,7 @@ void ui_loop_gtp(UI *ui)
 			// reg_genmove leaves the game as it is: its board, its player, its moves and its clocks
 			const Board saved_board = play->board;
 			const int saved_player = play->player;
+			const Random saved_random = play->book->random;
 			unsigned char saved_time[sizeof play->time];
 			memcpy(saved_time, play->time, sizeof play->time);
 			gtp_parse_color(param, &color);
@@ -265,6 +266,7 @@ void ui_loop_gtp(UI *ui)
 			if (!update) {
 				play->board = saved_board;
 				play->player = saved_player;
+				play->book->random = saved_random;
 				memcpy(play->time, saved_time, sizeof play->time);
 			}
 
@@ -282,10 +284,14 @@ void ui_loop_gtp(UI *ui)
 			int t_main = main_time, t_byo_yomi = byo_yomi_time, n_byo_yomi = byo_yomi_stone; // (a missing number keeps its value)
 			errno = 0;
 			s = parse_int(param, &t_main);
+			bool range_error = errno == ERANGE;
+			errno = 0;
 			s = parse_int(s, &t_byo_yomi);
+			range_error |= errno == ERANGE;
+			errno = 0;
 			s = parse_int(s, &n_byo_yomi);
 			// numbers of seconds or stones from 0 to INT_MAX: else the settings are kept
-			if (errno == ERANGE || t_main < 0 || t_byo_yomi < 0 || n_byo_yomi < 0) {
+			if (range_error || errno == ERANGE || t_main < 0 || t_byo_yomi < 0 || n_byo_yomi < 0) {
 				gtp_fail("syntax error (time settings)", id, has_id);
 				continue;
 			}

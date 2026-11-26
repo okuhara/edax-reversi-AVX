@@ -260,7 +260,7 @@ The commands that grow or maintain the book save their progress and their result
 | `.err` | `book correct` |
 | `.dep` | `book deepen` |
 
-- These are ordinary book files. `book load data/book.dat.dev2` reads one, and if you rename it to `book.dat`, you can use it directly.
+- The saved books can be loaded as ordinary book files. Keep the `.learn` and `.play-to` text files alongside them to resume their respective commands. `book load data/book.dat.dev2` reads one, and if you rename it to `book.dat`, you can use it directly.
 - When a growing command has finished normally and you quit Edax without `book save`, the grown book is also saved to `book-file` (`data/book.dat`). So in normal use, **`book.dat` is the latest version**. The files with extensions are a backup in case the command is interrupted.
 - **On Windows, keep the full `book-file` path, including the folder, within 240 characters.** If it is longer, the files with extensions cannot be saved ([chapter 13](13-troubleshooting.md)).
 

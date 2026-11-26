@@ -141,11 +141,9 @@ void ui_loop_nboard(UI *ui)
 
 		} else if (strcmp(cmd, "game") == 0) {
 			Game game;
-			int lastmove = parse_ggf(&game, param);
-			if (lastmove >= 0) {
-				game_get_board(&game, 60, &play->initial_board);
-				if (lastmove == PASS)	// https://github.com/okuhara/edax-reversi-AVX/issues/1
-					board_pass(&play->initial_board);
+			Board board;
+			if (parse_ggf_board(&game, param, &board) >= 0) {
+				play->initial_board = board;
 				play_new(play);
 			} else {
 				nboard_fail("Cannot parse game \"%s\"", param);

@@ -163,6 +163,7 @@ int main(int argc, char **argv)
 	eval_open(options.eval_file);
 	search_global_init();
 
+	bool solve_failed = false;
 	// solver & tester
 	if (problem_file || wthor_file || n_bench) {
 		Search search;
@@ -170,9 +171,9 @@ int main(int argc, char **argv)
 		search.options.header = " depth|score|       time   |  nodes (N)  |   N/s    | principal variation";
 		search.options.separator = "------+-----+--------------+-------------+----------+---------------------";
 		if (options.verbosity) version();
-		if (problem_file) obf_test(&search, problem_file, NULL);
-		if (wthor_file) wthor_test(wthor_file, &search);
-		if (n_bench) obf_speed(&search, n_bench);
+		if (problem_file) solve_failed = !obf_test(&search, problem_file, NULL);
+		if (!solve_failed && wthor_file) wthor_test(wthor_file, &search);
+		if (!solve_failed && n_bench) obf_speed(&search, n_bench);
 		search_free(&search);
 
 	} else if (count_type){
@@ -206,6 +207,6 @@ int main(int argc, char **argv)
 	options_free();
 	if (ui_freed) mm_free(ui); // (else the input thread still uses it: it ends with the process)
 
-	return ui_book_save_failed() ? 1 : 0; // (the book could not be saved at the end: "@save ok=0" was written)
+	return (solve_failed || ui_book_save_failed()) ? EXIT_FAILURE : EXIT_SUCCESS; // (the book could not be saved at the end: "@save ok=0" was written)
 }
 

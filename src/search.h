@@ -136,6 +136,7 @@ typedef struct Search {
 
 	void (*observer)(Result*);                    /**< call back function to print search result */
 	const volatile bool *stop_pending;            /**< set: search_run() takes the least time (a stop that came before it began), or NULL */
+	const volatile bool *cancel_pending;          /**< when set, do not start a cancelled library search */
 
 	/* search-b: after the fields of v4.5.5-nikque.32 */
 	unsigned char pv_dev[GAME_SIZE];              /**< moves off the principal variation from the root (search-b, probcut) */

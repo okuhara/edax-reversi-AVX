@@ -8,6 +8,10 @@ User-facing changes of each version. The "Compatibility" part of each entry says
 - [eval2 line](#eval2-line) (new evaluation function, branch `eval2`)
 - For the C++23 port, see the [Heath (formerly newedax) release notes](https://github.com/Nikque/Heath/blob/main/RELEASE-NOTES.md)
 
+## Unreleased
+
+- libedax now honors an `edax_stop` request that arrives just before the next hint or benchmark search begins. On cancellation, `edax_hint` retains completed hints. `edax_hint_next` and `edax_hint_next_no_multipv_depth` return `LIBEDAX_NOMOVE` for a cancelled search. The benchmark omits the cancelled position from its totals.
+
 ## Versions
 
 Each eval2 and Heath (formerly newedax) version contains all changes of the nikque version on the same row.
@@ -173,7 +177,7 @@ The exact endgame search is faster.
 
 **Speed**
 
-- At 5 and 6 empty squares, a quadrant's only empty square is played first, and a small thread-local transposition table (2^14 entries) is probed.
+- At 5 and 6 empty squares, a quadrant's only empty square is played first, and a small thread-local transposition table (2^14 entries) is probed. The idea comes from KUROOBI (MIT).
 - With one thread, exact solves of fforum-40-59 take 97.8% of the time (431.4 s to 421.7 s), and fforum-20-39 searches 89.1% of the positions. Every score and best move is the same as in the previous release.
 - The midgame search is unchanged: positions that are not solved search the same number of positions as before.
 
@@ -1659,7 +1663,7 @@ The changes of v4.5.5-nikque.15 are included ([nikque.15](#v455-nikque15)).
 **Fixes**
 
 - The same 2 fixes as nikque.15 were made in the files of the evaluation function of the eval2 line too.
-- The check of the mark of the evaluation file now passes only when both of its 8 bytes match.
+- The check of the mark of the evaluation file now passes only when both four-byte words match in the same byte order.
 - When libedax is initialized again with another `eval-file`, it now reads that file.
 
 **Compatibility**

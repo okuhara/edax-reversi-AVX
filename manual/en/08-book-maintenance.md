@@ -336,9 +336,9 @@ By default, the command **traverses the range once and ends**. However, recomput
 
 With the setting `book-leaf-recalculate-rounds = n` (since v4.5.5-nikque.13), the cycle "traverse → recompute → negamax" is repeated up to n times. It **stops after the first pass in which no leaf changed**. The default is 1.
 
-- Example from the test records (`docs/validation/`) (a book of 6.49 million positions, `book leaf recalculate4 1 1`): repeated one pass at a time, the number of leaves to recompute was 4,066 → 780 → 247 → 485 → 386, and the number of changed scores was 1,419 → 411 → 42 → 46 → 0. With `book-leaf-recalculate-rounds = 10`, it stopped after 5 passes.
+- Example measured for nikque.13 (a book of 6.49 million positions, `book leaf recalculate4 1 1`): repeated one pass at a time, the number of leaves to recompute was 4,066 → 780 → 247 → 485 → 386, and the number of changed scores was 1,419 → 411 → 42 → 46 → 0. With `book-leaf-recalculate-rounds = 10`, it stopped after 5 passes.
 - Values from a multi-threaded search vary slightly between runs, so a pass with no changes may never come. The command then ends after n passes.
-- **Even if `eval.dat` was not replaced, some leaves get a different value when recomputed.** This is because the search that created the leaf and a separate search run afterwards do not have exactly the same conditions. Detailed figures are in the v4.5.5-nikque.12 and 13 sections of the test records (`docs/validation/nikque.en.md`).
+- **Even if `eval.dat` was not replaced, some leaves get a different value when recomputed.** This is because the search that created the leaf and a separate search run afterwards do not have exactly the same conditions. See [the eval2 release notes for v4.5.5-nikque.13](https://github.com/Nikque/edax-reversi-AVX/blob/eval2/README-NIKQUE.en.md#changes-in-v455-nikque13) for the measurements.
 
 ### Example steps after replacing eval.dat
 

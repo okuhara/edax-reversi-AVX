@@ -8,6 +8,7 @@ permissions:
 
 jobs:
   windows:
+    name: windows (${{ matrix.arch }})
     runs-on: windows-2022
     strategy:
       fail-fast: false
@@ -15,15 +16,20 @@ jobs:
         include:
           - arch: x64
             targets: vc-x64 vc-x64-v3 vc-x64-v4 vc-lib
-            built: bin/wEdax-x86-64*.exe bin/libedax-x64*.dll
+            built: >-
+              wEdax-x86-64.exe wEdax-x86-64-v3.exe wEdax-x86-64-v4.exe
+              libedax-x64.dll libedax-x64-v3.dll libedax-x64-v4.dll
           - arch: x64_x86
             targets: vc-x86 vc-x86-sse
-            built: bin/wEdax-x86.exe bin/wEdax-x86-sse.exe
+            built: wEdax-x86.exe wEdax-x86-sse.exe
           - arch: x64_arm64
             targets: vc-a64
-            built: bin/wEdax-arm64.exe
+            built: wEdax-arm64.exe
     steps:
       - uses: actions/checkout@v4
+      - name: No old program in bin
+        shell: bash
+        run: rm -f bin/[wlma]Edax* bin/libedax*
       - name: Build Windows ${{ matrix.arch }}
         shell: cmd
         run: |
@@ -31,20 +37,28 @@ jobs:
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.arch }}
           cd src
           for %%t in (${{ matrix.targets }}) do (nmake -f nmakefile %%t || exit /b 1)
+      - name: Take the programs of this build
+        shell: bash
+        run: |
+          mkdir dist
+          for f in ${{ matrix.built }}; do cp "bin/$f" dist/; done
       - name: No build folder in the programs
-        run: python tests/check-build-paths.py ${{ matrix.built }}
+        run: python tests/check-build-paths.py "dist/*"
+      - name: Record the build source
+        shell: bash
+        run: echo "$GITHUB_REPOSITORY $GITHUB_SHA $GITHUB_RUN_ID" > dist/build-id.txt
       - uses: actions/upload-artifact@v4
         with:
           name: release-windows-${{ matrix.arch }}
-          path: |
-            bin/*.exe
-            bin/*.dll
+          path: dist/
           if-no-files-found: error
 
   linux:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: No old program in bin
+        run: rm -f bin/[wlma]Edax* bin/libedax*
       - name: Install 32-bit compiler libraries
         run: sudo apt-get update && sudo apt-get install -y gcc-multilib
       - name: Build Linux x86 variants
@@ -56,20 +70,29 @@ jobs:
           for arch in x86-64 x86-64-v3 x86-64-v4; do
             make -C src libbuild ARCH="$arch" COMP=gcc OS=linux
           done
+      - name: Take the programs of this build
+        run: |
+          mkdir dist
+          for f in lEdax-x86 lEdax-x86-64 lEdax-x86-64-v3 lEdax-x86-64-v4 \
+                   libedax-x86-64.so libedax-x86-64-v3.so libedax-x86-64-v4.so; do
+            cp "bin/$f" dist/
+          done
       - name: No build folder in the programs
-        run: python3 tests/check-build-paths.py "bin/lEdax-*" "bin/libedax-*.so"
+        run: python3 tests/check-build-paths.py "dist/*"
+      - name: Record the build source
+        shell: bash
+        run: echo "$GITHUB_REPOSITORY $GITHUB_SHA $GITHUB_RUN_ID" > dist/build-id.txt
       - uses: actions/upload-artifact@v4
         with:
           name: release-linux
-          path: |
-            bin/lEdax-*
-            bin/libedax-*.so
+          path: dist/
           if-no-files-found: error
       - name: Test the library
         run: |
           mkdir -p t/data && cp bin/data/eval.dat t/data/ && cp bin/libedax-x86-64.so t/
           gcc -O1 -D_GNU_SOURCE tests/libedax_test.c -Lbin -l:libedax-x86-64.so -Wl,-rpath,'$ORIGIN' -ldl -o t/libedax_test
           cd t && ./libedax_test libedax-x86-64.so > libedax_test.log 2>&1 || { cat libedax_test.log; exit 1; }
+          grep -F 'libedax of Edax 4.5.5' libedax_test.log
           grep 'checks,' libedax_test.log
 
   macos-x64:
@@ -82,13 +105,18 @@ jobs:
           make -C src build ARCH=x64-modern COMP=clang OS=osx CC='clang -arch x86_64'
       - name: No build folder in the program
         run: python3 tests/check-build-paths.py bin/mEdax-x64-modern
+      - name: Record the build source
+        shell: bash
+        run: echo "$GITHUB_REPOSITORY $GITHUB_SHA $GITHUB_RUN_ID" > bin/build-id.txt
       - uses: actions/upload-artifact@v4
         with:
           name: release-macos-x64
-          path: bin/mEdax-x64-modern
+          path: |
+            bin/build-id.txt
+            bin/mEdax-x64-modern
           if-no-files-found: error
       - name: Test the executable
-        run: cd bin && ./mEdax-x64-modern -n 1 -l 60 -solve ../problem/fforum-1-19.obf
+        run: cd bin && python3 ../tests/check-solve.py ./mEdax-x64-modern ../problem/fforum-1-19.obf
 
   # Apple silicon executable, and the library (libedax) for both kinds of Mac in one file
   macos-arm64:
@@ -106,10 +134,14 @@ jobs:
           rm bin/libedax-arm64.dylib bin/libedax-x64-modern.dylib
       - name: No build folder in the programs
         run: python3 tests/check-build-paths.py bin/mEdax-arm64 bin/libedax.universal.dylib
+      - name: Record the build source
+        shell: bash
+        run: echo "$GITHUB_REPOSITORY $GITHUB_SHA $GITHUB_RUN_ID" > bin/build-id.txt
       - uses: actions/upload-artifact@v4
         with:
           name: release-macos-arm64
           path: |
+            bin/build-id.txt
             bin/mEdax-arm64
             bin/libedax.universal.dylib
           if-no-files-found: error
@@ -118,8 +150,9 @@ jobs:
           mkdir -p t/data && cp bin/data/eval.dat t/data/ && cp bin/libedax.universal.dylib bin/mEdax-arm64 t/
           clang -O1 tests/libedax_test.c t/libedax.universal.dylib -Wl,-rpath,@loader_path -o t/libedax_test
           cd t
-          ./mEdax-arm64 -n 1 -l 60 -solve ../problem/fforum-1-19.obf
+          python3 ../tests/check-solve.py ./mEdax-arm64 ../problem/fforum-1-19.obf
           ./libedax_test libedax.universal.dylib > libedax_test.log 2>&1 || { cat libedax_test.log; exit 1; }
+          grep -F 'libedax of Edax 4.5.5' libedax_test.log
           grep 'checks,' libedax_test.log
 
   android:
@@ -137,10 +170,14 @@ jobs:
           cp src/libs-lib/arm64-v8a/libedax.so bin/libedax-arm64-v8a.so
       - name: No build folder in the programs
         run: python3 tests/check-build-paths.py "bin/aEdax-*" "bin/libedax-a*.so"
+      - name: Record the build source
+        shell: bash
+        run: echo "$GITHUB_REPOSITORY $GITHUB_SHA $GITHUB_RUN_ID" > bin/build-id.txt
       - uses: actions/upload-artifact@v4
         with:
           name: release-android
           path: |
+            bin/build-id.txt
             bin/aEdax-*
             bin/libedax-a*.so
           if-no-files-found: error
