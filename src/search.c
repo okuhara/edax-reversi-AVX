@@ -1375,42 +1375,6 @@ bool search_SC_PVS(Search *search, int *alpha, int *beta, int *score)
 }
 #endif
 
-#ifdef USE_SOLID
-/**
- * @brief Improvement of Serch by Reducing Redundant Information in a Position of Othello
- * Hidekazu Matsuo, Shuji Narazaki
- * http://id.nii.ac.jp/1001/00156359/
- *
- * @param search Current position.
- * @param alpha Alpha bound.
- * @param hashboard solid normalized board on return.
- * @return score offset to compensate solid.
- */
-int search_solid_NWS(Search *search, int alpha, vBoard *hashboard)
-{
-	int	n, ofssolid = 0;
-		// exclude corners from solid to absorb get_full_lines anormalies
-	unsigned long long solid = search->eval.full_lines.ull[0] & search->eval.full_lines.ull[1]
-		& search->eval.full_lines.ull[2] & search->eval.full_lines.ull[3] & 0x3c7effffffff7e3c;
-  #ifndef POPCOUNT
-	if (solid)	// (72%)
-  #endif
-		// Takuro Yamana pointed out the old implementation has a potential bug
-		// when final score includes empties for the winner. (4.5.6)
-		if (((n = bit_count(solid) * 2) < alpha) || (~n > alpha)) {	// i.e. ofssolid will not alter the winner
-			solid &= hashboard->bb.player;
-  #ifdef hasSSE2
-			hashboard->v2 = _mm_xor_si128(hashboard->v2, _mm_set1_epi64x(solid));
-  #else
-			hashboard->bb.player ^= solid;	// normalize solid to opponent
-			hashboard->bb.opponent ^= solid;
-  #endif
-			ofssolid = bit_count(solid) * 2;	// hash score is ofssolid smaller than real
-		}
-	return ofssolid;
-}
-#endif
-
 /**
  * @brief Stability Cutoff (SC).
  *

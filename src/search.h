@@ -192,9 +192,6 @@ int get_pv_extension(const int, const int);
 
 void result_print(Result*, FILE*);
 
-#ifdef USE_SOLID
-int search_solid_NWS(Search*, int, vBoard*);
-#endif
 // bool search_SC_PVS(Search*, int*, int*, int*);
 bool search_SC_NWS(Search*, const int, int*);
 bool search_SC_NWS_4(Search*, const int, const int, int*);
