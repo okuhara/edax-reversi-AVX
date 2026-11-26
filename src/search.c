@@ -463,7 +463,7 @@ void search_set_hash_size(Search *search, const int bits)
 void search_alloc_thread_hash(Search *search)
 {
 	Hash *base;
-	size_t totalsize = (1u << THREAD_LOCAL_HASH_SIZE) * (DEPTH_TO_USE_LOCAL_HASH - DEPTH_TO_SHALLOW_SEARCH + 1) * sizeof (Hash);
+	size_t totalsize = (1u << THREAD_LOCAL_HASH_SIZE) * (DEPTH_TO_USE_LOCAL_HASH - DEPTH_TO_SHALLOW_SEARCH) * sizeof (Hash);
 #if ENDGAME_HASH56
 	totalsize += (1 << THREAD_LOCAL_HASH56_SIZE) * (DEPTH_TO_SHALLOW_SEARCH - 5 + 1) * sizeof (Hash);
 #endif
@@ -475,9 +475,9 @@ void search_alloc_thread_hash(Search *search)
 		fatal_error("Cannot allocate a thread hash\n");
 	}
 	search->thread_hash.hash_mask = (1u << THREAD_LOCAL_HASH_SIZE) - 1;
-	search->thread_hash.n_hash = (1u << THREAD_LOCAL_HASH_SIZE) * (DEPTH_TO_USE_LOCAL_HASH - DEPTH_TO_SHALLOW_SEARCH + 1);
+	search->thread_hash.n_hash = (1u << THREAD_LOCAL_HASH_SIZE) * (DEPTH_TO_USE_LOCAL_HASH - DEPTH_TO_SHALLOW_SEARCH);
 	hash_wipe(&search->thread_hash);	// read directly by NWS_endgame_local(), so really cleared
-	base += (1u << THREAD_LOCAL_HASH_SIZE) * (DEPTH_TO_USE_LOCAL_HASH - DEPTH_TO_SHALLOW_SEARCH + 1);
+	base += (1u << THREAD_LOCAL_HASH_SIZE) * (DEPTH_TO_USE_LOCAL_HASH - DEPTH_TO_SHALLOW_SEARCH);
 #if ENDGAME_HASH56
 	search->thread_hash56.hash = base;
 	search->thread_hash56.hash_mask = (1u << THREAD_LOCAL_HASH56_SIZE) - 1;
