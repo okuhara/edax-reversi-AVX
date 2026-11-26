@@ -1374,10 +1374,18 @@ bool search_SC_PVS(Search *search, int *alpha, int *beta, int *score)
 }
 #endif
 
-// Improvement of Serch by Reducing Redundant Information in a Position of Othello
-// Hidekazu Matsuo, Shuji Narazaki
-// http://id.nii.ac.jp/1001/00156359/
-static int search_solid_NWS(Search *search, int alpha, vBoard *hashboard)
+#ifdef USE_SOLID
+/**
+ * @brief Improvement of Serch by Reducing Redundant Information in a Position of Othello
+ * Hidekazu Matsuo, Shuji Narazaki
+ * http://id.nii.ac.jp/1001/00156359/
+ *
+ * @param search Current position.
+ * @param alpha Alpha bound.
+ * @param hashboard solid normalized board on return.
+ * @return score offset to compensate solid.
+ */
+int search_solid_NWS(Search *search, int alpha, vBoard *hashboard)
 {
 	int	n, ofssolid = 0;
 		// exclude corners from solid to absorb get_full_lines anormalies
@@ -1400,6 +1408,7 @@ static int search_solid_NWS(Search *search, int alpha, vBoard *hashboard)
 		}
 	return ofssolid;
 }
+#endif
 
 /**
  * @brief Stability Cutoff (SC).
@@ -1409,21 +1418,14 @@ static int search_solid_NWS(Search *search, int alpha, vBoard *hashboard)
  * @param score Score to return in case of a cutoff is found.
  * @return 'true' if a cutoff is found, false otherwise.
  */
-bool search_SC_NWS(Search *search, const int alpha, int *score, vBoard *hashboard, int *ofssolid)
+bool search_SC_NWS(Search *search, const int alpha, int *score)
 {
-	if (USE_SC && alpha >= NWS_STABILITY_THRESHOLD[search->eval.n_empties]) {
-		CUTOFF_STATS(++statistics.n_stability_try;)
-		get_full_lines_on_demand(&search->eval.full_lines, search->board.opponent | search->board.player);
-		*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player, &search->eval.full_lines);
-		if (*score <= alpha) {
-			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
-			return true;
-		}
-
-#ifdef USE_SOLID
-		if (ofssolid != NULL)
-			*ofssolid = search_solid_NWS(search, alpha, hashboard);
-#endif
+	CUTOFF_STATS(++statistics.n_stability_try;)
+	get_full_lines_on_demand(&search->eval.full_lines, search->board.opponent | search->board.player);
+	*score = SCORE_MAX - 2 * get_stability(search->board.opponent, search->board.player, &search->eval.full_lines);
+	if (*score <= alpha) {
+		CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
+		return true;
 	}
 	return false;
 }
@@ -1437,21 +1439,16 @@ bool search_SC_NWS(Search *search, const int alpha, int *score, vBoard *hashboar
  * @param score Score to return in case of a cutoff is found.
  * @return 'true' if a cutoff is found, false otherwise.
  */
-bool search_SC_NWS_4(Search *search, const int alpha, const int pos, int *score, vBoard *hashboard, int *ofssolid)
+bool search_SC_NWS_4(Search *search, const int alpha, const int pos, int *score)
 {
-	if (USE_SC && alpha < -NWS_STABILITY_THRESHOLD[4]) {
-		CUTOFF_STATS(++statistics.n_stability_try;)
-		update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, pos);
-		*score = 2 * get_stability(search->board.opponent, search->board.player, &search->eval.full_lines) - SCORE_MAX;
-		if (*score > alpha) {
-			CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
-			return true;
-		}
-
-#if defined(USE_SOLID) && ENDGAME_HASH4
-		if (ofssolid != NULL)
-			*ofssolid = search_solid_NWS(search, alpha, hashboard);
-#endif
+	CUTOFF_STATS(++statistics.n_stability_try;)
+  #ifndef USE_INCREMENTAL_FULL_LINES
+	update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, pos);
+  #endif
+	*score = 2 * get_stability(search->board.opponent, search->board.player, &search->eval.full_lines) - SCORE_MAX;
+	if (*score > alpha) {
+		CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
+		return true;
 	}
 	return false;
 }

@@ -423,7 +423,7 @@ static int NWS_shallow(Search *search, const int alpha, int depth, HashTable *ha
 	hash_prefetch(hash_table, hash_code);
 
 	// stability cutoff
-	if (search_SC_NWS(search, alpha, &score, NULL, NULL)) return score;
+	if (search_SC_NWS(search, alpha, &score)) return score;
 
 	// list of moves
 	search_get_movelist(search, &movelist);
@@ -639,7 +639,7 @@ int NWS_midgame(Search *search, const int alpha, int depth, Node *parent)
 	SEARCH_UPDATE_INTERNAL_NODES(search->n_nodes);
 
 	// stability cutoff
-	if (search_SC_NWS(search, alpha, &score, NULL, NULL)) return score;
+	if (search_SC_NWS(search, alpha, &score)) return score;
 
 	// transposition prefetch
 	hash_code = board_get_hash_code(&search->board);
