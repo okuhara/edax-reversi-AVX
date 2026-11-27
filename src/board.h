@@ -26,12 +26,12 @@ typedef struct Board {
 
 // MSVC can allocate vBoard var to SSE reg
 typedef union {
+	Board	bb;
   #ifdef hasSSE2
 	__m128i	v2;
   #elif defined(__ARM_NEON)
 	uint64x2_t	v2;
   #endif
-	Board	bb;
 } vBoard;
 
 struct Move;

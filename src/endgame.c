@@ -417,9 +417,9 @@ static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1)
 	unsigned long long moves, prioritymoves, oddmoves;
 	int x, prev, score, bestscore;
 	// const int beta = alpha + 1;
-	Hash *hash_entry56, *hash_entry4;
-	vBoard board0, hashboard, hashboard4;
-	int ofssolid = 0, ofssolid4 = 0;
+	Hash *hash_entry56;
+	vBoard board0, hashboard;
+	int ofssolid = 0;
 	unsigned int parity0;
 	V4DI full0;
 
@@ -460,7 +460,7 @@ static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1)
 	parity0 = search->eval.parity;
 	prioritymoves = oddmoves = moves & quadrant_mask[parity0];
 #if ENDGAME_LONE_FIRST
-	// a quadrant's only empty first, then the other odd quadrants, then the even ones (idea from KUROOBI (MIT))
+	// a quadrant's lone empty first, then the other odd quadrants, then the even ones (idea from KUROOBI (MIT))
 	prioritymoves &= lone_empties(board0);
 	if (prioritymoves == 0) prioritymoves = oddmoves;
 #endif
@@ -483,14 +483,15 @@ static int NWS_shallow_endgame(Search *search, const int alpha, bool pass1)
 				prioritymoves &= ~x_to_bit(x);
 				search->empties[prev].next = search->empties[x].next;	// remove - maintain single link only
 				vboard_next(board0, x, &search->board);
-				incremental_update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, pos);
 				if (!(use_sc4 && search_SC_NWS_4(search, alpha, x, &score))) {
 #if ENDGAME_HASH4
-					hashboard4.bb = search->board;
+					vBoard hashboard4 = { search->board };
   #ifdef USE_SOLID
-					ofssolid4 = search_solid_NWS(search, alpha, &hashboard4);
+					int ofssolid4 = search_solid_NWS(search, alpha, &hashboard4);
+  #else
+					const int ofssolid4 = 0;
   #endif
-					hash_entry4 = search->thread_hash4.hash + (board_get_hash_code(&hashboard4.bb) & search->thread_hash4.hash_mask);
+					Hash *hash_entry4 = search->thread_hash4.hash + (board_get_hash_code(&hashboard4.bb) & search->thread_hash4.hash_mask);
 					if (!(vhash_get_or_reset_local(hash_entry4, hashboard4) && search_TC_NWS_local(&hash_entry4->data, alpha, ofssolid4, &score)))
 						score = search_solve_4(search, alpha);
 					hash_store_shallow(hash_entry4, alpha - ofssolid4, score - ofssolid4);

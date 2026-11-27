@@ -1404,9 +1404,7 @@ bool search_SC_NWS(Search *search, const int alpha, int *score)
 bool search_SC_NWS_4(Search *search, const int alpha, const int pos, int *score)
 {
 	CUTOFF_STATS(++statistics.n_stability_try;)
-  #ifndef USE_INCREMENTAL_FULL_LINES
 	update_full_lines(&search->eval.full_lines, search->board.player | search->board.opponent, pos);
-  #endif
 	*score = 2 * get_stability(search->board.opponent, search->board.player, &search->eval.full_lines) - SCORE_MAX;
 	if (*score > alpha) {
 		CUTOFF_STATS(++statistics.n_stability_low_cutoff;)
