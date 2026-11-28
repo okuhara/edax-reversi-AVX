@@ -40,12 +40,14 @@ static int accumlate_eval(int ply, Eval *eval)
 	int b0, sum;
 
 	b0 = ply & 1;	// even/odd ply interleaved for aligned VPGATHERDD access (4.5.5)
-	ply -= 2;
+	ply >>= 1;
+#ifdef EVAL_WEIGHT_REDUCTION
+	ply -= EVAL_2PLY_MIN;
 	if (ply < 0)
 		ply = 0;
-	ply >>= 1;
-	if (ply >= EVAL_N_2PLY - 1)
-		ply = EVAL_N_2PLY - 2;
+	if (ply >= EVAL_N_2PLY - EVAL_2PLY_MIN)
+		ply = EVAL_N_2PLY - EVAL_2PLY_MIN - 1;
+#endif
 
 #if defined(__AVX2__) && !defined(__bdver4__) && !defined(__znver1__) && !defined(__znver2__)
 	static const unsigned long long shift_even[2] = { 16, 0 };

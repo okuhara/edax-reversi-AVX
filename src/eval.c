@@ -479,7 +479,7 @@ static int EVAL_LOADED = 0;
 static char *EVAL_FILE = NULL;
 
 /** eval weights */
-Eval_weight (*EVAL_WEIGHT)[EVAL_N_2PLY - 1];	// for 2..53
+Eval_weight (*EVAL_WEIGHT)[EVAL_N_2PLY - EVAL_2PLY_MIN];	// for 2..53
 
 /** opponent feature */
 static unsigned short *OPPONENT_FEATURE;
@@ -637,12 +637,12 @@ void eval_open(const char* file)
 	free(T);
 
 	// allocation
-	EVAL_WEIGHT = (Eval_weight(*)[EVAL_N_2PLY - 1]) malloc(sizeof(*EVAL_WEIGHT));
+	EVAL_WEIGHT = (Eval_weight(*)[EVAL_N_2PLY - EVAL_2PLY_MIN]) malloc(sizeof(*EVAL_WEIGHT));
 	if (EVAL_WEIGHT == NULL) fatal_error("Cannot allocate evaluation weights.\n");
 
 	// data reading
 	w = (short*) malloc(n_w * sizeof (*w)); // a temporary to read packed weights
-	if (w == NULL) fatal_error("Cannot allocate evaluation packed weights.\n");
+	if (w == NULL) fatal_error("Cannot allocate temporary table variable.\n");
 	f = fopen(file, "rb");
 	if (f == NULL) {
 		fprintf(stderr, "Cannot open %s", file);
@@ -667,11 +667,11 @@ void eval_open(const char* file)
 	for (ply = 0; ply < EVAL_N_2PLY * 2; ply++) {
 		r = fread(w, sizeof (short), n_w, f);
 		if (r != n_w) fatal_error("Cannot read evaluation weight from %s\n", file);
-		if (ply < 2) continue;	// skip ply 1 & 2
+		if (ply < EVAL_2PLY_MIN * 2) continue;	// skip ply 0 & 1 on EVAL_WEIGHT_REDUCTION
 
 		if (edax_header == XADE) for (i = 0; i < n_w; ++i) w[i] = bswap_short(w[i]);
 
-		pe = (Eval_weight *)((*EVAL_WEIGHT)[(ply - 2) >> 1].S0 + (ply & 1));
+		pe = (Eval_weight *)((*EVAL_WEIGHT)[(ply >> 1) - EVAL_2PLY_MIN].S0 + (ply & 1));
 		pp = *P + (ply & 1);
 		for (k = 0; k < 19683; k++) {
 			*(pe->C9[k]) = w[pp->EVAL_C9[k] + EVAL_PACKED_OFS[0]];

@@ -57,9 +57,14 @@ typedef struct Eval_weight {
 } Eval_weight;
 
 /** number of plies */
-enum { EVAL_N_2PLY = 54 / 2 };	// decreased from 60 in 4.5.1
+#define EVAL_WEIGHT_REDUCTION
+#ifdef EVAL_WEIGHT_REDUCTION
+enum { EVAL_N_2PLY = 54 / 2, EVAL_2PLY_MIN = 1 };	// for 2..53, reduce 4.5MB
+#else
+enum { EVAL_N_2PLY = 60 / 2, EVAL_2PLY_MIN = 0 };
+#endif
+extern Eval_weight (*EVAL_WEIGHT)[EVAL_N_2PLY - EVAL_2PLY_MIN];	// interleaved
 
-extern Eval_weight (*EVAL_WEIGHT)[EVAL_N_2PLY - 1];	// for 2..53, interleaved
 
 /* function declaration */
 void eval_open(const char*);
