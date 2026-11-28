@@ -81,14 +81,16 @@ static int accumlate_eval(int ply, Eval *eval)
 	int b0, sum;
 
 	b0 = ply & 1;	// even/odd ply interleaved for aligned VPGATHERDD access (4.5.5)
-	ply -= 2;
+	ply >>= 1;
+#ifdef EVAL_WEIGHT_REDUCTION
+	ply -= EVAL_2PLY_MIN;
 	if (ply < 0)
 		ply = 0;
-	ply >>= 1;
-	if (ply >= EVAL_N_2PLY - 1)
-		ply = EVAL_N_2PLY - 2;
+	if (ply >= EVAL_N_2PLY - EVAL_2PLY_MIN)
+		ply = EVAL_N_2PLY - EVAL_2PLY_MIN - 1;
+#endif
 
-#ifdef EVAL_GATHER512
+#if 0 && defined(EVAL_GATHER512)
 	// 46 features in 3 x 16-lane gathers (the last 2 lanes unused); integer sums, so the same value as below.
 	enum {
 		W_C9 = offsetof(Eval_weight, C9) / 4,
@@ -117,7 +119,7 @@ static int accumlate_eval(int ply, Eval *eval)
 	w = (Eval_weight *)(w->S0 + b0);
 	return sum + *(w->S0);
 
-#elif defined(__AVX2__) && !defined(__bdver4__) && !defined(__znver1__) && !defined(__znver2__)
+#elif 0 && defined(__AVX2__) && !defined(__bdver4__) && !defined(__znver1__) && !defined(__znver2__)
 	enum {
 		W_C9 = offsetof(Eval_weight, C9) / 4,
 		W_C10 = offsetof(Eval_weight, C10) / 4,
