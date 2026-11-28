@@ -90,7 +90,7 @@ static int accumlate_eval(int ply, Eval *eval)
 		ply = EVAL_N_2PLY - EVAL_2PLY_MIN - 1;
 #endif
 
-#if 0 && defined(EVAL_GATHER512)
+#if defined(USE_GATHER) && defined(EVAL_GATHER512)
 	// 46 features in 3 x 16-lane gathers (the last 2 lanes unused); integer sums, so the same value as below.
 	enum {
 		W_C9 = offsetof(Eval_weight, C9) / 4,
@@ -119,7 +119,7 @@ static int accumlate_eval(int ply, Eval *eval)
 	w = (Eval_weight *)(w->S0 + b0);
 	return sum + *(w->S0);
 
-#elif 0 && defined(__AVX2__) && !defined(__bdver4__) && !defined(__znver1__) && !defined(__znver2__)
+#elif defined(USE_GATHER) && defined(__AVX2__) && !defined(__bdver4__) && !defined(__znver1__) && !defined(__znver2__)
 	enum {
 		W_C9 = offsetof(Eval_weight, C9) / 4,
 		W_C10 = offsetof(Eval_weight, C10) / 4,
